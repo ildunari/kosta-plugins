@@ -1,0 +1,38 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "kosta-plugins",
+  "owner": {
+    "name": "Kosta Milov",
+    "email": "kostamilov@proton.me"
+  },
+  "metadata": {
+    "description": "Kosta's Claude Code plugin marketplace — design tools, research agents, and productivity plugins.",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "stitch-studio",
+      "source": {
+        "source": "github",
+        "repo": "ildunari/stitch-studio"
+      },
+      "description": "Google Stitch integration — AI-powered UI design generation, token extraction, and SwiftUI/React conversion.",
+      "version": "1.0.0",
+      "license": "Apache-2.0",
+      "category": "development",
+      "tags": ["design", "ui", "ios", "swiftui"]
+    },
+    {
+      "name": "subagent-forge",
+      "source": {
+        "source": "github",
+        "repo": "ildunari/subagent-forge"
+      },
+      "description": "Research-first subagent orchestration — product scouting, forum sentiment, GitHub audits, academic discovery, QA critique.",
+      "version": "1.0.0",
+      "license": "MIT",
+      "category": "development",
+      "tags": ["research", "subagents", "verification"]
+    }
+  ]
+}
