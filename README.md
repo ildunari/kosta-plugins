@@ -13,6 +13,7 @@ claude plugin marketplace add ildunari/kosta-plugins
 
 | Plugin | Description | Install |
 |--------|-------------|---------|
+| **ios-craft** | Complete iOS development companion — 15 skills, 6 agents, 12 commands covering the full lifecycle from project setup to App Store. Built for beginners. | `claude plugin install ios-craft` |
 | **stitch-studio** | Google Stitch integration — UI design generation, token extraction, SwiftUI/React conversion | `claude plugin install stitch-studio` |
 | **subagent-forge** | Research-first subagent orchestration — product scouting, GitHub audits, QA critique | `claude plugin install subagent-forge` |
 

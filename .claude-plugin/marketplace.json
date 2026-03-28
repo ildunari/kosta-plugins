@@ -1,5 +1,4 @@
 {
-  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "kosta-plugins",
   "owner": {
     "name": "Kosta Milov",
@@ -33,6 +32,15 @@
       "license": "MIT",
       "category": "development",
       "tags": ["research", "subagents", "verification"]
+    },
+    {
+      "name": "ios-craft",
+      "source": "./plugins/ios-craft",
+      "description": "Complete iOS development companion — guided workflows for project setup, SwiftUI, networking, testing, Metal, design systems, accessibility, CI/CD, and App Store submission. 15 skills, 6 agents, 12 commands. Built for beginners who vibe code.",
+      "version": "1.0.0",
+      "license": "MIT",
+      "category": "development",
+      "tags": ["ios", "swift", "swiftui", "xcode", "mobile", "metal", "testing", "cicd", "appstore"]
     }
   ]
 }
