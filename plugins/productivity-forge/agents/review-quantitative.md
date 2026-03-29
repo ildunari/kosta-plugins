@@ -48,3 +48,26 @@ Return findings in this exact format:
 ### Summary
 - Total findings: X (P0: _, P1: _, P2: _, P3: _)
 - Dimension verdict: pass | needs-revision | critical-issues
+
+## Calibration Examples
+
+Use these examples to anchor your severity judgments. Each shows a realistic finding at the correct severity level for this dimension.
+
+### P0 — Derived calculation is mathematically wrong
+> **Quote:** "Treatment group showed a 3.2-fold increase relative to control (control mean: 12.4 pg/mL, treatment mean: 28.5 pg/mL)."
+> **Verification:** 28.5 / 12.4 = 2.30, not 3.2.
+> **Why P0:** The fold-change is off by 39%. This is not a rounding issue — the calculation is simply wrong. A 2.3-fold increase and a 3.2-fold increase have very different biological implications. Must be corrected before finalization.
+
+### P1 — Statistical test inappropriate for the data distribution
+> **Quote:** "Groups were compared using Student's t-test (Table 2, p = 0.03)."
+> **Context:** The Methods section states n = 8 per group. The Results section notes "data were right-skewed with two outliers excluded from visualization but retained in analysis."
+> **Why P1:** A t-test assumes approximately normal distributions. With n = 8 and acknowledged skewness, a non-parametric test (Mann-Whitney U) would be more appropriate. The p-value is close to the significance threshold, so the choice of test could change the conclusion. Should either justify the parametric test (e.g., via normality testing) or switch to a non-parametric alternative.
+
+### P2 — Inconsistent significant figures across similar measurements
+> **Quote (Table 1):** "Serum glucose: 5.2 mmol/L"
+> **Quote (Table 1, same column):** "Serum cholesterol: 4.87 mmol/L"
+> **Why P2:** Both are serum measurements in the same table with the same units, but glucose is reported to 2 significant figures while cholesterol is reported to 3. The measurement precision is likely similar for both assays. Should standardize to the same number of decimal places within the column.
+
+### P3 — Could report confidence intervals instead of just p-values
+> **Quote:** "The difference between groups was statistically significant (p = 0.02)."
+> **Why P3:** The p-value alone tells us the result is unlikely under the null hypothesis, but not the magnitude or precision of the effect. Reporting the mean difference with a 95% confidence interval (e.g., "mean difference: 4.2 units, 95% CI [0.7, 7.7], p = 0.02") would be more informative. This is a best-practice recommendation, not an error.

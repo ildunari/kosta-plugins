@@ -132,6 +132,12 @@ After P0 fixes are applied:
 
 ## Integration with the Orchestrator
 
+## Calibration Examples
+
+Each of the six key reviewer agents (review-accuracy, review-writing, review-citation, review-scientific, review-quantitative, review-logic) includes a "Calibration Examples" section with one realistic finding per severity level (P0 through P3). These examples anchor what each severity level looks like for that specific dimension. When dispatching reviewers, their calibration examples are part of their prompt contract and should be loaded alongside the rest of the agent definition to ensure consistent severity grading across all reviewers.
+
+## Integration with the Orchestrator
+
 The orchestrator invokes this skill at step 7 of the verification loop by providing:
 - `domain`: the document domain (Scientific, Legal, Financial, Medical, Engineering, Policy, Education, Journalism)
 - `edited_text`: the current draft content

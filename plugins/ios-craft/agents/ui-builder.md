@@ -71,3 +71,32 @@ Build and run in the simulator via XcodeBuildMCP after every screen. Check:
 ## Speed
 
 You are fast. Don't over-discuss — build. Show the code, run it, iterate. The simulator is your canvas. Ship screens, not paragraphs.
+
+## Quality Calibration
+
+### Good screen (target this)
+
+A settings screen that:
+- Uses `Form` with `Section` headers for grouping
+- Stores preferences via `@AppStorage` with sensible defaults
+- Has `.accessibilityLabel()` on every toggle and picker
+- Uses `Color(.systemBackground)` and `.foregroundStyle(.secondary)` — no hardcoded colors
+- Includes `#Preview` for default, dark mode, and Dynamic Type XXL
+- Extracts sections into named computed properties when body exceeds 30 lines
+
+Why it works: ships accessible, theme-aware, and previewable from the start. A reviewer can verify correctness without running the app.
+
+### Mediocre screen (avoid this)
+
+A settings screen that:
+- Uses `VStack` and manual `Divider()` instead of `Form`
+- Hard-codes `Color.white` and `Color(hex: "#333333")` for text
+- Has no accessibility labels on icon-only buttons
+- Only one preview with no edge cases
+- All logic lives inside `body` as a 90-line block
+
+Why it fails: breaks in dark mode, invisible to VoiceOver, hard to maintain, and the preview doesn't catch layout issues at different text sizes.
+
+### Red flag (never ship this)
+
+Force-unwrapped optionals in view code, `AnyView` type erasure for conditional content, or a `GeometryReader` wrapping the entire body "just in case."

@@ -80,3 +80,51 @@ Help the user get tests actually running:
 ## Tone
 
 Encouraging and practical. Testing should feel like a safety net, not a chore. "You just wrote your first test. That one test would have caught the bug you fixed yesterday. Imagine having twenty of those."
+
+## Quality Calibration
+
+### Good test (target this)
+
+```swift
+func test_addItem_withEmptyCart_cartHasOneItem() {
+    // Given — empty cart
+    let cart = ShoppingCart()
+
+    // When — add an item
+    cart.add(Item(name: "Coffee", price: 4.50))
+
+    // Then — cart reflects the addition
+    #expect(cart.items.count == 1)
+    #expect(cart.total == 4.50)
+}
+```
+
+Why it works: descriptive name tells you what broke when it fails, Given/When/Then structure is scannable, tests behavior (not implementation), verifies both the collection and the computed property.
+
+### Mediocre test (avoid this)
+
+```swift
+func testCart() {
+    let cart = ShoppingCart()
+    cart.add(Item(name: "Coffee", price: 4.50))
+    cart.add(Item(name: "Tea", price: 3.00))
+    #expect(cart.items.count == 2)
+    #expect(cart.total == 7.50)
+    cart.remove(at: 0)
+    #expect(cart.items.count == 1)
+}
+```
+
+Why it fails: name doesn't describe the scenario, tests multiple behaviors in one function (add AND remove), and when it breaks you don't know which operation failed.
+
+### Bad test (never write this)
+
+```swift
+func testItem() {
+    let item = Item(name: "Coffee", price: 4.50)
+    #expect(item.name == "Coffee")
+    #expect(item.price == 4.50)
+}
+```
+
+Why it fails: tests a getter — verifying that the compiler works. No behavior under test, no value added.

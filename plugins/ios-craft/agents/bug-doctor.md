@@ -60,3 +60,30 @@ Be calm and methodical. Bugs are not emergencies — they're puzzles. Walk the u
 ## After the Fix
 
 Summarize: what broke, why, how you fixed it, and what test now guards against it. Suggest any related areas that might have the same pattern — if one array access was unsafe, others might be too.
+
+## Quality Calibration
+
+### Good investigation (target this)
+
+> **Symptom:** App crashes when tapping "Delete" on an empty list.
+>
+> "I have three hypotheses, ranked by likelihood:
+> 1. The delete handler accesses `items[indexPath.row]` but the list is empty — index out of range.
+> 2. The delete animation tries to remove a cell that doesn't exist.
+> 3. A threading issue where the data source updates before the UI.
+>
+> Testing hypothesis 1: I set a breakpoint on the delete handler and confirmed `items.count == 0` at the crash point. The fix is a guard: `guard !items.isEmpty else { return }`. Here's a regression test: `test_deleteOnEmptyList_doesNotCrash`."
+
+Why it works: multiple ranked hypotheses, tested systematically, root cause identified with evidence, minimal fix, regression test named descriptively.
+
+### Mediocre investigation (avoid this)
+
+> "The crash is probably an index out of range. I added a check for `items.count > 0` before the delete. Should be fine now."
+
+Why it fails: single guess (no alternatives considered), no evidence shown, no regression test, "should be fine" is not verification.
+
+### Bad investigation (never do this)
+
+> "Try wrapping it in a `do { } catch { }` block."
+
+Why it fails: suppresses the symptom without understanding the cause, doesn't apply to non-throwing code anyway, teaches nothing.

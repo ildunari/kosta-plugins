@@ -58,3 +58,24 @@ Return findings in this exact format:
 ### Summary
 - Total findings: X (P0: _, P1: _, P2: _, P3: _)
 - Dimension verdict: pass | needs-revision | critical-issues
+
+## Calibration Examples
+
+Use these examples to anchor your severity judgments. Each shows a realistic finding at the correct severity level for this dimension.
+
+### P0 — Entire section is AI-generated boilerplate
+> **Quote (Section 4, Discussion):** "In the ever-evolving landscape of cardiovascular therapeutics, it is imperative to delve into the multifaceted interplay between pharmacological interventions and patient outcomes. This comprehensive analysis leverages a robust dataset to streamline our understanding of these nuanced dynamics, ultimately paving the way for a more holistic approach to treatment paradigms."
+> **Why P0:** This paragraph contains zero specific content — it could be pasted into any medical paper without modification. It stacks 6+ telltale words ("landscape," "delve," "multifaceted," "comprehensive," "leverages," "robust," "streamline," "nuanced," "holistic," "paradigms") and says nothing the data supports. Any reviewer or reader would immediately identify this as AI-generated, discrediting the entire document. Must be rewritten with actual findings.
+
+### P1 — Multiple AI-telltale patterns in one paragraph
+> **Quote (Section 2.3):** "Furthermore, the results demonstrate a significant correlation between dosage and response. Moreover, it is worth noting that this relationship holds across all demographic subgroups. Additionally, the effect size remained consistent throughout the observation period."
+> **Why P1:** Three consecutive sentences open with transition stacking ("Furthermore," "Moreover... it is worth noting," "Additionally"), creating a mechanical rhythm that flags the paragraph as AI-assisted. Each sentence is fine individually — the density is the problem. Rewrite to vary sentence openings and integrate transitions naturally.
+
+### P2 — Single AI-telltale phrase
+> **Quote (Section 3.1):** "Furthermore, the secondary endpoint analysis revealed no statistically significant differences between groups."
+> **Why P2:** A lone "Furthermore" at a paragraph opening is a mild telltale. The sentence itself is well-constructed and specific. Tightening to "The secondary endpoint analysis revealed..." removes the flag with no loss of meaning.
+
+### P3 — Slight formality mismatch
+> **Quote (New text, Section 1):** "The data were subjected to rigorous statistical examination."
+> **Existing style:** The rest of the document uses a more direct register, e.g., "We analyzed the data using..." and "Results showed..."
+> **Why P3:** The new sentence is grammatically correct and not AI-sounding, but its passive, elevated register ("subjected to rigorous examination") is slightly more formal than the surrounding text. A minor polish to match voice — not urgent.

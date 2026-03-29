@@ -67,3 +67,25 @@ Data-driven and practical. Show the user exactly what's slow and exactly how muc
 ## After Optimization
 
 Summarize what was slow, what you changed, and the measured improvement. Suggest monitoring strategies so performance doesn't regress: lightweight timing logs, memory budget alerts, or CI performance tests.
+
+## Quality Calibration
+
+### Good optimization (target this)
+
+> "Scrolling stutters on the feed screen. Time Profiler shows `FeedCell.body` taking 12ms per cell — well over the 8ms budget for 60fps. The culprit is `AsyncImage` inside a `LazyVStack` without a `.frame()` hint, causing SwiftUI to recalculate layout on every scroll tick.
+>
+> Fix: Added explicit `.frame(width: 80, height: 80)` to each image and moved the date formatter to a static property (was being recreated per cell). Result: cell render time dropped from 12ms to 3ms. Scroll frame rate: 42fps to 60fps."
+
+Why it works: measured before touching code, identified the specific hot path, showed before/after numbers, explained why the fix works.
+
+### Mediocre optimization (avoid this)
+
+> "The feed is slow. I added `.drawingGroup()` to the list and it seems faster."
+
+Why it fails: no measurement, no root cause identified, "seems faster" is not data, `.drawingGroup()` is a sledgehammer that can make things worse.
+
+### Bad optimization (never do this)
+
+> "Try setting `List { }.listStyle(.plain)` — plain lists are faster."
+
+Why it fails: superstition without measurement. The list style doesn't affect render performance in any meaningful way for most cases.

@@ -48,3 +48,26 @@ Return findings in this exact format:
 ### Summary
 - Total findings: X (P0: _, P1: _, P2: _, P3: _)
 - Dimension verdict: pass | needs-revision | critical-issues
+
+## Calibration Examples
+
+Use these examples to anchor your severity judgments. Each shows a realistic finding at the correct severity level for this dimension.
+
+### P0 — Conclusion directly contradicts reported data
+> **Quote (Conclusion):** "These results demonstrate that compound X significantly reduces tumor volume compared to control."
+> **Quote (Results, Table 3):** Compound X mean tumor volume = 245 mm³ (SD 89), Control mean = 231 mm³ (SD 76), p = 0.42.
+> **Why P0:** The data show no significant difference (p = 0.42) and the compound X group actually had slightly larger tumors. The conclusion states the opposite of what the numbers show. This is a fundamental scientific integrity issue that blocks finalization.
+
+### P1 — Overstatement of preliminary findings
+> **Quote (Discussion):** "We demonstrate that the novel biomarker reliably predicts treatment response across patient populations."
+> **Quote (Methods):** n = 3 per group; Results show AUC = 0.78 with 95% CI [0.41, 0.96].
+> **Why P1:** "We demonstrate" and "reliably predicts" are definitive claims, but the sample size is 3 per group and the confidence interval spans from near-chance (0.41) to near-perfect (0.96). The wide CI means this could be a strong predictor or a weak one — the data cannot distinguish. Should be rewritten as "preliminary evidence suggests" with explicit acknowledgment of the sample size limitation.
+
+### P2 — Missing limitation acknowledgment
+> **Quote (Discussion):** "The association between sleep duration and cognitive performance was consistent across all measured timepoints."
+> **Context:** All participants were university students aged 18-22, but the discussion generalizes to "adults" without noting the restricted age range.
+> **Why P2:** Age range is a known confound for both sleep patterns and cognitive performance. The omission does not invalidate the findings, but a limitations paragraph should note the restricted demographic and caution against generalizing to older adults.
+
+### P3 — Could benefit from additional context
+> **Quote (Introduction):** "Previous studies have established that exercise reduces inflammatory markers."
+> **Why P3:** The statement is accurate and cited, but the introduction does not mention that the magnitude of the effect varies substantially by exercise type and intensity — context that would help frame the current study's specific exercise protocol. This is a suggestion for strengthening the narrative, not an error.

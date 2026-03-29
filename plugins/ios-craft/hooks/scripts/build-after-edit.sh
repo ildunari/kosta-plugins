@@ -1,6 +1,17 @@
 #!/usr/bin/env bash
 # PostToolUse: trigger incremental build after Swift file edits
 # Batches builds — only triggers every 3rd Swift edit to avoid excessive builds
+#
+# ASSUMPTION TO TEST (Harness Principle #5):
+# This hook runs a full `xcodebuild build` every 3rd Swift edit. The assumption is
+# that catching compile errors mid-session (before the user's next intentional build)
+# saves time. But if the user always builds manually after a batch of edits, this hook
+# adds ~10-30s of latency for no benefit. Stress-test this:
+#   - If errors caught by this hook are almost always also caught by the next manual
+#     build, increase the interval to every 5th edit or remove the hook entirely.
+#   - If this hook regularly catches errors that would have compounded (e.g., a typo
+#     in file A that breaks files B and C edited afterward), keep or tighten the interval.
+# Track results in the skill FEEDBACK.md files.
 set -euo pipefail
 
 INPUT="${1:-}"
