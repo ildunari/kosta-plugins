@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Kosta's Claude Code plugin marketplace — design tools, research agents, and productivity plugins.",
-    "version": "1.0.0"
+    "version": "1.0.1"
   },
   "plugins": [
     {
