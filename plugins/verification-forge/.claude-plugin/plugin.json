@@ -1,0 +1,14 @@
+{
+  "name": "verification-forge",
+  "version": "1.0.0",
+  "description": "Compliance-grade document verification and editing. 9-step agentic loop with Claim Ledger, 13 reviewer agents, integrity gates, and domain-specific verification for grants, legal, financial, medical, and engineering documents.",
+  "author": {
+    "name": "Kosta Milov"
+  },
+  "license": "MIT",
+  "keywords": [
+    "verification", "grants", "compliance", "review", "claims",
+    "scientific", "legal", "financial", "medical", "engineering",
+    "citations", "integrity", "audit"
+  ]
+}
