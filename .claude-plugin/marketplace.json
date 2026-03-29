@@ -43,8 +43,8 @@
       "tags": ["ios", "swift", "swiftui", "xcode", "mobile", "metal", "testing", "cicd", "appstore"]
     },
     {
-      "name": "verification-forge",
-      "source": "./plugins/verification-forge",
+      "name": "productivity-forge",
+      "source": "./plugins/productivity-forge",
       "description": "Compliance-grade document verification and editing. 9-step agentic loop with Claim Ledger, 13 reviewer agents, integrity gates, and 8-domain support. For grants, legal, financial, medical, and engineering documents.",
       "version": "1.0.0",
       "license": "MIT",

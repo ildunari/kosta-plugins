@@ -14,7 +14,7 @@ claude plugin marketplace add ildunari/kosta-plugins
 | Plugin | Description | Install |
 |--------|-------------|---------|
 | **ios-craft** | Complete iOS development companion — 15 skills, 6 agents, 12 commands covering the full lifecycle from project setup to App Store. Built for beginners. | `claude plugin install ios-craft` |
-| **verification-forge** | Compliance-grade document verification — 9-step agentic loop, Claim Ledger, 13 reviewer agents, 8 domain support. For grants, legal, financial, medical docs. | `claude plugin install verification-forge` |
+| **productivity-forge** | Compliance-grade document verification — 9-step agentic loop, Claim Ledger, 13 reviewer agents, 8 domain support. For grants, legal, financial, medical docs. | `claude plugin install productivity-forge` |
 | **stitch-studio** | Google Stitch integration — UI design generation, token extraction, SwiftUI/React conversion | `claude plugin install stitch-studio` |
 | **subagent-forge** | Research-first subagent orchestration — product scouting, GitHub audits, QA critique | `claude plugin install subagent-forge` |
 
