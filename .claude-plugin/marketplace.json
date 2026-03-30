@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Kosta's Claude Code plugin marketplace — design tools, research agents, and productivity plugins.",
-    "version": "1.0.1"
+    "version": "1.0.2"
   },
   "plugins": [
     {
@@ -50,6 +50,15 @@
       "license": "MIT",
       "category": "productivity",
       "tags": ["verification", "grants", "compliance", "review", "claims", "scientific", "legal", "financial"]
+    },
+    {
+      "name": "coding-forge",
+      "source": "./plugins/coding-forge",
+      "description": "Phased build orchestration with sub-agents for research, TDD, implementation, and dual code review — gated per phase. Master orchestrator plans phases, dispatches specialist agents, and enforces build/test/review gates before each commit.",
+      "version": "0.1.0",
+      "license": "MIT",
+      "category": "development",
+      "tags": ["orchestration", "tdd", "build-loop", "code-review", "agents", "phased-development"]
     }
   ]
 }

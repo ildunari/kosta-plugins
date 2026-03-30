@@ -1,0 +1,9 @@
+{
+  "name": "coding-forge",
+  "version": "0.1.0",
+  "description": "Phased build orchestration with sub-agents for research, TDD, implementation, and dual code review — gated per phase",
+  "author": {
+    "name": "Kosta"
+  },
+  "skills": "./skills/"
+}
