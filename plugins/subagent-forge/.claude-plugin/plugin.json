@@ -1,0 +1,12 @@
+{
+  "name": "subagent-forge",
+  "version": "1.0.0",
+  "description": "Research-first plugin for orchestrating subagents: product scouting, forum sentiment, GitHub audits, academic discovery, repo mapping, freshness checks, QA critique, and source verification.",
+  "author": {
+    "name": "Kosta"
+  },
+  "license": "MIT",
+  "keywords": ["research", "subagents", "verification", "github", "academia", "qa"],
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json"
+}

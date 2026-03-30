@@ -1,0 +1,31 @@
+{
+  "name": "stitch-studio",
+  "owner": {
+    "name": "Kosta Milov",
+    "email": "kostamilov@proton.me"
+  },
+  "metadata": {
+    "description": "Complete Google Stitch integration — design generation, token extraction, SwiftUI/React conversion, multi-screen flows, and brand kit setup.",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "stitch-studio",
+      "description": "Full Stitch Studio plugin — all 6 skills, 3 agents, hooks, and MCP config.",
+      "source": "./",
+      "strict": true,
+      "version": "1.0.0",
+      "license": "Apache-2.0",
+      "category": "development",
+      "tags": ["design", "ui", "ios", "swiftui", "prototyping"],
+      "skills": [
+        "./skills/stitch-studio",
+        "./skills/stitch-generate",
+        "./skills/stitch-tokens",
+        "./skills/stitch-convert",
+        "./skills/stitch-flow",
+        "./skills/stitch-brand"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "name": "stitch-studio",
+  "version": "1.0.0",
+  "description": "Google Stitch integration for Claude Code — AI-powered UI design generation, design token extraction, and framework conversion (SwiftUI, React, CSS). Bridges Stitch's visual design output with production code.",
+  "author": {
+    "name": "Kosta Milov",
+    "url": "https://github.com/kostamilov"
+  },
+  "homepage": "https://github.com/kostamilov/stitch-studio",
+  "repository": "https://github.com/kostamilov/stitch-studio",
+  "license": "Apache-2.0",
+  "keywords": [
+    "stitch",
+    "google-stitch",
+    "ui-design",
+    "swiftui",
+    "design-tokens",
+    "design-system",
+    "prototyping",
+    "ios",
+    "tailwind",
+    "conversion"
+  ],
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json",
+  "mcpServers": "./.mcp.json"
+}

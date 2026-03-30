@@ -6,15 +6,12 @@
   },
   "metadata": {
     "description": "Kosta's Claude Code plugin marketplace — design tools, research agents, and productivity plugins.",
-    "version": "1.0.2"
+    "version": "1.0.3"
   },
   "plugins": [
     {
       "name": "stitch-studio",
-      "source": {
-        "source": "github",
-        "repo": "ildunari/stitch-studio"
-      },
+      "source": "./plugins/stitch-studio",
       "description": "Google Stitch integration — AI-powered UI design generation, token extraction, and SwiftUI/React conversion.",
       "version": "1.0.0",
       "license": "Apache-2.0",
@@ -23,10 +20,7 @@
     },
     {
       "name": "subagent-forge",
-      "source": {
-        "source": "github",
-        "repo": "ildunari/subagent-forge"
-      },
+      "source": "./plugins/subagent-forge",
       "description": "Research-first subagent orchestration — product scouting, forum sentiment, GitHub audits, academic discovery, QA critique.",
       "version": "1.0.0",
       "license": "MIT",
