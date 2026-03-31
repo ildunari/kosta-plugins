@@ -4,6 +4,5 @@
   "description": "Phased build orchestration with sub-agents for research, TDD, implementation, and dual code review — gated per phase",
   "author": {
     "name": "Kosta"
-  },
-  "skills": "./skills/"
+  }
 }

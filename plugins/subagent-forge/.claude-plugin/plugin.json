@@ -6,7 +6,5 @@
     "name": "Kosta"
   },
   "license": "MIT",
-  "keywords": ["research", "subagents", "verification", "github", "academia", "qa"],
-  "skills": "./skills/",
-  "hooks": "./hooks/hooks.json"
+  "keywords": ["research", "subagents", "verification", "github", "academia", "qa"]
 }
