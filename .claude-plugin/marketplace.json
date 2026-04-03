@@ -1,12 +1,11 @@
 {
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "kosta-plugins",
+  "version": "1.0.3",
+  "description": "Kosta's Claude Code plugin marketplace — design tools, research agents, and productivity plugins.",
   "owner": {
     "name": "Kosta Milov",
     "email": "kostamilov@proton.me"
-  },
-  "metadata": {
-    "description": "Kosta's Claude Code plugin marketplace — design tools, research agents, and productivity plugins.",
-    "version": "1.0.3"
   },
   "plugins": [
     {
@@ -14,45 +13,35 @@
       "source": "./plugins/stitch-studio",
       "description": "Google Stitch integration — AI-powered UI design generation, token extraction, and SwiftUI/React conversion.",
       "version": "1.0.0",
-      "license": "Apache-2.0",
-      "category": "development",
-      "tags": ["design", "ui", "ios", "swiftui"]
+      "category": "development"
     },
     {
       "name": "subagent-forge",
       "source": "./plugins/subagent-forge",
       "description": "Research-first subagent orchestration — product scouting, forum sentiment, GitHub audits, academic discovery, QA critique.",
       "version": "1.0.0",
-      "license": "MIT",
-      "category": "development",
-      "tags": ["research", "subagents", "verification"]
+      "category": "development"
     },
     {
       "name": "ios-craft",
       "source": "./plugins/ios-craft",
       "description": "Complete iOS development companion — guided workflows for project setup, SwiftUI, networking, testing, Metal, design systems, accessibility, CI/CD, and App Store submission. 15 skills, 6 agents, 12 commands. Built for beginners who vibe code.",
       "version": "1.0.0",
-      "license": "MIT",
-      "category": "development",
-      "tags": ["ios", "swift", "swiftui", "xcode", "mobile", "metal", "testing", "cicd", "appstore"]
+      "category": "development"
     },
     {
       "name": "productivity-forge",
       "source": "./plugins/productivity-forge",
       "description": "Compliance-grade document verification and editing. 9-step agentic loop with Claim Ledger, 13 reviewer agents, integrity gates, and 8-domain support. For grants, legal, financial, medical, and engineering documents.",
       "version": "1.0.0",
-      "license": "MIT",
-      "category": "productivity",
-      "tags": ["verification", "grants", "compliance", "review", "claims", "scientific", "legal", "financial"]
+      "category": "productivity"
     },
     {
       "name": "coding-forge",
       "source": "./plugins/coding-forge",
       "description": "Phased build orchestration with sub-agents for research, TDD, implementation, and dual code review — gated per phase. Master orchestrator plans phases, dispatches specialist agents, and enforces build/test/review gates before each commit.",
       "version": "0.1.0",
-      "license": "MIT",
-      "category": "development",
-      "tags": ["orchestration", "tdd", "build-loop", "code-review", "agents", "phased-development"]
+      "category": "development"
     }
   ]
 }
