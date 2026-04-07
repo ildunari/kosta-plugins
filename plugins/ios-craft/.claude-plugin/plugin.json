@@ -3,8 +3,10 @@
   "version": "1.0.0",
   "description": "Complete iOS development companion for Claude Code. Guided workflows for project setup, SwiftUI, networking, testing, Metal, design systems, accessibility, CI/CD, and App Store submission. Built for beginners who want expert-quality results.",
   "author": {
-    "name": "Kosta"
+    "name": "Kosta Milov",
+    "email": "kostamilov@proton.me"
   },
+  "license": "MIT",
   "keywords": [
     "ios", "swift", "swiftui", "xcode", "xcodegen", "spm",
     "metal", "networking", "testing", "accessibility", "cicd",

@@ -1,0 +1,199 @@
+name: Validate Marketplace
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PyYAML
+        run: pip install pyyaml
+
+      - name: Validate marketplace.json is strict-spec compliant
+        run: |
+          python3 <<'PY'
+          import json, sys
+
+          path = ".claude-plugin/marketplace.json"
+          with open(path) as f:
+              m = json.load(f)
+
+          errors = []
+          warns = []
+
+          # Required top-level fields per
+          # https://code.claude.com/docs/en/plugin-marketplaces#marketplace-schema
+          for key in ("name", "owner", "plugins"):
+              if key not in m:
+                  errors.append(f"missing required top-level field: {key}")
+
+          # Fields that MUST NOT be at the top level — they belong under metadata.
+          # This is the exact trap that broke kosta-plugins via Copilot PR #1
+          # (commit 9fbd34c). Catch it before it can ever merge again.
+          for bad in ("version", "description", "$schema"):
+              if bad in m:
+                  errors.append(
+                      f"'{bad}' is not a valid top-level field. "
+                      f"Move 'version' and 'description' under 'metadata'. "
+                      f"'$schema' is not part of the spec — remove it."
+                  )
+
+          # Owner shape
+          owner = m.get("owner")
+          if isinstance(owner, dict):
+              if "name" not in owner:
+                  errors.append("owner.name is required")
+          else:
+              errors.append("owner must be an object with at least a 'name' field")
+
+          # Metadata shape
+          meta = m.get("metadata")
+          if meta is not None and not isinstance(meta, dict):
+              errors.append("metadata must be an object")
+
+          # Plugin entries
+          plugins = m.get("plugins", [])
+          if not isinstance(plugins, list):
+              errors.append("plugins must be an array")
+              plugins = []
+          elif not plugins:
+              warns.append("marketplace has no plugins defined")
+
+          names = set()
+          for i, p in enumerate(plugins):
+              tag = f"plugins[{i}]"
+              if not isinstance(p, dict):
+                  errors.append(f"{tag}: must be an object")
+                  continue
+              if "name" not in p:
+                  errors.append(f"{tag}: missing 'name'")
+              else:
+                  n = p["name"]
+                  if n in names:
+                      errors.append(f"{tag}: duplicate plugin name '{n}'")
+                  names.add(n)
+                  if n != n.lower() or " " in n or any(c in n for c in "_ABCDEFGHIJKLMNOPQRSTUVWXYZ"):
+                      warns.append(f"{tag}: plugin name '{n}' is not kebab-case")
+              if "source" not in p:
+                  errors.append(f"{tag}: missing 'source'")
+              else:
+                  src = p["source"]
+                  if isinstance(src, str):
+                      if src.startswith("../") or "/../" in src or src == "..":
+                          errors.append(f"{tag}: source path '{src}' contains '..'")
+                      if not src.startswith("./"):
+                          warns.append(f"{tag}: relative source '{src}' should start with './'")
+
+          print(f"plugins found: {[p.get('name') for p in plugins if isinstance(p, dict)]}")
+          for w in warns:
+              print(f"::warning::{w}")
+          for e in errors:
+              print(f"::error::{e}")
+          if errors:
+              sys.exit(1)
+          print("marketplace.json is spec-compliant")
+          PY
+
+      - name: Validate every plugin.json and component frontmatter
+        run: |
+          python3 <<'PY'
+          import json, os, sys, yaml
+
+          errors = []
+
+          # Every plugin must have a valid plugin.json
+          for name in sorted(os.listdir("plugins")):
+              pdir = f"plugins/{name}"
+              if not os.path.isdir(pdir):
+                  continue
+              pj = f"{pdir}/.claude-plugin/plugin.json"
+              if not os.path.exists(pj):
+                  errors.append(f"{name}: missing .claude-plugin/plugin.json")
+                  continue
+              try:
+                  with open(pj) as f:
+                      manifest = json.load(f)
+                  if "name" not in manifest:
+                      errors.append(f"{pj}: missing required 'name' field")
+              except json.JSONDecodeError as e:
+                  errors.append(f"{pj}: invalid JSON — {e}")
+                  continue
+
+              # A plugin folder must NOT also contain its own marketplace.json.
+              # This is the stitch-studio bug we fixed.
+              stray = f"{pdir}/.claude-plugin/marketplace.json"
+              if os.path.exists(stray):
+                  errors.append(
+                      f"{stray}: plugin directories must not contain a marketplace.json"
+                  )
+
+              # Walk SKILL.md / agents / commands and check YAML frontmatter
+              for root, dirs, files in os.walk(pdir):
+                  dirs[:] = [d for d in dirs if d != ".git"]
+                  for f in files:
+                      if not f.endswith(".md"):
+                          continue
+                      path = os.path.join(root, f)
+                      kind = None
+                      if "/skills/" in path and f.upper() == "SKILL.MD":
+                          kind = "skill"
+                      elif "/agents/" in path:
+                          kind = "agent"
+                      elif "/commands/" in path:
+                          kind = "command"
+                      else:
+                          continue
+                      try:
+                          with open(path) as fh:
+                              c = fh.read().lstrip()
+                      except Exception as e:
+                          errors.append(f"{path}: unreadable — {e}")
+                          continue
+                      if not c.startswith("---"):
+                          errors.append(f"{path}: missing YAML frontmatter")
+                          continue
+                      end = c.find("\n---", 3)
+                      if end < 0:
+                          errors.append(f"{path}: frontmatter never closes")
+                          continue
+                      try:
+                          meta = yaml.safe_load(c[3:end])
+                      except Exception as e:
+                          errors.append(f"{path}: YAML frontmatter parse error — {e}")
+                          continue
+                      if not isinstance(meta, dict):
+                          errors.append(f"{path}: frontmatter is not a mapping")
+                          continue
+                      if "name" not in meta:
+                          errors.append(f"{path}: frontmatter missing 'name'")
+                      if "description" not in meta:
+                          errors.append(f"{path}: frontmatter missing 'description'")
+
+              # hooks/hooks.json must be valid JSON if present
+              hj = f"{pdir}/hooks/hooks.json"
+              if os.path.exists(hj):
+                  try:
+                      with open(hj) as f:
+                          json.load(f)
+                  except json.JSONDecodeError as e:
+                      errors.append(f"{hj}: invalid JSON — {e}")
+
+          for e in errors:
+              print(f"::error::{e}")
+          if errors:
+              sys.exit(1)
+          print("all plugin manifests and component files are valid")
+          PY
