@@ -1,0 +1,73 @@
+{
+  "bg": {
+    "base": {
+      "light": "#0B0B0B",
+      "dark": "#0B0B0B"
+    },
+    "elevated": {
+      "light": "#121212",
+      "dark": "#101010"
+    },
+    "scrim": {
+      "light": "#00000066",
+      "dark": "#00000099"
+    }
+  },
+  "fg": {
+    "primary": {
+      "light": "#FFFFFF",
+      "dark": "#FFFFFF"
+    },
+    "secondary": {
+      "light": "#FFFFFFCC",
+      "dark": "#FFFFFFCC"
+    },
+    "tertiary": {
+      "light": "#FFFFFF99",
+      "dark": "#FFFFFF99"
+    }
+  },
+  "accent": {
+    "primary": {
+      "light": "#0A84FF",
+      "dark": "#0A84FF"
+    },
+    "secondary": {
+      "light": "#64D2FF",
+      "dark": "#64D2FF"
+    }
+  },
+  "state": {
+    "success": {
+      "light": "#34C759",
+      "dark": "#34C759"
+    },
+    "warning": {
+      "light": "#FFD60A",
+      "dark": "#FFD60A"
+    },
+    "error": {
+      "light": "#FF453A",
+      "dark": "#FF453A"
+    }
+  },
+  "glass": {
+    "tint": {
+      // Clear retains maximum translucency and should be used for lightweight surfaces like toolbars and thin badges.
+      "clear": {
+        "light": "#00000000",
+        "dark": "#00000000"
+      },
+      // Regular is the default tint used by Liquid Glass.  It provides subtle contrast on busy backgrounds.
+      "regular": {
+        "light": "#00000014",
+        "dark": "#FFFFFF1A"
+      },
+      // Prominent surfaces are tinted more heavily to ensure legibility on complex or high‑motion backdrops.
+      "prominent": {
+        "light": "#00000033",
+        "dark": "#00000066"
+      }
+    }
+  }
+}

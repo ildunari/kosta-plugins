@@ -1,0 +1,20 @@
+{
+  "activity_name": "Delivery",
+  "attributes": [
+    {
+      "name": "orderNumber",
+      "type": "String"
+    }
+  ],
+  "state": [
+    {
+      "name": "minutesRemaining",
+      "type": "Int"
+    },
+    {
+      "name": "stage",
+      "type": "String"
+    }
+  ],
+  "output_dir": "swift/live_activities"
+}

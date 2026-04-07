@@ -1,0 +1,3 @@
+instrument: [Allocations, Leaks]
+snapshots-interval-s: 10
+track-vm-regions: true

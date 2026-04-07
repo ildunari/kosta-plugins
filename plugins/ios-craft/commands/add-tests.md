@@ -3,7 +3,7 @@ name: add-tests
 description: Generate tests for existing code
 ---
 
-Use the ios-testing-for-beginners skill to add tests to existing code.
+Use the swift-testing-expert skill to add tests to existing code.
 
 Start by understanding the codebase:
 - Look at the project structure to find models, view models, and services

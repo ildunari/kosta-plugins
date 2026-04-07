@@ -1,0 +1,11 @@
+{
+  "widget_kind": "StatusWidget",
+  "bundle_prefix": "com.example.app",
+  "families": [
+    "systemSmall",
+    "systemMedium",
+    "systemLarge"
+  ],
+  "use_app_intent": false,
+  "output_dir": "swift/widgets"
+}

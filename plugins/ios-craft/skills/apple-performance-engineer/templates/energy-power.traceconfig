@@ -1,0 +1,2 @@
+instrument: Power Profiler
+include-cpu-gpu-network: true

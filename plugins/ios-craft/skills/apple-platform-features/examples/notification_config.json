@@ -1,0 +1,21 @@
+{
+  "categories": [
+    {
+      "identifier": "ORDER",
+      "actions": [
+        {
+          "id": "MARK_DONE",
+          "title": "Mark as Done",
+          "foreground": true
+        },
+        {
+          "id": "SNOOZE",
+          "title": "Snooze 10m",
+          "foreground": false,
+          "destructive": false
+        }
+      ]
+    }
+  ],
+  "output_dir": "swift/notifications"
+}

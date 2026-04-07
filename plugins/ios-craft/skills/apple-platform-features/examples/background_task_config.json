@@ -1,0 +1,7 @@
+{
+  "identifiers": {
+    "refresh": "com.example.app.refresh",
+    "processing": "com.example.app.processing"
+  },
+  "output_dir": "swift/background_tasks"
+}

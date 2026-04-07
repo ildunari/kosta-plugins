@@ -3,7 +3,7 @@ name: perf-check
 description: Performance audit for common SwiftUI issues
 ---
 
-Use the ios-performance-beginner skill to scan the codebase for common performance issues.
+Use the apple-performance-engineer skill to scan the codebase for common performance issues.
 
 Audit the project for these categories:
 

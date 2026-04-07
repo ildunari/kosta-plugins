@@ -1,0 +1,38 @@
+{
+  "scale": [
+    4,
+    8,
+    12,
+    16,
+    20,
+    24,
+    32,
+    40,
+    48,
+    64,
+    80,
+    96
+  ],
+  "cornerRadius": {
+    "xs": 6,
+    "sm": 10,
+    "md": 14,
+    "lg": 20,
+    "xl": 28
+  },
+  "padding": {
+    "sm": 8,
+    "md": 16,
+    "lg": 24
+  },
+  "elevation": {
+    "bar": 8,
+    "card": 12,
+    "sheet": 16
+  }
+  ,
+  // Spacing used when grouping multiple glass elements into a single container. 18pt yields a fluid merge distance.
+  "cluster": {
+    "spacing": 18
+  }
+}

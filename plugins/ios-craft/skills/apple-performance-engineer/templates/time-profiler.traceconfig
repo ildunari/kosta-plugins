@@ -1,0 +1,6 @@
+# Conceptual template (document what to enable)
+instrument: Time Profiler
+sample-interval-ms: 1
+record-waiting: true
+include-child-processes: false
+notes: Use with Points of Interest signposts enabled.

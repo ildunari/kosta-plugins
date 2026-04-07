@@ -1,0 +1,39 @@
+{
+  "glass.snap": {
+    "response": 0.22,
+    "damping": 0.88,
+    "blend": 0.5
+  },
+  "glass.slide": {
+    "response": 0.3,
+    "damping": 0.82,
+    "blend": 0.5
+  },
+  "sheet.detent": {
+    "response": 0.38,
+    "damping": 0.8,
+    "blend": 0.65
+  },
+  "tab.bump": {
+    "response": 0.2,
+    "damping": 0.75,
+    "blend": 0.3
+  },
+  "press.scale": {
+    "response": 0.18,
+    "damping": 0.76,
+    "blend": 0.25
+  }
+  ,
+  // Morphing animations control the expansion and collapse of glass surfaces during coordinated transitions.
+  "glass.morph.expand": {
+    "response": 0.44,
+    "damping": 0.84,
+    "blend": 0.60
+  },
+  "glass.morph.collapse": {
+    "response": 0.40,
+    "damping": 0.82,
+    "blend": 0.55
+  }
+}

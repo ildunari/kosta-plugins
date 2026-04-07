@@ -17,7 +17,7 @@ Follow this structure:
 
 5. **When to use it vs alternatives** — If there are related concepts (like @State vs @Binding vs @Observable), explain when each one is the right choice. Use a simple decision tree.
 
-6. **Go deeper** — Point to the relevant ios-craft skill for hands-on practice: "Want to build a screen using this? Try the swiftui-guided-builder skill."
+6. **Go deeper** — Point to the relevant ios-craft skill for hands-on practice: "Want to build a screen using this? Try the swiftui-mastery skill."
 
 If the concept is broad (like "SwiftUI" or "networking"), break it into digestible pieces and offer to go deeper on any one of them.
 

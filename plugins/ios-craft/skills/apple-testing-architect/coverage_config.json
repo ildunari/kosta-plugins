@@ -1,0 +1,11 @@
+{
+  "thresholds": {
+    "global": 0.7,
+    "diff_minimum": 0.6
+  },
+  "fail_on_drop": true,
+  "report_formats": [
+    "summary",
+    "json"
+  ]
+}

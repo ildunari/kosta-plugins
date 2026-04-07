@@ -1,0 +1,60 @@
+{
+  "models": [
+    {
+      "name": "Project",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "UUID",
+          "unique": true
+        },
+        {
+          "name": "name",
+          "type": "String"
+        },
+        {
+          "name": "createdAt",
+          "type": "Date",
+          "default": "now"
+        }
+      ],
+      "relationships": [
+        {
+          "name": "tasks",
+          "destination": "Task",
+          "toMany": true,
+          "deleteRule": "cascade",
+          "inverse": "project"
+        }
+      ]
+    },
+    {
+      "name": "Task",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "UUID",
+          "unique": true
+        },
+        {
+          "name": "title",
+          "type": "String"
+        },
+        {
+          "name": "done",
+          "type": "Bool",
+          "default": false
+        }
+      ],
+      "relationships": [
+        {
+          "name": "project",
+          "destination": "Project",
+          "toMany": false,
+          "deleteRule": "nullify",
+          "inverse": "tasks"
+        }
+      ]
+    }
+  ]
+}

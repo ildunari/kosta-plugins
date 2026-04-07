@@ -1,0 +1,17 @@
+{
+  "app_groups": [
+    "group.com.example.shared"
+  ],
+  "associated_domains": [
+    "applinks:example.com"
+  ],
+  "push_notifications": true,
+  "background_modes": [
+    "fetch",
+    "processing"
+  ],
+  "keychain_access_groups": [
+    "$(AppIdentifierPrefix)com.example.app"
+  ],
+  "output_dir": "examples"
+}

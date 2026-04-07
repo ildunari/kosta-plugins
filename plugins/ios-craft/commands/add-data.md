@@ -3,7 +3,7 @@ name: add-data
 description: Set up data persistence (SwiftData, Core Data, Keychain)
 ---
 
-Use the ios-data-layer-guide skill to set up data persistence.
+Use the apple-data-persistence skill to set up data persistence.
 
 Start by understanding what needs to be stored:
 - What data do you need to save? (user preferences, content, cached API data, credentials)

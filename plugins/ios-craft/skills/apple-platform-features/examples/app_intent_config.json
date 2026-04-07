@@ -1,0 +1,29 @@
+{
+  "intent_name": "AddTaskIntent",
+  "title": "Add Task",
+  "description": "Create a task with priority and due date.",
+  "parameters": [
+    {
+      "name": "titleText",
+      "type": "String",
+      "title": "Title"
+    },
+    {
+      "name": "priority",
+      "type": "Int",
+      "title": "Priority",
+      "default": 1
+    },
+    {
+      "name": "due",
+      "type": "Date",
+      "title": "Due",
+      "default": "now+3600"
+    }
+  ],
+  "phrases": [
+    "Add a task",
+    "Create task"
+  ],
+  "output_dir": "swift/app_intents"
+}

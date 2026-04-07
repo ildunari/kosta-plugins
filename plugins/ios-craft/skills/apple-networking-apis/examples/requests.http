@@ -1,0 +1,10 @@
+### Example REST calls (for use with VSCode REST Client or similar)
+
+GET http://localhost:8080/users/42
+
+###
+
+POST http://localhost:8080/upload
+Content-Type: application/json
+
+{"name":"file.txt","bytes":42}

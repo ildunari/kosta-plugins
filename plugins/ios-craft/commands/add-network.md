@@ -3,7 +3,7 @@ name: add-network
 description: Set up a network layer for API integration
 ---
 
-Use the ios-api-integration skill to set up a complete network layer.
+Use the apple-networking-apis skill to set up a complete network layer.
 
 Start by understanding the API:
 - What API are you connecting to? (REST, GraphQL, or custom)

@@ -3,7 +3,7 @@ name: add-screen
 description: Generate a complete SwiftUI screen with state, navigation, accessibility, and previews
 ---
 
-Use the swiftui-guided-builder skill to generate a complete SwiftUI screen.
+Use the swiftui-mastery skill to generate a complete SwiftUI screen.
 
 Ask the user what kind of screen they need:
 - List/detail screen (showing a collection of items with drill-down)

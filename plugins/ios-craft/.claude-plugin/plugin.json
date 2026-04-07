@@ -1,7 +1,7 @@
 {
   "name": "ios-craft",
-  "version": "1.0.0",
-  "description": "Complete iOS development companion for Claude Code. Guided workflows for project setup, SwiftUI, networking, testing, Metal, design systems, accessibility, CI/CD, and App Store submission. Built for beginners who want expert-quality results.",
+  "version": "2.0.0",
+  "description": "Complete iOS development companion for Claude Code. 18 expert skills covering SwiftUI, Swift concurrency, architecture patterns, Liquid Glass, networking, testing, performance profiling, accessibility, CI/CD, and App Store submission.",
   "author": {
     "name": "Kosta Milov",
     "email": "kostamilov@proton.me"
@@ -9,7 +9,9 @@
   "license": "MIT",
   "keywords": [
     "ios", "swift", "swiftui", "xcode", "xcodegen", "spm",
-    "metal", "networking", "testing", "accessibility", "cicd",
-    "appstore", "design-system", "animation", "security"
+    "concurrency", "architecture", "liquid-glass", "networking",
+    "testing", "performance", "accessibility", "cicd",
+    "appstore", "design-system", "animation", "security",
+    "widgetkit", "app-intents", "storekit"
   ]
 }

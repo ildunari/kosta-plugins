@@ -19,7 +19,7 @@ Then implement the full feature stack:
 
 3. **View model / Observable** — Create the @Observable class that connects the view to the data. Handle loading, success, and error states.
 
-4. **View layer** — Build the SwiftUI views using the swiftui-guided-builder approach. Include all states (loading, empty, populated, error), accessibility, and previews.
+4. **View layer** — Build the SwiftUI views using the swiftui-mastery approach. Include all states (loading, empty, populated, error), accessibility, and previews.
 
 5. **Navigation wiring** — Connect the new feature into the app's existing navigation. Add the route, the tab bar item, or the settings row.
 
