@@ -1,7 +1,10 @@
 /* =====================  STORY: Pencil to Ladybug  ·  seam design example  ===================== */
 /* Every cut is designed from both sides. The plate script's seam column:
-     I → II   custom   : the pencil's red eraser rounds off, turns and becomes the ladybug's red shell; the garden
-                         dissolves in around it and the head, spots and legs grow as the shape arrives
+     I → II   custom   : two designs, chosen with SEAM below.
+                         'morph': the eraser pops off, rounds, turns and becomes the ladybug's shell as the garden
+                                  dissolves in around it; head, spots and legs grow as it lands.
+                         'macro': the camera sinks into the red eraser until red fills the screen, black spots bloom,
+                                  and the camera slowly backs out to reveal the ladybug, holds, then the garden.
      II → III pan      : the ladybug flies off to the right, so the whip pan continues rightward (dir 'auto')
      III → IV cut      : the ladybug lands on a poppy; a match cut puts the pencil sketch of it in the same spot
      IV → V   page     : chapter end, turning to the right                                                          */
@@ -34,7 +37,7 @@ function pencil(tx, ty, ang, len = 560, eraser = true) {
 const SPOTS = [[22, 0, 7], [-18, -15, 7], [-18, 15, 7], [2, -20, 6], [2, 20, 6], [-34, -4, 5], [-34, 4, 5]];
 /** ladybug at (x, y), heading hd (0 = facing right); o.open 0..1 lifts the wing cases, o.walk animates legs */
 const BUG_SHELL = shape.ellipse(0, 0, 36, 32.4, 0, 48);                     // body outline, centred (drawn at local x -6)
-function ladybug(x, y, t, { s = 1, hd = 0, open = 0, walk = 0, shell = true, grow = 1 } = {}) {
+function ladybug(x, y, t, { s = 1, hd = 0, open = 0, walk = 0, shell = true, grow = 1, spots = 1, detail = 1 } = {}) {
   const g = E.outBack(clamp(grow));
   ctx.save(); ctx.translate(x, y); ctx.rotate(hd); ctx.scale(s, s);
   for (let k = 0; k < 3; k++) for (const sd of [-1, 1]) { const ph = Math.sin(S.boil * 1.3 + k * 2 + (sd > 0 ? Math.PI : 0)) * 6 * walk;
@@ -44,8 +47,8 @@ function ladybug(x, y, t, { s = 1, hd = 0, open = 0, walk = 0, shell = true, gro
       ink(shape.ellipse(-38, sd * 18, 46, 16, 0, 28), { closed: true, w: 1.4, color: '#5c6a80', fill: 'rgba(225,235,248,0.6)', amp: 0.4, seed: 510 + sd }); ctx.restore(); } }
   const half = sd => [[26, 0], ...shape.arc(-6, 0, 36, 0, sd * Math.PI, 18).map(([px, py]) => [px, py * 0.9])];   // one wing case
   if (shell) for (const sd of [-1, 1]) { ctx.save(); ctx.translate(22, sd * 2); ctx.rotate(-sd * 0.7 * open); ctx.translate(-22, -sd * 2);
-    const h = half(sd); ink(h, { closed: true, w: 2.4, fill: PAL.bug, seed: 520 + sd }); shade(h, { color: PAL.bugDark, seed: 522 + sd, alpha: 0.45 });
-    for (const [sx, sy, r] of SPOTS) if (sy * sd >= 0 && (sy !== 0 || sd > 0)) ink(shape.circle(sx, sy, r, 14), { closed: true, w: 1, fill: PAL.ink, amp: 0.3, seed: 530 + sx });
+    const h = half(sd); ink(h, { closed: true, w: 2.4, fill: PAL.bug, seed: 520 + sd }); if (detail > 0) shade(h, { color: PAL.bugDark, seed: 522 + sd, alpha: 0.45 * detail });
+    for (const [sx, sy, r] of SPOTS) if (spots > 0 && sy * sd >= 0 && (sy !== 0 || sd > 0)) ink(shape.circle(sx, sy, r * E.outBack(spots), 14), { closed: true, w: 1, fill: PAL.ink, amp: 0.3, seed: 530 + sx });
     ctx.restore(); }
   if (!shell && grow < 1) SPOTS.forEach(([sx, sy, r], i) => { const q = E.outBack(clamp(grow * 1.8 - 0.4 - i * 0.06)); if (q > 0) ink(shape.circle(sx, sy, r * q, 14), { closed: true, w: 1, fill: PAL.ink, amp: 0.3, seed: 530 + sx }); });
   if (g > 0) { ink(shape.circle(38 - 14 * (1 - g), 0, 16 * g, 20), { closed: true, w: 2, fill: PAL.ink, seed: 540 });
@@ -98,13 +101,35 @@ const P1 = {
   draw(t) {
     notebook(t);
     pen(SCRIPT, { w: 2.6, color: PAL.graphite, draw: E.inOutSine(inv(0.6, 4.2, t)), taper: 0.05, seed: 420 });
-    const [tx, ty] = tipAt(t); pencil(tx, ty, angAt(t), 560, !(S.trans && S.trans.type === 'custom' && S.side === 'old'));
+    const [tx, ty] = tipAt(t); pencil(tx, ty, angAt(t), 560, !(SEAM === 'morph' && S.trans && S.trans.type === 'custom' && S.side === 'old'));   // the morph seam animates the eraser itself
   },
   overlay(t) {
     withAlpha(beat(t, 1.4, 4.0), () => text(typed('field note, 9 a.m.', t - 1.4, 20), 380, 560, { kind: 'mono', size: 22, ls: 4, color: PAL.inkSoft }));
   },
 };
-/* ---------- seam I → II: the eraser becomes the ladybug ---------- */
+const SEAM = 'morph';                                                          // 'morph' or 'macro'
+/* ---------- seam I → II (macro): into the red, spots appear, back out to the ladybug, then the garden ---------- */
+function eraserToBugMacro(p, X) {
+  const camA = P1.cam(X.pt), [tx, ty] = tipAt(X.pt), a = angAt(X.pt), [ex, ey] = camPoint(camA, [tx + Math.cos(a) * 552, ty + Math.sin(a) * 552]);
+  const camN = camB(X.t), hd = hdB(X.t), [bx, by] = bugB(X.t), [cx, cy] = camPoint(camN, [bx - 7.5 * Math.cos(hd), by - 7.5 * Math.sin(hd)]);
+  const rA = 24 * camA.s, rB = 40 * 1.25 * (camN.s || 1);
+  if (p < 0.32) {                                                            // sink into the eraser
+    const q = p / 0.32, KA = coverR(ex, ey) / rA * 1.15, sc = curve(q, [[0, 1], [1, KA, 'in3']], { geo: true });
+    X.drawOldX({ hud: 1 - inv(0, 0.4, q), xf: about(ex, ey, sc) });
+    withAlpha(curve(q, [[0, 0], [0.3, 0], [0.75, 1]]), () => { ctx.fillStyle = PAL.eraser; ctx.beginPath(); ctx.arc(ex, ey, rA * sc, 0, TAU); ctx.fill(); });
+    return 0;
+  }
+  const KB = coverR(cx, cy) / rB * 1.25;                                     // the shell fills the screen at this zoom
+  // pacing: a slow drift while the spots bloom, a long gentle pull back to the ladybug, a hold, then out to the garden
+  const sc = curve(p, [[0.32, KB], [0.44, KB * 0.8, 'lin'], [0.76, 2.6, 'inOutSine'], [0.84, 2.6], [1, 1, 'inOut3']], { geo: true });
+  ctx.fillStyle = PAL.bug; ctx.fillRect(-20, -20, W + 40, H + 40);
+  S.noReticle = p < 0.9;
+  X.drawNewX({ hud: inv(0.9, 1, p), xf: about(cx, cy, sc) });
+  S.noReticle = false;
+  withAlpha(1 - inv(0.32, 0.4, p), () => { ctx.fillStyle = PAL.eraser; ctx.fillRect(-20, -20, W + 40, H + 40); });   // eraser red settles into shell red
+  return inv(0.32, 0.36, p);
+}
+/* ---------- seam I → II (morph): the eraser becomes the ladybug ---------- */
 function eraserToBug(p, X) {
   const camA = P1.cam(X.pt), [tx, ty] = tipAt(X.pt), a = angAt(X.pt), [ex, ey] = camPoint(camA, [tx + Math.cos(a) * 552, ty + Math.sin(a) * 552]);
   const camN = camB(X.t), hd = hdB(X.t), [bx, by] = bugB(X.t), sN = 1.25 * (camN.s || 1);
@@ -125,30 +150,34 @@ function eraserToBug(p, X) {
   return E.inOutSine(inv(0.2, 0.9, p));
 }
 /* ---------- plate II · the garden: out of the red, a ladybug on a leaf; it walks, opens up, and flies off right ---------- */
-const bugB = t => t < 3.2 ? [lerp(905, 1000, E.inOutSine(inv(0, 2.8, t))), 560 + 4 * Math.sin(t * 2)]
-  : kf(t, [[3.2, [1000, 560]], [4.4, [1180, 480]], [5.4, [1420, 390]], [6.6, [1800, 300]]], E.in2);
-const hdB = t => { if (t < 3.3) return -0.12; const [x0, y0] = bugB(t - 0.1), [x1, y1] = bugB(t); return Math.atan2(y1 - y0, x1 - x0); };
+const BUG_DELAY = SEAM === 'macro' ? 1.8 : 0;                                 // a longer seam pushes plate II's action back
+const bugB = tt => { const t = tt - BUG_DELAY; return t < 3.2 ? [lerp(905, 1000, E.inOutSine(inv(0, 2.8, t))), 560 + 4 * Math.sin(t * 2)]
+  : kf(t, [[3.2, [1000, 560]], [4.4, [1180, 480]], [5.4, [1420, 390]], [6.6, [1800, 300]]], E.in2); };
+const hdB = t => { if (t - BUG_DELAY < 3.3) return -0.12; const [x0, y0] = bugB(t - 0.1), [x1, y1] = bugB(t); return Math.atan2(y1 - y0, x1 - x0); };
 const camB = t => ({ x: W / 2, y: H / 2, s: 1.04, dx: -0.55 * clamp(bugB(t)[0] - 1150, 0, 800), dy: 0.3 * clamp(480 - bugB(t)[1], 0, 300) });
 const P2 = {
-  dur: 6.5, dark: false,
-  enter: { type: 'custom', dur: 1.8, draw: eraserToBug, carry: false, momentum: false },
+  dur: 6.5 + BUG_DELAY, dark: false,
+  enter: SEAM === 'macro' ? { type: 'custom', dur: 3.4, draw: eraserToBugMacro, carry: false, momentum: false }
+    : { type: 'custom', dur: 1.8, draw: eraserToBug, carry: false, momentum: false },
   header: { num: 2, title: 'The Garden', sub: 'a ladybug on a leaf' }, stage: { n: 2, name: 'GARDEN', prevN: 1 },
   cam: camB,
   hero: t => { const [x, y] = bugB(t); return { x, y, label: 'LADYBUG·01', r: 58 }; },
-  cues: [[3.2, 'pop'], [3.3, 'scratch', { chars: 8 }]],
+  cues: [[3.2 + BUG_DELAY, 'pop'], [3.3 + BUG_DELAY, 'scratch', { chars: 8 }]],
   draw(t) {
     const c = camB(t);
     parallax(c, 0.2, () => { lobedCloud(820, 240, [[0, 70], [-90, 50], [90, 56]], { seed: 601 }); lobedCloud(1500, 200, [[0, 60], [-70, 44], [74, 48]], { seed: 602 }); });
     parallax(c, 0.6, () => { ground(760, 610, t); [[180, 0.9], [420, 1.1], [1500, 1.0], [1760, 1.2], [2100, 0.9]].forEach(([x, s], i) => daisy(x, 800, s, t, 620 + i * 7)); });
     leaf(1000, 600, 620, -0.18, 650, t);
     leaf(1650, 690, 380, 0.35, 660, t);
-    const open = E.outBack(inv(2.8, 3.3, t));
-    const tr = S.trans && S.trans.type === 'custom' && S.side === 'new' ? S.trans.p : 1;       // during the morph the seam draws the bug
-    withAlpha(inv(0.86, 1, tr), () => ladybug(...bugB(t), t, { s: 1.25, hd: hdB(t), open, walk: t < 2.8 ? 1 : 0 }));
+    const open = E.outBack(inv(2.8 + BUG_DELAY, 3.3 + BUG_DELAY, t));
+    const tr = S.trans && S.trans.type === 'custom' && S.side === 'new' ? S.trans.p : 1;       // role in the seam I → II
+    const bug = o => ladybug(...bugB(t), t, { s: 1.25, hd: hdB(t), open, walk: t - BUG_DELAY < 2.8 ? 1 : 0, ...o });
+    if (SEAM === 'macro') bug({ spots: inv(0.36, 0.5, tr), detail: inv(0.55, 0.8, tr) });     // spots bloom, shading returns as we back out
+    else withAlpha(inv(0.86, 1, tr), () => bug());
   },
   overlay(t) {
     const h = heroOf(P2, t);
-    withAlpha(beat(t, 1.2, 3.0), () => callout(t - 1.2, { ax: h.x - 20, ay: h.y - 40, ex: h.x - 90, ey: 330, x2: h.x - 150, align: 'right', title: 'seven-spot ladybird', sub: 'Coccinella septempunctata' }));
+    withAlpha(beat(t, 1.2 + BUG_DELAY * 1.2, 3.0 + BUG_DELAY), () => callout(t - 1.2 - BUG_DELAY * 1.2, { ax: h.x - 20, ay: h.y - 40, ex: h.x - 90, ey: 330, x2: h.x - 150, align: 'right', title: 'seven-spot ladybird', sub: 'Coccinella septempunctata' }));
   },
 };
 /* ---------- plate III · the meadow: still flying right, it slows and lands on a poppy ---------- */

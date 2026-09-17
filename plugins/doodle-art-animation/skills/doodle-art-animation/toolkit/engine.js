@@ -45,7 +45,35 @@ const E = {
   outBack2: t => { const c = 2.7; return 1 + (c + 1) * (t - 1) ** 3 + c * (t - 1) ** 2; },
   anticipate: t => { const c = 1.7; return t * t * ((c + 1) * t - c); },       // small pull-back, then go
   outElastic: t => t >= 1 ? 1 : 1 - 2 ** (-7 * t) * Math.cos(t * TAU * 1.15),  // spring settle (objects, not text)
+  in5: t => t ** 5, out5: t => 1 - (1 - t) ** 5,
+  inOut2: t => t < .5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2,
+  inSine: t => 1 - Math.cos(t * Math.PI / 2), outSine: t => Math.sin(t * Math.PI / 2),
+  inExpo: t => t <= 0 ? 0 : 2 ** (10 * t - 10),
+  inOutExpo: t => t <= 0 ? 0 : t >= 1 ? 1 : t < .5 ? 2 ** (20 * t - 10) / 2 : (2 - 2 ** (-20 * t + 10)) / 2,
+  inBack: t => { const c = 1.7; return (c + 1) * t ** 3 - c * t * t; },
+  inOutBack: t => { const c = 1.7 * 1.525; return t < .5 ? ((2 * t) ** 2 * ((c + 1) * 2 * t - c)) / 2 : ((2 * t - 2) ** 2 * ((c + 1) * (t * 2 - 2) + c) + 2) / 2; },
+  outBounce: t => { const n = 7.5625, d = 2.75; if (t < 1 / d) return n * t * t; if (t < 2 / d) return n * (t -= 1.5 / d) * t + 0.75;
+    if (t < 2.5 / d) return n * (t -= 2.25 / d) * t + 0.9375; return n * (t -= 2.625 / d) * t + 0.984375; },
+  hold: t => t < 1 ? 0 : 1,                                                     // jump at the end of a segment
+  /** spring(k): a settle with k overshoots (1 = one gentle bounce past the target) */
+  spring: (k = 1) => t => t >= 1 ? 1 : 1 - Math.exp(-5 * t) * Math.cos(t * Math.PI * (k + 0.5)),
 };
+/** easeOf('inOut3' | fn | null): an easing by name, a function, or linear */
+const easeOf = e => typeof e === 'function' ? e : (e && E[e]) || E.lin;
+/**
+ * curve(t, keys, { geo }): a value over time with its own easing per segment. keys = [[t, value, ease?], ...]; the
+ * ease on a key shapes the segment that ends there (name or function, default inOut3). Repeat a value to hold it.
+ * geo: true interpolates positive numbers geometrically (use it for zoom scales, so zooms never rush or stall).
+ */
+function curve(t, keys, { geo = false } = {}) {
+  if (t <= keys[0][0]) return keys[0][1];
+  for (let i = 1; i < keys.length; i++) if (t <= keys[i][0]) {
+    const [ta, va] = keys[i - 1], [tb, vb, eb] = keys[i], e = easeOf(eb ?? 'inOut3')(inv(ta, tb, t));
+    const mix = (a, b) => geo && a > 0 && b > 0 ? zlerp(a, b, e) : lerp(a, b, e);
+    return Array.isArray(va) ? va.map((v, j) => mix(v, vb[j])) : mix(va, vb);
+  }
+  return keys[keys.length - 1][1];
+}
 /** keyframed value: kf(t, [[t0,v0],[t1,v1],...], ease); values may be numbers or [x,y] */
 function kf(t, keys, ease = E.inOut3) {
   if (t <= keys[0][0]) return keys[0][1];
@@ -1160,7 +1188,10 @@ function renderFrame(f) {
   const wv = STORY.weave ?? 0.9, db = Math.floor(fq / 2);
   if (wv) { ctx.translate(W / 2 + (hash3(db, 1, 7) - 0.5) * 2 * wv, H / 2 + (hash3(db, 2, 7) - 0.5) * 2 * wv); ctx.rotate((hash3(db, 3, 7) - 0.5) * 0.0012 * wv); ctx.scale(1.004, 1.004); ctx.translate(-W / 2, -H / 2); }
   if (i > 0 && tr && tr.type !== 'cut' && t < tr.dur) {
-    const prev = P[i - 1], pt = prev.dur + t, p = t / tr.dur; S.trans = { type: tr.type, p };
+    const prev = P[i - 1], pt = prev.dur + t, raw = t / tr.dur;
+    // pacing: enter.ease reshapes the whole transition, enter.curve maps clock -> progress with holds and per-segment easing
+    const p = clamp(tr.curve ? curve(raw, tr.curve) : tr.ease ? easeOf(tr.ease)(raw) : raw);   // presets clamp overshoot; custom draws can read S.trans.raw
+    S.trans = { type: tr.type, p, raw };
     const side = (sd, fn) => { const k = S.side; S.side = sd; try { fn(); } finally { S.side = k; } };   // plates can ask S.side which role they are playing
     const X = { drawOld: () => side('old', () => drawPlate(prev, pt)), drawNew: () => side('new', () => drawPlate(pl, t)),
       drawOldX: o => side('old', () => drawPlate(prev, pt, o)), drawNewX: o => side('new', () => drawPlate(pl, t, o)),

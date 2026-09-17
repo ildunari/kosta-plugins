@@ -10,7 +10,7 @@ Plate fields:
 |---|---|
 | `dur` | Plate length in seconds |
 | `dark` | `true` for the night world |
-| `enter` | `{ type, dur, draw (custom transition), momentum, settle, match, carry, sfx, …type options (dir, k, dive, scaleFrom, from, to, fromFill, toFill, style, at, ink, drop, fall, rim, rimAlpha, rough, color, opacity, back, radius) }` |
+| `enter` | `{ type, dur, ease, curve, draw (custom transition), momentum, settle, match, carry, sfx, …type options (dir, k, dive, scaleFrom, from, to, fromFill, toFill, style, at, ink, drop, fall, rim, rimAlpha, rough, color, opacity, back, radius) }` |
 | `header` | `{ num, title, sub }` |
 | `log` | `t => ({ title, rows: [[label, value]], states, state })` |
 | `stage` | `{ n, name, prevN }` |
@@ -30,7 +30,8 @@ Plate fields:
 - `inv(a, b, t)`: 0..1 progress inside a window.
 - `kf(t, [[t0, v0], …], ease)`: keyframed numbers or `[x, y]` points.
 - `beat(t, t0, t1)`, `stagger(i, t, opts)`, `withAlpha(a, fn)`, `readTime(s)`.
-- `E.*` easings, plus `clamp`, `lerp` and `zlerp(a, b, e)` (geometric, for scales).
+- `E.*` easings (list in `references/motion.md`, "Pacing a transition"), `easeOf(nameOrFn)`, plus `clamp`, `lerp` and `zlerp(a, b, e)` (geometric, for scales).
+- `curve(t, [[t, value, ease?], …], { geo })`: keyframes with a different easing per segment and holds; values may be numbers or arrays.
 - Motion: `wander(i, t, amp, speed, seed)`, `flow(path, t, { speed, gap, len, color, w, alpha })`, `subpath(path, a, b)`, `vnoise`, `vnoise2`.
 
 **Geometry** (functions return point arrays):
