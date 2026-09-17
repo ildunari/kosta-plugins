@@ -135,7 +135,7 @@ const P0 = {
     const fl = E.out3(inv(0, 0.9, t)), c = { w: 1.2, color: PAL.peri, amp: 0, alpha: 0.55 };
     ink([[34, 34], [lerp(34, W - 34, fl), 34]], c); ink([[W - 34, 34], [W - 34, lerp(34, H - 34, fl)]], c); ink([[34, 34], [34, lerp(34, H - 34, fl)]], c);
     text(typed('Ø 150 nm', t - 2.0, 20), TIP[0] - 96, 500, { kind: 'mono', size: 18, align: 'right', color: PAL.peri });
-    withAlpha(1 - inv(5.4, 6.3, t), () => {                                    // the title clears before the dive
+    withAlpha(1 - inv(5.95, 6.45, t), () => {                                  // the title clears just before the dive
       text(typed('A FIELD STUDY IN 4 PLATES', t - 0.5, 34), 922, 392, { kind: 'mono', size: 21, ls: 9, color: PAL.inkSoft });
       dropText('The Long Release', 914, 508, t - 0.95, { kind: 'display', size: 112, weight: 500, cps: 13 });
       const ul = E.out3(inv(2.0, 2.8, t));
@@ -189,9 +189,9 @@ const P1 = {
     }
   },
   overlay(t) {
-    withAlpha(beat(t, 1.4, 5.0), () => stat(t - 1.4, { x: 610, y: 335, kicker: 'ONE MG OF 150 NM PLGA SPHERES', value: u => '≈ ' + countUp(430, u, 1.5) + ' billion', note: 'solid spheres, density ≈ 1.3 g/cm³' }));
+    withAlpha(beat(t, 1.3, 6.7), () => stat(t - 1.3, { x: 610, y: 335, kicker: 'ONE MG OF 150 NM PLGA SPHERES', value: u => '≈ ' + countUp(430, u, 1.5) + ' billion', note: 'solid spheres, density ≈ 1.3 g/cm³' }));
     const [ax, ay] = camPoint(camI(t), [rbcI(t)[0] + 20, rbcI(t)[1] - 30]);
-    withAlpha(beat(t, 4.2, 7.8), () => callout(t - 4.2, { ax, ay, ex: 1110, ey: 300, x2: 1170, title: 'red blood cell', sub: '≈ 7.5 µm across · 50× our particle' }));
+    withAlpha(beat(t, 4.6, 9.8), () => callout(t - 4.6, { ax, ay, ex: 1180, ey: 300, x2: 1240, title: 'red blood cell', sub: '≈ 7.5 µm across · 50× our particle' }));
     const cp = withCard(t, 6.0);
     if (cp) logRuler(t - 6.4, { x: 540, y: 1000, w: 1180, min: 1e-8, max: 1e-3,
       ticks: [[1e-8, '10 nm'], [1e-7, '100 nm'], [1e-6, '1 µm'], [1e-5, '10 µm'], [1e-4, '100 µm'], [1e-3, '1 mm']],
@@ -243,11 +243,11 @@ const P2 = {
         if (i < 5) { ctx.beginPath(); ctx.arc((x + beads[i + 1][0]) / 2, (y + beads[i + 1][1]) / 2, 3.5 * s, 0, TAU); ctx.fillStyle = PAL.accent; ctx.fill(); } });
       text(typed('lactide  ·  glycolide', lt - 1.0, 30), 250, 580, { kind: 'mono', size: 15, align: 'center', color: PAL.nightMuted });
       text(typed('ester bonds hold it together', lt - 1.4, 30), 250, 616, { kind: 'display', size: 22, italic: true, align: 'center', color: '#9d9dbd' }); });
-    withAlpha(beat(t, 1.6, 5.6), () => stat(t - 1.6, { x: 1330, y: 580, kicker: 'PLASMA PROTEIN', value: u => '≈ ' + countUp(70, u, 1.2) + ' g per litre', note: 'enough to coat a particle within minutes', dark: true, size: 56 }));
+    withAlpha(beat(t, 1.4, 7.0), () => stat(t - 1.4, { x: 1330, y: 580, kicker: 'PLASMA PROTEIN', value: u => '≈ ' + countUp(70, u, 1.2) + ' g per litre', note: 'enough to coat a particle within minutes', dark: true, size: 56 }));
     const [sx, sy] = edgeII(0.5, 22, t);
-    withAlpha(beat(t, 4.0, 7.6), () => callout(t - 4.0, { ax: sx, ay: sy, ex: 1270, ey: 790, x2: 1330, title: 'protein corona', sub: 'the body now sees the coat, not the particle', dark: true }));
+    withAlpha(beat(t, 3.8, 9.9), () => callout(t - 3.8, { ax: sx, ay: sy, ex: 1270, ey: 800, x2: 1330, title: 'protein corona', sub: 'the body now sees the coat, not the particle', dark: true }));
     const [px, py] = edgeII(2.5, 32, t);
-    withAlpha(beat(t, 6.2, 9.6), () => callout(t - 6.2, { ax: px, ay: py, ex: 660, ey: 830, x2: 600, align: 'right', title: 'PEG brush', sub: 'slows tagging by immune proteins', dark: true }));
+    withAlpha(beat(t, 5.3, 9.95), () => callout(t - 5.3, { ax: px, ay: py, ex: 660, ey: 830, x2: 600, align: 'right', title: 'PEG brush', sub: 'slows tagging by immune proteins', dark: true }));
     const sb = E.out3(inv(0.8, 1.4, t));
     ink([[1627, 1000], [lerp(1627, 1760, sb), 1000]], { w: 2, color: PAL.nightInk, amp: 0 });
     if (sb >= 1) { ink([[1627, 992], [1627, 1008]], { w: 2, color: PAL.nightInk, amp: 0 }); ink([[1760, 992], [1760, 1008]], { w: 2, color: PAL.nightInk, amp: 0 });
@@ -266,10 +266,10 @@ const tumorCells = (() => { const r = mulberry(303), out = [];
     if (out.some(c => Math.hypot(c.x - x, c.y - y) < (c.r + rr) * 0.82)) continue;
     out.push({ x, y, r: rr, seed: 600 + k }); } return out; })();
 const P3 = {
-  dur: 10, dark: false, enter: { type: 'lensOut', dur: 0.6 },
+  dur: 12.8, dark: false, enter: { type: 'lensOut', dur: 0.6 },
   header: { num: 3, title: 'Leaky Vessels', sub: 'it slips out where the walls are broken' },
   stage: { n: 3, name: 'EXTRAVASATION', prevN: 2 },
-  log: t => ({ title: 'JOURNEY LOG · NP·01', rows: [['ELAPSED', `T+ ${Math.round(lerp(6, 24, E.inOut3(t / 10)))} h`], ['SITE', t < 4.4 ? 'CAPILLARY' : 'TUMOUR'], ['DIAMETER', '172 nm']], states: STATES, state: t < 6.2 ? 0 : 1 }),
+  log: t => ({ title: 'JOURNEY LOG · NP·01', rows: [['ELAPSED', `T+ ${Math.round(lerp(6, 24, E.inOut3(t / 12.8)))} h`], ['SITE', t < 4.4 ? 'CAPILLARY' : 'TUMOUR'], ['DIAMETER', '172 nm']], states: STATES, state: t < 6.2 ? 0 : 1 }),
   cam: camIII,
   hero: t => { const [x, y] = npIII(t); return { x, y, label: 'NP·01', r: 34 }; },
   bed: heart(0.14, [196, 246.9, 293.7]),
@@ -303,8 +303,9 @@ const P3 = {
       ink(shape.blob(c.x + 4, c.y - 3, c.r * 0.42, c.seed + 1, 0.3, 20), { closed: true, w: 1.8, fill: '#4e3656', seed: c.seed + 1 });
     }
     ink([[960, 250], [960, 900]], { w: 1.6, color: PAL.peri, amp: 0, dash: [10, 8], alpha: E.out3(inv(0.3, 1, t)) });
-    text(typed('HEALTHY', t - 0.8, 20), 930, 322, { kind: 'mono', size: 17, ls: 6, align: 'right', color: PAL.muted });
-    text(typed('TUMOUR', t - 0.8, 20), 990, 322, { kind: 'mono', size: 17, ls: 6, color: PAL.muted });
+    withAlpha(inv(7.2, 8.2, t), () => {                                         // side labels only once the wide view is back
+      text(typed('HEALTHY', t - 7.2, 20), 930, 322, { kind: 'mono', size: 17, ls: 6, align: 'right', color: PAL.muted });
+      text(typed('TUMOUR', t - 7.2, 20), 990, 322, { kind: 'mono', size: 17, ls: 6, color: PAL.muted }); });
     const lp = E.out3(inv(1.2, 2.2, t));
     if (lp > 0) { const tube = [[430, 918], [lerp(430, 920, lp), 918], [lerp(430, 920, lp), 958], [430, 958]];
       ink(tube, { closed: true, w: 2.4, fill: '#e7eef0', seed: 88 });
@@ -314,14 +315,14 @@ const P3 = {
   },
   overlay(t) {
     const c = camIII(t), at = p => camPoint(c, p);
-    withAlpha(beat(t, 1.0, 4.6), () => stat(t - 1.0, { x: 720, y: 196, kicker: 'GAPS IN MANY TUMOUR VESSELS', value: u => typed('≈ 200–800 nm', u, 16), note: 'typical range; varies between tumours', size: 56 }));
+    withAlpha(beat(t, 0.8, 6.4), () => stat(t - 0.8, { x: 720, y: 196, kicker: 'GAPS IN MANY TUMOUR VESSELS', value: u => typed('≈ 200–800 nm', u, 16), note: 'typical range; varies between tumours', size: 56 }));
     const [jx, jy] = at([760, 505]);                                           // a junction the particle passes while the label is up
-    withAlpha(beat(t, 1.2, 3.2), () => callout(t - 1.2, { ax: jx, ay: jy, ex: jx + 60, ey: jy + 150, x2: jx + 120, title: 'tight junctions', sub: 'healthy walls leave only tiny clefts' }));   // label trails to the right: the camera is moving right
+    withAlpha(beat(t, 1.2, 6.2), () => callout(t - 1.2, { ax: jx, ay: jy, ex: 520, ey: 760, x2: 580, title: 'tight junctions', sub: 'healthy walls leave only tiny clefts' }));   // the label stays put; only its leader follows the camera
     const [gx, gy] = at([1282, 505]);
-    withAlpha(beat(t, 5.4, 9.6), () => callout(t - 5.4, { ax: gx, ay: gy, ex: 1420, ey: 262, x2: 1470, title: 'EPR effect', sub: 'leaky walls, poor drainage · strong in mice, variable in patients' }));
-    withAlpha(beat(t, 7.6, 9.8), () => { const [lx, ly] = at([432, 1000]);
-      text(typed('lymph drains fluid away', t - 7.6, 30), lx, ly, { kind: 'mono', size: 16, color: PAL.inkSoft });
-      text(typed('no drainage: particles stay put', t - 8.0, 30), at([1000, 1000])[0], ly, { kind: 'display', size: 24, italic: true, color: PAL.inkSoft }); });
+    withAlpha(beat(t, 5.2, 12.6), () => callout(t - 5.2, { ax: gx, ay: gy, ex: 1380, ey: 262, x2: 1430, title: 'EPR effect', sub: 'leaky walls, poor drainage · clearest in mice' }));
+    withAlpha(beat(t, 8.3, 12.6), () => { const [lx, ly] = at([432, 1000]);   // once the wide view is back
+      text(typed('lymph drains fluid away', t - 8.3, 30), lx, ly, { kind: 'mono', size: 16, color: PAL.inkSoft });
+      text(typed('no drainage: particles stay put', t - 8.6, 30), at([1000, 1000])[0], ly, { kind: 'display', size: 24, italic: true, color: PAL.inkSoft }); });
   },
 };
 
@@ -365,9 +366,9 @@ const P4 = {
   overlay(t) {
     const c = camIV(t), R = R4(t), at = a => camPoint(c, [C4[0] + Math.cos(a) * R, C4[1] + Math.sin(a) * R]);
     const [hx, hy] = at(-0.7);
-    withAlpha(beat(t, 2.6, 6.2), () => callout(t - 2.6, { ax: hx, ay: hy, ex: 930, ey: 290, x2: 990, title: 'ester hydrolysis', sub: 'water splits the polyester backbone', dark: true }));
+    withAlpha(beat(t, 2.2, 7.4), () => callout(t - 2.2, { ax: hx, ay: hy, ex: 930, ey: 290, x2: 990, title: 'ester hydrolysis', sub: 'water splits the polyester backbone', dark: true }));
     const [dx, dy] = at(0.95);
-    withAlpha(beat(t, 6.4, 11.6), () => callout(t - 6.4, { ax: dx, ay: dy, ex: 870, ey: 895, x2: 930, title: 'drug diffuses out', sub: 'slowly, over days to weeks', dark: true }));
+    withAlpha(beat(t, 6.6, 11.9), () => callout(t - 6.6, { ax: dx, ay: dy, ex: 870, ey: 895, x2: 930, title: 'drug diffuses out', sub: 'slowly, over days to weeks', dark: true }));
     const cp = card(t - 0.9, { x: 1262, y: 380, w: 608, h: 560, dark: true, title: 'CUMULATIVE RELEASE', fig: 'FIG. 2' });
     if (cp > 0) {
       const draw = inv(1.0, 11.5, t), day = lerp(0, 28, draw);
@@ -378,7 +379,7 @@ const P4 = {
       if (draw > 0) { ctx.beginPath(); ctx.arc(ex, ey, 7, 0, TAU); ctx.fillStyle = PAL.nightInk; ctx.fill();
         text(`${Math.round(rel(day))}%`, ex + 12, ey - 12, { kind: 'mono', size: 16, weight: 600, color: PAL.nightInk }); }
       if (day > 2) text(typed('burst', (day - 2) / 3, 20), g.X(1.5), g.Y(30), { kind: 'display', size: 24, italic: true, color: PAL.gold });
-      if (day > 13) text(typed('sustained', (day - 13) / 3, 20), g.X(12), g.Y(72), { kind: 'display', size: 24, italic: true, color: PAL.gold });
+      if (day > 13) text(typed('sustained', (day - 13) / 3, 20), g.X(15), g.Y(56), { kind: 'display', size: 24, italic: true, color: PAL.gold });
       text(typed('illustrative profile · shape depends on Mw, LA:GA, size', t - 3, 40), 1286, 918, { kind: 'mono', size: 13, color: PAL.nightMuted });
     }
   },
@@ -386,12 +387,12 @@ const P4 = {
 
 /* ---------- END CARD: the eroded particle becomes the card's emblem ---------- */
 const P5 = {
-  dur: 7, dark: true, counter: false,
+  dur: 9.5, dark: true, counter: false,
   enter: { type: 'shape', dur: 1.3, ease: 'inOutSine',
     from: (pl, t) => { const c = camIV(t), [x, y] = camPoint(c, C4); return shape.blob(x, y, R4(t) * c.s, 45, 0.13, 64); },
     to: () => shape.circle(960, 380, 44, 64), fromFill: PAL.plga, toFill: PAL.plga },
   focus: () => [960, 380],
-  cam: t => ({ x: 960, y: 380, s: 1 + 0.05 * E.inOutSine(clamp(t / 7)), dx: 14 * Math.sin(t * 0.6), dy: 8 * Math.sin(t * 0.45), rot: 0.02 * Math.sin(t * 0.3) }),   // a slow drift; the text in overlay stays put
+  cam: t => ({ x: 960, y: 380, s: 1 + 0.05 * E.inOutSine(clamp(t / 9.5)), dx: 14 * Math.sin(t * 0.6), dy: 8 * Math.sin(t * 0.45), rot: 0.02 * Math.sin(t * 0.3) }),   // a slow drift; the text in overlay stays put
   bed: (ac, out, t0, dur) => SFX.pad(ac, out, t0, { dur: dur - 0.5, notes: [130.8, 196, 246.9, 329.6], g: 0.02, dark: true }),
   cues: [[1.2, 'chime', { f: 392 }], [3.3, 'chime', { f: 587 }]],
   draw(t) {
@@ -416,9 +417,9 @@ const P5 = {
     dropText(q, cx - measure(q, qo) / 2, 610, t - 1.8, qo);
     const rl = E.out3(inv(3.3, 4.1, t)); if (rl > 0) ink([[cx - 320 * rl, 650], [cx + 320 * rl, 650]], { w: 1.2, color: PAL.peri, amp: 0, alpha: 0.7 });
     const col = `THE LONG RELEASE  ·  4 PLATES  ·  ${fmt(TOTAL_F)} FRAMES  ·  DRAWN IN CODE`, co = { kind: 'mono', size: 20, ls: 6, color: '#9fa0c8' };
-    text(typed(col, t - 3.5, 60), cx - measure(col, co) / 2, 700, co);
-    const src = 'NOTES  ·  VALUES ARE ROUNDED AND ILLUSTRATIVE  ·  NOT A SPECIFIC FORMULATION', so = { kind: 'mono', size: 15, ls: 5, color: PAL.nightMuted };
-    text(typed(src, t - 4.6, 60), cx - measure(src, so) / 2, 930, so);
+    text(typed(col, t - 2.8, 60), cx - measure(col, co) / 2, 700, co);
+    const src = 'NOTES  ·  VALUES ARE ROUNDED AND ILLUSTRATIVE  ·  EPR IS VARIABLE IN PATIENTS  ·  NOT A SPECIFIC FORMULATION', so = { kind: 'mono', size: 15, ls: 5, color: PAL.nightMuted };
+    text(typed(src, t - 3.4, 60), cx - measure(src, so) / 2, 930, so);
   },
 };
 
