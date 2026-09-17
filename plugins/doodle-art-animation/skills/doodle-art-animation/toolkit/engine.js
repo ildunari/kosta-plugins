@@ -108,7 +108,7 @@ function vnoise(x, seed = 0) {                        // smooth 1-D value noise 
   const i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f);
   return lerp(hash3(i, seed), hash3(i + 1, seed), u) * 2 - 1;
 }
-const S = { f: 0, boil: 0, T: 0, morph: false, trans: null, side: null, noReticle: false };   // per-frame globals
+const S = { f: 0, boil: 0, T: 0, morph: false, trans: null, side: null, noReticle: false, dark: false };   // dark: the plate being drawn is a night plate   // per-frame globals
 /** jitter that re-rolls every 2 frames: the hand-drawn "boil" (animation on twos) */
 const boil = (seed, k, amp) => (hash3(seed, k, S.boil) - 0.5) * 2 * amp;
 
@@ -510,7 +510,7 @@ function plateHeader(t, { num, title, sub, dark }) {
   dropText(title, 88, 158, t - 0.15, { kind: 'display', size: 64, weight: 500, color: ic, cps: 17 });
   const tw = measure(title, { kind: 'display', size: 64, weight: 500 }), rp = E.out3(inv(0.35, 1.1, t));
   if (rp > 0) ink([[90, 180], [90 + (tw + 6) * rp, 180]], { w: 1.6, color: PAL.peri, amp: 0, alpha: 0.85 });
-  text(typed(sub, t - 0.7, 30), 90, 221, { kind: 'display', size: 30, italic: true, color: dark ? '#b9b9d6' : PAL.inkSoft });
+  if (sub) text(typed(sub, t - 0.7, 30), 90, 221, { kind: 'display', size: 30, italic: true, color: dark ? '#b9b9d6' : PAL.inkSoft });
 }
 /** journey log: {title, rows: [[label, value]], states: [...], state: i}. STATE options wrap only when they must. */
 function journeyLog(t, log, dark) {
@@ -559,12 +559,20 @@ function frameCounter(f, dark) {
 function callout(t, o) {
   if (t <= 0) return;
   const { ax, ay, ex, ey, x2, title, sub, dark, align = 'left', size = 30 } = o;
-  const ic = inkOf(dark), lp = E.out3(inv(0, 0.45, t));
+  let { x2: xe, align: al } = { x2, align };
+  const ic = inkOf(dark), lp = E.out3(inv(0, 0.45, t)), M = 40;
+  // keep the text inside the frame: if it would run past an edge, the leader turns around at the elbow; if it still
+  // does not fit, the text slides in (measured on the full strings, so it never jumps while typing)
+  const tw = Math.max(measure(title, { size, weight: 600 }), sub ? measure(sub, { size: size * 0.74 }) : 0);
+  const over = (x, a) => a === 'left' ? x + 12 + tw > W - M : x - 12 - tw < M;
+  if (over(xe, al) && !over(2 * ex - xe, al === 'left' ? 'right' : 'left')) { xe = 2 * ex - xe; al = al === 'left' ? 'right' : 'left'; }
   ctx.save(); ctx.beginPath(); ctx.arc(ax, ay, 5.5 * E.outBack(clamp(t * 6)), 0, TAU); ctx.fillStyle = ic; ctx.fill(); ctx.restore();
-  pen([[ax, ay], [ex, ey], [x2, ey]], { w: 2.6, color: ic, amp: 0.5, seed: 7, draw: lp, taper: 0.04, minW: 0.6 });
-  const tx = align === 'left' ? x2 + 12 : x2 - 12;
-  text(typed(title, t - 0.35, 30), tx, ey + 10, { kind: 'sans', size, weight: 600, color: ic, align });
-  if (sub) text(typed(sub, t - 0.7, 45), tx, ey + 48, { kind: 'sans', size: size * 0.74, color: dark ? '#8f90ad' : '#6f675e', align });
+  pen([[ax, ay], [ex, ey], [xe, ey]], { w: 2.6, color: ic, amp: 0.5, seed: 7, draw: lp, taper: 0.04, minW: 0.6 });
+  let tx = al === 'left' ? xe + 12 : xe - 12;
+  tx = al === 'left' ? Math.min(tx, W - M - tw) : Math.max(tx, M + tw);
+  const align2 = al;
+  text(typed(title, t - 0.35, 30), tx, ey + 10, { kind: 'sans', size, weight: 600, color: ic, align: align2 });
+  if (sub) text(typed(sub, t - 0.7, 45), tx, ey + 48, { kind: 'sans', size: size * 0.74, color: dark ? '#8f90ad' : '#6f675e', align: align2 });
 }
 /** big stat: kicker (mono caps) + large display number (tight tracking) + italic note */
 function stat(t, { x, y, kicker, value, note, dark, size = 62, align = 'left' }) {
@@ -586,9 +594,11 @@ function reticle(x, y, t, { label, r = 40, dark, alpha = 1, tag = true }) {
   for (let i = 0; i < 16; i++) { const a = i / 16 * TAU; ctx.beginPath(); ctx.moveTo(Math.cos(a) * (r + 5), Math.sin(a) * (r + 5)); ctx.lineTo(Math.cos(a) * (r + 12), Math.sin(a) * (r + 12)); ctx.stroke(); }
   ctx.restore();
   if (tag && label) {
-    const lx = x + r * 0.72, ly = y - r * 0.72, tx = lx + 22, ty = ly - 22;
-    ink([[lx, ly], [tx, ty], [tx + 110, ty]], { w: 1.4, color: PAL.peri, amp: 0 });
-    text(label, tx + 4, ty - 8, { kind: 'mono', size: 18, weight: 600, color: inkOf(dark) });
+    const lw = Math.max(110, measure(label, { kind: 'mono', size: 18, weight: 600 }) + 8), m = ctx.getTransform();
+    const sg = m.e + (x + r * 0.72 + 22 + lw) * Math.hypot(m.a, m.b) > W - 30 ? -1 : 1;   // near the right edge the tag points left
+    const lx = x + sg * r * 0.72, ly = y - r * 0.72, tx = lx + sg * 22, ty = ly - 22;
+    ink([[lx, ly], [tx, ty], [tx + sg * lw, ty]], { w: 1.4, color: PAL.peri, amp: 0 });
+    text(label, tx + sg * 4, ty - 8, { kind: 'mono', size: 18, weight: 600, color: inkOf(dark), align: sg > 0 ? 'left' : 'right' });
   }
   ctx.restore();
 }
@@ -598,14 +608,17 @@ function card(t, { x, y, w, h, dark, fig, title }) {
   const ww = w * p;
   if (dark) ink(shape.rect(x, y, ww, h), { closed: true, w: 1.4, color: 'rgba(170,170,230,0.45)', fill: 'rgba(18,18,44,0.85)', amp: 0 });
   else { flat(shape.rect(x + 4, y + 4, ww, h), 'rgba(40,30,20,0.12)'); ink(shape.rect(x, y, ww, h), { closed: true, w: 2, color: PAL.panelEdge, fill: PAL.panel, fillAlpha: PAL.panelAlpha, amp: 0.6, seed: 77, double: true }); }
-  if (title) text(typed(title, t - 0.45, 40), x + 24, y + 38, { kind: 'mono', size: 18, weight: 600, ls: 4, color: inkOf(dark) });
-  if (fig) text(typed(fig, t - 0.45, 30), x + w - 24, y + 34, { kind: 'mono', size: 15, ls: 3, align: 'right', color: mutedOf(dark) });
+  const tk = title ? Math.min(1, (w - 48) / measure(title, { kind: 'mono', size: 18, weight: 600, ls: 4 })) : 1;   // a title wider than the card shrinks to fit
+  const to = { kind: 'mono', size: 18 * tk, weight: 600, ls: 4 * tk };
+  if (title) text(typed(title, t - 0.45, 40), x + 24, y + 38, { ...to, color: inkOf(dark) });
+  if (fig) { const fo = { kind: 'mono', size: 15, ls: 3 }, clash = title && measure(title, to) + measure(fig, fo) + 72 > w;
+    text(typed(fig, t - 0.45, 30), x + w - 24, clash ? y + h - 18 : y + 34, { ...fo, align: 'right', color: mutedOf(dark) }); }   // a long title pushes the figure label to the bottom corner
   return inv(0.4, 0.6, t);
 }
 /** log-scale ruler in a card: ticks [[v, label]], marks [{v, label, color, row, t0}] (labels flip left near the end) */
 function logRuler(t, { x, y, w, min, max, ticks, marks, dark }) {
   const X = v => x + w * (Math.log10(v) - Math.log10(min)) / (Math.log10(max) - Math.log10(min));
-  const ic = inkOf(dark), lp = E.out3(inv(0, 0.8, t));
+  const ic = inkOf(dark), lp = E.out3(inv(0, 0.8, t)); if (lp <= 0) return;
   ink([[x, y], [x + w * lp, y]], { w: 2, color: ic, amp: 0 });
   if (lp >= 1) arrowHead(x + w + 2, y, 0, 11, ic, 2);
   ticks.forEach(([v, lab], i) => { const a = inv(0.1 + i * 0.05, 0.3 + i * 0.05, t); if (!a) return;
@@ -618,11 +631,15 @@ function logRuler(t, { x, y, w, min, max, ticks, marks, dark }) {
     const lo = { kind: 'mono', size: 15, weight: 600, ls: 1, color: col }, flip = X(m.v) + 8 + measure(m.label, lo) > x + w + 20;
     text(typed(m.label, mt - 0.1, 40), X(m.v) + (flip ? -8 : 8), yy, { ...lo, align: flip ? 'right' : 'left' }); });
 }
-/** line chart inside a card; series drawn on to s.draw. Returns {X, Y, ends} for placing marks. */
+/**
+ * line chart inside a card. series: [{ pts, color, w, draw (0..1, default 1), label }]; a label appears at the line's end
+ * once it has drawn on. Nothing is drawn before t = 0; the axes draw on first. Returns {X, Y, ends} for placing marks.
+ */
 function lineChart(t, { x, y, w, h, xr, yr, xticks, yticks, xlab, ylab, series, dark }) {
   const X = v => x + w * (v - xr[0]) / (xr[1] - xr[0]), Y = v => y + h - h * (v - yr[0]) / (yr[1] - yr[0]);
   const ic = inkOf(dark), mc = mutedOf(dark), a = E.out3(inv(0, 0.5, t));
-  ink([[x, y], [x, y + h], [x + w * a, y + h]], { w: 2, color: ic, amp: 0.4, seed: 5 });
+  if (a <= 0) return { X, Y, ends: [] };
+  ink([[x, y], [x, y + h], [x + w, y + h]], { w: 2, color: ic, amp: 0.4, seed: 5, draw: a });
   xticks.forEach(v => { text(String(v), X(v), y + h + 26, { kind: 'mono', size: 15, align: 'center', color: mc, alpha: a });
     ink([[X(v), y], [X(v), y + h]], { w: 1, color: PAL.peri, amp: 0, alpha: 0.25 * a }); });
   yticks.forEach(v => { text(String(v), x - 12, Y(v) + 5, { kind: 'mono', size: 15, align: 'right', color: mc, alpha: a });
@@ -630,9 +647,10 @@ function lineChart(t, { x, y, w, h, xr, yr, xticks, yticks, xlab, ylab, series, 
   if (xlab) text(xlab, x + w, y + h + 52, { kind: 'mono', size: 14, ls: 2, align: 'right', color: mc, alpha: a });
   if (ylab) text(ylab, x, y - 14, { kind: 'mono', size: 14, ls: 2, color: mc, alpha: a });
   const ends = [];
-  series.forEach(s => { const pts = s.pts.map(([u, v]) => [X(u), Y(v)]);
-    if (s.draw > 0) pen(pts, { w: s.w || 3, color: s.color, amp: 0.6, seed: 9, draw: s.draw, taper: 0.03, minW: 0.5 });
-    ends.push(along(pts, s.draw)); });
+  series.forEach((s, i) => { const pts = s.pts.map(([u, v]) => [X(u), Y(v)]), d = s.draw ?? 1;
+    if (d > 0) pen(pts, { w: s.w || 3, color: s.color, amp: 0.6, seed: 9 + i, draw: d, taper: 0.03, minW: 0.5 });
+    const e = along(pts, d); ends.push(e);
+    if (s.label && d > 0) text(s.label, Math.min(e[0], x + w), e[1] - 12, { kind: 'mono', size: 14, weight: 600, ls: 2, align: 'right', color: s.color, alpha: E.out3(inv(0.85, 1, d)) }); });
   return { X, Y, ends };
 }
 /**
@@ -647,8 +665,8 @@ function insetLens(t, { cx, cy, r, sx, sy, draw, dark = true, label }) {
   ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, rr, 0, TAU); ctx.clip();
   ctx.drawImage(dark ? TEX.night : TEX.paper, cx - W / 2, cy - H / 2);
   ctx.translate(cx, cy); draw(t); ctx.restore();
-  lensRing(cx, cy, rr, clamp(p));
-  if (label) text(typed(label, t - 0.5, 30), cx, cy + r + 44, { kind: 'mono', size: 17, ls: 4, align: 'center', color: PAL.inkSoft });
+  lensRing(cx, cy, rr, clamp(p), S.dark ? null : PAL.inkSoft);                      // the plate's own ink: a pale ring vanishes on paper
+  if (label) text(typed(label, t - 0.5, 30), cx, cy + r + 44, { kind: 'mono', size: 17, ls: 4, align: 'center', color: S.dark ? '#b9b9d6' : PAL.inkSoft });
 }
 
 /* ---------- motion helpers ---------- */
@@ -717,11 +735,13 @@ function follow(target, t, { s = 1, lead = 180, lag = 0.2, anchor = [W / 2, H / 
 /** parallax(cam, depth, fn): inside draw(), makes fn's layer pan at `depth` times the camera's pan (0 = pinned sky, 1 = ground) */
 function parallax(cam, depth, fn) { if (!cam) return fn(); ctx.save(); ctx.translate(-(cam.dx || 0) * (1 - depth), -(cam.dy || 0) * (1 - depth)); fn(); ctx.restore(); }
 /** a plate's hero on screen: from plate.hero(t) (scene coords, camera applied) or plate.focus(t) (screen coords) */
-function heroOf(pl, t) {
+function heroRaw(pl, t) {
   if (pl.hero) { const h = pl.hero(t); const [x, y] = camPoint(camOf(pl, t), [h.x, h.y]); return { ...h, x, y }; }
   const [x, y] = pl.focus ? pl.focus(t) : [W / 2, H / 2]; return { x, y, none: true };
 }
-const focusOf = (pl, t) => { const h = heroOf(pl, t); return [h.x, h.y]; };
+/** heroOf includes the entry shift (match cut + carried motion), so overlay art anchored to it stays on the reticle */
+function heroOf(pl, t) { const h = heroRaw(pl, t), ms = STORY && pl.i != null ? entryShift(pl, t) : null; return ms ? { ...h, x: h.x + ms.dx, y: h.y + ms.dy } : h; }
+const focusOf = (pl, t) => { const h = heroRaw(pl, t); return [h.x, h.y]; };   // unshifted: the engine's own anchor
 /**
  * Momentum across cuts. The old plate leans into its transition (LEAD, over its last 0.45 s) and the new plate
  * arrives still moving and settles (SETTLE, over enter.settle s after the transition). Both scale about the hero,
@@ -790,9 +810,9 @@ function momentum(pl, t) {
 }
 
 /* ---------- transitions ---------- */
-function lensRing(cx, cy, r, a) {
+function lensRing(cx, cy, r, a, color = null) {
   if (a <= 0) return;
-  ctx.save(); ctx.globalAlpha *= a; ctx.strokeStyle = '#e9e7f5'; ctx.lineWidth = 3;
+  ctx.save(); ctx.globalAlpha *= a; ctx.strokeStyle = color || '#e9e7f5'; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.stroke();
   ctx.strokeStyle = 'rgba(132,135,198,0.8)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(cx, cy, r + 8, 0, TAU); ctx.stroke();
   for (let i = 0; i < 48; i++) { const a2 = i / 48 * TAU, e = r + (i % 4 ? 13 : 20); ctx.beginPath(); ctx.moveTo(cx + Math.cos(a2) * (r + 8), cy + Math.sin(a2) * (r + 8)); ctx.lineTo(cx + Math.cos(a2) * e, cy + Math.sin(a2) * e); ctx.stroke(); }
@@ -886,8 +906,8 @@ const TRANS = {
     const cx = lerp(ox, nx, e), cy = lerp(oy, ny, e), r = zlerp(R0, 20, e);
     X.drawNewX({ xf: about(nx, ny, zlerp(tr.dive ?? 2.4, 1, e)) });
     ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.clip();
-    ctx.drawImage(bgTex(X.darkOld), 0, 0);
-    X.drawOldX({ bg: false, hud: 1 - inv(0, 0.3, p), xf: about(ox, oy, zlerp(1, 0.12, e), cx, cy) });
+    withAlpha(1 - E.in2(inv(0.8, 1, p)), () => { ctx.drawImage(bgTex(X.darkOld), 0, 0);   // the last dot of the old world fades instead of popping off
+      X.drawOldX({ bg: false, hud: 1 - inv(0, 0.3, p), xf: about(ox, oy, zlerp(1, 0.12, e), cx, cy) }); });
     ctx.restore();
     lensRing(cx, cy, r, 1 - inv(0.85, 1, p));
     return clamp(1 - (r / R0) ** 2);
@@ -899,10 +919,14 @@ const TRANS = {
     const { tr } = X, e = E.inOut5(p), k = tr.k ?? 8, out = (tr.dir || 'out') === 'out';
     const sOld = out ? zlerp(1, 1 / k, e) : zlerp(1, k, e), sNew = out ? zlerp(k, 1, e) : zlerp(1 / k, 1, e);
     const [ox, oy] = X.focusOld, [nx, ny] = X.focusNew, px = lerp(ox, nx, e), py = lerp(oy, ny, e), a = E.inOut3(inv(0.25, 0.75, p));
+    // a plate shrunk below 1 would show its world's hard edges (a ground band ending mid-frame): draw it through a soft
+    // disc about the pivot that grows with its scale, and draw its HUD unmasked
+    const R = coverR(px, py), plate = (draw, sc, hud, xf) => { if (sc >= 0.999) return draw({ bg: false, hud, xf });
+      softReveal(() => draw({ bg: false, hud: 0, xf }), px, py, sc * R * 1.1, sc * R * 0.45, 1); if (hud > 0) draw({ hudOnly: true, hud }); };
     ctx.drawImage(bgTex(X.darkNew), 0, 0);
-    withAlpha(1 - E.in2(inv(0.5, 0.95, p)), () => X.drawOldX({ bg: false, hud: 1 - inv(0, 0.3, p), xf: about(ox, oy, sOld, px, py) }));
+    withAlpha(1 - E.in2(inv(0.5, 0.95, p)), () => plate(X.drawOldX, sOld, 1 - inv(0, 0.3, p), about(ox, oy, sOld, px, py)));
     S.noReticle = p < 0.6;
-    withAlpha(a, () => X.drawNewX({ bg: false, hud: inv(0.6, 1, p), xf: about(nx, ny, sNew, px, py) }));
+    withAlpha(a, () => plate(X.drawNewX, sNew, inv(0.6, 1, p), about(nx, ny, sNew, px, py)));
     S.noReticle = false;
     return a;
   },
@@ -1170,19 +1194,24 @@ function defineStory(story) {
  */
 function drawPlate(pl, t, o = {}) {
   const { xf = null, all = false, hud = 1, bg = true, hudOnly = false } = o;
+  const darkWas = S.dark; S.dark = !!pl.dark;
   ctx.save();
   if (all && xf) xf();
   if (!hudOnly) {
   if (bg) background(pl.dark, t);
   const cam = camOf(pl, t), ms = entryShift(pl, t), mo = momentum(pl, t) * (ms ? ms.s : 1);
   ctx.save(); if (xf && !all) xf();
+  ctx.save();                                                          // scene: entry shift + momentum + camera
   if (ms) ctx.translate(ms.dx, ms.dy);
   if (mo !== 1) { const [hx, hy] = focusOf(pl, t); ctx.translate(hx, hy); ctx.scale(mo, mo); ctx.translate(-hx, -hy); }
   withCamera(cam, () => pl.draw(t, pl));
-  if (pl.hero && !S.noReticle) { const h = heroOf(pl, t); if (h.label !== undefined || h.r) {
-    const m = ctx.getTransform(), sc = Math.hypot(m.a, m.b) || 1;       // counter-scale: the reticle is furniture
+  if (pl.hero && !S.noReticle) { const hh = pl.hero(t); if (hh.label !== undefined || hh.r) {
+    const h = heroRaw(pl, t), m = ctx.getTransform(), sc = Math.hypot(m.a, m.b) || 1;       // counter-scale: the reticle is furniture
     withAlpha((h.alpha ?? 1) * clamp(hud * 1.5), () => { ctx.translate(h.x, h.y); ctx.scale(1 / sc, 1 / sc); reticle(0, 0, t, { label: h.label, r: h.r ?? 34, dark: pl.dark, tag: h.tag ?? !!h.label }); }); } }
-  if (pl.overlay) pl.overlay(t, pl);                                   // art that must not move with the camera
+  ctx.restore();
+  // overlay: art that must not move with the camera. Camera, momentum and entry shift don't apply (they would slide
+  // cards and stats off the frame before a lens or zoom); a transition's xf still does, so it leaves with its plate.
+  if (pl.overlay) pl.overlay(t, pl);
   ctx.restore();
   }
   if (hud > 0) {
@@ -1193,7 +1222,7 @@ function drawPlate(pl, t, o = {}) {
     if (pl.log) journeyLog(ht - 0.35, pl.log(t), pl.dark);
     if (pl.marks !== false) regMarks(pl.dark);
   }
-  ctx.restore();
+  ctx.restore(); S.dark = darkWas;
 }
 /** renderFrame(f): animated on twos (each drawing held 2 frames; STORY.twos = false for ones), with gate weave (STORY.weave px) and film grain (STORY.grain 0..1) */
 function renderFrame(f) {
@@ -1322,7 +1351,7 @@ async function renderAudio() {
     const t0 = p.start, tr = p.enter, ty = tr?.type, d = tr?.dur || 0.5;
     if (p.i > 0) { if (ty !== 'fade') SFX.riser(ac, out, Math.max(0, t0 - 0.35)); (TRANS_SFX[ty] || TRANS_SFX.cut)(ac, out, t0, d, tr || {}); duck(t0, 0.5, d + 0.4); }
     if (p.header) { const hd = t0 + headerDelay(p), h = p.header;
-      SFX.scratch(ac, out, hd, { chars: 9, cps: 30 }); SFX.scratch(ac, out, hd + 0.15, { chars: h.title.length, cps: 17 }); SFX.scratch(ac, out, hd + 0.7, { chars: h.sub.length, cps: 30, g: 0.012 }); }
+      SFX.scratch(ac, out, hd, { chars: 9, cps: 30 }); SFX.scratch(ac, out, hd + 0.15, { chars: h.title.length, cps: 17 }); if (h.sub) SFX.scratch(ac, out, hd + 0.7, { chars: h.sub.length, cps: 30, g: 0.012 }); }
     const bed = p.bed || autoBed(p); if (bed) bed(ac, bedBus, t0, p.dur);
     for (const [ct, type, opt] of (p.cues || [])) { SFX[type](ac, out, t0 + ct, opt || {}); if (type === 'chime' || type === 'pop') duck(t0 + ct, 0.25, 0.35); }
   }
@@ -1346,9 +1375,29 @@ function wavBytes(buf) {
 function b64(bytes) { let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s); }
 
 /* ---------- boot: render hooks + preview player ---------- */
+/**
+ * Wait for the web fonts, but never forever: the Google Fonts stylesheet loads without blocking the page (shell.html
+ * marks it data-state ok / failed), and a blocked or silent network gives up after FONT_WAIT ms. Missing faces are
+ * detected by measuring text against two fallbacks (document.fonts.check() says true when a face was never declared)
+ * and reported in window.__fontWarning, which render.mjs prints and the preview shows. Wall-clock time is fine here:
+ * this runs once at boot, never inside renderFrame.
+ */
+const FONT_WAIT = +(QS.get('fontwait') || 10000);
+async function loadFonts() {
+  const late = new Promise(r => setTimeout(() => r('timeout'), FONT_WAIT)), link = document.getElementById('webfonts');
+  if (link && !link.dataset.state) await Promise.race([late, new Promise(r => { link.addEventListener('load', r); link.addEventListener('error', r); })]);
+  await Promise.race([late, Promise.all(FONT_LOADS.map(f => document.fonts.load(f).catch(() => null))).then(() => document.fonts.ready)]);
+  const g = document.createElement('canvas').getContext('2d'), probe = 'Hamburgefonstiv 0123 AQWxyz';
+  const missing = [['Fraunces', '500 40px'], ['Inter Tight', '400 40px'], ['IBM Plex Mono', '400 40px']].filter(([fam, spec]) =>
+    ['monospace', 'serif'].every(fb => { g.font = `${spec} "${fam}", ${fb}`; const a = g.measureText(probe).width; g.font = `${spec} ${fb}`; return a === g.measureText(probe).width; }));
+  if (missing.length) {
+    window.__fontWarning = `fonts not loaded (${missing.map(m => m[0]).join(', ')}): text uses fallback faces. ` +
+      (link && link.dataset.state === 'failed' ? 'Google Fonts is blocked; ' : link ? 'Google Fonts did not answer; ' : '') + 'build with: python3 build.py story.js film.html --fonts local';
+    console.warn(window.__fontWarning);
+  }
+}
 async function boot() {
-  await Promise.all(FONT_LOADS.map(f => document.fonts.load(f).catch(() => null)));
-  await document.fonts.ready;
+  await loadFonts();
   buildTextures();
   window.__story = { fps: FPS, frames: TOTAL_F, width: W, height: H, title: STORY.title, starts: STORY.plates.map(p => ({ t: p.start, type: p.enter ? p.enter.type : null, dur: p.enter ? p.enter.dur : 0, settle: p.enter ? p.enter.settle ?? 0.9 : 0 })) };
   window.__renderFrame = f => { renderFrame(f); return true; };
@@ -1384,4 +1433,5 @@ function player() {
     requestAnimationFrame(loop);
   })();
   ui.style.display = 'flex';
+  if (window.__fontWarning) { const w = document.createElement('span'); w.textContent = '⚠ ' + window.__fontWarning; w.style.color = '#e8577a'; ui.appendChild(w); ui.style.opacity = 1; }
 }

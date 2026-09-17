@@ -23,11 +23,15 @@ const dir = path.resolve(opt('dir', out ? out.replace(/\.mp4$/, '') + '_frames' 
 fs.mkdirSync(dir, { recursive: true });
 
 const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required', '--font-render-hinting=none'] });
+let warned = false;
 async function openPage() {
   const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
   page.on('pageerror', e => console.error('PAGE ERROR:', e.message));
-  await page.goto(pathToFileURL(file).href + '?render=1', { waitUntil: 'networkidle' });
+  if (process.env.DOODLE_BLOCK_FONTS) await page.route(/fonts\.(googleapis|gstatic)\.com/, r => process.env.DOODLE_BLOCK_FONTS === 'hang' ? null : r.abort());   // test the offline path
+  await page.goto(pathToFileURL(file).href + '?render=1', { waitUntil: 'domcontentloaded' });   // not networkidle: a silent font server would stall it
   await page.waitForFunction(() => window.__ready === true, null, { timeout: 90000, polling: 250 });
+  const warn = await page.evaluate(() => window.__fontWarning);
+  if (warn && !warned) { warned = true; console.warn('\x1b[33mWARNING:', warn, '\x1b[0m'); }
   return page;
 }
 const first = await openPage();
