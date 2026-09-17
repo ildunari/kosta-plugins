@@ -6,7 +6,7 @@
   - ffmpeg joins them at `-crf 16`, or at `--bitrate` if you pass one.
   - Audio renders at the same time as the frames (on its own audio thread), and the script prints frame, audio and encode times and the file size.
   - The page loads on `domcontentloaded` and waits for `window.__ready`; if the fonts did not load it prints a yellow `WARNING` (see "Fonts" below).
-- **Options:** `--png` for lossless frames, `--from/--to` to re-render a range, `--bitrate 3800k` for a capped bitrate, `--crf 16` and `--preset slow` for the constant-quality encode.
+- **Options:** `--png` for lossless frames, `--from/--to` to re-render a range, `--bitrate 3800k` for a capped bitrate, `--crf 16` and `--preset slow` for the constant-quality encode, `--strict-fonts` to stop (exit code 1) when any page fell back to other fonts. Use `--strict-fonts` for the final render (the `doodle-render` step), so a film never ships in the wrong typeface.
 - **Seams:** `node render.mjs film.html --seams` writes `qa/seam_NN_type.jpg` for every transition. The top row shows the old plate's last drawing, the two overlaid, and the new plate once settled; the bottom row shows four drawings inside the transition. Use the overlay to check that the exit and entry objects line up.
 - **Speed** depends mostly on CPU cores, because headless Chromium draws the canvas on the CPU.
   - On a machine with plenty of cores, 6 workers averaged about 60–70 ms per frame, so a 4.5-minute film takes about 7–8 minutes.
@@ -46,10 +46,13 @@ Advice:
 The page uses Fraunces, Inter Tight and IBM Plex Mono from Google Fonts. `shell.html` loads their stylesheet without blocking the page, and `boot()` waits for them for at most 10 s (`?fontwait=ms` changes that).
 
 - **If Google Fonts is blocked** (refused or unreachable), the film renders in fallback faces (Georgia and Menlo, visibly wider, so layouts shift). `render.mjs` prints `WARNING: fonts not loaded (…)` and the preview shows the same message in its control bar. Before this change, a silent network (requests that never answer) stalled the page forever, because the stylesheet blocked the scripts.
+- **The fallback is frozen.** If any face is missing when the wait ends, the engine removes the Google stylesheet, so fonts that arrive later can't change frames halfway through a render. Without this, fonts arriving 3 s late changed the frames rendered a few seconds after startup.
+- **Every worker draws with the same faces.** When the first page fell back, the other workers open with `?nofonts=1` and freeze the same fallback at once, so a silent network costs one 10 s wait, not one per worker. `render.mjs` compares the warnings of all pages and stops with exit code 1 if they disagree.
+- A `--fonts local` build that still lacks a face names the missing package in its warning.
 - **Offline fonts:** install the packages once in the film folder and build with `--fonts local`:
   ```
   npm i @fontsource-variable/fraunces @fontsource/inter-tight @fontsource/ibm-plex-mono
   python3 build.py story.js film.html --fonts local      # or --fonts /path/to/node_modules
   ```
-  This embeds the Latin and Latin Extended WOFF2 files as base64 `@font-face` rules (about 600 KB more HTML) and removes the Google link, so the film needs no network. With the variable Fraunces package (which has the optical-size axis, like the Google version) the frames are pixel-identical to the Google Fonts render. `@fontsource/fraunces` (static 400/500/600) also works, with slightly different display type.
+  This embeds the Latin and Latin Extended WOFF2 files as base64 `@font-face` rules (about 600 KB more HTML) and removes the Google link, so the film needs no network. `local` means `./node_modules` in the folder you run `build.py` from (the film folder). `--fonts=local` works too. Use `@fontsource-variable/fraunces`: it has the optical-size (opsz) axis, like the Google version, and the frames are pixel-identical to the Google Fonts render. Static `@fontsource/fraunces` (400/500/600) has no opsz axis, so display type looks different; `build.py` says so when it falls back to it.
 - **Testing:** `DOODLE_BLOCK_FONTS=abort node render.mjs film.html --stills 60` blocks the font servers (`hang` makes them never answer).

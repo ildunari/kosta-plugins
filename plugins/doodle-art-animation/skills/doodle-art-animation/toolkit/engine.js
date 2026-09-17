@@ -565,7 +565,8 @@ function callout(t, o) {
   // does not fit, the text slides in (measured on the full strings, so it never jumps while typing)
   const tw = Math.max(measure(title, { size, weight: 600 }), sub ? measure(sub, { size: size * 0.74 }) : 0);
   const over = (x, a) => a === 'left' ? x + 12 + tw > W - M : x - 12 - tw < M;
-  if (over(xe, al) && !over(2 * ex - xe, al === 'left' ? 'right' : 'left')) { xe = 2 * ex - xe; al = al === 'left' ? 'right' : 'left'; }
+  const flip = al === 'left' ? 'right' : 'left', xf2 = al === 'left' ? Math.min(2 * ex - xe, ex - 60) : Math.max(2 * ex - xe, ex + 60);   // flipped flag: at least 60 px
+  if (over(xe, al) && !over(xf2, flip)) { xe = xf2; al = flip; }
   ctx.save(); ctx.beginPath(); ctx.arc(ax, ay, 5.5 * E.outBack(clamp(t * 6)), 0, TAU); ctx.fillStyle = ic; ctx.fill(); ctx.restore();
   pen([[ax, ay], [ex, ey], [xe, ey]], { w: 2.6, color: ic, amp: 0.5, seed: 7, draw: lp, taper: 0.04, minW: 0.6 });
   let tx = al === 'left' ? xe + 12 : xe - 12;
@@ -921,12 +922,13 @@ const TRANS = {
     const [ox, oy] = X.focusOld, [nx, ny] = X.focusNew, px = lerp(ox, nx, e), py = lerp(oy, ny, e), a = E.inOut3(inv(0.25, 0.75, p));
     // a plate shrunk below 1 would show its world's hard edges (a ground band ending mid-frame): draw it through a soft
     // disc about the pivot that grows with its scale, and draw its HUD unmasked
-    const R = coverR(px, py), plate = (draw, sc, hud, xf) => { if (sc >= 0.999) return draw({ bg: false, hud, xf });
-      softReveal(() => draw({ bg: false, hud: 0, xf }), px, py, sc * R * 1.1, sc * R * 0.45, 1); if (hud > 0) draw({ hudOnly: true, hud }); };
+    // (the masked pass keeps the reticle at the HUD's strength; only the header, dial and log are drawn unmasked after it)
+    const plate = (draw, sc, hud, xf, R) => { if (sc >= 0.999) return draw({ bg: false, hud, xf });
+      softReveal(() => draw({ bg: false, hud, chrome: false, xf }), px, py, sc * R * 1.1, sc * R * 0.45, 1); if (hud > 0) draw({ hudOnly: true, hud }); };
     ctx.drawImage(bgTex(X.darkNew), 0, 0);
-    withAlpha(1 - E.in2(inv(0.5, 0.95, p)), () => plate(X.drawOldX, sOld, 1 - inv(0, 0.3, p), about(ox, oy, sOld, px, py)));
+    withAlpha(1 - E.in2(inv(0.5, 0.95, p)), () => plate(X.drawOldX, sOld, 1 - inv(0, 0.3, p), about(ox, oy, sOld, px, py), coverR(ox, oy)));
     S.noReticle = p < 0.6;
-    withAlpha(a, () => plate(X.drawNewX, sNew, inv(0.6, 1, p), about(nx, ny, sNew, px, py)));
+    withAlpha(a, () => plate(X.drawNewX, sNew, inv(0.6, 1, p), about(nx, ny, sNew, px, py), coverR(nx, ny)));
     S.noReticle = false;
     return a;
   },
@@ -1193,7 +1195,7 @@ function defineStory(story) {
  * o.all applies xf to everything (pans, page curls); o.hud scales HUD alpha; o.bg = false skips the paper.
  */
 function drawPlate(pl, t, o = {}) {
-  const { xf = null, all = false, hud = 1, bg = true, hudOnly = false } = o;
+  const { xf = null, all = false, hud = 1, bg = true, hudOnly = false, chrome = true } = o;   // chrome: false skips header, dial, log and marks (the reticle still follows hud)
   const darkWas = S.dark; S.dark = !!pl.dark;
   ctx.save();
   if (all && xf) xf();
@@ -1214,7 +1216,7 @@ function drawPlate(pl, t, o = {}) {
   if (pl.overlay) pl.overlay(t, pl);
   ctx.restore();
   }
-  if (hud > 0) {
+  if (hud > 0 && chrome) {
     ctx.globalAlpha *= clamp(hud);
     const ht = t - headerDelay(pl);
     if (pl.header) plateHeader(ht, { ...pl.header, dark: pl.dark });
@@ -1381,20 +1383,40 @@ function b64(bytes) { let s = ''; for (let i = 0; i < bytes.length; i += 0x8000)
  * detected by measuring text against two fallbacks (document.fonts.check() says true when a face was never declared)
  * and reported in window.__fontWarning, which render.mjs prints and the preview shows. Wall-clock time is fine here:
  * this runs once at boot, never inside renderFrame.
+ * If any face is missing at the cap, the fallback is frozen: the Google stylesheet is removed, so no face that arrives
+ * later can change frames mid-render. ?nofonts=1 freezes it at once (render.mjs passes it to extra workers when the
+ * first page already fell back, so every page draws with the same faces without waiting the cap again).
  */
 const FONT_WAIT = +(QS.get('fontwait') || 10000);
-async function loadFonts() {
-  const late = new Promise(r => setTimeout(() => r('timeout'), FONT_WAIT)), link = document.getElementById('webfonts');
-  if (link && !link.dataset.state) await Promise.race([late, new Promise(r => { link.addEventListener('load', r); link.addEventListener('error', r); })]);
-  await Promise.race([late, Promise.all(FONT_LOADS.map(f => document.fonts.load(f).catch(() => null))).then(() => document.fonts.ready)]);
+const FONT_PKG = { 'Fraunces': '@fontsource-variable/fraunces', 'Inter Tight': '@fontsource/inter-tight', 'IBM Plex Mono': '@fontsource/ibm-plex-mono' };
+function missingFonts() {
   const g = document.createElement('canvas').getContext('2d'), probe = 'Hamburgefonstiv 0123 AQWxyz';
-  const missing = [['Fraunces', '500 40px'], ['Inter Tight', '400 40px'], ['IBM Plex Mono', '400 40px']].filter(([fam, spec]) =>
-    ['monospace', 'serif'].every(fb => { g.font = `${spec} "${fam}", ${fb}`; const a = g.measureText(probe).width; g.font = `${spec} ${fb}`; return a === g.measureText(probe).width; }));
-  if (missing.length) {
-    window.__fontWarning = `fonts not loaded (${missing.map(m => m[0]).join(', ')}): text uses fallback faces. ` +
-      (link && link.dataset.state === 'failed' ? 'Google Fonts is blocked; ' : link ? 'Google Fonts did not answer; ' : '') + 'build with: python3 build.py story.js film.html --fonts local';
-    console.warn(window.__fontWarning);
+  return [['Fraunces', '500 40px'], ['Inter Tight', '400 40px'], ['IBM Plex Mono', '400 40px']].filter(([fam, spec]) =>
+    ['monospace', 'serif'].every(fb => { g.font = `${spec} "${fam}", ${fb}`; const a = g.measureText(probe).width; g.font = `${spec} ${fb}`; return a === g.measureText(probe).width; }))
+    .map(m => m[0]);
+}
+async function loadFonts() {
+  const link = document.getElementById('webfonts'), state = link ? link.dataset.state : null;
+  let missing, why;
+  if (QS.has('nofonts') && link) { missing = Object.keys(FONT_PKG); why = 'fonts skipped (?nofonts); '; }   // embedded fonts are never skipped
+  else {
+    const late = new Promise(r => setTimeout(() => r('timeout'), FONT_WAIT));
+    if (link && !link.dataset.state) await Promise.race([late, new Promise(r => { link.addEventListener('load', r); link.addEventListener('error', r); })]);
+    await Promise.race([late, Promise.all(FONT_LOADS.map(f => document.fonts.load(f).catch(() => null))).then(() => document.fonts.ready)]);
+    missing = missingFonts();
+    why = link && link.dataset.state === 'failed' ? 'Google Fonts is blocked; ' : link ? 'Google Fonts did not answer; ' : '';
   }
+  if (!missing.length) return;
+  if (link) {                                              // freeze: drop the stylesheet so its faces are no longer declared
+    link.remove(); for (const l of document.querySelectorAll('link[href*="fonts.g"]')) l.remove();
+    for (const f of [...document.fonts]) if (f.status !== 'loaded') document.fonts.delete(f);   // non-CSS faces still loading
+    await new Promise(r => setTimeout(r, 50));             // not document.fonts.ready: it never settles while a request hangs
+    missing = missingFonts();                              // removing the sheet also drops faces that had loaded
+  }
+  window.__fontWarning = `fonts not loaded (${missing.join(', ')}): text uses fallback faces. ` + why +
+    (link ? 'build with: python3 build.py story.js film.html --fonts local'
+      : `the embedded fonts lack them: npm i ${missing.map(m => FONT_PKG[m]).join(' ')} in the film folder and rebuild with --fonts local`);
+  console.warn(window.__fontWarning);
 }
 async function boot() {
   await loadFonts();

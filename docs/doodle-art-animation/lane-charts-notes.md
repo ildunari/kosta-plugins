@@ -10,7 +10,7 @@ Replace:
 
 with:
 
-> **Requirements:** Node 18+, Playwright with Chromium, ffmpeg, Python 3 with numpy, and network access to Google Fonts. If `render.mjs` prints `WARNING: fonts not loaded`, the film is using fallback faces and its layout will be off. Build it with embedded fonts instead: `npm i @fontsource-variable/fraunces @fontsource/inter-tight @fontsource/ibm-plex-mono` in the film folder, then `python3 build.py story.js film.html --fonts local` (details in `references/render.md`, "Fonts"). Don't edit `shell.html` by hand.
+> **Requirements:** Node 18+, Playwright with Chromium, ffmpeg, Python 3 with numpy, and network access to Google Fonts. If `render.mjs` prints `WARNING: fonts not loaded`, the film is using fallback faces and its layout will be off. Build it with embedded fonts instead: `npm i @fontsource-variable/fraunces @fontsource/inter-tight @fontsource/ibm-plex-mono` in the film folder (the variable Fraunces package, not the static one), then `python3 build.py story.js film.html --fonts local` (details in `references/render.md`, "Fonts"). Don't edit `shell.html` by hand.
 
 ## 2. Render step (workflow step 7, line 68)
 
@@ -20,7 +20,7 @@ Replace:
 
 with:
 
-> 7. **Render**: `node render.mjs film.html film.mp4 --workers 6 --bitrate 3800k` (a one-minute film lands near 25–30 MB). Leave out `--bitrate` only for a master you will re-encode: the grain makes constant-quality files huge (a 2.7-minute film was 1.36 GB). For films over two minutes, read "Long films" in `references/render.md` (disk, memory, and encode time).
+> 7. **Render**: `node render.mjs film.html film.mp4 --workers 6 --bitrate 3800k --strict-fonts` (a one-minute film lands near 25–30 MB). Leave out `--bitrate` only for a master you will re-encode: the grain makes constant-quality files huge (a 2.7-minute film was 1.36 GB). For films over two minutes, read "Long films" in `references/render.md` (disk, memory, and encode time).
 
 ## 3. HUD rule (line 85)
 

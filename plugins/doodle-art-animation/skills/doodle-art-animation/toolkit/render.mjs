@@ -1,6 +1,6 @@
 // render.mjs — frame-exact capture of a Doodle Art Animation HTML file.
 // usage:
-//   node render.mjs film.html out.mp4 [--workers 6] [--from 0] [--to N] [--png] [--bitrate 3800k] [--crf 16] [--preset slow]
+//   node render.mjs film.html out.mp4 [--workers 6] [--from 0] [--to N] [--png] [--bitrate 3800k] [--crf 16] [--preset slow] [--strict-fonts]
 //   node render.mjs film.html --stills 0,120,480 [--dir qa]     single frames
 //   node render.mjs film.html --sheet 1 [--dir qa]              1 frame every N seconds -> qa/contact_sheet.jpg
 //   node render.mjs film.html --strips [--dir qa]               8 fps strip around every transition -> qa/strip_XX.jpg
@@ -18,20 +18,30 @@ const args = process.argv.slice(2);
 const file = path.resolve(args[0]);
 const opt = (k, d) => { const i = args.indexOf('--' + k); return i < 0 ? d : (args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : true); };
 const out = args[1] && !args[1].startsWith('--') ? path.resolve(args[1]) : null;
+const strictFonts = !!opt('strict-fonts', false);   // exit non-zero if any page fell back to other fonts
 const workers = +opt('workers', 6), png = !!opt('png', false), bitrate = opt('bitrate', null), crf = String(opt('crf', 16)), preset = opt('preset', 'slow');
 const dir = path.resolve(opt('dir', out ? out.replace(/\.mp4$/, '') + '_frames' : 'qa'));
 fs.mkdirSync(dir, { recursive: true });
 
 const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required', '--font-render-hinting=none'] });
-let warned = false;
+// every page must draw with the same faces: warnings are collected per page and compared
+const fontWarnings = [];
+const fail = msg => { console.error('\x1b[31mERROR:', msg, '\x1b[0m'); process.exit(1); };
 async function openPage() {
   const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
   page.on('pageerror', e => console.error('PAGE ERROR:', e.message));
   if (process.env.DOODLE_BLOCK_FONTS) await page.route(/fonts\.(googleapis|gstatic)\.com/, r => process.env.DOODLE_BLOCK_FONTS === 'hang' ? null : r.abort());   // test the offline path
-  await page.goto(pathToFileURL(file).href + '?render=1', { waitUntil: 'domcontentloaded' });   // not networkidle: a silent font server would stall it
+  // not networkidle: a silent font server would stall it. When the first page fell back, later pages skip the font wait
+  // (?nofonts) and freeze the same fallback, so they neither wait the cap again nor pick up fonts that arrive late.
+  const q = fontWarnings.length && fontWarnings[0] ? '&nofonts=1' : '';
+  await page.goto(pathToFileURL(file).href + '?render=1' + q, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.__ready === true, null, { timeout: 90000, polling: 250 });
-  const warn = await page.evaluate(() => window.__fontWarning);
-  if (warn && !warned) { warned = true; console.warn('\x1b[33mWARNING:', warn, '\x1b[0m'); }
+  const warn = (await page.evaluate(() => window.__fontWarning)) || null;
+  if (warn && !fontWarnings.length) console.warn('\x1b[33mWARNING:', warn, '\x1b[0m');
+  const fam = w => w && w.slice(0, w.indexOf(')'));        // compare which families are missing, not the reason text
+  if (fontWarnings.length && fam(warn) !== fam(fontWarnings[0])) fail(`pages disagree on fonts (page 1: ${fontWarnings[0] || 'all loaded'}; page ${fontWarnings.length + 1}: ${warn || 'all loaded'})`);
+  fontWarnings.push(warn);
+  if (warn && strictFonts) fail('--strict-fonts: ' + warn);
   return page;
 }
 const first = await openPage();
@@ -84,9 +94,11 @@ const from = +opt('from', 0), to = Math.min(+opt('to', info.frames), info.frames
 const pages = [first]; for (let i = 1; i < workers; i++) pages.push(await openPage());
 let done = 0; const t0 = Date.now(), ext = png ? 'png' : 'jpg';
 // audio renders on its own thread (OfflineAudioContext), so start it now instead of after the frames: ~20 s saved on a 3-minute film
+let audioError = null;                                       // held until the frames finish, so a failure can't abort mid-render unhandled
 const audio = first.evaluate(() => window.__audioWav()).then(wav => {
   fs.writeFileSync(path.join(dir, 'audio.wav'), Buffer.from(wav, 'base64'));
-  console.log(`audio: ${((Date.now() - t0) / 1000).toFixed(1)} s after start, ${(wav.length * 0.75 / 1048576).toFixed(1)} MB wav`); });
+  console.log(`audio: ${((Date.now() - t0) / 1000).toFixed(1)} s after start, ${(wav.length * 0.75 / 1048576).toFixed(1)} MB wav`); })
+  .catch(e => { audioError = e; });
 await Promise.all(pages.map(async (page, w) => {
   for (let f = from; f < to; f++) {
     if (Math.floor(f / 2) % workers !== w) continue;          // frame pairs share a boil, keep them on one worker
@@ -97,6 +109,7 @@ await Promise.all(pages.map(async (page, w) => {
 const tf = Date.now() - t0;
 console.log(`frames: ${(tf / 1000).toFixed(1)} s, ${(tf / Math.max(1, done)).toFixed(0)} ms/frame with ${workers} workers`);
 await audio;
+if (audioError) { await browser.close(); throw audioError; }
 await browser.close();
 if (out) {
   const te = Date.now();
@@ -107,5 +120,5 @@ if (out) {
   const mb = fs.statSync(out).size / 1048576, perMin = mb / (((to - from) / info.fps) / 60);
   console.log(`wrote ${out}: ${mb.toFixed(0)} MB (${perMin.toFixed(0)} MB/min), encode ${((Date.now() - te) / 1000).toFixed(0)} s, total ${((Date.now() - t0) / 1000).toFixed(0)} s`);
   // the grain and gate weave change every drawing, so constant-quality encodes spend their bits on noise
-  if (!bitrate && perMin > 100) console.warn('\x1b[33mlarge file: use --bitrate 3800k for anything you share (≈ 30 MB/min)\x1b[0m');
+  if (!bitrate && perMin > 100 && (to - from) / info.fps >= 10) console.warn('\x1b[33mlarge file: use --bitrate 3800k for anything you share (≈ 30 MB/min)\x1b[0m');
 }
