@@ -1,6 +1,6 @@
 # Lane notes: component kits (for the integrator)
 
-This lane added `toolkit/kits/` (6 kits plus the `_kit.js` base), `toolkit/story_gallery.js`, `references/components.md`, a `__KITS__` slot in `toolkit/shell.html`, and a `build.py` that inlines `kits/*.js` (in name order) between the engine and the story. It works when `kits/` is absent and with an older `shell.html` that has no `__KITS__` slot. SKILL.md, engine.js and the other references were not touched. These are the edits they need.
+This lane added `toolkit/kits/` (6 kits plus the `_kit.js` base), `toolkit/story_gallery.js`, `references/components.md`, a `__KITS__` slot in `toolkit/shell.html`, and a `build.py` that inlines kit files between the engine and the story. It includes `kits/_*.js` plus only the kits the story names (`KIT.<kit>`), or every kit when that can't be read (`const K = KIT`, `KIT[...]`, an unknown name); a film with no kits carries none. It stops with a clear message when a story uses `KIT.` but `kits/` is missing, and still works with an older `shell.html` that has no `__KITS__` slot. SKILL.md, engine.js and the other references were not touched. These are the edits they need.
 
 ## SKILL.md
 
@@ -53,4 +53,11 @@ If you change or add a kit component, render the gallery: `python3 build.py stor
 
 - The gallery, example, seams and reel stories all built with the kits inlined, and their stills rendered with no page errors.
 - The gallery contact sheet and per-plate stills were reviewed by eye.
-- `gallery.mp4` (36 s): `motion_check` median 1.59, still 0%.
+- `gallery.mp4` (36 s): `motion_check` median 1.59, still 0% (first pass; see the review pass below).
+
+## Review pass (merge-with-fixes)
+
+- Every component honours `dark` (a dark-flip test rendered all 33 components on the other world); `components.md` documents what stays light.
+- Memo keys fixed (`earth.weather` includes `n`, `ai.motes` includes `dark`); `KIT.memo` is an LRU capped at 256 entries.
+- `tech.terminal` with `loop` stays empty before `t0`; `tech.code` clamps `hl`; `tech.circuit` accepts 1 pin per side; `ai.chat` returns `{ h }`.
+- Visual fixes: flask highlights follow each glass, token fade and candidate clip, stronger rain with splashes, a mountain range that ends inside its box (with jittered snowcaps and edge-faded mist), legible strata labels, stronger planet bands and lighter night hatching, the eyedropper dips into the chip, paper colours for stars, comets and attention arcs, and gallery layout collisions cleared.

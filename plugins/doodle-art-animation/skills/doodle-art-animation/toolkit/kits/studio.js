@@ -27,12 +27,13 @@ KIT.studio = (() => {
   function drawBrush(x, y, rot, color, o, seed, alpha = 1) {
     if (alpha <= 0) return;
     const b = brushShape();
+    const ic = K.inkOf(o.dark);
     ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.globalAlpha *= alpha;
-    ink(b.handle, { closed: true, w: K.lw(o, 1.8), fill: PAL.studioHandle, amp: 0.3, seed: seed + 1 });
+    ink(b.handle, { color: ic, closed: true, w: K.lw(o, 1.8), fill: PAL.studioHandle, amp: 0.3, seed: seed + 1 });
     pen([[-2, -64], [-1, -160]], { w: K.lw(o, 1.6), color: '#ffffff', alpha: 0.35, taper: 0.4, seed: seed + 2 });
-    ink(b.ferrule, { closed: true, w: K.lw(o, 1.8), fill: PAL.studioFerrule, amp: 0.3, seed: seed + 3 });
-    ink([[-7, -42], [7, -42]], { w: K.lw(o, 1), amp: 0.1, alpha: 0.6 });
-    ink(b.tuft, { closed: true, w: K.lw(o, 1.8), fill: color, amp: 0.4, seed: seed + 4 });
+    ink(b.ferrule, { color: ic, closed: true, w: K.lw(o, 1.8), fill: PAL.studioFerrule, amp: 0.3, seed: seed + 3 });
+    ink([[-7, -42], [7, -42]], { w: K.lw(o, 1), color: PAL.ink, amp: 0.1, alpha: 0.6 });
+    ink(b.tuft, { color: ic, closed: true, w: K.lw(o, 1.8), fill: color, amp: 0.4, seed: seed + 4 });
     hatch(b.tuft, { color: '#1b1518', alpha: 0.3, gap: 3, len: 10, angle: 1.5, seed: seed + 5 });
     ctx.restore();
   }
@@ -42,23 +43,24 @@ KIT.studio = (() => {
   function easel(t, o) {
     o = K.opts(o, { paint: null });
     return K.at(o, () => {
+      const ic = K.inkOf(o.dark);
       const { draw, seed } = o, pp = o.paint ?? K.ph(draw, 0.35, 1), wa = K.ph(draw, 0, 0.4);
       const legs = [[[-8, -410], [-118, 0]], [[8, -410], [118, 0]]];
       pen([[0, -380], [36, -6]], { w: K.lw(o, 7), color: PAL.studioWoodDeep, alpha: 0.7, seed: seed + 1, taper: 0.04, draw: wa });
-      legs.forEach((l, i) => { const rb = K.ribbon(l, 7); ink(rb, { closed: true, w: K.lw(o, 1.8), fill: PAL.studioWood, amp: 0.4, seed: seed + 2 + i, draw: wa });
+      legs.forEach((l, i) => { const rb = K.ribbon(l, 7); ink(rb, { color: ic, closed: true, w: K.lw(o, 1.8), fill: PAL.studioWood, amp: 0.4, seed: seed + 2 + i, draw: wa });
         if (wa >= 1) hatch(rb, { color: PAL.studioWoodDeep, alpha: 0.35, gap: 4, len: 14, angle: Math.atan2(l[1][1] - l[0][1], l[1][0] - l[0][0]), seed: seed + 4 + i }); });
       const ledge = shape.rect(-128, -150, 256, 14);
-      ink(ledge, { closed: true, w: K.lw(o, 2), fill: PAL.studioWood, amp: 0.4, seed: seed + 6, draw: wa });
+      ink(ledge, { color: ic, closed: true, w: K.lw(o, 2), fill: PAL.studioWood, amp: 0.4, seed: seed + 6, draw: wa });
       const ca = K.ph(draw, 0.2, 0.5); if (ca <= 0) return;
       withAlpha(ca, () => {
-        K.shadow(shape.rect(-110, -392, 220, 242), 6, 6, 0.12);
+        if (!o.dark) K.shadow(shape.rect(-110, -392, 220, 242), 6, 6, 0.12);
         const cv = shape.rect(-110, -392, 220, 242);
-        ink(cv, { closed: true, w: K.lw(o, 2.4), fill: PAL.studioCanvas, amp: 0.5, seed: seed + 7 });
+        ink(cv, { color: ic, closed: true, w: K.lw(o, 2.4), fill: PAL.studioCanvas, amp: 0.5, seed: seed + 7 });
         ctx.save(); trace(cv, true); ctx.clip();
         const x0 = -110, y0 = -392;
         for (let k = 0; k < 7; k++) daub([[x0 + 6, y0 + 16 + k * 18], [x0 + 214, y0 + 20 + k * 18]], k < 4 ? PAL.studioSky : PAL.studioSkyWarm, 22, o, seed + 10 + k, E.out2(clamp(pp * 7 - k * 0.5)), 0.85);
         const sa = E.outBack(clamp(pp * 3 - 1.1)), sr = 22 * sa * (1 + 0.05 * Math.sin(t * 2));
-        if (sa > 0) { ink(shape.circle(55, y0 + 70, sr, 20), { closed: true, w: 0, fill: PAL.sun });
+        if (sa > 0) { ink(shape.circle(55, y0 + 70, sr, 20), { color: ic, closed: true, w: 0, fill: PAL.sun });
           for (let i = 0; i < 10; i++) { const a = i / 10 * TAU + t * 0.2, L = (i % 2 ? 8 : 14) * (1 + 0.25 * Math.sin(t * 3 + i));
             daub([[55 + Math.cos(a) * (sr + 5), y0 + 70 + Math.sin(a) * (sr + 5)], [55 + Math.cos(a) * (sr + 5 + L), y0 + 70 + Math.sin(a) * (sr + 5 + L)]], PAL.accent, 3.5, o, seed + 30 + i, sa); } }
         for (let c = 0; c < 2; c++) { const cx = ((t * 7 + c * 130) % 300) - 150, cy = y0 + 46 + c * 34, ca2 = clamp(pp * 3 - 1.2);
@@ -75,8 +77,8 @@ KIT.studio = (() => {
           daub([[-72 + sw, y0 + 150], [-48 + sw, y0 + 150]], PAL.studioHillDeep, 26 * E.outBack(tp), o, seed + 71, tp); }
         hatch(cv, { color: PAL.muted, alpha: 0.08, gap: 5, len: 6, angle: 0.8, seed: seed + 80 });
         ctx.restore();
-        ink(cv, { closed: true, w: K.lw(o, 2.4), amp: 0.5, seed: seed + 7 });
-        ink(shape.rect(-16, -406, 32, 18), { closed: true, w: K.lw(o, 1.8), fill: PAL.studioWood, amp: 0.3, seed: seed + 8 });
+        ink(cv, { color: ic, closed: true, w: K.lw(o, 2.4), amp: 0.5, seed: seed + 7 });
+        ink(shape.rect(-16, -406, 32, 18), { color: ic, closed: true, w: K.lw(o, 1.8), fill: PAL.studioWood, amp: 0.3, seed: seed + 8 });
         drawBrush(58, -152, -1.62, PAL.studioLake, o, seed + 90);
         drawBrush(112, -153, -1.53, PAL.accent, o, seed + 95);
       });
@@ -89,6 +91,7 @@ KIT.studio = (() => {
   function brush(t, o) {
     o = K.opts(o, { path: [[0, 60], [120, 0], [260, 50], [400, 10], [520, 40]], color: PAL.accent, width: 30, period: 4.5, paint: null });
     return K.at(o, () => {
+      const ic = K.inkOf(o.dark);
       const { color, width, seed, draw } = o, P = K.memo(`st.brush|${o.path.join(';')}|${width}`, () => { const p = resample(smooth(o.path, 3, false), 80, false); return { p, off: [-0.34, -0.17, 0, 0.17, 0.34].map(k => K.offset(p, k * width)) }; });
       let prog, fade = 1, bAlpha = 1, lift = 0;
       if (o.paint != null) prog = o.paint;
@@ -113,6 +116,7 @@ KIT.studio = (() => {
   function swatches(t, o) {
     o = K.opts(o, { colors: null, cols: 6, period: 1.4 });
     return K.at(o, () => {
+      const ic = K.inkOf(o.dark);
       const cols = o.colors || PAL.studioSwatches, n = cols.length, cw = 100, ch = 138, gap = 18, { draw, seed } = o;
       const pos = i => [(i % o.cols) * (cw + gap), Math.floor(i / o.cols) * (ch + gap + 16)];
       const [ci, f] = K.cyc(t, o.period), sel = ci % n, prev = (sel + n - 1) % n, live = draw >= 1;
@@ -121,10 +125,10 @@ KIT.studio = (() => {
         const lift = live && i === sel ? E.outBack(inv(0, 0.35, f)) * (1 - E.in2(inv(0.86, 1, f))) : 0, [px, py] = pos(i);
         ctx.save(); ctx.translate(px + cw / 2, py + ch - lift * 16); ctx.scale(pop, pop); ctx.translate(-cw / 2, -ch);
         const card = K.rrect(0, 0, cw, ch, 6);
-        K.shadow(card, 4 + lift * 4, 5 + lift * 12, 0.12 + lift * 0.08);
-        ink(card, { closed: true, w: K.lw(o, 1.8), fill: PAL.panel, amp: 0.4, seed: seed + i });
+        if (!o.dark) K.shadow(card, 4 + lift * 4, 5 + lift * 12, 0.12 + lift * 0.08);
+        ink(card, { color: ic, closed: true, w: K.lw(o, 1.8), fill: PAL.panel, amp: 0.4, seed: seed + i });
         const blk = shape.rect(8, 8, cw - 16, 84);
-        ink(blk, { closed: true, w: K.lw(o, 1.4), fill: hex, amp: 0.4, seed: seed + 20 + i });
+        ink(blk, { color: ic, closed: true, w: K.lw(o, 1.4), fill: hex, amp: 0.4, seed: seed + 20 + i });
         hatch(blk, { color: '#1b1518', alpha: 0.22, gap: 5, len: 9, angle: -0.6, seed: seed + 40 + i, keep: (x, y) => clamp((x + y) / 160) * 0.8 });
         pen([[14, 18], [30, 14]], { w: K.lw(o, 2.4), color: '#ffffff', alpha: 0.6, taper: 0.4, seed: seed + 60 + i });
         text(name, 10, 112, { kind: 'sans', size: 14, weight: 600, color: PAL.ink });
@@ -133,12 +137,12 @@ KIT.studio = (() => {
         ctx.restore();
       });
       if (!live) return;
-      const a = pos(prev), b = pos(sel), m = E.inOut3(inv(0, 0.35, f)), ex = lerp(a[0], b[0], m) + cw * 0.72, ey = lerp(a[1], b[1], m) - 26 + 4 * Math.sin(t * 3);
+      const a = pos(prev), b = pos(sel), m = E.inOut3(inv(0, 0.35, f)), ex = lerp(a[0], b[0], m) + cw * 0.72, ey = lerp(a[1], b[1], m) + 26 * E.inOut2(inv(0.3, 0.5, f)) * (1 - inv(0.8, 0.95, f)) - 4 + 4 * Math.sin(t * 3);   // dips into the chip, then lifts
       ctx.save(); ctx.translate(ex, ey); ctx.rotate(0.6);
       const tipC = cols[sel][1];
-      ink([[0, 0], [-4, -12], [-4, -46], [4, -46], [4, -12]], { closed: true, w: K.lw(o, 1.8), fill: '#fbf8f1', amp: 0.3, seed: seed + 90 });
-      ctx.save(); ctx.beginPath(); ctx.rect(-6, -22, 12, 24); ctx.clip(); ink([[0, 0], [-4, -12], [-4, -22], [4, -22], [4, -12]], { closed: true, w: 0, fill: tipC, fillAlpha: m }); ctx.restore();
-      ink(K.rrect(-8, -72, 16, 28, 7), { closed: true, w: K.lw(o, 1.8), fill: PAL.ink, amp: 0.3, seed: seed + 91 });
+      ink([[0, 0], [-4, -12], [-4, -46], [4, -46], [4, -12]], { color: ic, closed: true, w: K.lw(o, 1.8), fill: '#fbf8f1', amp: 0.3, seed: seed + 90 });
+      ctx.save(); ctx.beginPath(); ctx.rect(-6, -22, 12, 24); ctx.clip(); ink([[0, 0], [-4, -12], [-4, -22], [4, -22], [4, -12]], { color: ic, closed: true, w: 0, fill: tipC, fillAlpha: m }); ctx.restore();
+      ink(K.rrect(-8, -72, 16, 28, 7), { color: ic, closed: true, w: K.lw(o, 1.8), fill: PAL.ink, amp: 0.3, seed: seed + 91 });
       ctx.restore();
     });
   }
@@ -153,12 +157,13 @@ KIT.studio = (() => {
   function wireframe(t, o) {
     o = K.opts(o, { w: 640, h: 420, label: 'Desktop — 1440', period: 1.8 });
     return K.at(o, () => {
+      const ic = K.inkOf(o.dark);
       const { w, h, draw, seed } = o, m = 24, g = 12, colw = (w - 2 * m - 11 * g) / 12, cx = c => m + c * (colw + g);
       const rectOf = b => { const x0 = cx(b.c[0]), x1 = cx(b.c[1]) - g; return [x0, b.y * h / 420, x1 - x0, b.h * h / 420]; };
       const board = shape.rect(0, 0, w, h);
-      K.shadow(board, 6, 8, 0.12 * K.ph(draw, 0.1, 0.4));
-      ink(board, { closed: true, w: K.lw(o, 2), fill: PAL.studioBoard, fillReveal: 'sweep', amp: 0.5, seed: seed + 1, draw: K.ph(draw, 0, 0.4) });
-      KIT.caption((draw - 0.2) * 4, o.label, 0, -12, { size: 12 });
+      if (!o.dark) K.shadow(board, 6, 8, 0.12 * K.ph(draw, 0.1, 0.4));
+      ink(board, { color: ic, closed: true, w: K.lw(o, 2), fill: PAL.studioBoard, fillReveal: 'sweep', amp: 0.5, seed: seed + 1, draw: K.ph(draw, 0, 0.4) });
+      KIT.caption((draw - 0.2) * 4, o.label, 0, -12, { size: 12, dark: o.dark });
       const ga = K.ph(draw, 0.3, 0.6);
       withAlpha(ga, () => { for (let c = 0; c < 12; c++) flat(shape.rect(cx(c), 0, colw, h), PAL.studioGuide, 0.07);
         for (let y = 24; y < h; y += 24) ink([[0, y], [w, y]], { w: K.lw(o, 0.8), color: PAL.peri, alpha: 0.18, amp: 0 }); });
@@ -167,7 +172,7 @@ KIT.studio = (() => {
         const [x, y, bw, bh] = rectOf(b);
         withAlpha(a, () => {
           ink(shape.rect(x, y, bw, bh), { closed: true, w: K.lw(o, 1.8), color: PAL.inkSoft, fill: '#efe9dc', amp: 0.5, seed: seed + 10 + i });
-          if (b.k === 'nav') { ink(shape.circle(x + 20, y + bh / 2, 9, 14), { closed: true, w: K.lw(o, 1.4), fill: PAL.muted, amp: 0.2 });
+          if (b.k === 'nav') { ink(shape.circle(x + 20, y + bh / 2, 9, 14), { color: ic, closed: true, w: K.lw(o, 1.4), fill: PAL.muted, amp: 0.2 });
             for (let k = 0; k < 4; k++) pen([[x + bw - 190 + k * 46, y + bh / 2], [x + bw - 160 + k * 46, y + bh / 2]], { w: K.lw(o, 3), color: PAL.muted, seed: seed + 20 + k, taper: 0.2 }); }
           if (b.k === 'text') { pen([[x + 14, y + 26], [x + bw * 0.85, y + 26]], { w: K.lw(o, 11), color: PAL.muted, seed: seed + 30, taper: 0.05 });
             pen([[x + 14, y + 52], [x + bw * 0.6, y + 52]], { w: K.lw(o, 11), color: PAL.muted, seed: seed + 31, taper: 0.05 });
@@ -186,7 +191,7 @@ KIT.studio = (() => {
       ink(shape.rect(x, y, bw, bh), { closed: true, w: K.lw(o, 2.4), color: PAL.studioSelect, amp: 0.4, seed: seed + 60 });
       [[0, 0], [0.5, 0], [1, 0], [1, 0.5], [1, 1], [0.5, 1], [0, 1], [0, 0.5]].forEach(([u, v], k) => ink(shape.rect(x + u * bw - 5, y + v * bh - 5, 10, 10), { closed: true, w: K.lw(o, 1.6), color: PAL.studioSelect, fill: '#ffffff', amp: 0.1, seed: seed + 70 + k }));
       const lab = `${Math.round(bw * 2)} × ${Math.round(bh * 2)}`, lw = measure(lab, { kind: 'mono', size: 12 }) + 16;
-      ink(K.rrect(x + bw / 2 - lw / 2, y + bh + 10, lw, 22, 6), { closed: true, w: 0, fill: PAL.studioSelect });
+      ink(K.rrect(x + bw / 2 - lw / 2, y + bh + 10, lw, 22, 6), { color: ic, closed: true, w: 0, fill: PAL.studioSelect });
       text(lab, x + bw / 2, y + bh + 25, { kind: 'mono', size: 12, weight: 600, align: 'center', color: '#fff8ee' });
     });
   }
@@ -197,10 +202,11 @@ KIT.studio = (() => {
   function penTool(t, o) {
     o = K.opts(o, { anchors: [[0, 120, 70, -90], [200, 10, 90, 0], [390, 150, 70, 70], [560, 50, 60, -70]], period: 1.6 });
     return K.at(o, () => {
+      const ic = K.inkOf(o.dark);
       const { draw, seed } = o, A = o.anchors, n = A.length;
       const H = A.map(([, , hx, hy], i) => { const a = 0.35 * Math.sin(t * 0.9 + i * 1.7), k = 1 + 0.18 * Math.sin(t * 1.3 + i), c = Math.cos(a), s = Math.sin(a); return [(hx * c - hy * s) * k, (hx * s + hy * c) * k]; });
       const pts = []; for (let i = 0; i < n - 1; i++) { const p = A[i], q = A[i + 1]; pts.push(...KIT.cubic([p[0], p[1]], [p[0] + H[i][0], p[1] + H[i][1]], [q[0] - H[i + 1][0], q[1] - H[i + 1][1]], [q[0], q[1]], 28).slice(i ? 1 : 0)); }
-      pen(pts, { w: K.lw(o, 3.6), seed: seed + 1, taper: 0.03, draw: K.ph(draw, 0, 0.7), amp: 0.5 });
+      pen(pts, { color: ic, w: K.lw(o, 3.6), seed: seed + 1, taper: 0.03, draw: K.ph(draw, 0, 0.7), amp: 0.5 });
       const [ci, f] = K.cyc(t, o.period), act = ci % n, live = draw >= 1;
       A.forEach(([x, y], i) => {
         const pop = K.pop(draw, 0.2 + i * 0.1, 0.5 + i * 0.1); if (pop <= 0) return;
@@ -209,7 +215,7 @@ KIT.studio = (() => {
           const hx = x + sg * H[i][0], hy = y + sg * H[i][1];
           withAlpha(ha * pop, () => { ink([[x, y], [hx, hy]], { w: K.lw(o, 1.4), color: PAL.peri, amp: 0.2, seed: seed + 10 + i * 2 + k });
             ink(shape.circle(hx, hy, 5.5, 12), { closed: true, w: K.lw(o, 1.6), color: PAL.peri, fill: on ? PAL.peri : '#ffffff', amp: 0.1 }); }); });
-        const s = 7 * pop; ink(shape.rect(x - s, y - s, 2 * s, 2 * s), { closed: true, w: K.lw(o, 1.8), fill: on ? PAL.ink : '#ffffff', amp: 0.2, seed: seed + 30 + i });
+        const s = 7 * pop; ink(shape.rect(x - s, y - s, 2 * s, 2 * s), { color: ic, closed: true, w: K.lw(o, 1.8), fill: on ? ic : '#ffffff', amp: 0.2, seed: seed + 30 + i });
       });
       if (!live) return;
       const last = A[n - 1], fx = last[0] + 20 + 30 * Math.sin(t * 0.8), fy = last[1] + 120 + 16 * Math.cos(t * 1.1);
@@ -217,9 +223,9 @@ KIT.studio = (() => {
       const P0 = A[(act + n - 1) % n], P1 = A[act], m = E.inOut3(inv(0, 0.35, f)), nx = lerp(P0[0], P1[0], m) + 16, ny = lerp(P0[1], P1[1], m) + 18;
       ctx.save(); ctx.translate(nx, ny); ctx.rotate(-0.7);
       const nib = [[0, 0], [-8, 14], [-7, 28], [7, 28], [8, 14]];
-      ink(nib, { closed: true, w: K.lw(o, 1.8), fill: '#ffffff', amp: 0.2, seed: seed + 40 });
-      ink([[0, 2], [0, 14]], { w: K.lw(o, 1.2), amp: 0 }); flat(shape.circle(0, 15, 2.4, 8), PAL.ink);
-      ink(shape.rect(-8, 28, 16, 8), { closed: true, w: K.lw(o, 1.6), fill: PAL.ink, amp: 0.1 });
+      ink(nib, { color: ic, closed: true, w: K.lw(o, 1.8), fill: '#ffffff', amp: 0.2, seed: seed + 40 });
+      ink([[0, 2], [0, 14]], { w: K.lw(o, 1.2), color: PAL.ink, amp: 0 }); flat(shape.circle(0, 15, 2.4, 8), PAL.ink);
+      ink(shape.rect(-8, 28, 16, 8), { color: ic, closed: true, w: K.lw(o, 1.6), fill: PAL.ink, amp: 0.1 });
       ctx.restore();
     });
   }

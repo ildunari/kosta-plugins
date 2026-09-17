@@ -32,10 +32,10 @@ const TECH = {
     KIT.tech.terminal(t, { x: 760, y: 70, w: 520, h: 320, draw: DR(t, 1), seed: 12, t0: 1.2,
       lines: ['$ npm run build', '  bundling 6 kits…', '✓ gallery.html  412 KB', '$ node render.mjs gallery.html --sheet 1', '  wrote 36 stills', '$ git status'] });
     KIT.tech.code(t, { x: 760, y: 470, w: 520, size: 18, draw: DR(t, 2), seed: 13, t0: 1.4 });
-    KIT.tech.circuit(t, { x: 1340, y: 70, w: 520, h: 330, draw: DR(t, 3), seed: 14 });
-    KIT.tech.rack(t, { x: 1600, y: 960, s: 1.1, units: 8, draw: DR(t, 4), seed: 15 });
+    KIT.tech.circuit(t, { x: 1340, y: 70, w: 490, h: 330, draw: DR(t, 3), seed: 14 });
+    KIT.tech.rack(t, { x: 1600, y: 925, s: 1.05, units: 8, draw: DR(t, 4), seed: 15 });
     KIT.tech.cursor(t, { x: 0, y: 0, path: [[165, 555], [380, 700], [560, 440], [240, 700]], period: 1.2, draw: DR(t, 5), seed: 16 });
-    [['tech.browser  + tech.cursor', 70, 888], ['tech.terminal', 760, 426], ['tech.code', 760, 790], ['tech.circuit', 1340, 438], ['tech.rack', 1480, 1000]]
+    [['tech.browser  + tech.cursor', 70, 888], ['tech.terminal', 760, 426], ['tech.code', 760, 790], ['tech.circuit', 1340, 438], ['tech.rack', 1480, 972]]
       .forEach(([s, x, y], k) => FIG(t, k, s, x, y));
   },
 };
@@ -47,9 +47,9 @@ const AI = {
     KIT.ai.network(t, { x: 800, y: 80, w: 480, h: 300, layers: [3, 5, 5, 2], speed: 1.4, draw: DR(t, 0), seed: 21, labels: ['in', 'hidden', 'hidden', 'out'] });
     KIT.ai.agent(t, { x: 230, y: 640, R: 290, tools: ['search', 'code', 'files', { name: 'db', icon: 'db' }], draw: DR(t, 1), seed: 22 });
     KIT.ai.chat(t, { x: 780, y: 500, w: 500, draw: DR(t, 2), seed: 23, t0: 1.2 });
-    KIT.ai.tokens(t, { x: 1380, y: 100, w: 480, draw: DR(t, 3), seed: 24, t0: 1.4 });
-    KIT.ai.attention(t, { x: 1370, y: 760, w: 500, words: ['the', 'agent', 'read', 'it', 'then', 'wrote'], draw: DR(t, 4), seed: 25 });
-    [['ai.network', 800, 460], ['ai.agent', 70, 900], ['ai.chat', 780, 960], ['ai.tokens', 1380, 330], ['ai.attention', 1370, 870], ['ai.motes  (the backdrop)', 70, 300]]
+    KIT.ai.tokens(t, { x: 1380, y: 100, w: 430, draw: DR(t, 3), seed: 24, t0: 1.4 });
+    KIT.ai.attention(t, { x: 1350, y: 760, w: 450, words: ['the', 'agent', 'read', 'it', 'then', 'wrote'], draw: DR(t, 4), seed: 25 });
+    [['ai.network', 800, 460], ['ai.agent', 70, 900], ['ai.chat', 780, 960], ['ai.tokens', 1380, 330], ['ai.attention', 1350, 870], ['ai.motes  (the backdrop)', 70, 300]]
       .forEach(([s, x, y], k) => FIG(t, k, s, x, y, true));
   },
 };
@@ -73,13 +73,13 @@ const LAB = {
     KIT.lab.cell(t, { x: 350, y: 470, r: 160, draw: DR(t, 0), seed: 41 });
     KIT.lab.molecule(t, { x: 960, y: 420, preset: 'ethanol', unit: 78, spin: 0.9, draw: DR(t, 1), seed: 42 });
     KIT.lab.pipette(t, { x: 1600, y: 330, fall: 170, draw: DR(t, 2), seed: 43 });
-    KIT.lab.flask(t, { x: 130, y: 1000, s: 0.95, kind: 'beaker', draw: DR(t, 3), seed: 44 });
-    KIT.lab.flask(t, { x: 340, y: 1000, s: 0.95, kind: 'flask', fill: PAL.mint, level: 0.4, draw: DR(t, 3.3), seed: 45 });
-    KIT.lab.flask(t, { x: 540, y: 1000, s: 0.95, kind: 'tube', fill: PAL.pink, level: 0.6, steam: true, draw: DR(t, 3.6), seed: 46 });
-    KIT.lab.microscope(t, { x: 980, y: 1000, s: 0.9, draw: DR(t, 4), seed: 47 });
-    KIT.lab.molecule(t, { x: 1600, y: 820, preset: 'benzene', unit: 48, labels: false, spin: 0.45, draw: DR(t, 4.5), seed: 48 });
-    [['lab.cell', 200, 675], ['lab.molecule  ethanol', 800, 675], ['lab.pipette', 1480, 600], ['lab.flask  beaker · flask · tube', 60, 1040],
-      ['lab.microscope', 880, 1040], ['lab.molecule  benzene', 1450, 990]].forEach(([s, x, y], k) => FIG(t, k, s, x, y));
+    KIT.lab.flask(t, { x: 150, y: 965, s: 0.95, kind: 'beaker', draw: DR(t, 3), seed: 44 });
+    KIT.lab.flask(t, { x: 360, y: 965, s: 0.95, kind: 'flask', fill: PAL.mint, level: 0.4, draw: DR(t, 3.3), seed: 45 });
+    KIT.lab.flask(t, { x: 560, y: 965, s: 0.95, kind: 'tube', fill: PAL.pink, level: 0.6, steam: true, draw: DR(t, 3.6), seed: 46 });
+    KIT.lab.microscope(t, { x: 980, y: 965, s: 0.9, draw: DR(t, 4), seed: 47 });
+    KIT.lab.molecule(t, { x: 1600, y: 790, preset: 'benzene', unit: 48, labels: false, spin: 0.45, draw: DR(t, 4.5), seed: 48 });
+    [['lab.cell', 200, 675], ['lab.molecule  ethanol', 800, 628], ['lab.pipette', 1480, 600], ['lab.flask  beaker · flask · tube', 140, 1002],
+      ['lab.microscope', 880, 1002], ['lab.molecule  benzene', 1450, 962]].forEach(([s, x, y], k) => FIG(t, k, s, x, y));
   },
 };
 
@@ -91,9 +91,9 @@ const STUDIO = {
     KIT.studio.penTool(t, { x: 1340, y: 90, anchors: [[0, 120, 60, -80], [160, 10, 70, 0], [320, 140, 60, 60], [470, 50, 50, -60]], draw: DR(t, 2), seed: 53 });
     KIT.studio.swatches(t, { x: 780, y: 470, cols: 3, draw: DR(t, 3), seed: 54 });
     KIT.studio.wireframe(t, { x: 1260, y: 500, w: 600, h: 380, draw: DR(t, 4), seed: 55 });
-    KIT.studio.brush(t, { x: 760, y: 900, path: [[0, 30], [140, 0], [300, 40], [420, 10]], color: PAL.sea, width: 24, period: 3.6, draw: DR(t, 5), seed: 56 });
-    [['studio.easel', 190, 1030], ['studio.brush', 760, 300], ['studio.penTool', 1340, 330], ['studio.swatches', 780, 850],
-      ['studio.wireframe', 1260, 925], ['studio.brush  (color, width)', 760, 1000]].forEach(([s, x, y], k) => FIG(t, k, s, x, y));
+    KIT.studio.brush(t, { x: 760, y: 965, path: [[0, 30], [140, 0], [300, 40], [420, 10]], color: PAL.sea, width: 24, period: 3.6, draw: DR(t, 5), seed: 56 });
+    [['studio.easel', 190, 1030], ['studio.brush', 760, 300], ['studio.penTool', 1340, 330], ['studio.swatches', 780, 445],
+      ['studio.wireframe', 1260, 925], ['studio.brush  (color, width)', 760, 1048]].forEach(([s, x, y], k) => FIG(t, k, s, x, y));
   },
 };
 

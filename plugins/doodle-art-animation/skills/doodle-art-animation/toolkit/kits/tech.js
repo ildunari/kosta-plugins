@@ -7,17 +7,17 @@ Object.assign(PAL, {
   techWindow: '#f4efe3', techChrome: '#ddd3bf', techField: '#fbf8f1', techKeyword: '#5a5fa8', techString: '#4f7d3c', techNumber: '#b07a1c',
   techHighlight: '#e6c65c', techMetal: '#a39d93', techMetalDeep: '#3d393c', techMetalLight: '#c9c3b8', techLedOff: '#4a4648',
   techLedGreen: '#6fdc8c', techLedAmber: '#f0b347', techLedBlue: '#6fc8e0', techBoard: '#4f8a6a', techBoardDeep: '#2c5a44',
-  techCopper: '#d8aa5c', techChip: '#2a2629', techPulse: '#fff2c4', techImage: '#cfe0e3',
+  techCopper: '#d8aa5c', techChip: '#2a2629', techPulse: '#fff2c4', techImage: '#cfe0e3', techCardNight: '#1b1a3c',
 });
 KIT.tech = (() => {
   const K = KIT;
   const DOTS = () => [PAL.pink, PAL.sun, PAL.mint];
 
   /** windowFrame: the shared window body. Returns nothing; draws shadow, body, title bar and the three dots. */
-  function windowFrame(o, w, h, bar, body, barCol, dark) {
+  function windowFrame(o, w, h, bar, body, barCol, dark) {                 // dark: a dark screen; o.dark: a night plate
     const frame = K.rrect(0, 0, w, h, 14);
-    if (!dark) K.shadow(frame, 6, 8, 0.14 * K.ph(o.draw, 0.2, 0.6));
-    ink(frame, { closed: true, w: K.lw(o, 2.4), fill: body, fillReveal: 'sweep', amp: 0.7, seed: o.seed + 1, draw: K.ph(o.draw, 0, 0.55), double: !dark });
+    if (!dark && !o.dark) K.shadow(frame, 6, 8, 0.14 * K.ph(o.draw, 0.2, 0.6));
+    ink(frame, { closed: true, w: K.lw(o, 2.4), color: K.inkOf(o.dark), fill: body, fillReveal: 'sweep', amp: 0.7, seed: o.seed + 1, draw: K.ph(o.draw, 0, 0.55), double: !dark });
     const a = K.ph(o.draw, 0.45, 0.7); if (a <= 0) return;
     withAlpha(a, () => {
       ctx.save(); trace(frame, true); ctx.clip(); flat(shape.rect(0, 0, w, bar), barCol); ctx.restore();
@@ -39,7 +39,7 @@ KIT.tech = (() => {
       text(o.title, w / 2, bar / 2 + 5, { kind: 'mono', size: 13, align: 'center', color: PAL.techScreenMuted, alpha: ca });
       const sch = K.memo(`t.term|${o.lines.join('\n')}|${o.cps}`, () => { let c = 0;
         return o.lines.map(s => { const cmd = s.startsWith('$ '), st = c; c += cmd ? (s.length - 2) / o.cps + 0.45 : 0.14; return { s, cmd, st }; }).concat([{ s: '$ ', cmd: true, st: c + 0.2, end: true }]); });
-      let tt = t - o.t0; if (o.loop) tt = ((tt % o.loop) + o.loop) % o.loop;
+      let tt = t - o.t0; if (o.loop && tt > 0) tt %= o.loop;
       if (tt < 0) tt = 0;
       const rows = Math.floor((h - bar - 20) / lh);
       let scroll = 0; sch.forEach((l, i) => { if (i >= rows) scroll += E.inOut3(inv(l.st, l.st + 0.25, tt)); });
@@ -69,29 +69,34 @@ KIT.tech = (() => {
   const KW = new Set('const let var function return if else for while await async import from export def class new yield try catch in of with as and or not None True False null true false'.split(' '));
   function tokens(line) {
     const out = [], re = /(\s+|"[^"]*"?|'[^']*'?|`[^`]*`?|#.*$|\/\/.*$|\d+(?:\.\d+)?|[A-Za-z_]\w*|[^\w\s])/g; let m, col = 0, prev = '';
-    while ((m = re.exec(line))) { const s = m[0]; let c = PAL.ink, bold = false;
-      if (/^\s/.test(s)) c = null; else if (/^(#|\/\/)/.test(s)) c = PAL.muted; else if (/^["'`]/.test(s)) c = PAL.techString;
-      else if (/^\d/.test(s)) c = PAL.techNumber; else if (KW.has(s)) { c = PAL.techKeyword; bold = true; } else if (/^(def|function|class)$/.test(prev)) { c = PAL.accentDeep; bold = true; }
+    while ((m = re.exec(line))) { const s = m[0]; let c = 'ink', bold = false;   // colour roles, resolved per plate world when drawn
+      if (/^\s/.test(s)) c = null; else if (/^(#|\/\/)/.test(s)) c = 'comment'; else if (/^["'`]/.test(s)) c = 'string';
+      else if (/^\d/.test(s)) c = 'number'; else if (KW.has(s)) { c = 'keyword'; bold = true; } else if (/^(def|function|class)$/.test(prev)) { c = 'name'; bold = true; }
       if (c) out.push({ s, col, c, bold }); col += s.length; if (!/^\s/.test(s)) prev = s; }
     return out;
   }
+  const CODE_COL = { paper: { ink: '#1b1518', comment: '#8a8176', string: '#4f7d3c', number: '#b07a1c', keyword: '#5a5fa8', name: '#b44e2e' },
+    night: { ink: '#dcdcef', comment: '#77789a', string: '#8fd3a0', number: '#e6c65c', keyword: '#9fa3e8', name: '#f0a07a' } };
   /** code(t, {x, y, w, lines, hl, size, title, t0}): a code card with line numbers and light syntax colour. A highlight
-      bar steps through the lines (hl: a line index, or t => index, to control it) and a caret blinks at its end. */
+      bar steps through the lines (hl: a line index, or t => index, to control it) and a caret blinks at its end.
+      Returns { h }, the card's height (it follows the line count). */
   function code(t, o) {
     o = K.opts(o, { w: 560, size: 17, title: 'agent.py', t0: 0.5, hl: null,
       lines: ['def plan(goal):', '    steps = think(goal)', '    for step in steps:', '        result = act(step)', '        if result.ok:', '            log(result)', '    return summary(steps)'] });
     return K.at(o, () => {
       const { w, size, lines } = o, lh = size * 1.62, top = 52, h = top + lines.length * lh + 18;
       const frame = K.rrect(0, 0, w, h, 10);
-      K.shadow(frame, 5, 6, 0.12 * K.ph(o.draw, 0.2, 0.6));
-      ink(frame, { closed: true, w: K.lw(o, 2), fill: PAL.panel, fillReveal: 'sweep', amp: 0.6, seed: o.seed + 1, draw: K.ph(o.draw, 0, 0.5), double: true });
+      const dk = o.dark, CC = CODE_COL[dk ? 'night' : 'paper'];
+      if (!dk) K.shadow(frame, 5, 6, 0.12 * K.ph(o.draw, 0.2, 0.6));
+      ink(frame, { closed: true, w: K.lw(o, 2), color: K.inkOf(dk), fill: dk ? PAL.techCardNight : PAL.panel, fillReveal: 'sweep', amp: 0.6, seed: o.seed + 1, draw: K.ph(o.draw, 0, 0.5), double: true });
       const ca = K.ph(o.draw, 0.4, 0.75); if (ca <= 0) return;
       const toks = K.memo(`t.code|${lines.join('\n')}`, () => lines.map(tokens)), cw = measure('M', { kind: 'mono', size });
       const tt = t - o.t0, n = lines.length;
       let hv = typeof o.hl === 'function' ? o.hl(t) : o.hl;
       if (hv == null) { const [i, f] = K.cyc(Math.max(0, tt - 0.8), 1.3); hv = lerp(i % n, (i + 1) % n, E.inOut3(inv(0.72, 1, f))); }
+      hv = clamp(hv, 0, n - 1);
       withAlpha(ca, () => {
-        text(o.title, 22, 32, { kind: 'mono', size: 13, weight: 600, ls: 2, color: PAL.inkSoft });
+        text(o.title, 22, 32, { kind: 'mono', size: 13, weight: 600, ls: 2, color: dk ? '#b9b9d6' : PAL.inkSoft });
         ink([[16, 44], [w - 16, 44]], { w: K.lw(o, 1.2), color: PAL.peri, amp: 0.3, alpha: 0.7, seed: o.seed + 4 });
         ink([[54, 50], [54, h - 12]], { w: K.lw(o, 1), color: PAL.peri, amp: 0.3, alpha: 0.5, seed: o.seed + 5 });
         const hy = top + hv * lh;
@@ -100,11 +105,11 @@ KIT.tech = (() => {
         toks.forEach((ts, i) => {
           const y = top + i * lh + lh * 0.7, shown = Math.floor(clamp((tt - i * 0.14) * 70, 0, lines[i].length));
           if (shown <= 0) return;
-          text(String(i + 1), 42, y, { kind: 'mono', size: size - 3, align: 'right', color: PAL.muted });
-          ts.forEach(k => { if (k.col >= shown) return; text(k.s.slice(0, shown - k.col), 68 + k.col * cw, y, { kind: 'mono', size, color: k.c, weight: k.bold ? 600 : 400 }); });
+          text(String(i + 1), 42, y, { kind: 'mono', size: size - 3, align: 'right', color: K.mutedOf(dk) });
+          ts.forEach(k => { if (k.col >= shown) return; text(k.s.slice(0, shown - k.col), 68 + k.col * cw, y, { kind: 'mono', size, color: CC[k.c], weight: k.bold ? 600 : 400 }); });
         });
         const li = Math.round(hv); if (Math.abs(hv - li) < 0.05 && Math.floor(t * 2.4) % 2 === 0 && tt > 0.8)
-          flat(shape.rect(68 + lines[li].length * cw + 3, top + li * lh + lh * 0.7 - size * 0.8, 2.4, size), PAL.ink, 0.85);
+          flat(shape.rect(68 + lines[li].length * cw + 3, top + li * lh + lh * 0.7 - size * 0.8, 2.4, size), CC.ink, 0.85);
       });
       return { h };
     });
@@ -180,10 +185,10 @@ KIT.tech = (() => {
     return K.at(o, () => {
       const { units, draw, seed } = o, u = 38, w = 210, H = units * u + 40;
       const body = shape.rect(-w / 2, -H, w, H);
-      K.shadow(body, 8, 0, 0.12 * K.ph(draw, 0.2, 0.6));
+      if (!o.dark) K.shadow(body, 8, 0, 0.12 * K.ph(draw, 0.2, 0.6));
       withAlpha(K.ph(draw, 0.2, 0.5), () => flat(body, PAL.techMetalDeep));
-      pen([...body, body[0]], { w: K.lw(o, 3), seed: seed + 1, taper: 0.02, draw: K.ph(draw, 0, 0.45) });
-      [-w / 2 + 10, w / 2 - 22].forEach((fx, i) => ink(shape.rect(fx, 0, 12, 8), { closed: true, w: K.lw(o, 1.4), fill: PAL.ink, amp: 0.2, seed: seed + 2 + i, alpha: K.ph(draw, 0.2, 0.5) }));
+      pen([...body, body[0]], { w: K.lw(o, 3), color: K.inkOf(o.dark), seed: seed + 1, taper: 0.02, draw: K.ph(draw, 0, 0.45) });
+      [-w / 2 + 10, w / 2 - 22].forEach((fx, i) => ink(shape.rect(fx, 0, 12, 8), { closed: true, w: K.lw(o, 1.4), color: K.inkOf(o.dark), fill: PAL.ink, amp: 0.2, seed: seed + 2 + i, alpha: K.ph(draw, 0.2, 0.5) }));
       withAlpha(K.ph(draw, 0.3, 0.6), () => { for (let k = 0; k < 9; k++) ink([[-60 + k * 15, -H + 8], [-54 + k * 15, -H + 8]], { w: K.lw(o, 2), color: PAL.techMetal, amp: 0.2, seed: seed + 5 + k }); });
       for (let i = 0; i < units; i++) {
         const sl = K.ph(draw, 0.25 + i * 0.07, 0.55 + i * 0.07); if (sl <= 0) continue;
@@ -218,27 +223,27 @@ KIT.tech = (() => {
     return K.at(o, () => {
       const { w, h, draw, seed } = o, cw = 150, ch = 92;
       const g = K.memo(`t.pcb|${w}|${h}|${seed}|${o.pins}`, () => {
-        const r = mulberry(seed), traces = [], [np, ns] = o.pins, leg = 14;
+        const r = mulberry(seed), traces = [], [np, ns] = o.pins.map(v => Math.max(1, Math.round(v))), leg = 14;
         for (const sg of [-1, 1]) for (let i = 0; i < np; i++) {                     // top and bottom
-          const m = i - (np - 1) / 2, px = m * (cw - 40) / (np - 1), y1 = sg * (ch / 2 + leg + 12), avail = h / 2 - 30 - Math.abs(y1);
+          const m = i - (np - 1) / 2, px = m * (cw - 40) / Math.max(1, np - 1), y1 = sg * (ch / 2 + leg + 12), avail = h / 2 - 30 - Math.abs(y1);
           const q = Math.min(28, avail / (Math.abs(np - 1) / 2 + 0.6)), sh = m * q, yEnd = sg * (h / 2 - 26 - r() * Math.max(0, avail - Math.abs(sh)) * 0.6);
           traces.push([[px, sg * (ch / 2 + leg)], [px, y1], [px + sh, y1 + sg * Math.abs(sh)], [px + sh, Math.abs(yEnd) > Math.abs(y1 + sg * Math.abs(sh)) ? yEnd : y1 + sg * (Math.abs(sh) + 10)]]);
         }
         for (const sg of [-1, 1]) for (let i = 0; i < ns; i++) {                     // left and right
-          const m = i - (ns - 1) / 2, py = m * (ch - 30) / (ns - 1), x1 = sg * (cw / 2 + leg + 14), sh = m * 30;
+          const m = i - (ns - 1) / 2, py = m * (ch - 30) / Math.max(1, ns - 1), x1 = sg * (cw / 2 + leg + 14), sh = m * 30;
           traces.push([[sg * (cw / 2 + leg), py], [x1, py], [x1 + sg * Math.abs(sh), py + sh], [sg * (w / 2 - 30 - r() * w * 0.12), py + sh]]);
         }
         return { traces, lens: traces.map(pathLen), parts: [[-w / 2 + 70, -h / 2 + 50, 0], [w / 2 - 80, h / 2 - 48, 1], [-w / 2 + 64, h / 2 - 50, 2], [w / 2 - 70, -h / 2 + 52, 3]] };
       });
       ctx.save(); ctx.translate(w / 2, h / 2);
       const board = K.rrect(-w / 2, -h / 2, w, h, 16);
-      K.shadow(board, 6, 8, 0.14 * K.ph(draw, 0.1, 0.5));
-      ink(board, { closed: true, w: K.lw(o, 2.6), fill: PAL.techBoard, fillReveal: 'sweep', amp: 0.8, seed: seed + 1, draw: K.ph(draw, 0, 0.5) });
+      if (!o.dark) K.shadow(board, 6, 8, 0.14 * K.ph(draw, 0.1, 0.5));
+      ink(board, { closed: true, w: K.lw(o, 2.6), color: K.inkOf(o.dark), fill: PAL.techBoard, fillReveal: 'sweep', amp: 0.8, seed: seed + 1, draw: K.ph(draw, 0, 0.5) });
       const ba = K.ph(draw, 0.4, 0.7);
       if (ba > 0) withAlpha(ba, () => {
         hatch(board, { color: PAL.techBoardDeep, alpha: 0.35, gap: 8, len: 12, angle: 0.8, seed: seed + 2 });
         hatch(board, { color: '#9cc7a8', alpha: 0.18, gap: 11, len: 10, angle: -0.8, seed: seed + 3 });
-        [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([a, b], i) => ink(shape.circle(a * (w / 2 - 18), b * (h / 2 - 18), 7, 14), { closed: true, w: K.lw(o, 1.4), fill: PAL.paper, amp: 0.2, seed: seed + 4 + i }));
+        [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([a, b], i) => ink(shape.circle(a * (w / 2 - 18), b * (h / 2 - 18), 7, 14), { closed: true, w: K.lw(o, 1.4), fill: o.dark ? PAL.night : PAL.paper, amp: 0.2, seed: seed + 4 + i }));
       });
       g.traces.forEach((p, i) => {
         const d = K.ph(draw, 0.45 + i * 0.012, 0.8 + i * 0.012); if (d <= 0) return;
@@ -255,9 +260,9 @@ KIT.tech = (() => {
       }));
       const chip = K.ph(draw, 0.3, 0.6);
       if (chip > 0) withAlpha(chip, () => {
-        const [np, ns] = o.pins;
-        for (const sg of [-1, 1]) { for (let i = 0; i < np; i++) { const px = (i - (np - 1) / 2) * (cw - 40) / (np - 1); flat(shape.rect(px - 4, sg > 0 ? ch / 2 : -ch / 2 - 15, 8, 15), PAL.techMetalLight); }
-          for (let i = 0; i < ns; i++) { const py = (i - (ns - 1) / 2) * (ch - 30) / (ns - 1); flat(shape.rect(sg > 0 ? cw / 2 : -cw / 2 - 15, py - 4, 15, 8), PAL.techMetalLight); } }
+        const [np, ns] = o.pins.map(v => Math.max(1, Math.round(v)));
+        for (const sg of [-1, 1]) { for (let i = 0; i < np; i++) { const px = (i - (np - 1) / 2) * (cw - 40) / Math.max(1, np - 1); flat(shape.rect(px - 4, sg > 0 ? ch / 2 : -ch / 2 - 15, 8, 15), PAL.techMetalLight); }
+          for (let i = 0; i < ns; i++) { const py = (i - (ns - 1) / 2) * (ch - 30) / Math.max(1, ns - 1); flat(shape.rect(sg > 0 ? cw / 2 : -cw / 2 - 15, py - 4, 15, 8), PAL.techMetalLight); } }
         ink(K.rrect(-cw / 2, -ch / 2, cw, ch, 6), { closed: true, w: K.lw(o, 2.2), fill: PAL.techChip, amp: 0.5, seed: seed + 100 });
         flat(shape.circle(-cw / 2 + 14, -ch / 2 + 14, 4, 12), '#6b6468');
         text(o.label, 0, 8, { kind: 'mono', size: 20, weight: 600, ls: 3, align: 'center', color: PAL.techScreenInk });

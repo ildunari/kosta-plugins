@@ -13,16 +13,16 @@ KIT.lab = (() => {
   const K = KIT;
 
   const GLASS = {
-    beaker: { outline: [[-78, -214], [-70, -206], [-70, -10], [-62, 0], [62, 0], [70, -10], [70, -206], [80, -216]], inner: [[-66, -206], [-66, -10], [-58, -4], [58, -4], [66, -10], [66, -206]], top: -206, bottom: -4, half: 66, ticks: true },
-    flask: { outline: [[-26, -266], [-19, -258], [-19, -176], [-92, -24], [-84, 0], [84, 0], [92, -24], [19, -176], [19, -258], [26, -266]], inner: [[-15, -258], [-15, -174], [-88, -24], [-80, -4], [80, -4], [88, -24], [15, -174], [15, -258]], top: -258, bottom: -4, half: 88, ticks: false },
-    tube: { outline: [[-28, -262], [-22, -256], ...shape.arc(0, -26, 22, Math.PI, 0, 14), [22, -256], [28, -262]], inner: [[-18, -256], ...shape.arc(0, -26, 18, Math.PI, 0, 12), [18, -256]], top: -256, bottom: -8, half: 18, ticks: false },
+    beaker: { outline: [[-78, -214], [-70, -206], [-70, -10], [-62, 0], [62, 0], [70, -10], [70, -206], [80, -216]], inner: [[-66, -206], [-66, -10], [-58, -4], [58, -4], [66, -10], [66, -206]], top: -206, bottom: -4, half: 66, ticks: true, hl: [[-56, -178], [-56, -64]] },
+    flask: { outline: [[-26, -266], [-19, -258], [-19, -176], [-92, -24], [-84, 0], [84, 0], [92, -24], [19, -176], [19, -258], [26, -266]], inner: [[-15, -258], [-15, -174], [-88, -24], [-80, -4], [80, -4], [88, -24], [15, -174], [15, -258]], top: -258, bottom: -4, half: 88, ticks: false, hl: [[-22, -146], [-60, -66]] },
+    tube: { outline: [[-28, -262], [-22, -256], ...shape.arc(0, -26, 22, Math.PI, 0, 14), [22, -256], [28, -262]], inner: [[-18, -256], ...shape.arc(0, -26, 18, Math.PI, 0, 12), [18, -256]], top: -256, bottom: -8, half: 18, ticks: false, hl: [[-10, -232], [-10, -120]] },
   };
   /** flask(t, {x, y, s, kind, level, fill, bubbles, steam, label, seed}): glassware (kind: 'beaker', 'flask' or 'tube')
       whose liquid pours in on draw, with a moving surface, rising bubbles, a glass highlight and optional steam. */
   function flask(t, o) {
     o = K.opts(o, { kind: 'beaker', level: 0.55, fill: PAL.labLiquid, bubbles: 9, steam: false, label: null });
     return K.at(o, () => {
-      const { draw, seed } = o, G = GLASS[o.kind] || GLASS.beaker, bottom = G.bottom, full = bottom - G.top;
+      const { draw, seed } = o, ic = K.inkOf(o.dark), G = GLASS[o.kind] || GLASS.beaker, bottom = G.bottom, full = bottom - G.top;
       const lvl = o.level * E.inOut2(inv(0.35, 1, draw)), sy = bottom - full * lvl;
       withAlpha(K.ph(draw, 0, 0.4), () => flat(G.inner, PAL.labGlass, 0.45));
       if (lvl > 0.01) {
@@ -40,18 +40,17 @@ KIT.lab = (() => {
         }
         ctx.restore();
       }
-      pen(G.outline, { w: K.lw(o, 3.2), seed: seed + 3, taper: 0.03, draw: K.ph(draw, 0, 0.45) });
+      pen(G.outline, { color: ic, w: K.lw(o, 3.2), seed: seed + 3, taper: 0.03, draw: K.ph(draw, 0, 0.45) });
       withAlpha(K.ph(draw, 0.3, 0.6), () => {
-        const hx = -G.half + 10;
-        pen([[hx, G.top + 30], [hx, G.top + 30 + Math.min(120, full * 0.45)]], { w: K.lw(o, 3.2), color: '#ffffff', alpha: 0.85, taper: 0.4, seed: seed + 4 });
+        pen(G.hl, { w: K.lw(o, 3.2), color: '#ffffff', alpha: 0.85, taper: 0.4, seed: seed + 4 });           // the highlight follows each glass's own wall
         if (G.ticks) [0.25, 0.5, 0.75].forEach((v, i) => { const y = bottom - full * v;
-          ink([[G.half - 22, y], [G.half - 6, y]], { w: K.lw(o, 1.4), amp: 0.2, seed: seed + 5 + i });
-          text(String((i + 1) * 100), G.half - 26, y + 4, { kind: 'mono', size: 11, align: 'right', color: PAL.inkSoft }); });
-        if (o.label) text(o.label, 0, bottom - full * 0.2, { kind: 'mono', size: 13, weight: 600, ls: 2, align: 'center', color: PAL.ink });
+          ink([[G.half - 22, y], [G.half - 6, y]], { color: ic, w: K.lw(o, 1.4), amp: 0.2, seed: seed + 5 + i });
+          text(String((i + 1) * 100), G.half - 26, y + 4, { kind: 'mono', size: 11, align: 'right', color: o.dark ? '#b9b9d6' : PAL.inkSoft }); });
+        if (o.label) text(o.label, 0, bottom - full * 0.2, { kind: 'mono', size: 13, weight: 600, ls: 2, align: 'center', color: ic });
       });
       if (o.steam && draw >= 1) for (let k = 0; k < 3; k++) {
         const u = (t * 0.45 + k / 3) % 1, pts = Array.from({ length: 14 }, (_, i) => { const v = i / 13; return [(k - 1) * 16 + 7 * Math.sin(v * 7 + t * 2 + k), G.top - 14 - v * 90]; });
-        pen(subpath(pts, u * 0.5, u * 0.5 + 0.45), { w: K.lw(o, 2.2), color: PAL.muted, alpha: Math.sin(Math.PI * u) * 0.8, taper: 0.4, seed: seed + 30 + k });
+        pen(subpath(pts, u * 0.5, u * 0.5 + 0.45), { w: K.lw(o, 2.2), color: K.mutedOf(o.dark), alpha: Math.sin(Math.PI * u) * 0.8, taper: 0.4, seed: seed + 30 + k });
       }
     });
   }
@@ -150,34 +149,34 @@ KIT.lab = (() => {
   function microscope(t, o) {
     o = K.opts(o, {});
     return K.at(o, () => {
-      const { draw, seed } = o, fk = 0.7 * Math.sin(t * 0.9), lift = -3 * Math.sin(t * 0.9), fa = K.ph(draw, 0.3, 0.7);
+      const { draw, seed } = o, ic = K.inkOf(o.dark), fk = 0.7 * Math.sin(t * 0.9), lift = -3 * Math.sin(t * 0.9), fa = K.ph(draw, 0.3, 0.7);
       const base = K.rrect(-120, -34, 230, 34, 12);
       const arm = K.ribbon(smooth([[70, -34], [100, -110], [92, -200], [40, -248], [-16, -252]], 2), u => 22 - 8 * u);
       const tube = K.ribbon([[-6, -196 + lift], [-60, -318 + lift]], 17);
-      ink(base, { closed: true, w: K.lw(o, 2.6), fill: PAL.labBody, fillReveal: 'sweep', amp: 0.5, seed: seed + 1, draw: K.ph(draw, 0, 0.4) });
+      ink(base, { color: ic, closed: true, w: K.lw(o, 2.6), fill: PAL.labBody, fillReveal: 'sweep', amp: 0.5, seed: seed + 1, draw: K.ph(draw, 0, 0.4) });
       withAlpha(fa, () => { shade(base, { color: PAL.labBodyDeep, alpha: 0.4, seed: seed + 2 });
         const lampA = 0.65 + 0.35 * Math.sin(t * 7) * Math.sin(t * 3.1);
         flat(shape.circle(-20, -52, 26, 24), PAL.labLamp, 0.25 * lampA);
-        ink(shape.rect(-34, -48, 28, 14), { closed: true, w: K.lw(o, 1.8), fill: PAL.labBodyDeep, amp: 0.3, seed: seed + 3 });
-        ink(shape.circle(-20, -56, 9, 16), { closed: true, w: K.lw(o, 1.6), fill: PAL.labLamp, amp: 0.2, seed: seed + 4 });
+        ink(shape.rect(-34, -48, 28, 14), { color: ic, closed: true, w: K.lw(o, 1.8), fill: PAL.labBodyDeep, amp: 0.3, seed: seed + 3 });
+        ink(shape.circle(-20, -56, 9, 16), { color: ic, closed: true, w: K.lw(o, 1.6), fill: PAL.labLamp, amp: 0.2, seed: seed + 4 });
         for (let k = 0; k < 3; k++) ink([[-26 + k * 6, -70], [-26 + k * 6 + (k - 1) * 2, -128]], { w: K.lw(o, 1.4), color: PAL.sun, alpha: lampA * 0.7, dash: [5, 6], amp: 0.2, seed: seed + 5 + k }); });
-      ink(arm, { closed: true, w: K.lw(o, 2.6), fill: PAL.labBody, amp: 0.6, seed: seed + 8, draw: K.ph(draw, 0.1, 0.5) });
+      ink(arm, { color: ic, closed: true, w: K.lw(o, 2.6), fill: PAL.labBody, amp: 0.6, seed: seed + 8, draw: K.ph(draw, 0.1, 0.5) });
       withAlpha(fa, () => { shade(arm, { color: PAL.labBodyDeep, alpha: 0.45, light: [-0.9, -0.2], seed: seed + 9 });
         const stage = shape.rect(-104, -148, 150, 14);
-        ink(stage, { closed: true, w: K.lw(o, 2.2), fill: PAL.labBodyDeep, amp: 0.4, seed: seed + 10 });
-        ink(shape.rect(-86, -154, 96, 6), { closed: true, w: K.lw(o, 1.4), fill: PAL.labGlass, amp: 0.2, seed: seed + 11 });
+        ink(stage, { color: ic, closed: true, w: K.lw(o, 2.2), fill: PAL.labBodyDeep, amp: 0.4, seed: seed + 10 });
+        ink(shape.rect(-86, -154, 96, 6), { color: ic, closed: true, w: K.lw(o, 1.4), fill: PAL.labGlass, amp: 0.2, seed: seed + 11 });
         flat(shape.ellipse(-22, -151, 9, 2.5, 0, 12), PAL.pink, 0.9);
-        [-96, 26].forEach((cx, i) => pen([[cx, -150], [cx + 18, -158]], { w: K.lw(o, 2.4), seed: seed + 12 + i, taper: 0.2 }));
-        ink(tube, { closed: true, w: K.lw(o, 2.6), fill: PAL.labBody, amp: 0.5, seed: seed + 14 });
+        [-96, 26].forEach((cx, i) => pen([[cx, -150], [cx + 18, -158]], { color: ic, w: K.lw(o, 2.4), seed: seed + 12 + i, taper: 0.2 }));
+        ink(tube, { color: ic, closed: true, w: K.lw(o, 2.6), fill: PAL.labBody, amp: 0.5, seed: seed + 14 });
         hatch(tube, { color: PAL.labBodyDeep, alpha: 0.35, gap: 5, len: 8, angle: 1.1, seed: seed + 15 });
         const ep = K.ribbon([[-58, -314 + lift], [-70, -338 + lift]], 12);
-        ink(ep, { closed: true, w: K.lw(o, 2.2), fill: PAL.labBodyDeep, amp: 0.3, seed: seed + 16 });
+        ink(ep, { color: ic, closed: true, w: K.lw(o, 2.2), fill: PAL.labBodyDeep, amp: 0.3, seed: seed + 16 });
         const tur = [[-34, -196 + lift], [22, -196 + lift], [14, -180 + lift], [-26, -180 + lift]];
-        ink(tur, { closed: true, w: K.lw(o, 2), fill: PAL.labBodyDeep, amp: 0.3, seed: seed + 17 });
+        ink(tur, { color: ic, closed: true, w: K.lw(o, 2), fill: PAL.labBodyDeep, amp: 0.3, seed: seed + 17 });
         [[-22, -8], [2, 8]].forEach(([ox, da], i) => { const p = K.ribbon([[ox, -180 + lift], [ox + da * 0.4, -160 + lift]], 5 - i);
-          ink(p, { closed: true, w: K.lw(o, 1.6), fill: i ? PAL.labBody : PAL.sun, amp: 0.2, seed: seed + 18 + i }); });
+          ink(p, { color: ic, closed: true, w: K.lw(o, 1.6), fill: i ? PAL.labBody : PAL.sun, amp: 0.2, seed: seed + 18 + i }); });
         for (const [R, n] of [[22, 10], [12, 6]]) {
-          ink(shape.circle(88, -140, R, 24), { closed: true, w: K.lw(o, 2), fill: R > 15 ? PAL.labBodyDeep : PAL.labBody, amp: 0.3, seed: seed + 20 + R });
+          ink(shape.circle(88, -140, R, 24), { color: ic, closed: true, w: K.lw(o, 2), fill: R > 15 ? PAL.labBodyDeep : PAL.labBody, amp: 0.3, seed: seed + 20 + R });
           for (let k = 0; k < n; k++) { const a = fk * (R > 15 ? 1 : -1.6) + k / n * TAU;
             ink([[88 + Math.cos(a) * (R - 5), -140 + Math.sin(a) * (R - 5)], [88 + Math.cos(a) * R, -140 + Math.sin(a) * R]], { w: K.lw(o, 1.4), color: R > 15 ? PAL.labBody : PAL.labBodyDeep, amp: 0 }); }
         }
@@ -190,15 +189,15 @@ KIT.lab = (() => {
   function pipette(t, o) {
     o = K.opts(o, { fall: 170, period: 1.8, fill: PAL.labLiquid, dish: true });
     return K.at(o, () => {
-      const { draw, seed, fall } = o, [, f] = K.cyc(t + 0.3, o.period), live = draw >= 1;
+      const { draw, seed, fall } = o, ic = K.inkOf(o.dark), [, f] = K.cyc(t + 0.3, o.period), live = draw >= 1;
       const sq = live ? 1 - 0.2 * Math.sin(Math.PI * inv(0.05, 0.4, f)) : 1;
       if (o.dish) {
         const rim = shape.ellipse(0, fall, 120, 20, 0, 48), low = Array.from({ length: 25 }, (_, i) => { const a = Math.PI - i / 24 * Math.PI; return [120 * Math.cos(a), fall + 22 + 20 * Math.sin(a)]; });
         withAlpha(K.ph(draw, 0.2, 0.6), () => {
-          ink([[-120, fall], ...low, [120, fall]], { closed: true, w: K.lw(o, 2.4), fill: PAL.labDish, amp: 0.5, seed: seed + 1 });
-          ink(shape.ellipse(0, fall + 4, 108, 15, 0, 40), { closed: true, w: 0, fill: o.fill, fillAlpha: 0.55 });
+          ink([[-120, fall], ...low, [120, fall]], { color: ic, closed: true, w: K.lw(o, 2.4), fill: PAL.labDish, amp: 0.5, seed: seed + 1 });
+          ink(shape.ellipse(0, fall + 4, 108, 15, 0, 40), { color: ic, closed: true, w: 0, fill: o.fill, fillAlpha: 0.55 });
           hatch(shape.ellipse(0, fall + 4, 108, 15, 0, 40), { color: PAL.labLiquidDeep, alpha: 0.4, gap: 4, len: 10, angle: 0.02, seed: seed + 2 });
-          ink(rim, { closed: true, w: K.lw(o, 2.4), amp: 0.5, seed: seed + 3 });
+          ink(rim, { color: ic, closed: true, w: K.lw(o, 2.4), amp: 0.5, seed: seed + 3 });
           for (let k = 0; k < 2; k++) { const q = ((t * 0.5 + k * 0.5) % 1); ink(shape.ellipse(0, fall + 4, 20 + q * 80, 3 + q * 10, 0, 32), { closed: true, w: K.lw(o, 1.2), color: '#ffffff', alpha: (1 - q) * 0.5, amp: 0.3, seed: seed + 4 + k }); }
         });
         if (live) { const q = inv(0.8, 1, f); if (q > 0 && q < 1) {
@@ -211,18 +210,18 @@ KIT.lab = (() => {
       withAlpha(K.ph(draw, 0.2, 0.6), () => { flat(inner, PAL.labGlass, 0.6);
         ctx.save(); trace(inner, true); ctx.clip(); const liq = [[-20, lvl], [-10, lvl - 2], [0, lvl + 1], [10, lvl - 1], [20, lvl], [20, 2], [-20, 2]];
         flat(liq, o.fill, 0.85); hatch(liq, { color: PAL.labLiquidDeep, alpha: 0.35, gap: 5, len: 8, angle: 0.02, seed: seed + 7 }); ctx.restore();
-        [0, 1, 2, 3].forEach(k => ink([[6, -100 - k * 20], [13, -100 - k * 20]], { w: K.lw(o, 1.2), amp: 0.1, alpha: 0.7 })); });
-      pen([...glass, glass[0]], { w: K.lw(o, 2.6), taper: 0.02, seed: seed + 8, draw: K.ph(draw, 0, 0.45) });
+        [0, 1, 2, 3].forEach(k => ink([[6, -100 - k * 20], [13, -100 - k * 20]], { color: ic, w: K.lw(o, 1.2), amp: 0.1, alpha: 0.7 })); });
+      pen([...glass, glass[0]], { color: ic, w: K.lw(o, 2.6), taper: 0.02, seed: seed + 8, draw: K.ph(draw, 0, 0.45) });
       withAlpha(K.ph(draw, 0.3, 0.6), () => {
         const b2 = [[-15 * sq, -192], [-21 * sq, -212], [-22 * sq, -240], [-14 * sq, -266], [0, -272], [14 * sq, -266], [22 * sq, -240], [21 * sq, -212], [15 * sq, -192]];
-        ink(b2, { closed: true, w: K.lw(o, 2.4), fill: PAL.labBulb, amp: 0.5, seed: seed + 9 });
+        ink(b2, { color: ic, closed: true, w: K.lw(o, 2.4), fill: PAL.labBulb, amp: 0.5, seed: seed + 9 });
         shade(b2, { color: '#5a1f2c', alpha: 0.5, gap: 4, len: 7, seed: seed + 10 });
         pen([[-10 * sq, -248], [-8 * sq, -226]], { w: K.lw(o, 2.4), color: '#ffffff', alpha: 0.6, taper: 0.4, seed: seed + 11 });
       });
       if (live) {
         const grow = inv(0.2, 0.52, f), fallU = inv(0.52, 0.8, f);
-        if (grow > 0 && fallU <= 0) { const s = 1.5 + 5 * E.out2(grow); ink(shape.circle(0, 2 + s, s, 16), { closed: true, w: K.lw(o, 1.3), fill: o.fill, amp: 0.2, seed: seed + 12 }); }
-        if (fallU > 0 && fallU < 1) { const y = lerp(10, fall, E.in2(fallU)); ink(teardrop(0, y, 6.5 * (1 + 0.15 * fallU)), { closed: true, w: K.lw(o, 1.4), fill: o.fill, amp: 0.2, seed: seed + 13 }); }
+        if (grow > 0 && fallU <= 0) { const s = 1.5 + 5 * E.out2(grow); ink(shape.circle(0, 2 + s, s, 16), { color: ic, closed: true, w: K.lw(o, 1.3), fill: o.fill, amp: 0.2, seed: seed + 12 }); }
+        if (fallU > 0 && fallU < 1) { const y = lerp(10, fall, E.in2(fallU)); ink(teardrop(0, y, 6.5 * (1 + 0.15 * fallU)), { color: ic, closed: true, w: K.lw(o, 1.4), fill: o.fill, amp: 0.2, seed: seed + 13 }); }
       }
     });
   }

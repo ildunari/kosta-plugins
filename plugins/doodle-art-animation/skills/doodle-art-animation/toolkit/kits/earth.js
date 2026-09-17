@@ -7,7 +7,7 @@ Object.assign(PAL, {
   earthSand: '#e2c98f', earthSandDeep: '#9c7f4a', earthRock: '#b3ab9c', earthRockFar: '#cbc4b6', earthRockDeep: '#4d4640', earthSnow: '#f7f3ea',
   earthHill: '#b9b48a', earthBark: '#6b4a32', earthLeaf: '#6f9a58', earthLeafDeep: '#3f6b3a', earthPine: '#4f7d52', earthPineDeep: '#2c4f33',
   earthSoil: '#b98457', earthSoilDeep: '#6b4426', earthGravel: '#d8c9a6', earthAquifer: '#6d9aa6', earthAquiferDeep: '#2f5c68',
-  earthBedrock: '#5a5250', earthWorm: '#d98a8a', earthRain: '#8487c6', earthMist: '#f3efe4', earthCloud: '#efe9db',
+  earthBedrock: '#5a5250', earthWorm: '#d98a8a', earthRain: '#5f63b0', earthRainNight: '#a9b8e8', earthMist: '#f3efe4', earthCloud: '#efe9db',
 });
 KIT.earth = (() => {
   const K = KIT;
@@ -39,7 +39,7 @@ KIT.earth = (() => {
         }
         ctx.restore();
       }
-      pen([[-4, 0], [w + 4, 0]], { w: K.lw(o, 3.2), seed: seed + 3, draw: K.ph(draw, 0, 0.45), taper: 0.02 });
+      pen([[-4, 0], [w + 4, 0]], { w: K.lw(o, 3.2), color: K.inkOf(o.dark), seed: seed + 3, draw: K.ph(draw, 0, 0.45), taper: 0.02 });
     });
   }
 
@@ -74,7 +74,7 @@ KIT.earth = (() => {
       stipple(g.land, Math.round(w * h / 300), { seed: seed + 4, alpha: 0.22 });
       flat(g.sand, PAL.earthSand); stipple(g.sand, Math.round(h * 1.6), { seed: seed + 5, alpha: 0.35, color: PAL.earthSandDeep });
       g.hills.forEach((p, k) => ink(p, { closed: true, w: K.lw(o, 1.4), color: PAL.earthSandDeep, alpha: 0.75, amp: 0.8, seed: seed + 40 + k }));
-      pen(g.shore, { w: K.lw(o, 3), seed: seed + 6, taper: 0.02 });
+      pen(g.shore, { w: K.lw(o, 3), color: K.inkOf(o.dark), seed: seed + 6, taper: 0.02 });
       ctx.restore();
     });
   }
@@ -85,67 +85,73 @@ KIT.earth = (() => {
     const poly = [...pts, [cx + pw / 2, base + 40], [cx - pw / 2, base + 40]];
     const snow = pts.filter(([, y]) => y < base - ph * 0.62); let cap = null;
     if (snow.length > 1) { const zig = [], a = snow[0][0], b = snow[snow.length - 1][0];
-      for (let k = 0; k <= 6; k++) zig.push([lerp(b, a, k / 6), base - ph * (0.66 + (k % 2 ? -0.06 : 0.03))]); cap = [...snow, ...zig]; }
+      for (let k = 0; k <= 6; k++) zig.push([lerp(b, a, k / 6) + (k % 6 ? (r() - 0.5) * pw * 0.04 : 0), base - ph * (0.66 + (k % 2 ? -0.05 - r() * 0.05 : 0.02 + r() * 0.04))]); cap = [...snow, ...zig]; }
     return { pts, poly, cap, apex: pts[6] };
   }
-  /** mountains(t, {x, y, w, h, n, seed}): a range with a paler back row, snowcaps, foothills, drifting mist and
-      snow blowing off the tallest peak. Peaks stand on the box's bottom edge. */
+  /** mountains(t, {x, y, w, h, n, bleed, seed}): a range with a paler back row, snowcaps, foothills, drifting mist and
+      snow blowing off the tallest peak. Peaks stand on the box's bottom edge and end inside the box; bleed: true lets
+      the range run past its sides (for a range that continues off frame). */
   function mountains(t, o) {
     o = K.opts(o, { w: 700, h: 360, n: 3, bleed: false });
     return K.at(o, () => {
       const { w, h, n, draw, seed } = o;
-      const g = K.memo(`e.mtn|${w}|${h}|${n}|${seed}`, () => {
+      const g = K.memo(`e.mtn|${w}|${h}|${n}|${seed}|${o.bleed}`, () => {
         const r = mulberry(seed);
-        const back = Array.from({ length: n + 1 }, (_, i) => peak((i + 0.1 + r() * 0.3) / n * w, h - h * 0.1, w / n * 1.5, h * (0.45 + r() * 0.15), seed + 10 + i));
-        const front = Array.from({ length: n }, (_, i) => peak((i + 0.5) / n * w + (r() - 0.5) * w / n * 0.3, h, w / n * 1.45, h * (0.66 + r() * 0.3), seed + 30 + i));
+        const fit = (cx, pw) => o.bleed ? pw : Math.min(pw, 2 * cx - 8, 2 * (w - cx) - 8);   // without bleed every slope ends inside the box
+        const back = Array.from({ length: n + 1 }, (_, i) => { const cx = o.bleed ? (i + 0.1 + r() * 0.3) / n * w : lerp(0.14, 0.86, i / n) * w + (r() - 0.5) * w / n * 0.2;
+          return peak(cx, h - h * 0.1, fit(cx, w / n * 1.5), h * (0.45 + r() * 0.15), seed + 10 + i); });
+        const front = Array.from({ length: n }, (_, i) => { const cx = (i + 0.5) / n * w + (r() - 0.5) * w / n * 0.3;
+          return peak(cx, h, fit(cx, w / n * 1.45), h * (0.66 + r() * 0.3), seed + 30 + i); });
         const top = front.reduce((a, b) => b.apex[1] < a.apex[1] ? b : a);
-        const foot = shape.ridge(-40, w + 40, h - h * 0.1, h * 0.04, seed + 50, 0.01, 16);
+        const foot = o.bleed ? shape.ridge(-40, w + 40, h - h * 0.1, h * 0.04, seed + 50, 0.01, 16)
+          : shape.ridge(0, w, h, h * 0.04, seed + 50, 0.01, 16).map(([x, y]) => [x, h - (h - y + h * 0.1) * Math.sin(Math.PI * x / w) ** 0.6]);
         return { back, front, top, foot, footPoly: shape.band(foot, h + 60), mist: [0, 1, 2].map(i => ({ y: h * (0.42 + i * 0.16), L: w * (0.22 + r() * 0.12), sp: 9 + i * 5, u: r() })) };
       });
       ctx.save(); ctx.beginPath(); ctx.rect(o.bleed ? -60 : 0, -h, w + (o.bleed ? 120 : 0), h * 2); ctx.clip();
-      const fa = K.ph(draw, 0.3, 0.8);
+      const fa = K.ph(draw, 0.3, 0.8), ic = K.inkOf(o.dark);
       g.back.forEach((p, i) => {
-        withAlpha(fa * 0.8, () => { flat(p.poly, PAL.earthRockFar); shade(p.poly, { color: PAL.earthRockDeep, seed: seed + 60 + i, alpha: 0.25, light: [-0.8, -0.5] }); if (p.cap) ink(p.cap, { closed: true, w: K.lw(o, 1), fill: PAL.earthSnow, amp: 0.5, alpha: 0.8, seed: seed + 70 + i }); });
-        pen(p.pts, { w: K.lw(o, 1.8), alpha: 0.6, seed: seed + 80 + i, taper: 0.05, draw: K.ph(draw, 0, 0.5) });
+        withAlpha(fa * 0.8, () => { flat(p.poly, PAL.earthRockFar); shade(p.poly, { color: PAL.earthRockDeep, seed: seed + 60 + i, alpha: 0.25, light: [-0.8, -0.5] }); if (p.cap) ink(p.cap, { closed: true, w: K.lw(o, 1), color: ic, fill: PAL.earthSnow, amp: 0.5, alpha: 0.8, seed: seed + 70 + i }); });
+        pen(p.pts, { w: K.lw(o, 1.8), color: ic, alpha: 0.6, seed: seed + 80 + i, taper: 0.05, draw: K.ph(draw, 0, 0.5) });
       });
       g.mist.slice(0, 1).forEach((m, i) => mistBand(t, m, w, o, i));
       g.front.forEach((p, i) => {
         withAlpha(fa, () => { flat(p.poly, PAL.earthRock); shade(p.poly, { color: PAL.earthRockDeep, seed: seed + 90 + i, alpha: 0.42, light: [-0.8, -0.5] });
           hatch(p.poly, { color: PAL.earthRockDeep, alpha: 0.18, gap: 11, len: 7, angle: 1.25, seed: seed + 95 + i });
-          if (p.cap) ink(p.cap, { closed: true, w: K.lw(o, 1.4), fill: PAL.earthSnow, amp: 0.6, seed: seed + 100 + i }); });
-        pen(p.pts, { w: K.lw(o, 2.8), seed: seed + 110 + i, taper: 0.05, draw: K.ph(draw, 0.05 + i * 0.1, 0.55 + i * 0.1) });
+          if (p.cap) ink(p.cap, { closed: true, w: K.lw(o, 1.4), color: ic, fill: PAL.earthSnow, amp: 0.6, seed: seed + 100 + i }); });
+        pen(p.pts, { w: K.lw(o, 2.8), color: ic, seed: seed + 110 + i, taper: 0.05, draw: K.ph(draw, 0.05 + i * 0.1, 0.55 + i * 0.1) });
       });
       withAlpha(fa, () => { flat(g.footPoly, PAL.earthHill); hatch(g.footPoly, { color: '#6b6a3f', alpha: 0.28, gap: 7, len: 10, angle: 0.5, seed: seed + 120 }); });
-      pen(g.foot, { w: K.lw(o, 2.4), seed: seed + 121, taper: 0.02, draw: K.ph(draw, 0.3, 0.9) });
+      pen(g.foot, { w: K.lw(o, 2.4), color: ic, seed: seed + 121, taper: 0.02, draw: K.ph(draw, 0.3, 0.9) });
       g.mist.slice(1).forEach((m, i) => mistBand(t, m, w, o, i + 1));
       ctx.restore();
       if (draw >= 1) {                                                          // snow blowing off the tallest summit
         const [ax, ay] = g.top.apex;
         for (let i = 0; i < 9; i++) { const u = (t * 0.45 + i / 9) % 1, x = ax + 6 + u * 130, y = ay + 4 - u * 16 + 5 * Math.sin(t * 2 + i * 1.7);
-          pen([[x, y], [x + 10 + u * 8, y - 1]], { w: K.lw(o, 1.5), color: PAL.inkSoft, alpha: 0.55 * Math.sin(Math.PI * u), seed: seed + 130 + i, taper: 0.4 }); }
+          pen([[x, y], [x + 10 + u * 8, y - 1]], { w: K.lw(o, 1.5), color: o.dark ? PAL.nightInk : PAL.inkSoft, alpha: 0.55 * Math.sin(Math.PI * u), seed: seed + 130 + i, taper: 0.4 }); }
       }
     });
   }
   function mistBand(t, m, w, o, i) {
     const x = ((m.u * (w + 2 * m.L) + t * m.sp) % (w + 2 * m.L)) - m.L, y = m.y + 3 * Math.sin(t * 0.7 + i);
-    withAlpha(K.ph(o.draw, 0.6, 1), () => {
+    const cx = x + m.L / 2, edge = o.bleed ? 1 : clamp(Math.min(cx, w - cx) / (m.L * 0.7));   // fade out at the box sides instead of a hard crop
+    withAlpha(K.ph(o.draw, 0.6, 1) * edge, () => {
       [[0, 0.95, 0, 11], [0.25, 0.8, -8, 8], [0.1, 0.55, 8, 7]].forEach(([a, b, dy, ww], k) =>
         pen([[x + m.L * a, y + dy], [x + m.L * (a + b) * 0.5, y + dy - 2], [x + m.L * b, y + dy]], { w: ww, color: PAL.earthMist, alpha: 0.85, seed: o.seed + 160 + i * 3 + k, taper: 0.45 }));
-      pen([[x + m.L * 0.12, y + 9], [x + m.L * 0.88, y + 9]], { w: K.lw(o, 1.4), color: PAL.muted, alpha: 0.6, seed: o.seed + 140 + i, taper: 0.4 });
+      pen([[x + m.L * 0.12, y + 9], [x + m.L * 0.88, y + 9]], { w: K.lw(o, 1.4), color: K.mutedOf(o.dark), alpha: 0.6, seed: o.seed + 140 + i, taper: 0.4 });
     });
   }
 
-  function roundTree(t, s, seed, g) {
+  function roundTree(t, s, seed, g, ic) {
     const sw = 3 * s * Math.sin(t * 1.3 + seed), cx = sw, cy = -88 * s;
     pen([[0, 4], [sw * 0.3, -40 * s], [cx, cy + 10 * s]], { w: 5.5 * s, color: PAL.earthBark, seed, taper: 0.3 });
     const c = g.map(([x, y]) => [x + cx, y]);
-    ink(c, { closed: true, w: 2.4, fill: PAL.earthLeaf, amp: 1, seed: seed + 1 });
+    ink(c, { closed: true, w: 2.4, color: ic, fill: PAL.earthLeaf, amp: 1, seed: seed + 1 });
     shade(c, { color: PAL.earthLeafDeep, seed: seed + 2, alpha: 0.55 });
   }
-  function pineTree(t, s, seed, tiers) {
+  function pineTree(t, s, seed, tiers, ic) {
     const sw = 3.5 * s * Math.sin(t * 1.2 + seed), bend = ([x, y]) => [x + sw * clamp(-y / (150 * s)), y];
     pen([[0, 4], [sw * 0.1, -30 * s]], { w: 5 * s, color: PAL.earthBark, seed, taper: 0.3 });
-    tiers.forEach((p, k) => { const q = p.map(bend); ink(q, { closed: true, w: 2.2, fill: PAL.earthPine, amp: 0.8, seed: seed + k });
+    tiers.forEach((p, k) => { const q = p.map(bend); ink(q, { closed: true, w: 2.2, color: ic, fill: PAL.earthPine, amp: 0.8, seed: seed + k });
       hatch(q, { color: PAL.earthPineDeep, alpha: 0.55, gap: 4.5, len: 8, angle: -0.9, w: 1.4, seed: seed + 10 + k, keep: (px) => clamp(0.15 + (px - sw * 0.5) / (40 * s)) }); });
   }
   /** forest(t, {x, y, w, h, n, seed}): a row of round and pointed trees on a grassy ground line; trees grow in one by
@@ -167,10 +173,10 @@ KIT.earth = (() => {
       g.trees.forEach((tr, i) => {
         const gr = K.pop(draw, 0.1 + i / n * 0.55, 0.4 + i / n * 0.55); if (gr <= 0) return;
         ctx.save(); ctx.translate(tr.x, tr.y); ctx.scale(gr, gr); if (tr.back) ctx.globalAlpha *= 0.85;
-        tr.pine ? pineTree(t, tr.s, tr.seed, tr.tiers) : roundTree(t, tr.s, tr.seed, tr.canopy);
+        tr.pine ? pineTree(t, tr.s, tr.seed, tr.tiers, K.inkOf(o.dark)) : roundTree(t, tr.s, tr.seed, tr.canopy, K.inkOf(o.dark));
         ctx.restore();
       });
-      pen(g.ground, { w: K.lw(o, 3.6), seed: seed + 1, taper: 0.02, draw: K.ph(draw, 0, 0.4) });
+      pen(g.ground, { w: K.lw(o, 3.6), color: K.inkOf(o.dark), seed: seed + 1, taper: 0.02, draw: K.ph(draw, 0, 0.4) });
       grass(g.ground, { every: 26, h: 13, seed: seed + 2, draw: K.ph(draw, 0.2, 0.8), sway: 3 });
     });
   }
@@ -201,12 +207,15 @@ KIT.earth = (() => {
       g.water.forEach((p, i) => flow(p, t + i * 1.7, { speed: 24, gap: 130, len: 40, color: '#e8f3f5', w: K.lw(o, 2.2), alpha: 0.75, seed: seed + 17 + i }));
       const wx = ((t * 16 + seed * 37) % (w + 120)) - 60;                       // an earthworm tunnelling through the topsoil
       for (let k = 7; k >= 0; k--) { const x = wx - k * 7, y = h * 0.12 + 5 * Math.sin(x * 0.06 - t * 3);
-        ink(shape.circle(x, y, 5.2 - k * 0.35, 12), { closed: true, w: K.lw(o, 1.1), fill: PAL.earthWorm, amp: 0.2, seed: seed + 30 + k }); }
-      [1, 2, 3].forEach(k => pen(g.R[k], { w: K.lw(o, 2), seed: seed + 20 + k, taper: 0.02, alpha: 0.8 }));
+        ink(shape.circle(x, y, 5.2 - k * 0.35, 12), { closed: true, w: K.lw(o, 1.1), color: PAL.ink, fill: PAL.earthWorm, amp: 0.2, seed: seed + 30 + k }); }
+      [1, 2, 3].forEach(k => pen(g.R[k], { w: K.lw(o, 2), color: PAL.ink, seed: seed + 20 + k, taper: 0.02, alpha: 0.8 }));
       grass(g.R[0], { every: 22, h: 14, seed: seed + 25, sway: 3 });
-      pen(g.R[0], { w: K.lw(o, 3.6), seed: seed + 24, taper: 0.02 });
-      if (o.labels) [['TOPSOIL', 0.14, PAL.ink], ['GRAVEL', 0.37, PAL.ink], ['AQUIFER', 0.6, PAL.earthFoam], ['BEDROCK', 0.88, '#e4d9bd']].forEach(([s, v, c], i) =>
-        text(typed(s, (draw - 0.5 - i * 0.08) * 4, 12), w - 14, h * v + 5, { kind: 'mono', size: 13, weight: 600, ls: 3, align: 'right', color: c, alpha: 0.85 }));
+      pen(g.R[0], { w: K.lw(o, 3.6), color: K.inkOf(o.dark), seed: seed + 24, taper: 0.02 });
+      if (o.labels) [['TOPSOIL', 0.14, PAL.ink, PAL.earthSoil], ['GRAVEL', 0.36, PAL.ink, PAL.earthGravel], ['AQUIFER', 0.6, PAL.earthFoam, PAL.earthAquifer], ['BEDROCK', 0.88, '#e4d9bd', PAL.earthBedrock]].forEach(([s, v, c, bg], i) => {
+        const a = clamp((draw - 0.5 - i * 0.08) * 4), lw = measure(s, { kind: 'mono', size: 13, weight: 600, ls: 3 });   // a patch of the layer's own colour keeps the name legible
+        if (a > 0) flat(K.rrect(w - 22 - lw, h * v - 11, lw + 16, 22, 5), bg, 0.9 * a);
+        text(typed(s, (draw - 0.5 - i * 0.08) * 4, 12), w - 14, h * v + 5, { kind: 'mono', size: 13, weight: 600, ls: 3, align: 'right', color: c });
+      });
       ctx.restore();
     });
   }
@@ -216,8 +225,8 @@ KIT.earth = (() => {
   function weather(t, o) {
     o = K.opts(o, { w: 420, h: 360, kind: 'rain', n: null, cloud: null });
     return K.at(o, () => {
-      const { w, h, draw, seed, kind } = o, cloud = o.cloud ?? kind !== 'wind', cb = cloud ? h * 0.3 : 0;
-      const g = K.memo(`e.wx|${w}|${h}|${seed}|${kind}`, () => {
+      const { w, h, draw, seed, kind, dark } = o, cloud = o.cloud ?? kind !== 'wind', cb = cloud ? h * 0.3 : 0, ic = K.inkOf(dark), rain = dark ? PAL.earthRainNight : PAL.earthRain;
+      const g = K.memo(`e.wx|${w}|${h}|${seed}|${kind}|${o.n}`, () => {
         const r = mulberry(seed), N = o.n ?? (kind === 'snow' ? 26 : kind === 'rain' ? 24 : 5);
         const drops = Array.from({ length: N }, () => ({ x: lerp(w * 0.12, w * 0.88, r()), ph: r(), sz: 5 + r() * 4 }));
         const gusts = Array.from({ length: N }, (_, i) => { const y = lerp(h * 0.14, h * 0.86, i / Math.max(1, N - 1)) + (r() - 0.5) * 12, x0 = r() * w * 0.15, x1 = w * (0.62 + r() * 0.25), rr = 12 + r() * 10, pts = [];
@@ -228,27 +237,28 @@ KIT.earth = (() => {
         const s = w / 420;
         return { drops, gusts, bumps: [[0, 70 * s], [-100 * s, 52 * s], [96 * s, 58 * s], [30 * s, 50 * s, 30 * s], [-50 * s, 44 * s, 26 * s]] };
       });
-      if (cloud) lobedCloud(w / 2 + 10 * Math.sin(t * 0.4), cb, g.bumps, { draw: K.ph(draw, 0, 0.7), seed: seed + 3, fill: kind === 'snow' ? '#e6e4e0' : PAL.earthCloud });
+      if (cloud) lobedCloud(w / 2 + 10 * Math.sin(t * 0.4), cb, g.bumps, { draw: K.ph(draw, 0, 0.7), seed: seed + 3, color: ic, fill: kind === 'snow' ? '#e6e4e0' : PAL.earthCloud });
       const pa = K.ph(draw, 0.5, 1);
       if (pa <= 0) return;
       withAlpha(pa, () => {
         if (kind === 'rain') g.drops.forEach((d, i) => {
           const u = (t * 1.25 + d.ph) % 1, y = lerp(cb + 4, h - 30, u);
-          pen([[d.x, y], [d.x - 5, y + 34]], { w: K.lw(o, 2.6), color: PAL.earthRain, seed: seed + 10 + i, taper: 0.35, alpha: Math.sin(Math.PI * u) ** 0.5 });
-          const q = ((t * 1.25 + d.ph + 0.08) % 1); if (q < 0.18) { const e = q / 0.18, sx = d.x - 5;
-            for (const sg of [-1, 1]) pen([[sx + sg * 3, h - 2], [sx + sg * (6 + 8 * e), h - 6 - 8 * Math.sin(Math.PI * e)]], { w: K.lw(o, 1.5), color: PAL.earthRain, alpha: 1 - e, seed: seed + 40 + i, taper: 0.3 }); }
+          pen([[d.x, y], [d.x - 6, y + 38]], { w: K.lw(o, 3.2), color: rain, seed: seed + 10 + i, taper: 0.35, alpha: Math.sin(Math.PI * u) ** 0.5 });
+          const q = ((t * 1.25 + d.ph + 0.08) % 1); if (q < 0.22) { const e = q / 0.22;
+            const sx2 = d.x - 6; ink([[sx2 - 10 - 10 * e, h], [sx2 + 10 + 10 * e, h]], { w: K.lw(o, 1.6), color: rain, alpha: (1 - e) * 0.8, amp: 0.3, seed: seed + 70 + i });
+            for (const sg of [-1, 1]) pen([[sx2 + sg * 3, h - 2], [sx2 + sg * (7 + 12 * e), h - 6 - 12 * Math.sin(Math.PI * e)]], { w: K.lw(o, 2.2), color: rain, alpha: 1 - e, seed: seed + 40 + i, taper: 0.3 }); }
         });
         if (kind === 'snow') g.drops.forEach((d, i) => {
           const u = (t * 0.2 + d.ph) % 1, y = lerp(cb + 4, h - 8, u), x = d.x + 16 * Math.sin(t * 1.1 + d.ph * 9), a = t * 1.2 + d.ph * 6;
           withAlpha(Math.sin(Math.PI * u) ** 0.4, () => { for (let k = 0; k < 3; k++) { const c = Math.cos(a + k * Math.PI / 3) * d.sz, s = Math.sin(a + k * Math.PI / 3) * d.sz;
-            ink([[x - c, y - s], [x + c, y + s]], { w: K.lw(o, 1.5), color: PAL.peri, amp: 0.3, seed: seed + 60 + i * 3 + k }); } });
+            ink([[x - c, y - s], [x + c, y + s]], { w: K.lw(o, 1.6), color: dark ? PAL.nightInk : PAL.peri, amp: 0.3, seed: seed + 60 + i * 3 + k }); } });
         });
         if (kind === 'wind') {
-          g.gusts.forEach((p, i) => { ink(p, { w: K.lw(o, 1.4), color: PAL.inkSoft, alpha: 0.35, amp: 0.6, seed: seed + 80 + i });
-            flow(p, t * 1.0 + i * 0.9, { speed: 150, gap: 200, len: 120, color: PAL.ink, w: K.lw(o, 3), alpha: 0.9, seed: seed + 90 + i }); });
+          g.gusts.forEach((p, i) => { ink(p, { w: K.lw(o, 1.4), color: dark ? PAL.nightMuted : PAL.inkSoft, alpha: 0.35, amp: 0.6, seed: seed + 80 + i });
+            flow(p, t * 1.0 + i * 0.9, { speed: 150, gap: 200, len: 120, color: ic, w: K.lw(o, 3), alpha: 0.9, seed: seed + 90 + i }); });
           for (let i = 0; i < 4; i++) { const p = g.gusts[i % g.gusts.length], [x, y] = along(p, (t * 0.12 + i / 4) % 1), a = t * 4 + i;
             const leaf = KIT.rot(shape.ellipse(x, y, 13, 6, 0, 16), a, x, y);
-            ink(leaf, { closed: true, w: K.lw(o, 1.3), fill: i % 2 ? PAL.earthLeaf : PAL.sun, amp: 0.3, seed: seed + 100 + i }); }
+            ink(leaf, { closed: true, w: K.lw(o, 1.3), color: ic, fill: i % 2 ? PAL.earthLeaf : PAL.sun, amp: 0.3, seed: seed + 100 + i }); }
         }
       });
     });

@@ -1,6 +1,6 @@
 # Component kits
 
-Ready-made building blocks, drawn in the house style, that a story can use directly. They live in `toolkit/kits/`, and `build.py` inlines every file there between the engine and the story, so a story can call them with no setup. To see all of them moving, build `toolkit/story_gallery.js`.
+Ready-made building blocks, drawn in the house style, that a story can use directly. They live in `toolkit/kits/`, and `build.py` inlines every file there between the engine and the story, so a story can call them with no setup. `build.py` includes only the kits a story names (`KIT.earth…` pulls in `earth.js`, plus the shared `_kit.js`), so a film that uses no kits carries none; if it can't tell (for example `const K = KIT`), it includes them all. If a story uses `KIT.` but the working folder has no `kits/`, the build stops and says so: copy the toolkit with `cp -R`. To see all of them moving, build `toolkit/story_gallery.js`.
 
 The kits are a head start, not a limit. Use a component where it fits your subject, restyle it with its options, and draw anything else yourself from the engine primitives. A film about geology might use `earth.strata` and then draw its own fault lines and fossils.
 
@@ -19,7 +19,15 @@ KIT.<kit>.<name>(t, { x, y, s, rot, draw, alpha, seed, dark, ...its own options 
 | `draw` | Draw-on progress, 0..1. Pass something like `E.inOut2(inv(0.4, 1.8, t))` so the component draws itself in; 1 is fully drawn. |
 | `alpha` | Opacity, for fading a component out with its beat. |
 | `seed` | Picks the layout variant (tree positions, star field, peaks). The same seed always gives the same drawing. |
-| `dark` | `true` on night plates, so the ink turns pale. |
+| `dark` | `true` on night plates. Every component honours it: outlines and loose strokes turn pale, and components drawn on their own surface adjust it (see below). |
+
+**On the other world.** `KIT.ai` and `KIT.space` default to `dark: true`; everything else defaults to paper. Any component works on either world:
+
+- Scenery (`earth.*`), glassware, the microscope, the pipette, the rack, the circuit board, the easel, brushes and the pen tool keep their own fills and switch their ink to pale on night plates.
+- Things that are surfaces in their own right keep them: `tech.browser`, `studio.swatches`, `studio.wireframe` and the easel's canvas stay light (like a lit screen or a card), with pale outlines; `tech.terminal` is a dark screen in both worlds. `tech.code` switches to a dark card with night syntax colours.
+- On paper, `space.stars`, `space.comet` and the `ai.*` highlights switch to inked colours so they don't vanish.
+
+**Minimum size.** Components with text (`ai.agent`, `ai.chat`, `ai.tokens`, `ai.attention`, `tech.terminal`, `tech.code`, `tech.browser`, `studio.swatches`, `studio.wireframe`, `lab.flask` with a label) become hard to read below `s: 0.75`; at `s: 0.5` their labels are unreadable. Scale those down by giving them a smaller `w` or `size` instead, or keep them at 0.75 or above. Pure drawings (trees, planets, molecules, glassware) work down to about 0.4.
 
 Every component keeps moving after it has drawn on, so a plate built from kit parts is never frozen. All of them are deterministic (no `Math.random`), cache their geometry, and add their colours to `PAL` under a kit prefix (`PAL.earthSea`, `PAL.techBoard` and so on). Override those colours with `Object.assign(PAL, {...})` like any other.
 
@@ -31,7 +39,7 @@ Components draw inside the plate's camera, so they zoom and pan with it. Draw th
 |---|---|---|---|
 | `earth.sea(t, o)` | `w, h, waves, glint` | Open water seen from the side: flat teal, two hatch tones, a pen horizon at `y`. Foam strokes drift and bob; `glint: x` adds a flickering gold sun column. | Oceans, lakes, horizons, the base of a coast scene |
 | `earth.coast(t, o)` | `w, h, side, land` | A map-view coastline: land with hill contour rings, a sand fringe, and surf lines that breathe along the shore. `side: 'right'` mirrors it; `land` is the land's share of the width. | Geography, erosion, maps, harbours |
-| `earth.mountains(t, o)` | `w, h, n, bleed` | A range of `n` peaks with a paler back row, snowcaps, foothills, drifting mist and snow blowing off the tallest summit. Peaks stand on the box's bottom edge. `bleed: true` lets the back peaks run past the box. | Far scenery, climate, tectonics, a sky-line behind anything |
+| `earth.mountains(t, o)` | `w, h, n, bleed` | A range of `n` peaks with a paler back row, jagged snowcaps, foothills, drifting mist and snow blowing off the tallest summit. Peaks stand on the box's bottom edge and the whole range ends inside the box, with mist fading at the sides. `bleed: true` lets it run past the sides instead (a range that continues off frame). | Far scenery, climate, tectonics, a sky-line behind anything |
 | `earth.forest(t, o)` | `w, h, n` | A row of round and pointed trees on a grassy ground line; they grow in one by one and sway. Anchor: the left end of the ground. `h` is the tallest tree. | Foregrounds, ecology, carbon, habitats |
 | `earth.strata(t, o)` | `w, h, labels` | An underground cutaway: grass, topsoil with roots and a tunnelling worm, gravel, an aquifer with creeping groundwater, bedrock. Layers reveal top to bottom; `labels: false` hides the names. | Geology, groundwater, soil, mining, foundations |
 | `earth.weather(t, o)` | `w, h, kind, n, cloud` | `kind: 'rain'` (streaks and splashes), `'snow'` (turning flakes that drift) or `'wind'` (gust lines that curl, with tumbling leaves). Rain and snow come with a cloud unless `cloud: false`. | Any paper sky, seasons, the water cycle, storms |
@@ -40,11 +48,11 @@ Components draw inside the plate's camera, so they zoom and pan with it. Draw th
 
 | Call | Own options | What it looks like and how it moves | Good for |
 |---|---|---|---|
-| `tech.terminal(t, o)` | `w, h, lines, title, cps, t0, loop, size` | A dark terminal window. Lines starting with `$ ` are typed as commands; other lines print as output (`✓ …` green, `✗ …` or `! …` pink). The cursor blinks and the view scrolls when lines overflow. `t0` delays the typing; `loop` (seconds) restarts it. | CLIs, builds, deploys, agents running tools |
-| `tech.code(t, o)` | `w, lines, hl, size, title, t0` | A code card with line numbers and light syntax colour. A highlight bar steps through the lines and a caret blinks; `hl` pins it to a line index or a function `t => index`. Height follows the line count. | Explaining a function, step-through execution, diffs |
+| `tech.terminal(t, o)` | `w, h, lines, title, cps, t0, loop, size` | A dark terminal window. Lines starting with `$ ` are typed as commands; other lines print as output (`✓ …` green, `✗ …` or `! …` pink). The cursor blinks and the view scrolls when lines overflow. `t0` delays the typing (the screen stays empty until then); `loop` (seconds) restarts it. | CLIs, builds, deploys, agents running tools |
+| `tech.code(t, o)` | `w, lines, hl, size, title, t0` | A code card with line numbers and light syntax colour. A highlight bar steps through the lines and a caret blinks; `hl` pins it to a line index or a function `t => index` (clamped to the lines). Height follows the line count, and the call returns `{ h }` so you can place things under it. | Explaining a function, step-through execution, diffs |
 | `tech.browser(t, o)` | `w, h, url, title` | A browser window with a spinning tab loader, an address bar that types the url, a sweeping loading bar, and a sketched page (nav, headline, button, image, cards) that scrolls gently. | The web, web design, apps, "a user visits…" |
 | `tech.rack(t, o)` | `units` | A server rack standing on the floor at (`x`, `y`). Units slide in; power, activity and network lights blink; cables sway. | Data centres, the cloud, scaling, infrastructure |
-| `tech.circuit(t, o)` | `w, h, label, pins` | A green board with a central chip, fanned copper traces ending in vias, a few parts, and pulses running along the traces. `pins: [perSide, perEnd]`. | Chips, hardware, AI accelerators, signals |
+| `tech.circuit(t, o)` | `w, h, label, pins` | A green board with a central chip, fanned copper traces ending in vias, a few parts, and pulses running along the traces. `pins: [perSide, perEnd]` (1 or more each). | Chips, hardware, AI accelerators, signals |
 | `tech.cursor(t, o)` | `path, period` | A mouse pointer hopping between the points of `path` (relative to `x`, `y`) and clicking with a ripple at each stop. Draw it last so it sits on top. | Pointing at anything in a UI, demos |
 
 ## KIT.ai: models and agents (night by default)
@@ -55,7 +63,7 @@ These draw for the night world; pass `dark: false` to use them on paper.
 |---|---|---|---|
 | `ai.network(t, o)` | `w, h, layers, speed, labels` | A layered neural network. A wave of signals runs from the first layer to the last, lighting nodes as it arrives, then starts again. `layers: [3, 5, 5, 2]`; `labels` adds one caption per layer. | How models compute, training, inference |
 | `ai.agent(t, o)` | `tools, R, spread, period, name` | An agent node that calls tools in turn: a request arrow goes out, the tool works, and a dashed response comes back carrying a result chip. Anchor: the agent's centre; tools fan out to the right. `tools`: names or `{ name, icon }` (icons `search`, `code`, `files`, `web`, `db`). | Agents, tool use, orchestration, APIs |
-| `ai.chat(t, o)` | `w, msgs, t0, size` | A chat thread growing downward. User bubbles pop in on the right; the assistant shows typing dots, then its reply types on. After the last message the typing dots keep bouncing. `msgs: [{ who: 'user' \| 'ai', text }]`. | Assistants, conversations, prompts |
+| `ai.chat(t, o)` | `w, msgs, t0, size` | A chat thread growing downward. User bubbles pop in on the right; the assistant shows typing dots, then its reply types on. After the last message the typing dots keep bouncing. `msgs: [{ who: 'user' \| 'ai', text }]`. Returns `{ h }`, the full thread height: about `size × 1.32` per wrapped line plus 38 px per message, plus 48 px for the typing bubble; replies wrap at 70% of `w`. | Assistants, conversations, prompts |
 | `ai.tokens(t, o)` | `w, words, rate, t0, loop, size` | A model writing: token chips pop onto a line (it slides left when full) with their ids underneath, and a panel shows the candidate next tokens and their odds. Leading spaces show as `·`. | Tokenisation, generation, sampling |
 | `ai.attention(t, o)` | `w, words, period, focus` | Self-attention over a sentence: each period one word is the query, arcs to the other words swell by weight, and the key words underline by weight. `focus` pins the query word. | Transformers, context, "what the model looks at" |
 | `ai.motes(t, o)` | `w, h, n, speed` | A drifting crowd of data specks (dots, bits, dashes), nearer ones bigger and faster. A back layer that gives a night plate the crowd it needs to register as moving. | Backdrops for any digital or night plate |
@@ -99,14 +107,15 @@ const P2 = {
   draw(t) {
     KIT.ai.motes(t, { x: -40, y: -40, w: W + 80, h: H + 80, n: 180 });
     KIT.ai.agent(t, { x: 620, y: 560, tools: ['search', { name: 'repo', icon: 'files' }], draw: E.inOut2(inv(0.3, 1.6, t)) });
-    withAlpha(beat(t, 3, 6.5), () => KIT.tech.terminal(t - 3, { x: 1150, y: 420, w: 600, h: 300, dark: true, lines: ['$ grep -r parseDate', 'src/date.ts:41'] }));
+    withAlpha(beat(t, 3, 6.5), () => KIT.tech.terminal(t - 3, { x: 1150, y: 420, w: 600, h: 300, dark: true, t0: 0.3, lines: ['$ grep -r parseDate', 'src/date.ts:41'] }));
   },
 };
 ```
 
 Notes:
 
-- Pass a shifted clock (`t - 3`) when a component should start later; its typing and cycles start from zero.
+- Pass a shifted clock (`t - 3`) when a component should start later; its typing and cycles start from zero. (`dark: true` on the terminal above only turns its outline pale; the screen is dark in both worlds.)
+- Animate positions (`x`, `y`, `s`, `rot`, `alpha`, `draw`), not the options that shape the geometry (`w`, `h`, `n`, `layers`, `r`, `path`, `words`…). Geometry is cached per option set (`KIT.memo`, capped at 256 entries), so a value that changes every frame recomputes the layout every frame and churns the cache.
 - Wrap components in `withAlpha(beat(...))` to make them leave, like any other beat.
 - Keep components out of the header, journey log and stage-dial regions (`references/style.md`, "Plate furniture").
 - `story_gallery.js` is a specimen sheet. A film should place a few components inside a scene built for its topic, not lay them out in a grid.
@@ -116,9 +125,10 @@ Notes:
 The kits should grow with every film. When you build a reusable piece in a story (a DNA helix, a volcano, a phone, a database table), do this:
 
 1. **Write it as a kit component from the start:** a function `(t, o)` that calls `KIT.opts(o, { defaults })` and draws inside `KIT.at(o, () => …)` in local coordinates. Support `draw` (use `KIT.ph(draw, a, b)` to sequence its parts), give it idle motion driven by `t`, and take a `seed`.
-2. **Stay deterministic:** no `Math.random` or `Date`. Use `mulberry(seed)` for layouts and `hash3()` for per-frame values, and cache layouts with `KIT.memo(key, () => …)`, including every option that changes the geometry in the key.
-3. **Match the style:** build only from engine primitives (`pen` for subjects, `ink` for measurement, `hatch`/`shade`/`stipple` for texture, no gradients), and use two textures on any fill wider than 200 px. Add colours with `Object.assign(PAL, { kitName: '#…' })` using the kit's prefix.
-4. **Keep names private:** put helpers inside the kit's wrapper function, never at the top level, because the engine, kits and story share one global scope. Don't depend on another kit's colours or helpers.
-5. **Propose it back:** tell the user the piece is a candidate for the plugin, and name the kit it belongs in (or a new kit file, `toolkit/kits/<kit>.js`, which `build.py` picks up automatically). When adding it to the plugin, also add it to `story_gallery.js` and to this catalogue, then render the gallery and check it.
+2. **Stay deterministic:** no `Math.random` or `Date`. Use `mulberry(seed)` for layouts and `hash3()` for per-frame values, and cache layouts with `KIT.memo(key, () => …)`, including in the key every option the cached value depends on (sizes, counts, and `dark` if colours are cached).
+3. **Honour `dark`:** pass `color: KIT.inkOf(o.dark)` to every `pen`/`ink` outline, skip `KIT.shadow` on night plates, and check the component on both worlds.
+4. **Match the style:** build only from engine primitives (`pen` for subjects, `ink` for measurement, `hatch`/`shade`/`stipple` for texture, no gradients), and use two textures on any fill wider than 200 px. Add colours with `Object.assign(PAL, { kitName: '#…' })` using the kit's prefix.
+5. **Keep names private:** put helpers inside the kit's wrapper function, never at the top level, because the engine, kits and story share one global scope. Don't depend on another kit's colours or helpers.
+6. **Propose it back:** tell the user the piece is a candidate for the plugin, and name the kit it belongs in (or a new kit file, `toolkit/kits/<kit>.js`, which `build.py` picks up automatically). When adding it to the plugin, also add it to `story_gallery.js` and to this catalogue, then render the gallery and check it on both worlds.
 
 The shared helpers in `kits/_kit.js` are `KIT.memo`, `KIT.opts`, `KIT.at`, `KIT.lw` (line width under scale), `KIT.ph`/`KIT.pop` (draw-on phases), `KIT.cyc` (repeating cycles), `KIT.rrect`, `KIT.ribbon`, `KIT.offset`, `KIT.cubic`, `KIT.rot`, `KIT.shadow`, `KIT.caption`, `KIT.inkOf` and `KIT.mutedOf`.

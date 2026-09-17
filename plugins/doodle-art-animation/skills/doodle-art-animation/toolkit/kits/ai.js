@@ -111,7 +111,7 @@ KIT.ai = (() => {
   function dots(x, y, t, c) { for (let i = 0; i < 3; i++) flat(shape.circle(x + (i - 1) * 13, y - 5 * Math.max(0, Math.sin(t * 7 - i * 0.9)), 4, 10), c, 0.9); }
   /** chat(t, {x, y, w, msgs, t0, size, dark}): a chat thread. msgs = [{who: 'user'|'ai', text}]. User bubbles pop in
       on the right; the assistant shows typing dots, then its reply types on. After the last message the typing dots
-      keep bouncing. The thread grows downward from (x, y). */
+      keep bouncing. The thread grows downward from (x, y); returns { h }, its full height (before scaling by s). */
   function chat(t, o) {
     o = K.opts(o, { w: 520, t0: 0.4, size: 19, dark: true,
       msgs: [{ who: 'user', text: 'Can you find the failing test?' }, { who: 'ai', text: 'Found it: the date parser drops the timezone. Want a fix?' }, { who: 'user', text: 'Yes please' }] });
@@ -146,6 +146,7 @@ KIT.ai = (() => {
         it.lines.forEach((s, j) => { if (left <= 0) return; text(s.slice(0, left), x + pad, it.y + pad + size * 0.8 + j * lh, { kind: 'sans', size, color: it.ai ? ic : PAL.ink, alpha: sc }); left -= s.length + 1; });
       });
       if (tt > L.end) { const y = L.endY, a = clamp((tt - L.end) * 3); avatar(y, a); withAlpha(a, () => { bubble({ ai: true }, 44, y, 76, 40, 1); dots(82, y + 22, t, ic); }); }
+      return { h: L.endY + 48 };                                                // full thread height, trailing typing bubble included
     });
   }
 
@@ -165,10 +166,10 @@ KIT.ai = (() => {
       let right = 0; const xs = G.cw.map((cw, i) => { const g = clamp((tg - i) * 3); const x = right; right += (cw + 8) * g; return [x, g]; });
       const off = Math.max(0, right - (w - 10));
       withAlpha(fade * K.ph(o.draw, 0, 0.5), () => {
-        ctx.save(); ctx.beginPath(); ctx.rect(-6, -40, w + 12, 200); ctx.clip();
+        ctx.save(); ctx.beginPath(); ctx.rect(-6, -40, w + 12, 240); ctx.clip();
         ink([[-6, 64], [w, 64]], { w: K.lw(o, 1), color: PAL.peri, amp: 0.3, alpha: 0.4, seed: seed + 1 });
         xs.forEach(([x0, g], i) => { if (g <= 0) return;
-          const x = x0 - off, sc = E.outBack(g), fa = clamp((x + G.cw[i]) / 60);
+          const x = x0 - off, sc = E.outBack(g), fa = clamp((x + 6) / 50);
           withAlpha(fa, () => {
             ctx.save(); ctx.translate(x + G.cw[i] / 2, 20); ctx.scale(sc, sc);
             ink(K.rrect(-G.cw[i] / 2, -20, G.cw[i], 40, 9), { closed: true, w: K.lw(o, 1.6), color: ic, fill: chips[i % chips.length], amp: 0.4, seed: seed + 10 + i });
@@ -204,15 +205,15 @@ KIT.ai = (() => {
       const env = E.out3(inv(0, 0.3, f)) * (1 - E.in2(inv(0.82, 1, f)));
       if (live) words.forEach((_, j) => { if (j === q) return; const wt = wts[j] / mx, x0 = xs[q], x1 = xs[j], hh = Math.min(170, Math.abs(x1 - x0) * 0.55 + 20);
         const arc = Array.from({ length: 25 }, (_, k) => { const u = k / 24; return [lerp(x0, x1, u), -12 - Math.sin(Math.PI * u) * hh]; });
-        pen(arc, { w: K.lw(o, 1 + 7 * wt), color: wt > 0.6 ? PAL.aiHot : PAL.aiSignal, alpha: env * (0.25 + 0.75 * wt), draw: E.out3(inv(0, 0.35, f)), taper: 0.15, seed: seed + j });
-        if (wt === 1) text(wts[j].toFixed(2), (x0 + x1) / 2, -18 - hh, { kind: 'mono', size: 13, weight: 600, align: 'center', color: PAL.aiHot, alpha: env }); });
+        pen(arc, { w: K.lw(o, 1 + 7 * wt), color: wt > 0.6 ? (dark ? PAL.aiHot : '#b07a1c') : (dark ? PAL.aiSignal : PAL.sea), alpha: env * (0.25 + 0.75 * wt), draw: E.out3(inv(0, 0.35, f)), taper: 0.15, seed: seed + j });
+        if (wt === 1) text(wts[j].toFixed(2), (x0 + x1) / 2, -18 - hh, { kind: 'mono', size: 13, weight: 600, align: 'center', color: dark ? PAL.aiHot : '#b07a1c', alpha: env }); });
       words.forEach((s, j) => {
         const pop = K.pop(draw, j / n * 0.6, j / n * 0.6 + 0.3); if (pop <= 0) return;
         const isQ = live && j === q, bw = measure(s, { kind: 'mono', size: 17 }) + 18;
         ctx.save(); ctx.translate(xs[j], 0); ctx.scale(pop, pop);
         ink(K.rrect(-bw / 2, -2, bw, 34, 8), { closed: true, w: K.lw(o, isQ ? 2.4 : 1.4), color: isQ ? PAL.accent : ic, fill: dark ? PAL.aiCard : PAL.aiCardPaper, amp: 0.4, seed: seed + 50 + j });
         text(s, 0, 21, { kind: 'mono', size: 17, weight: isQ ? 600 : 400, align: 'center', color: ic });
-        if (live && !isQ) flat(shape.rect(-bw / 2 + 4, 40, (bw - 8) * (wts[j] / mx) * env, 5), PAL.aiHot, 0.85);
+        if (live && !isQ) flat(shape.rect(-bw / 2 + 4, 40, (bw - 8) * (wts[j] / mx) * env, 5), dark ? PAL.aiHot : '#b07a1c', 0.85);
         if (isQ) text('query', 0, 58, { kind: 'mono', size: 12, ls: 2, align: 'center', color: PAL.accent, alpha: env });
         ctx.restore();
       });
@@ -225,7 +226,7 @@ KIT.ai = (() => {
     o = K.opts(o, { w: 1920, h: 1080, n: 140, speed: 1, dark: true });
     return K.at(o, () => {
       const { w, h, n, draw, seed, dark } = o;
-      const M = K.memo(`a.motes|${w}|${h}|${n}|${seed}`, () => { const r = mulberry(seed);
+      const M = K.memo(`a.motes|${w}|${h}|${n}|${seed}|${dark}`, () => { const r = mulberry(seed);
         return Array.from({ length: n }, () => ({ x: r() * w, y: r() * h, z: 0.3 + r() * 0.7, k: Math.floor(r() * 3), ph: r() * TAU, u: r(), c: r() < 0.25 ? PAL.aiSignal : r() < 0.1 ? PAL.aiHot : (dark ? PAL.nightInk : PAL.inkSoft) })); });
       ctx.save(); ctx.beginPath(); ctx.rect(0, 0, w, h); ctx.clip();
       M.forEach((m, i) => {

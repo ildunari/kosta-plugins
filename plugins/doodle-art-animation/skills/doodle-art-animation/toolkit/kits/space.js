@@ -6,6 +6,7 @@ var KIT = globalThis.KIT || {}; globalThis.KIT = KIT;
 Object.assign(PAL, {
   spaceStar: '#f3f0ff', spaceGold: '#e6c65c', spaceCyan: '#9ad9e3', spacePlanet: '#d9b36a', spaceBand: '#9c6a3a', spaceShadow: '#1a1430',
   spaceRing: '#cdb892', spaceMoon: '#c9c6d8', spaceTube: '#2f2c58', spaceTubePaper: '#e2d6bd', spaceBrass: '#c9a45a', spaceComa: '#e9f4ff',
+  spaceStarPaper: '#4a3f35', spaceGoldPaper: '#b8862a', spaceCyanPaper: '#2f7f98', spaceComaPaper: '#a9c6d4',
   spaceBodies: ['#56c3d2', '#e8577a', '#53ba8b', '#d9b36a', '#9a9ad4'],
 });
 KIT.space = (() => {
@@ -20,7 +21,8 @@ KIT.space = (() => {
       const { w, h, n, draw, seed } = o;
       const S = K.memo(`s.stars|${w}|${h}|${n}|${seed}`, () => { const r = mulberry(seed);
         return Array.from({ length: n }, () => { const big = r() < 0.09, near = r() < 0.2; return { x: r() * w, y: r() * h, r: big ? 1.6 + r() * 1.2 : near ? 1.8 + r() * 1.6 : 0.6 + r() * 1.1, big, ph: r() * TAU, sp: 1 + r() * 3, u: r(),
-          c: r() < 0.15 ? PAL.spaceGold : r() < 0.2 ? PAL.spaceCyan : PAL.spaceStar }; }); });
+          c: r() < 0.15 ? 'Gold' : r() < 0.2 ? 'Cyan' : 'Star' }; }); });
+      const col = k => PAL['space' + k + (o.dark ? '' : 'Paper')];                 // on paper the stars are inked
       ctx.save(); ctx.beginPath(); ctx.rect(0, 0, w, h); ctx.clip();
       S.forEach((s, i) => {
         const a = clamp(draw * 2.2 - s.u * 1.2) * (0.35 + 0.65 * (0.5 + 0.5 * Math.sin(t * s.sp + s.ph)));
@@ -28,14 +30,14 @@ KIT.space = (() => {
         const x = ((s.x + t * o.drift * (0.3 + s.r * s.r * 0.35)) % w + w) % w, y = s.y;
         if (s.big) { const L = s.r * (3.2 + 1.4 * Math.sin(t * s.sp * 1.3 + s.ph)), rt = t * 0.3 + s.ph;
           for (let k = 0; k < 2; k++) { const c = Math.cos(rt + k * Math.PI / 2) * L, sn = Math.sin(rt + k * Math.PI / 2) * L;
-            pen([[x - c, y - sn], [x + c, y + sn]], { w: K.lw(o, 1.6), color: s.c, alpha: a, taper: 0.5, seed: seed + i + k, amp: 0.1 }); } }
-        flat(shape.circle(x, y, s.r, 8), s.c, a);
+            pen([[x - c, y - sn], [x + c, y + sn]], { w: K.lw(o, 1.6), color: col(s.c), alpha: a, taper: 0.5, seed: seed + i + k, amp: 0.1 }); } }
+        flat(shape.circle(x, y, s.r, 8), col(s.c), a);
       });
       if (o.shooting && draw >= 1) { const [c, f] = K.cyc(t + hash3(seed, 1) * 3, 3.4);
         if (f < 0.4) { const sx = w * (0.1 + 0.6 * hash3(c, 1, seed)), sy = h * (0.05 + 0.4 * hash3(c, 2, seed)), L = Math.min(w, h) * 0.55, u = E.out2(f / 0.4);
           const hx = sx + L * u * 0.88, hy = sy + L * u * 0.47, tl = 90 * Math.sin(Math.PI * Math.min(1, u * 1.2));
-          pen([[hx - tl * 0.88, hy - tl * 0.47], [hx, hy]], { w: K.lw(o, 2.6), color: PAL.spaceStar, alpha: 1 - inv(0.6, 1, u), taper: 0.02, pressure: q => q ** 1.5, seed: seed + 900 });
-          flat(shape.circle(hx, hy, 2.4, 8), '#ffffff', 1 - inv(0.6, 1, u)); } }
+          pen([[hx - tl * 0.88, hy - tl * 0.47], [hx, hy]], { w: K.lw(o, 2.6), color: col('Star'), alpha: 1 - inv(0.6, 1, u), taper: 0.02, pressure: q => q ** 1.5, seed: seed + 900 });
+          flat(shape.circle(hx, hy, 2.4, 8), o.dark ? '#ffffff' : PAL.ink, 1 - inv(0.6, 1, u)); } }
       ctx.restore();
     });
   }
@@ -73,11 +75,11 @@ KIT.space = (() => {
       if (draw >= 0.5) withAlpha(K.ph(draw, 0.5, 0.8), () => {
         ctx.save(); trace(disc, true); ctx.clip();
         G.bands.forEach((b, k) => { const line = []; for (let x = -r; x <= r; x += 8) line.push([x, b.y + b.amp * Math.sin(x * b.f + b.ph + t * 0.35)]);
-          if (b.wide) { const lower = line.map(([x, y]) => [x, y + r * 0.08]).reverse(); flat([...line, ...lower], o.band, 0.45); }
-          pen(line, { w: K.lw(o, 1.8), color: o.band, alpha: 0.8, taper: 0.1, seed: seed + 10 + k }); });
+          if (b.wide) { const lower = line.map(([x, y]) => [x, y + r * 0.08]).reverse(); flat([...line, ...lower], o.band, 0.6); }
+          pen(line, { w: K.lw(o, 2.4), color: o.band, alpha: 1, taper: 0.1, seed: seed + 10 + k }); });
         const spot = [r * 0.3 + 10 * Math.sin(t * 0.35), r * 0.22];
-        ink(shape.ellipse(spot[0], spot[1], r * 0.14, r * 0.07, 0, 24), { closed: true, w: K.lw(o, 1.4), color: o.band, fill: '#c9784a', amp: 0.4, seed: seed + 20 });
-        shade(disc, { color: PAL.spaceShadow, alpha: 0.75, gap: 4, len: 8, base: 0, gain: 1.2, light: [-0.7, -0.7], seed: seed + 21 });
+        ink(shape.ellipse(spot[0], spot[1], r * 0.17, r * 0.085, 0, 24), { closed: true, w: K.lw(o, 1.8), color: '#5e3418', fill: '#c65a32', amp: 0.4, seed: seed + 20 });
+        shade(disc, { color: PAL.spaceShadow, alpha: 0.5, gap: 5, len: 8, base: 0, gain: 1.1, light: [-0.7, -0.7], seed: seed + 21 });
         ctx.restore();
         pen(shape.arc(0, 0, r * 0.8, Math.PI * 1.08, Math.PI * 1.42, 16), { w: K.lw(o, 3.4), color: '#fff8e8', alpha: 0.8, taper: 0.4, seed: seed + 22 });
       });
@@ -120,17 +122,17 @@ KIT.space = (() => {
     return K.at(o, () => {
       const { len, ang, draw, seed } = o, bx = 3 * Math.sin(t * 1.3), by = 2 * Math.cos(t * 1.1), gr = K.ph(draw, 0.2, 1);
       const G = K.memo(`s.comet|${len}|${ang}|${seed}`, () => { const r = mulberry(seed);
-        return { streaks: Array.from({ length: 7 }, (_, k) => ({ da: (k - 3) * 0.06 + (r() - 0.5) * 0.02, L: len * (0.55 + 0.45 * r()) * (1 - Math.abs(k - 3) * 0.08), w: 11 - Math.abs(k - 3) * 2.2, c: k % 2 ? PAL.spaceCyan : PAL.spaceComa })),
+        return { streaks: Array.from({ length: 7 }, (_, k) => ({ da: (k - 3) * 0.06 + (r() - 0.5) * 0.02, L: len * (0.55 + 0.45 * r()) * (1 - Math.abs(k - 3) * 0.08), w: 11 - Math.abs(k - 3) * 2.2, c: k % 2 ? 'Cyan' : 'Coma' })),
           dust: Array.from({ length: 26 }, () => ({ u: r(), off: (r() - 0.5) * 0.3, sp: 0.15 + r() * 0.2 })) }; });
       ctx.save(); ctx.translate(bx, by);
       G.streaks.forEach((s, k) => { const a = ang + s.da + 0.015 * Math.sin(t * 2 + k), L = s.L * gr * (0.92 + 0.08 * Math.sin(t * 3 + k * 1.7));
         const p = Array.from({ length: 12 }, (_, i) => { const u = i / 11; return [Math.cos(a) * L * u + Math.sin(a) * 6 * Math.sin(u * 5 + t * 2 + k) * u, Math.sin(a) * L * u - Math.cos(a) * 6 * Math.sin(u * 5 + t * 2 + k) * u]; });
-        pen(p, { w: K.lw(o, s.w), color: s.c, alpha: 0.75, pressure: u => (1 - u) ** 0.6, taper: 0.01, seed: seed + k });
+        pen(p, { w: K.lw(o, s.w), color: PAL['space' + s.c + (o.dark ? '' : 'Paper')], alpha: 0.75, pressure: u => (1 - u) ** 0.6, taper: 0.01, seed: seed + k });
         if (draw >= 1) flow(p, t + k * 0.4, { speed: 140, gap: 80, len: 16, color: '#ffffff', w: K.lw(o, 1.6), alpha: 0.7, seed: seed + 20 + k }); });
       if (draw >= 1) G.dust.forEach((d, i) => { const u = (d.u + t * d.sp) % 1, a = ang + d.off * (0.4 + u);
-        flat(shape.circle(Math.cos(a) * len * u * 1.05, Math.sin(a) * len * u * 1.05, 1.6 * (1 - u) + 0.4, 6), PAL.spaceStar, (1 - u) * 0.9); });
+        flat(shape.circle(Math.cos(a) * len * u * 1.05, Math.sin(a) * len * u * 1.05, 1.6 * (1 - u) + 0.4, 6), o.dark ? PAL.spaceStar : PAL.spaceCyanPaper, (1 - u) * 0.9); });
       const pop = K.pop(draw, 0, 0.4);
-      [[34, 0.12], [22, 0.25], [14, 0.5]].forEach(([r, a]) => flat(shape.circle(0, 0, r * pop * (1 + 0.06 * Math.sin(t * 4)), 28), PAL.spaceComa, a));
+      [[34, 0.12], [22, 0.25], [14, 0.5]].forEach(([r, a]) => flat(shape.circle(0, 0, r * pop * (1 + 0.06 * Math.sin(t * 4)), 28), o.dark ? PAL.spaceComa : PAL.spaceComaPaper, a * (o.dark ? 1 : 1.6)));
       ink(shape.circle(0, 0, 8 * pop, 16), { closed: true, w: K.lw(o, 1.6), color: inkC(o), fill: '#ffffff', amp: 0.2, seed: seed + 40 });
       ctx.restore();
     });

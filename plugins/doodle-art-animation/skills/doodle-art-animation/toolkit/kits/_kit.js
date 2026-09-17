@@ -16,9 +16,13 @@
 var KIT = globalThis.KIT || {};
 globalThis.KIT = KIT;
 (() => {
-  const cache = new Map();
-  /** memo(key, fn): compute fn() once per key (layouts, outlines, word wraps) */
-  KIT.memo = (key, fn) => { if (!cache.has(key)) cache.set(key, fn()); return cache.get(key); };
+  const cache = new Map(), CAP = 256;
+  /** memo(key, fn): compute fn() once per key (layouts, outlines, word wraps). Least-recently-used entries are dropped
+      past 256 keys, so never put a value that changes every frame into a key: animate positions, not geometry options. */
+  KIT.memo = (key, fn) => {
+    if (cache.has(key)) { const v = cache.get(key); cache.delete(key); cache.set(key, v); return v; }
+    const v = fn(); cache.set(key, v); if (cache.size > CAP) cache.delete(cache.keys().next().value); return v;
+  };
   /** opts(o, defaults): the shared option defaults, then the component's, then the caller's */
   KIT.opts = (o = {}, d = {}) => ({ x: 0, y: 0, s: 1, rot: 0, draw: 1, alpha: 1, seed: 1, dark: false, ...d, ...o });
   /** at(o, fn): run fn with the origin at (o.x, o.y), turned by o.rot and scaled by o.s; skipped when draw or alpha is 0 */
