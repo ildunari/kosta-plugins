@@ -76,7 +76,7 @@ Give a plate `cam: t => ({ x, y, s, dx, dy, rot })`. It moves the **scene only**
 | Slow turn | Night plates, "inside" views | `rot: 0.04–0.08 * Math.sin(t * 0.35)` about the hero |
 | Fall / climb | Something falls or rises | Keep the hero near the centre and scroll the world past it (`ctx.translate(0, -700 * fall)` on layers), with `flow` streaks in the opposite direction |
 
-- Put text that must not move with the camera (stats, callouts, the title-card type) in `overlay(t)`.
+- Put text that must not move with the camera (stats, callouts, cards, charts, the title-card type) in `overlay(t)`. Overlay art also ignores momentum and the match-cut/carry shift, so a card never slides toward the frame edge before a lens or zoom; it only moves with its plate's transition. Text anchored to scene positions (labels on a map) belongs in `draw(t)`, where it moves with the scene.
 - To anchor a callout to a moving hero, read `heroOf(plate, t)`, which returns screen coordinates.
 
 ## Transitions
@@ -87,7 +87,7 @@ Every transition is a pure function of progress `p`, animated on twos. Zooms int
 |---|---|---|---|---|
 | `lensIn` | Down the scale ladder into a **different world** (paper → night) | Anticipation dot, then the old scene dives 2.4× at the hero while a lens opens on it with the new world growing inside; 0.4 s bare hold before the title. Options: `dive`, `scaleFrom`. | 0.5–0.6 s | swell up |
 | `lensOut` | Up the scale ladder (night → paper) | The old world shrinks into a lens that travels to the new hero, while the new world pulls back from 2.4× into place. | 0.5–0.6 s | swell down |
-| `zoom` | One step on the scale ladder **within the same world** | Both plates pivot on the hero; the old scale shrinks (or grows) by `k` and fades while the new grows in; the HUD crossfades. `dir` 'out' or 'in', `k` 6–10. | 0.7–0.9 s | glide |
+| `zoom` | One step on the scale ladder **within the same world** | Both plates pivot on the hero; the old scale shrinks (or grows) by `k` and fades while the new grows in; the HUD crossfades. A plate shrunk below full size is seen through a soft disc, so its world's edges never show. `dir` 'out' or 'in', `k` 6–10. | 0.7–0.9 s | glide |
 | `shape` (alias `morph`) | Match cut: **one object becomes another** | The object morphs from `from(prev, pt)` to `to(pl, t)` (closed outlines) while a circular window centred on it opens onto the new world. The outline's fill blends from the old object's colour to the new one's (sampled automatically, or set `fromFill` / `toFill`) and fades onto the real object at the end; `style(e)` can override fill and width. Plates skip their own copy while `S.morph` is true. | 1.1 s | bend + swell |
 | `pan` | Same scale, **somewhere else along the journey** (downstream, next room) | Whip pan along one long sheet: both plates slide (`dir` 'left', 'right', 'up', 'down'), motion-blurred at speed, a faint fold shadow at the join, speed lines at full speed. The corner labels travel with the sheet. | 0.8–1.0 s | whoosh |
 | `wipe` | A reveal with a direction | A curved inked front sweeps across (`dir` 'lr', 'rl', 'tb'), with spray ahead; the new plate slides in slightly behind it. | 0.6–0.8 s | whoosh |

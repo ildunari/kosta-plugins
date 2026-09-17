@@ -1,6 +1,6 @@
 // render.mjs — frame-exact capture of a Doodle Art Animation HTML file.
 // usage:
-//   node render.mjs film.html out.mp4 [--workers 6] [--from 0] [--to N] [--png] [--bitrate 3800k]
+//   node render.mjs film.html out.mp4 [--workers 6] [--from 0] [--to N] [--png] [--bitrate 3800k] [--crf 16] [--preset slow]
 //   node render.mjs film.html --stills 0,120,480 [--dir qa]     single frames
 //   node render.mjs film.html --sheet 1 [--dir qa]              1 frame every N seconds -> qa/contact_sheet.jpg
 //   node render.mjs film.html --strips [--dir qa]               8 fps strip around every transition -> qa/strip_XX.jpg
@@ -18,7 +18,7 @@ const args = process.argv.slice(2);
 const file = path.resolve(args[0]);
 const opt = (k, d) => { const i = args.indexOf('--' + k); return i < 0 ? d : (args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : true); };
 const out = args[1] && !args[1].startsWith('--') ? path.resolve(args[1]) : null;
-const workers = +opt('workers', 6), png = !!opt('png', false), bitrate = opt('bitrate', null);
+const workers = +opt('workers', 6), png = !!opt('png', false), bitrate = opt('bitrate', null), crf = String(opt('crf', 16)), preset = opt('preset', 'slow');
 const dir = path.resolve(opt('dir', out ? out.replace(/\.mp4$/, '') + '_frames' : 'qa'));
 fs.mkdirSync(dir, { recursive: true });
 
@@ -83,6 +83,10 @@ if (opt('strips', null)) {   // 12 frames at 8 fps, from 0.25 s before each plat
 const from = +opt('from', 0), to = Math.min(+opt('to', info.frames), info.frames);
 const pages = [first]; for (let i = 1; i < workers; i++) pages.push(await openPage());
 let done = 0; const t0 = Date.now(), ext = png ? 'png' : 'jpg';
+// audio renders on its own thread (OfflineAudioContext), so start it now instead of after the frames: ~20 s saved on a 3-minute film
+const audio = first.evaluate(() => window.__audioWav()).then(wav => {
+  fs.writeFileSync(path.join(dir, 'audio.wav'), Buffer.from(wav, 'base64'));
+  console.log(`audio: ${((Date.now() - t0) / 1000).toFixed(1)} s after start, ${(wav.length * 0.75 / 1048576).toFixed(1)} MB wav`); });
 await Promise.all(pages.map(async (page, w) => {
   for (let f = from; f < to; f++) {
     if (Math.floor(f / 2) % workers !== w) continue;          // frame pairs share a boil, keep them on one worker
@@ -90,14 +94,18 @@ await Promise.all(pages.map(async (page, w) => {
     if (++done % 120 === 0) console.log(`${done}/${to - from} frames · ${((Date.now() - t0) / done).toFixed(0)} ms/frame`);
   }
 }));
-console.log('rendering audio…');
-const wav = await first.evaluate(() => window.__audioWav());
-fs.writeFileSync(path.join(dir, 'audio.wav'), Buffer.from(wav, 'base64'));
+const tf = Date.now() - t0;
+console.log(`frames: ${(tf / 1000).toFixed(1)} s, ${(tf / Math.max(1, done)).toFixed(0)} ms/frame with ${workers} workers`);
+await audio;
 await browser.close();
 if (out) {
+  const te = Date.now();
   execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', String(info.fps), '-start_number', String(from),
     '-i', path.join(dir, `%05d.${ext}`), '-ss', String(from / info.fps), '-i', path.join(dir, 'audio.wav'),
-    '-c:v', 'libx264', '-preset', 'slow', ...(bitrate ? ['-b:v', bitrate, '-maxrate', bitrate, '-bufsize', '8M'] : ['-crf', '16']),
+    '-c:v', 'libx264', '-preset', preset, ...(bitrate ? ['-b:v', bitrate, '-maxrate', bitrate, '-bufsize', '8M'] : ['-crf', crf]),
     '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-c:a', 'aac', '-b:a', '192k', '-shortest', out], { stdio: 'inherit' });
-  console.log('wrote', out);
+  const mb = fs.statSync(out).size / 1048576, perMin = mb / (((to - from) / info.fps) / 60);
+  console.log(`wrote ${out}: ${mb.toFixed(0)} MB (${perMin.toFixed(0)} MB/min), encode ${((Date.now() - te) / 1000).toFixed(0)} s, total ${((Date.now() - t0) / 1000).toFixed(0)} s`);
+  // the grain and gate weave change every drawing, so constant-quality encodes spend their bits on noise
+  if (!bitrate && perMin > 100) console.warn('\x1b[33mlarge file: use --bitrate 3800k for anything you share (≈ 30 MB/min)\x1b[0m');
 }

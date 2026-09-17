@@ -19,7 +19,7 @@ Plate fields:
 | `cam` | `t => ({ x, y, s, dx, dy, rot })`, or `t => follow(target, t, { s, lead, lag, anchor })` to track a moving subject |
 | `drift` | Override the automatic push-in (a fraction, or `false`) |
 | `draw(t)` | The scene |
-| `overlay(t)` | Art that ignores the camera |
+| `overlay(t)` | Art that ignores the camera, momentum and the match-cut/carry shift (stats, callouts, cards, charts). It still leaves with its plate during a transition. Anchor to the hero with `heroOf(plate, t)`. |
 | `cues` | `[[t, name, opts]]` |
 | `bed` | `(ac, out, t0, dur) => …` |
 | `counter`, `marks` | `false` hides the frame counter or the registration marks |
@@ -51,13 +51,19 @@ Plate fields:
 - `countUp(to, t, dur, decimals)`, plus `fmt`, `ROMAN`, `SUB`, `SUP`.
 
 **Components:**
-- `stat`, `callout`, `reticle`, `card` (returns 0 until open), `logRuler`, `lineChart` (returns `{ X, Y }`), `insetLens`.
+- `stat`, `callout`, `reticle`, `card` (returns 0 until open), `logRuler`, `lineChart` (returns `{ X, Y, ends }`), `insetLens`.
+- `callout` turns its leader around at the elbow (and slides its text in) when the text would leave the frame; the hero tag does the same near the right edge.
+- `card`: a title wider than the card shrinks to fit, and a figure label that would collide moves to the bottom-right corner.
+- `lineChart` series: `{ pts, color, w, draw (0..1, default 1), label }`; the label appears at the line's end as it finishes. Charts and rulers draw nothing before their local `t` reaches 0.
+- `insetLens` picks its ring and label ink from the plate it sits on (`S.dark`); its own `dark` option is the lens interior.
+- Put these in `overlay(t)` when they should hold still, and in `draw(t)` when they belong to the world (a chart on a wall), where they zoom and pan with the camera.
 - The header, journey log, stage dial, hero reticle, frame counter, backgrounds, vignettes, transitions, anticipation dot and audio cues are drawn automatically.
 
 **Advanced:**
 - `layer(fn, slot)` draws into an offscreen canvas (it swaps `ctx`, which is why `ctx` is a `let`).
+- `heroOf(plate, t)`: the hero's screen position, including the camera and the entry shift (use it to anchor overlay art).
 - `motionOf(plate, t)` (on-screen velocity of the hero or camera, px/s), `travelOf(plate, t)` (which way the camera is effectively travelling), `follow(target, t, opts)` (tracking camera with lead room), `withCamera`, `camPoint`, `camOf`, `heroOf`, `parallax(cam, depth, fn)`, `momentum(plate, t)`, `coverR(x, y)`, `bgTex(dark)`, `about(px, py, s, tx, ty)`.
-- Custom transitions: `enter: { type: 'custom', draw(p, X) }` (see `references/motion.md`), with `morphPose(A, B, u, poseA, poseB)`, `softReveal(fn, x, y, r, feather)`, `S.side` ('old' or 'new') and `S.trans` ({ type, p }).
+- Custom transitions: `enter: { type: 'custom', draw(p, X) }` (see `references/motion.md`), with `morphPose(A, B, u, poseA, poseB)`, `softReveal(fn, x, y, r, feather)`, `S.side` ('old' or 'new'), `S.trans` ({ type, p }) and `S.dark` (whether the plate being drawn is a night plate).
 - `TRANS[type](p, X)` adds a new built-in transition. It returns the share of the frame the new plate owns, and should get matching `HEADER_DELAY` and `TRANS_SFX` entries.
 - `S.trans = { type, p }` lets plates react to their own transition.
 
