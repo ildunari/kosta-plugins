@@ -6,6 +6,8 @@
 //   node render.mjs film.html --strips [--dir qa]               8 fps strip around every transition -> qa/strip_XX.jpg
 //   node render.mjs film.html --seams [--dir qa]                both sides of every transition -> qa/seam_XX.jpg
 //        top row: old plate's last drawing | the two overlaid | new plate once settled; bottom row: 4 drawings inside the transition
+//   node render.mjs film.html --sheet-range A-B [--fps 6] [--dir qa]         frames from A to B seconds, tiled -> qa/range_A-B.jpg
+//   node render.mjs film.html --sheet-range A-B --crop x,y,w,h [--fps 6]    the same frames, cropped first -> qa/range_A-B_crop.jpg (a detail sheet; both files are written when --crop is given)
 import { createRequire } from 'module';
 import { pathToFileURL } from 'url';
 import fs from 'fs'; import path from 'path'; import { execFileSync } from 'child_process';
@@ -51,8 +53,8 @@ const grab = async (page, f, name) => {
   const b64 = await page.evaluate(([f, t]) => window.__frameData(f, t, 0.95), [f, png ? 'image/png' : 'image/jpeg']);
   fs.writeFileSync(path.join(dir, name), Buffer.from(b64, 'base64'));
 };
-const tile = (glob, cols, rows, outName, w = 480) => execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-pattern_type', 'glob', '-i', path.join(dir, glob),
-  '-vf', `scale=${w}:-1,tile=${cols}x${rows}:padding=4:color=white`, '-frames:v', '1', path.join(dir, outName)]);
+const tile = (glob, cols, rows, outName, w = 480, crop = null) => execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-pattern_type', 'glob', '-i', path.join(dir, glob),
+  '-vf', `${crop ? `crop=${crop.w}:${crop.h}:${crop.x}:${crop.y},` : ''}scale=${w}:-1,tile=${cols}x${rows}:padding=4:color=white`, '-frames:v', '1', path.join(dir, outName)]);
 
 if (opt('stills', null) || opt('sheet', null)) {
   const list = opt('stills', null) ? String(opt('stills')).split(',').map(Number)
@@ -87,6 +89,29 @@ if (opt('strips', null)) {   // 12 frames at 8 fps, from 0.25 s before each plat
     for (const fn of fs.readdirSync(dir)) if (fn.startsWith(tag + '_')) fs.unlinkSync(path.join(dir, fn));
     console.log(`strip ${s.i} (${s.type || 'cut'}) at ${s.t.toFixed(2)} s`);
   }
+  await browser.close(); process.exit(0);
+}
+if (opt('sheet-range', null)) {   // frames from A to B seconds at --fps (default 6), tiled into one grid; --crop adds a detail sheet
+  const rangeArg = String(opt('sheet-range')), m = rangeArg.match(/^(-?[\d.]+)-(-?[\d.]+)$/);
+  if (!m) fail(`--sheet-range needs "A-B" in seconds, e.g. --sheet-range 2-4 (got "${rangeArg}")`);
+  const A = +m[1], B = +m[2];
+  if (!(B > A)) fail(`--sheet-range: B must be greater than A (got "${rangeArg}")`);
+  const rfps = +opt('fps', 6);
+  if (!(rfps > 0)) fail(`--fps must be > 0 (got "${opt('fps', 6)}")`);
+  const cropArg = opt('crop', null);
+  let crop = null;
+  if (cropArg) { const cm = String(cropArg).match(/^(\d+),(\d+),(\d+),(\d+)$/); if (!cm) fail(`--crop needs "x,y,w,h" in pixels (got "${cropArg}")`); crop = { x: +cm[1], y: +cm[2], w: +cm[3], h: +cm[4] }; }
+  const fmtN = n => Number.isInteger(n) ? String(n) : String(n).replace(/0+$/, '').replace(/\.$/, '');
+  const tag = `range_${fmtN(A)}-${fmtN(B)}`;
+  const fset = new Set(); for (let t = A; t <= B + 1e-9; t += 1 / rfps) fset.add(Math.round(t * info.fps));
+  const list = [...fset].filter(f => f >= 0 && f < info.frames).sort((a, b) => a - b);
+  if (!list.length) fail(`--sheet-range ${rangeArg}: no frames in range (film is ${(info.frames / info.fps).toFixed(1)} s)`);
+  for (const f of list) await grab(first, f, `rf_${String(f).padStart(5, '0')}.jpg`);
+  const cols = Math.min(6, list.length), rows = Math.ceil(list.length / cols);
+  tile('rf_*.jpg', cols, rows, `${tag}.jpg`);
+  console.log(`range sheet (${list.length} frames at ${rfps} fps): ${path.join(dir, tag + '.jpg')}`);
+  if (crop) { tile('rf_*.jpg', cols, rows, `${tag}_crop.jpg`, 480, crop); console.log(`range crop: ${path.join(dir, tag + '_crop.jpg')}`); }
+  for (const fn of fs.readdirSync(dir)) if (fn.startsWith('rf_')) fs.unlinkSync(path.join(dir, fn));
   await browser.close(); process.exit(0);
 }
 
