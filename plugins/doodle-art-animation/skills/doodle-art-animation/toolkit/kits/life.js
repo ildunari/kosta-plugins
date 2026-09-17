@@ -116,7 +116,7 @@ KIT.life = (() => {
       pen(body, { closed: true, w: K.lw(o, 2.6), color: ic, seed: seed + 22, draw: K.ph(draw, 0, 0.5), amp: 0.7 });
       if (P.mane) withAlpha(K.ph(draw, 0.55, 0.95), () => { const dx = Math.cos(na), dy = Math.sin(na);
         for (let k = 0; k < 11; k++) { const u = 0.08 + k / 10 * 0.95, bx = lerp(L * 0.22, px - nx * tn * 0.5, u), by = lerp(cy - H * 0.54, py - ny * tn * 0.5, u), ln = 16 + 6 * Math.sin(k * 2.1), sw = 2.5 * Math.sin(t * 1.6 + k * 0.7 + m * ph * 6);
-          pen(smooth([[bx, by], [bx - dx * ln * 0.3 - 2, by - dy * ln * 0.3 - 3], [bx + nx * ln * 0.55 - dx * ln * 0.55 + sw, by + ny * ln * 0.55 - dy * ln * 0.55]], 1), { w: K.lw(o, 4), color: PAL.lifeHoof, seed: seed + 30 + k, taper: 0.45, amp: 0.4 }); }
+          pen(smooth([[bx, by], [bx + nx * ln * 0.35 - dx * ln * 0.2, by + ny * ln * 0.35 - dy * ln * 0.2], [bx + nx * ln * 0.8 - dx * ln * 0.45 + sw, by + ny * ln * 0.8 - dy * ln * 0.45]], 1), { w: K.lw(o, 4), color: PAL.lifeHoof, seed: seed + 30 + k, taper: 0.5, amp: 0.4 }); }
         const [fx, fy] = [px + dx * 4 - nx * tn * 0.4, py + dy * 4 - ny * tn * 0.4];
         pen([[fx, fy], [fx + 8, fy + 2], [fx + 12 + 2 * Math.sin(t * 1.3), fy + 9]], { w: K.lw(o, 3.4), color: PAL.lifeHoof, seed: seed + 45, taper: 0.45 }); });
       // head
@@ -141,6 +141,10 @@ KIT.life = (() => {
   function head(t, P, o, fill, deep, ic, a, m) {
     const { hl, hh } = P, s = o.seed, kind = o.kind;
     const G = K.memo(`l.head|${hl}|${hh}|${kind}`, () => {
+      // the horse gets its own profile: a deep jaw, a long straight nasal bridge and a blunt muzzle
+      if (kind === 'horse') return smooth([[-hh * 0.42, -hh * 0.16], [-hh * 0.12, -hh * 0.6], [hl * 0.3, -hh * 0.56],
+        [hl * 0.68, -hh * 0.44], [hl * 0.94, -hh * 0.34], [hl * 1.02, -hh * 0.06], [hl * 1.0, hh * 0.24], [hl * 0.86, hh * 0.34],
+        [hl * 0.56, hh * 0.34], [hl * 0.28, hh * 0.54], [hl * 0.02, hh * 0.72], [-hh * 0.34, hh * 0.44]], 3, true);
       const snout = kind === 'dog' ? [[hl * 0.55, -hh * 0.2], [hl * 0.98, -hh * 0.05], [hl * 1.0, hh * 0.28], [hl * 0.62, hh * 0.45]]
         : kind === 'fox' ? [[hl * 0.5, -hh * 0.25], [hl * 1.05, hh * 0.12], [hl * 0.98, hh * 0.3], [hl * 0.55, hh * 0.42]]
           : [[hl * 0.55, -hh * 0.32], [hl * 0.96, -hh * 0.08], [hl * 1.0, hh * 0.3], [hl * 0.6, hh * 0.5]];
@@ -167,9 +171,12 @@ KIT.life = (() => {
       if (kind === 'fox') flat(smooth([[hl * 0.4, hh * 0.1], [hl * 1.0, hh * 0.22], [hl * 0.6, hh * 0.5], [hl * 0.1, hh * 0.55]], 2, true), PAL.lifeCream); });
     pen(G, { closed: true, w: K.lw(o, 2.2), color: ic, seed: s + 81, draw: a, amp: 0.5 });
     ear(hh * 0.3, -hh * 0.5, 0);
+    if (kind === 'horse') withAlpha(a * 0.55, () => {                    // cheek and jaw
+      pen([[hl * 0.26, hh * 0.46], [hl * 0.12, hh * 0.1], [hl * 0.2, -hh * 0.3]], { w: K.lw(o, 1.6), color: deep, seed: s + 84, taper: 0.5, amp: 0.4 });
+      pen([[hl * 0.5, -hh * 0.44], [hl * 0.88, -hh * 0.3]], { w: K.lw(o, 1.4), color: deep, seed: s + 85, taper: 0.5, amp: 0.3 }); });
     if (o.draw < 0.7) return;
     const blink = K.cyc(t + s, 3.7)[1] > 0.96;
-    const ex = hl * (kind === 'dog' ? 0.32 : 0.3), ey = -hh * 0.18;
+    const ex = hl * (kind === 'dog' ? 0.32 : kind === 'horse' ? 0.28 : 0.3), ey = -hh * (kind === 'horse' ? 0.3 : 0.18);
     if (blink) ink([[ex - 3, ey], [ex + 3, ey]], { w: K.lw(o, 1.6), color: ic, amp: 0.2, seed: s + 82 });
     else { flat(shape.circle(ex, ey, 2.8, 10), ic); flat(shape.circle(ex + 0.8, ey - 0.9, 0.9, 6), o.dark ? PAL.night : '#fff'); }
     flat(shape.ellipse(hl * 0.97, kind === 'fox' ? hh * 0.14 : hh * 0.02, 3.2, 2.4, 0, 10), ic);
@@ -300,21 +307,25 @@ KIT.life = (() => {
   function flock(t, o) {
     o = K.opts(o, { w: 800, h: 300, n: null, mode: 'v', speed: 45, at: null, size: 11 });
     return K.at(o, () => {
-      const { w, h, draw, seed, mode } = o, n = o.n ?? (mode === 'murmur' ? 220 : 9);
+      const { w, h, draw, seed, mode } = o, n = o.n ?? (mode === 'murmur' ? 340 : 9);
       if (mode === 'murmur') {
-        // a folding ribbon: birds sit along a bending centre line whose thickness breathes, so dense bands sweep through
-        const G = K.memo(`l.murm|${n}|${seed}`, () => { const r = mulberry(seed); return Array.from({ length: n }, () => { const q = r() * 2 - 1;
-          return { u: q * (0.55 + 0.45 * Math.abs(q)), v: (r() + r() - 1), ph: r() * TAU, s: 0.7 + r() * 0.5, k: r(), j: r() * 50 }; }); });
-        const cx = w / 2 + w * 0.08 * Math.sin(t * 0.21 + seed), cy = h / 2 + h * 0.06 * Math.sin(t * 0.33), rot = 0.2 * Math.sin(t * 0.17 + seed);
-        const A = w * (0.3 + 0.05 * Math.sin(t * 0.4)), B = h * 0.4, c = Math.cos(rot), sn = Math.sin(rot);
+        // an even cloud of birds with a dense ridge sweeping through it: where the ridge pulls birds together they
+        // overlap into a dark folding band, and the rim stays loose enough to read as single birds.
+        const G = K.memo(`l.murm|${n}|${seed}`, () => { const r = mulberry(seed); return Array.from({ length: n }, () => {
+          const a = r() * TAU, d = Math.sqrt(r());                       // sqrt: an even spread, no clot in the middle
+          return { u: Math.cos(a) * d, v: Math.sin(a) * d, d, ph: r() * TAU, s: 0.8 + r() * 0.4, k: r(), j: r() * 50 }; }); });
+        const cx = w / 2 + w * 0.05 * Math.sin(t * 0.21 + seed), cy = h / 2 + h * 0.05 * Math.sin(t * 0.33), rot = 0.3 * Math.sin(t * 0.17 + seed);
+        const A = w * (0.24 + 0.03 * Math.sin(t * 0.23)), B = h * (0.22 + 0.05 * Math.sin(t * 0.31 + 1));
+        const grip = 0.72 + 0.28 * (0.5 + 0.5 * Math.sin(t * 0.29 + seed));    // how hard the ridge packs the flock
+        const c = Math.cos(rot), sn = Math.sin(rot);
         G.forEach((b, i) => {
           const a = clamp(draw * 2 - b.k); if (a <= 0) return;
-          const u = b.u + 0.06 * Math.sin(t * 0.6 + b.j);
-          const mid = B * 0.35 * Math.sin(u * 2.3 + t * 0.55) * (0.7 + 0.3 * Math.sin(t * 0.23));
-          const th = B * (1 - u * u) ** 0.5 * (0.5 + 0.35 * Math.sin(t * 0.5 + u * 2.6));
-          const lx = u * A * (1 + 0.08 * Math.sin(t * 0.7 + u * 3)) + 5 * vnoise(t * 0.8 + b.j, seed), ly = mid + b.v * th + 4 * vnoise(t * 0.8 + b.j, seed + 7);
-          const x = cx + lx * c - ly * sn, y = cy + lx * sn + ly * c, f = Math.sin(t * 14 + b.ph), s = o.size * 0.45 * b.s;
-          bird(x, y, s, f, o, seed + i % 23, a * (0.7 + 0.3 * b.s));
+          const lx = b.u * A + 7 * vnoise(t * 0.9 + b.j, seed);
+          const ridge = B * 0.42 * Math.sin(b.u * 2.1 + t * 0.55);            // the band the flock folds along
+          const near = Math.exp(-(((b.v * B - ridge) / (B * 0.3)) ** 2));     // birds close to it get drawn into it
+          const ly = lerp(b.v * B, ridge + (b.v * B - ridge) * 0.18, grip * near) + 6 * vnoise(t * 0.9 + b.j, seed + 7);
+          const x = cx + lx * c - ly * sn, y = cy + lx * sn + ly * c, f = Math.sin(t * 14 + b.ph);
+          bird(x, y, o.size * 0.5 * b.s, f, o, seed + i % 23, a * (0.8 + 0.2 * b.d));
         });
         return;
       }

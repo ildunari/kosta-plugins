@@ -321,11 +321,12 @@ KIT.earth = (() => {
   const PI_ = Math.PI;
 
   /* ------------------------------------------------------------------ volcano */
-  /** volcano(t, {x, y, w, h, erupt, seed}): a cone standing on the ground at (x, y) with a glowing crater, lava runs
-      creeping down its flanks, a plume of smoke puffs that swell and drift, and embers thrown from the vent.
-      erupt: 0 (quiet: a thin steam wisp) to 1 (full plume and embers). */
+  /** volcano(t, {x, y, w, h, erupt, wind, plume, seed}): a cone standing on the ground at (x, y) with a glowing crater,
+      lava runs creeping down its flanks, a plume of smoke puffs that swell and drift, and embers thrown from the vent.
+      erupt: 0 (quiet: a thin steam wisp) to 1 (full plume and embers). wind bends the plume; plume scales how high it
+      climbs (1 reaches about 1.4 h above the crater, so lower it where there is less sky). */
   function volcano(t, o) {
-    o = K.opts(o, { w: 520, h: 300, erupt: 1, wind: 1 });
+    o = K.opts(o, { w: 520, h: 300, erupt: 1, wind: 1, plume: 1 });
     return K.at(o, () => {
       const { w, h, draw, seed } = o, ic = K.inkOf(o.dark), er = clamp(o.erupt), cw = w * 0.13;
       const g = K.memo(`e.volc|${w}|${h}|${seed}`, () => {
@@ -345,7 +346,7 @@ KIT.earth = (() => {
       // smoke plume behind the cone's top
       const plume = K.ph(draw, 0.6, 1) * (0.35 + 0.65 * er);
       if (plume > 0) g.smoke.slice().sort((a, b) => ((t * 0.14 + b.ph) % 1) - ((t * 0.14 + a.ph) % 1)).forEach(p => {
-        const u = (t * 0.14 + p.ph) % 1, R = (cw * 0.3 + u * w * 0.17) * p.r * (0.4 + 0.6 * er), x = p.dx * u + o.wind * u * u * w * 0.35 + 6 * Math.sin(t * 0.8 + p.ph * 9), y = -h - 8 - u * h * (0.9 + er * 0.5);
+        const u = (t * 0.14 + p.ph) % 1, R = (cw * 0.3 + u * w * 0.17) * p.r * (0.4 + 0.6 * er), x = p.dx * u + o.wind * u * u * w * 0.35 + 6 * Math.sin(t * 0.8 + p.ph * 9), y = -h - 8 - u * h * (0.9 + er * 0.5) * o.plume;
         const a = plume * clamp(u * 6) * (1 - u) ** 0.8, blob = shape.blob(x, y, R, p.sd, 0.38, 30, t * 0.2);
         withAlpha(a, () => { ink(blob, { closed: true, w: K.lw(o, 1.5), color: ic, alpha: 0.85, fill: o.dark ? '#5a5670' : PAL.earthSmoke, amp: 1.2, seed: p.sd, double: true });
           hatch(blob, { color: o.dark ? '#2a2840' : PAL.earthSmokeDeep, alpha: 0.5, gap: 4.5, len: 8, angle: -0.5, seed: p.sd + 1, keep: (px, py) => clamp((py - y) / R + 0.35) });
@@ -503,9 +504,14 @@ KIT.earth = (() => {
         top.push([size / 2, 0]);
         const below = [[-0.5, 0], [-0.78, 0.2], [-0.84, 0.46], [-0.62, 0.7], [-0.3, 0.86], [0.02, 0.97], [0.34, 0.8], [0.66, 0.6], [0.8, 0.32], [0.62, 0.1], [0.5, 0]]
           .map(([u, v], i) => [u * size * 1.1 + (i && i < 10 ? (r() - 0.5) * size * 0.08 : 0), v * h * 0.72 + (i && i < 10 ? (r() - 0.5) * h * 0.05 : 0)]);
-        const inner = [2, 4, 6, 3].map(a => [lerp(below[a][0], 0, 0.35), lerp(below[a][1], h * 0.3, 0.35)]);
+        // two spine points inside the mass split it into facets, the way a block of ice breaks
+        const S0 = [-size * 0.08 + (r() - 0.5) * 20, h * 0.17], S1 = [size * 0.14 + (r() - 0.5) * 20, h * 0.45];
+        const facetsU = [[[0, 1, 2], [S0], 0.15], [[2, 3, 4], [S1, S0], 0.55], [[4, 5, 6], [S1], 0.8], [[6, 7, 8], [S1], 0.45], [[8, 9, 10], [S0, S1], 0.1]]
+          .map(([idx, spine, tone]) => ({ poly: [...idx.map(i => below[i]), ...spine], tone }));
+        const strias = [0.3, 0.5, 0.68, 0.84].map((v, k) => { const L = along(below.slice(0, 6), v * 0.9), R = along(below.slice(5).reverse(), v * 0.9);
+          return smooth([L, [lerp(L[0], R[0], 0.5), lerp(L[1], R[1], 0.5) + h * 0.03], R], 2); });
         const facets = [[1, 0.2], [2, 0.5], [3, 0.35], [4, 0.6]].map(([i, v]) => [top[i + 1], [top[i + 1][0] + size * 0.04, -above * v * 0.15]]);
-        return { top, below, facets, inner, floe: shape.blob(0, 0, 26, seed + 9, 0.3, 16).map(([x, y]) => [x, y * 0.35]) };
+        return { top, below, facets, facetsU, strias, S0, S1, floe: shape.blob(0, 0, 26, seed + 9, 0.3, 16).map(([x, y]) => [x, y * 0.35]) };
       });
       const bob = 3 * Math.sin(t * 0.8 + seed), tilt = 0.018 * Math.sin(t * 0.6 + seed);
       const sa = K.ph(draw, 0, 0.4), ba = K.ph(draw, 0.2, 0.7), ta = K.ph(draw, 0.3, 0.8);
@@ -515,10 +521,24 @@ KIT.earth = (() => {
         hatch(water, { color: PAL.earthSeaDeep, alpha: 0.55, gap: 7, len: 12, angle: 0.02, seed: seed + 2, keep: (px, py) => clamp(py / h * 1.2) }); });
       ctx.save(); ctx.beginPath(); ctx.rect(-w / 2, 0, w, h); ctx.clip();
       ctx.save(); ctx.translate(0, bob); ctx.rotate(tilt);
-      withAlpha(ba, () => { flat(g.below, PAL.earthIceUnder, 0.75);
-        hatch(g.below, { color: PAL.earthIceDeep, alpha: 0.45, gap: 6, len: 10, angle: 0.9, seed: seed + 3, keep: (px, py) => clamp(0.15 + px / size + py / h * 0.5) });
-        ink(g.below, { closed: true, w: K.lw(o, 1.8), color: o.dark ? PAL.nightInk : PAL.earthIceDeep, amp: 1, dash: [12, 8], seed: seed + 4, draw: ba });
-        g.inner.forEach((q, k) => ink([g.below[[2, 4, 6, 3][k]], q, g.below[[5, 6, 8, 7][k]]], { w: K.lw(o, 1.2), color: PAL.earthIceDeep, alpha: 0.5, amp: 0.8, seed: seed + 5 + k })); });
+      withAlpha(ba, () => { flat(g.below, PAL.earthIceUnder, 0.72);
+        g.facetsU.forEach((f, k) => flat(f.poly, mixColorC(PAL.earthIceUnder, PAL.earthIceDeep, 0.14 + f.tone * 0.5), 0.7));   // faces catching different light
+        ctx.save(); trace(g.below, true); ctx.clip();                                                                          // the water swallows the deep half
+        [[0.34, 0.3], [0.58, 0.35], [0.78, 0.4]].forEach(([v, a]) => flat(shape.rect(-w, h * 0.72 * v, w * 2, h), mixColorC(PAL.earthIceUnder, PAL.earthAquiferDeep, 0.5), a));
+        ctx.restore();
+        hatch(g.below, { color: PAL.earthIceDeep, alpha: 0.7, gap: 4.5, len: 9, angle: 0.95, seed: seed + 3, keep: (px, py) => clamp(py / (h * 0.72) * 1.2) ** 1.3 });   // darker with depth
+        hatch(g.below, { color: PAL.earthIceDeep, alpha: 0.42, gap: 8, len: 7, angle: -0.35, seed: seed + 6, keep: (px, py) => clamp(0.1 + px / size) });
+        hatch(g.below, { color: mixColorC(PAL.earthIceDeep, PAL.earthAquiferDeep, 0.55), alpha: 0.5, gap: 4, len: 8, angle: 0.95, seed: seed + 9,
+          keep: (px, py) => clamp((py / (h * 0.72) - 0.4) * 2) });                                                            // the deepest part goes murky
+        speckle(g.below, Math.round(size * 0.5), { color: '#ffffff', alpha: 0.4, rmin: 0.8, rmax: 2.4, seed: seed + 7 });      // trapped air
+        g.strias.forEach((p, k) => ink(p, { w: K.lw(o, 1.5), color: PAL.earthIceDeep, alpha: 0.6, amp: 1, dash: [16, 11], seed: seed + 8 + k }));
+        g.facetsU.forEach((f, k) => ink([f.poly[0], f.poly[3], f.poly[2]], { w: K.lw(o, 1.4), color: PAL.earthIceDeep, alpha: 0.7, amp: 0.7, seed: seed + 14 + k }));
+        ink(g.below, { closed: true, w: K.lw(o, 1.8), color: o.dark ? PAL.nightInk : PAL.earthIceDeep, amp: 1, dash: [12, 8], seed: seed + 4, draw: ba }); });
+      // refraction: the mass shifts sideways in the first few px under the surface
+      withAlpha(ba * 0.65, () => { ctx.save(); ctx.beginPath(); ctx.rect(-w / 2, 0, w, 13); ctx.clip(); ctx.translate(5 * Math.sin(t * 1.1 + seed), 0);
+        flat(g.below, PAL.earthIceUnder, 0.8); ctx.restore();
+        for (let k = 0; k < 4; k++) { const y = 3 + k * 3.2, dx = 7 * Math.sin(t * 1.3 + k * 1.1);
+          ink([[-size * 0.55 + dx, y], [size * 0.55 + dx, y]], { w: K.lw(o, 1.2), color: PAL.earthSeaLight, alpha: 0.5, amp: 0.7, dash: [22, 14], seed: seed + 70 + k }); } });
       ctx.restore();
       if (draw >= 1) for (let i = 0; i < 7; i++) { const u = (t * 0.22 + i / 7) % 1, bx = (hash3(i, seed) - 0.5) * size * 1.2 + 6 * Math.sin(t * 2 + i), by = h * 0.75 * (1 - u) + 6;
         withAlpha(Math.sin(PI_ * u) * 0.8, () => ink(shape.circle(bx, by, 2 + u * 3, 10), { closed: true, w: K.lw(o, 1.1), color: PAL.earthFoam, amp: 0.2, seed: seed + 10 + i })); }
