@@ -2,8 +2,9 @@
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>__TITLE__</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=IBM+Plex+Mono:wght@400;600&family=Inter+Tight:wght@400;600&display=block" rel="stylesheet">
+<!--fonts--><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- media=print + onload: the stylesheet never blocks the page, so a blocked network cannot stall the render; boot() waits for it with a time limit -->
+<link id="webfonts" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=IBM+Plex+Mono:wght@400;600&family=Inter+Tight:wght@400;600&display=block" rel="stylesheet" media="print" onload="this.media='all';this.dataset.state='ok'" onerror="this.dataset.state='failed'"><!--/fonts-->
 <style>
   html,body{margin:0;height:100%;background:#0b0a1e;overflow:hidden}
   #wrap{position:fixed;inset:0;display:grid;place-items:center}
@@ -20,6 +21,9 @@
 <div id="ui"><button id="play">play</button><input id="scrub" type="range" min="0" value="0" aria-label="scrub"><span class="keys">space · ←/→ 2 s · [ ] plate</span></div>
 <script>
 __ENGINE__
+</script>
+<script>
+__KITS__
 </script>
 <script>
 __STORY__

@@ -108,7 +108,7 @@ function vnoise(x, seed = 0) {                        // smooth 1-D value noise 
   const i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f);
   return lerp(hash3(i, seed), hash3(i + 1, seed), u) * 2 - 1;
 }
-const S = { f: 0, boil: 0, T: 0, morph: false, trans: null, side: null, noReticle: false };   // per-frame globals
+const S = { f: 0, boil: 0, T: 0, morph: false, trans: null, side: null, noReticle: false, dark: false };   // dark: the plate being drawn is a night plate   // per-frame globals
 /** jitter that re-rolls every 2 frames: the hand-drawn "boil" (animation on twos) */
 const boil = (seed, k, amp) => (hash3(seed, k, S.boil) - 0.5) * 2 * amp;
 
@@ -510,7 +510,7 @@ function plateHeader(t, { num, title, sub, dark }) {
   dropText(title, 88, 158, t - 0.15, { kind: 'display', size: 64, weight: 500, color: ic, cps: 17 });
   const tw = measure(title, { kind: 'display', size: 64, weight: 500 }), rp = E.out3(inv(0.35, 1.1, t));
   if (rp > 0) ink([[90, 180], [90 + (tw + 6) * rp, 180]], { w: 1.6, color: PAL.peri, amp: 0, alpha: 0.85 });
-  text(typed(sub, t - 0.7, 30), 90, 221, { kind: 'display', size: 30, italic: true, color: dark ? '#b9b9d6' : PAL.inkSoft });
+  if (sub) text(typed(sub, t - 0.7, 30), 90, 221, { kind: 'display', size: 30, italic: true, color: dark ? '#b9b9d6' : PAL.inkSoft });
 }
 /** journey log: {title, rows: [[label, value]], states: [...], state: i}. STATE options wrap only when they must. */
 function journeyLog(t, log, dark) {
@@ -559,12 +559,21 @@ function frameCounter(f, dark) {
 function callout(t, o) {
   if (t <= 0) return;
   const { ax, ay, ex, ey, x2, title, sub, dark, align = 'left', size = 30 } = o;
-  const ic = inkOf(dark), lp = E.out3(inv(0, 0.45, t));
+  let { x2: xe, align: al } = { x2, align };
+  const ic = inkOf(dark), lp = E.out3(inv(0, 0.45, t)), M = 40;
+  // keep the text inside the frame: if it would run past an edge, the leader turns around at the elbow; if it still
+  // does not fit, the text slides in (measured on the full strings, so it never jumps while typing)
+  const tw = Math.max(measure(title, { size, weight: 600 }), sub ? measure(sub, { size: size * 0.74 }) : 0);
+  const over = (x, a) => a === 'left' ? x + 12 + tw > W - M : x - 12 - tw < M;
+  const flip = al === 'left' ? 'right' : 'left', xf2 = al === 'left' ? Math.min(2 * ex - xe, ex - 60) : Math.max(2 * ex - xe, ex + 60);   // flipped flag: at least 60 px
+  if (over(xe, al) && !over(xf2, flip)) { xe = xf2; al = flip; }
   ctx.save(); ctx.beginPath(); ctx.arc(ax, ay, 5.5 * E.outBack(clamp(t * 6)), 0, TAU); ctx.fillStyle = ic; ctx.fill(); ctx.restore();
-  pen([[ax, ay], [ex, ey], [x2, ey]], { w: 2.6, color: ic, amp: 0.5, seed: 7, draw: lp, taper: 0.04, minW: 0.6 });
-  const tx = align === 'left' ? x2 + 12 : x2 - 12;
-  text(typed(title, t - 0.35, 30), tx, ey + 10, { kind: 'sans', size, weight: 600, color: ic, align });
-  if (sub) text(typed(sub, t - 0.7, 45), tx, ey + 48, { kind: 'sans', size: size * 0.74, color: dark ? '#8f90ad' : '#6f675e', align });
+  pen([[ax, ay], [ex, ey], [xe, ey]], { w: 2.6, color: ic, amp: 0.5, seed: 7, draw: lp, taper: 0.04, minW: 0.6 });
+  let tx = al === 'left' ? xe + 12 : xe - 12;
+  tx = al === 'left' ? Math.min(tx, W - M - tw) : Math.max(tx, M + tw);
+  const align2 = al;
+  text(typed(title, t - 0.35, 30), tx, ey + 10, { kind: 'sans', size, weight: 600, color: ic, align: align2 });
+  if (sub) text(typed(sub, t - 0.7, 45), tx, ey + 48, { kind: 'sans', size: size * 0.74, color: dark ? '#8f90ad' : '#6f675e', align: align2 });
 }
 /** big stat: kicker (mono caps) + large display number (tight tracking) + italic note */
 function stat(t, { x, y, kicker, value, note, dark, size = 62, align = 'left' }) {
@@ -586,9 +595,11 @@ function reticle(x, y, t, { label, r = 40, dark, alpha = 1, tag = true }) {
   for (let i = 0; i < 16; i++) { const a = i / 16 * TAU; ctx.beginPath(); ctx.moveTo(Math.cos(a) * (r + 5), Math.sin(a) * (r + 5)); ctx.lineTo(Math.cos(a) * (r + 12), Math.sin(a) * (r + 12)); ctx.stroke(); }
   ctx.restore();
   if (tag && label) {
-    const lx = x + r * 0.72, ly = y - r * 0.72, tx = lx + 22, ty = ly - 22;
-    ink([[lx, ly], [tx, ty], [tx + 110, ty]], { w: 1.4, color: PAL.peri, amp: 0 });
-    text(label, tx + 4, ty - 8, { kind: 'mono', size: 18, weight: 600, color: inkOf(dark) });
+    const lw = Math.max(110, measure(label, { kind: 'mono', size: 18, weight: 600 }) + 8), m = ctx.getTransform();
+    const sg = m.e + (x + r * 0.72 + 22 + lw) * Math.hypot(m.a, m.b) > W - 30 ? -1 : 1;   // near the right edge the tag points left
+    const lx = x + sg * r * 0.72, ly = y - r * 0.72, tx = lx + sg * 22, ty = ly - 22;
+    ink([[lx, ly], [tx, ty], [tx + sg * lw, ty]], { w: 1.4, color: PAL.peri, amp: 0 });
+    text(label, tx + sg * 4, ty - 8, { kind: 'mono', size: 18, weight: 600, color: inkOf(dark), align: sg > 0 ? 'left' : 'right' });
   }
   ctx.restore();
 }
@@ -598,14 +609,17 @@ function card(t, { x, y, w, h, dark, fig, title }) {
   const ww = w * p;
   if (dark) ink(shape.rect(x, y, ww, h), { closed: true, w: 1.4, color: 'rgba(170,170,230,0.45)', fill: 'rgba(18,18,44,0.85)', amp: 0 });
   else { flat(shape.rect(x + 4, y + 4, ww, h), 'rgba(40,30,20,0.12)'); ink(shape.rect(x, y, ww, h), { closed: true, w: 2, color: PAL.panelEdge, fill: PAL.panel, fillAlpha: PAL.panelAlpha, amp: 0.6, seed: 77, double: true }); }
-  if (title) text(typed(title, t - 0.45, 40), x + 24, y + 38, { kind: 'mono', size: 18, weight: 600, ls: 4, color: inkOf(dark) });
-  if (fig) text(typed(fig, t - 0.45, 30), x + w - 24, y + 34, { kind: 'mono', size: 15, ls: 3, align: 'right', color: mutedOf(dark) });
+  const tk = title ? Math.min(1, (w - 48) / measure(title, { kind: 'mono', size: 18, weight: 600, ls: 4 })) : 1;   // a title wider than the card shrinks to fit
+  const to = { kind: 'mono', size: 18 * tk, weight: 600, ls: 4 * tk };
+  if (title) text(typed(title, t - 0.45, 40), x + 24, y + 38, { ...to, color: inkOf(dark) });
+  if (fig) { const fo = { kind: 'mono', size: 15, ls: 3 }, clash = title && measure(title, to) + measure(fig, fo) + 72 > w;
+    text(typed(fig, t - 0.45, 30), x + w - 24, clash ? y + h - 18 : y + 34, { ...fo, align: 'right', color: mutedOf(dark) }); }   // a long title pushes the figure label to the bottom corner
   return inv(0.4, 0.6, t);
 }
 /** log-scale ruler in a card: ticks [[v, label]], marks [{v, label, color, row, t0}] (labels flip left near the end) */
 function logRuler(t, { x, y, w, min, max, ticks, marks, dark }) {
   const X = v => x + w * (Math.log10(v) - Math.log10(min)) / (Math.log10(max) - Math.log10(min));
-  const ic = inkOf(dark), lp = E.out3(inv(0, 0.8, t));
+  const ic = inkOf(dark), lp = E.out3(inv(0, 0.8, t)); if (lp <= 0) return;
   ink([[x, y], [x + w * lp, y]], { w: 2, color: ic, amp: 0 });
   if (lp >= 1) arrowHead(x + w + 2, y, 0, 11, ic, 2);
   ticks.forEach(([v, lab], i) => { const a = inv(0.1 + i * 0.05, 0.3 + i * 0.05, t); if (!a) return;
@@ -618,11 +632,15 @@ function logRuler(t, { x, y, w, min, max, ticks, marks, dark }) {
     const lo = { kind: 'mono', size: 15, weight: 600, ls: 1, color: col }, flip = X(m.v) + 8 + measure(m.label, lo) > x + w + 20;
     text(typed(m.label, mt - 0.1, 40), X(m.v) + (flip ? -8 : 8), yy, { ...lo, align: flip ? 'right' : 'left' }); });
 }
-/** line chart inside a card; series drawn on to s.draw. Returns {X, Y, ends} for placing marks. */
+/**
+ * line chart inside a card. series: [{ pts, color, w, draw (0..1, default 1), label }]; a label appears at the line's end
+ * once it has drawn on. Nothing is drawn before t = 0; the axes draw on first. Returns {X, Y, ends} for placing marks.
+ */
 function lineChart(t, { x, y, w, h, xr, yr, xticks, yticks, xlab, ylab, series, dark }) {
   const X = v => x + w * (v - xr[0]) / (xr[1] - xr[0]), Y = v => y + h - h * (v - yr[0]) / (yr[1] - yr[0]);
   const ic = inkOf(dark), mc = mutedOf(dark), a = E.out3(inv(0, 0.5, t));
-  ink([[x, y], [x, y + h], [x + w * a, y + h]], { w: 2, color: ic, amp: 0.4, seed: 5 });
+  if (a <= 0) return { X, Y, ends: [] };
+  ink([[x, y], [x, y + h], [x + w, y + h]], { w: 2, color: ic, amp: 0.4, seed: 5, draw: a });
   xticks.forEach(v => { text(String(v), X(v), y + h + 26, { kind: 'mono', size: 15, align: 'center', color: mc, alpha: a });
     ink([[X(v), y], [X(v), y + h]], { w: 1, color: PAL.peri, amp: 0, alpha: 0.25 * a }); });
   yticks.forEach(v => { text(String(v), x - 12, Y(v) + 5, { kind: 'mono', size: 15, align: 'right', color: mc, alpha: a });
@@ -630,9 +648,10 @@ function lineChart(t, { x, y, w, h, xr, yr, xticks, yticks, xlab, ylab, series, 
   if (xlab) text(xlab, x + w, y + h + 52, { kind: 'mono', size: 14, ls: 2, align: 'right', color: mc, alpha: a });
   if (ylab) text(ylab, x, y - 14, { kind: 'mono', size: 14, ls: 2, color: mc, alpha: a });
   const ends = [];
-  series.forEach(s => { const pts = s.pts.map(([u, v]) => [X(u), Y(v)]);
-    if (s.draw > 0) pen(pts, { w: s.w || 3, color: s.color, amp: 0.6, seed: 9, draw: s.draw, taper: 0.03, minW: 0.5 });
-    ends.push(along(pts, s.draw)); });
+  series.forEach((s, i) => { const pts = s.pts.map(([u, v]) => [X(u), Y(v)]), d = s.draw ?? 1;
+    if (d > 0) pen(pts, { w: s.w || 3, color: s.color, amp: 0.6, seed: 9 + i, draw: d, taper: 0.03, minW: 0.5 });
+    const e = along(pts, d); ends.push(e);
+    if (s.label && d > 0) text(s.label, Math.min(e[0], x + w), e[1] - 12, { kind: 'mono', size: 14, weight: 600, ls: 2, align: 'right', color: s.color, alpha: E.out3(inv(0.85, 1, d)) }); });
   return { X, Y, ends };
 }
 /**
@@ -647,8 +666,8 @@ function insetLens(t, { cx, cy, r, sx, sy, draw, dark = true, label }) {
   ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, rr, 0, TAU); ctx.clip();
   ctx.drawImage(dark ? TEX.night : TEX.paper, cx - W / 2, cy - H / 2);
   ctx.translate(cx, cy); draw(t); ctx.restore();
-  lensRing(cx, cy, rr, clamp(p));
-  if (label) text(typed(label, t - 0.5, 30), cx, cy + r + 44, { kind: 'mono', size: 17, ls: 4, align: 'center', color: PAL.inkSoft });
+  lensRing(cx, cy, rr, clamp(p), S.dark ? null : PAL.inkSoft);                      // the plate's own ink: a pale ring vanishes on paper
+  if (label) text(typed(label, t - 0.5, 30), cx, cy + r + 44, { kind: 'mono', size: 17, ls: 4, align: 'center', color: S.dark ? '#b9b9d6' : PAL.inkSoft });
 }
 
 /* ---------- motion helpers ---------- */
@@ -717,11 +736,13 @@ function follow(target, t, { s = 1, lead = 180, lag = 0.2, anchor = [W / 2, H / 
 /** parallax(cam, depth, fn): inside draw(), makes fn's layer pan at `depth` times the camera's pan (0 = pinned sky, 1 = ground) */
 function parallax(cam, depth, fn) { if (!cam) return fn(); ctx.save(); ctx.translate(-(cam.dx || 0) * (1 - depth), -(cam.dy || 0) * (1 - depth)); fn(); ctx.restore(); }
 /** a plate's hero on screen: from plate.hero(t) (scene coords, camera applied) or plate.focus(t) (screen coords) */
-function heroOf(pl, t) {
+function heroRaw(pl, t) {
   if (pl.hero) { const h = pl.hero(t); const [x, y] = camPoint(camOf(pl, t), [h.x, h.y]); return { ...h, x, y }; }
   const [x, y] = pl.focus ? pl.focus(t) : [W / 2, H / 2]; return { x, y, none: true };
 }
-const focusOf = (pl, t) => { const h = heroOf(pl, t); return [h.x, h.y]; };
+/** heroOf includes the entry shift (match cut + carried motion), so overlay art anchored to it stays on the reticle */
+function heroOf(pl, t) { const h = heroRaw(pl, t), ms = STORY && pl.i != null ? entryShift(pl, t) : null; return ms ? { ...h, x: h.x + ms.dx, y: h.y + ms.dy } : h; }
+const focusOf = (pl, t) => { const h = heroRaw(pl, t); return [h.x, h.y]; };   // unshifted: the engine's own anchor
 /**
  * Momentum across cuts. The old plate leans into its transition (LEAD, over its last 0.45 s) and the new plate
  * arrives still moving and settles (SETTLE, over enter.settle s after the transition). Both scale about the hero,
@@ -742,7 +763,7 @@ function motionOf(pl, t) {
 /**
  * Motion carry-over. The new plate enters still travelling the way the old plate's content was moving at the cut
  * (enter.carry: seconds for that motion to die away, default 0.35; false turns it off), so movement flows through
- * the transition instead of stopping at it. On by default except for pan, page and roll, which move the sheet themselves.
+ * the transition instead of stopping at it. On by default except for pan, page, roll and fade (which move the sheet themselves) and through and shape (which place objects exactly).
  */
 /** travelOf(plate, t): which way the camera is effectively travelling (px/s): chasing a moving hero, or panning */
 function travelOf(pl, t) {
@@ -751,7 +772,7 @@ function travelOf(pl, t) {
   const [hx, hy] = pl.hero ? motionOf(pl, t) : [0, 0];
   return [hx - cx, hy - cy];
 }
-const NO_CARRY = { pan: 1, page: 1, roll: 1, fade: 1 };
+const NO_CARRY = { pan: 1, page: 1, roll: 1, fade: 1, through: 1, shape: 1 };   // through and shape place their objects exactly
 function carryShift(pl, t) {
   const tr = pl.enter; if (!tr || !pl.i) return null;
   const tau = tr.carry ?? (NO_CARRY[tr.type] ? 0 : 0.35); if (!tau) return null;
@@ -790,9 +811,9 @@ function momentum(pl, t) {
 }
 
 /* ---------- transitions ---------- */
-function lensRing(cx, cy, r, a) {
+function lensRing(cx, cy, r, a, color = null) {
   if (a <= 0) return;
-  ctx.save(); ctx.globalAlpha *= a; ctx.strokeStyle = '#e9e7f5'; ctx.lineWidth = 3;
+  ctx.save(); ctx.globalAlpha *= a; ctx.strokeStyle = color || '#e9e7f5'; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.stroke();
   ctx.strokeStyle = 'rgba(132,135,198,0.8)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(cx, cy, r + 8, 0, TAU); ctx.stroke();
   for (let i = 0; i < 48; i++) { const a2 = i / 48 * TAU, e = r + (i % 4 ? 13 : 20); ctx.beginPath(); ctx.moveTo(cx + Math.cos(a2) * (r + 8), cy + Math.sin(a2) * (r + 8)); ctx.lineTo(cx + Math.cos(a2) * e, cy + Math.sin(a2) * e); ctx.stroke(); }
@@ -871,7 +892,7 @@ function sampleColor(X, which, x, y) {
 const TRANS = {
   /** down the scale ladder into another world: the camera dives at the hero while a lens opens on it, the new world inside */
   lensIn(p, X) {
-    const { tr } = X, e = E.inOut5(p), [cx, cy] = X.focusOld, [fx, fy] = X.focusNew, r = zlerp(16, coverR(cx, cy), e);
+    const { tr } = X, e = X.ez(p, E.inOut5), [cx, cy] = X.focusOld, [fx, fy] = X.focusNew, r = zlerp(16, coverR(cx, cy), e);
     X.drawOldX({ xf: about(cx, cy, zlerp(1, tr.dive ?? 2.4, e)) });
     ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.clip();
     ctx.drawImage(bgTex(X.darkNew), 0, 0);
@@ -882,27 +903,32 @@ const TRANS = {
   },
   /** up the scale ladder: the old world shrinks into a lens that lands on the hero, while the new world pulls back into place */
   lensOut(p, X) {
-    const { tr } = X, e = E.inOut5(p), [ox, oy] = X.focusOld, [nx, ny] = X.focusNew, R0 = coverR(ox, oy);
+    const { tr } = X, e = X.ez(p, E.inOut5), [ox, oy] = X.focusOld, [nx, ny] = X.focusNew, R0 = coverR(ox, oy);
     const cx = lerp(ox, nx, e), cy = lerp(oy, ny, e), r = zlerp(R0, 20, e);
     X.drawNewX({ xf: about(nx, ny, zlerp(tr.dive ?? 2.4, 1, e)) });
     ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.clip();
-    ctx.drawImage(bgTex(X.darkOld), 0, 0);
-    X.drawOldX({ bg: false, hud: 1 - inv(0, 0.3, p), xf: about(ox, oy, zlerp(1, 0.12, e), cx, cy) });
+    withAlpha(1 - E.in2(inv(0.8, 1, p)), () => { ctx.drawImage(bgTex(X.darkOld), 0, 0);   // the last dot of the old world fades instead of popping off
+      X.drawOldX({ bg: false, hud: 1 - inv(0, 0.3, p), xf: about(ox, oy, zlerp(1, 0.12, e), cx, cy) }); });
     ctx.restore();
     lensRing(cx, cy, r, 1 - inv(0.85, 1, p));
     return clamp(1 - (r / R0) ** 2);
   },
   /** plain crossfade: only into the end card */
-  fade(p, X) { const e = E.inOut3(p); X.drawOld(); withAlpha(e, X.drawNew); return e; },
+  fade(p, X) { const e = X.ez(p, E.inOut3); X.drawOld(); withAlpha(e, X.drawNew); return e; },
   /** one step on the scale ladder in the same world (tr.dir 'out' | 'in', tr.k): old shrinks (or grows) away while the new scale grows in around the hero */
   zoom(p, X) {
-    const { tr } = X, e = E.inOut5(p), k = tr.k ?? 8, out = (tr.dir || 'out') === 'out';
+    const { tr } = X, e = X.ez(p, E.inOut5), k = tr.k ?? 8, out = (tr.dir || 'out') === 'out';
     const sOld = out ? zlerp(1, 1 / k, e) : zlerp(1, k, e), sNew = out ? zlerp(k, 1, e) : zlerp(1 / k, 1, e);
     const [ox, oy] = X.focusOld, [nx, ny] = X.focusNew, px = lerp(ox, nx, e), py = lerp(oy, ny, e), a = E.inOut3(inv(0.25, 0.75, p));
+    // a plate shrunk below 1 would show its world's hard edges (a ground band ending mid-frame): draw it through a soft
+    // disc about the pivot that grows with its scale, and draw its HUD unmasked
+    // (the masked pass keeps the reticle at the HUD's strength; only the header, dial and log are drawn unmasked after it)
+    const plate = (draw, sc, hud, xf, R) => { if (sc >= 0.999) return draw({ bg: false, hud, xf });
+      softReveal(() => draw({ bg: false, hud, chrome: false, xf }), px, py, sc * R * 1.1, sc * R * 0.45, 1); if (hud > 0) draw({ hudOnly: true, hud }); };
     ctx.drawImage(bgTex(X.darkNew), 0, 0);
-    withAlpha(1 - E.in2(inv(0.5, 0.95, p)), () => X.drawOldX({ bg: false, hud: 1 - inv(0, 0.3, p), xf: about(ox, oy, sOld, px, py) }));
+    withAlpha(1 - E.in2(inv(0.5, 0.95, p)), () => plate(X.drawOldX, sOld, 1 - inv(0, 0.3, p), about(ox, oy, sOld, px, py), coverR(ox, oy)));
     S.noReticle = p < 0.6;
-    withAlpha(a, () => X.drawNewX({ bg: false, hud: inv(0.6, 1, p), xf: about(nx, ny, sNew, px, py) }));
+    withAlpha(a, () => plate(X.drawNewX, sNew, inv(0.6, 1, p), about(nx, ny, sNew, px, py), coverR(nx, ny)));
     S.noReticle = false;
     return a;
   },
@@ -914,7 +940,7 @@ const TRANS = {
       dir = Math.hypot(vx, vy) < 40 ? 'left' : Math.abs(vx) >= Math.abs(vy) ? (vx > 0 ? 'left' : 'right') : (vy > 0 ? 'up' : 'down'); }
     const vert = dir === 'up' || dir === 'down', sg = dir === 'left' || dir === 'up' ? -1 : 1, span = vert ? H : W;
     const Lo = layer(() => X.drawOldX({ all: true }), 1), Ln = layer(() => X.drawNewX({ all: true }), 2);
-    const offAt = q => sg * span * E.inOut3(clamp(q)), sh = 0.5 / (12 * (X.tr.dur || 0.8));   // half-drawing shutter
+    const offAt = q => sg * span * X.ez(clamp(q), E.inOut3), sh = 0.5 / (12 * (X.tr.dur || 0.8));   // half-drawing shutter
     const n = Math.round(clamp(Math.abs(offAt(p + sh / 2) - offAt(p - sh / 2)) / 5, 1, 48));
     for (let j = 0; j < n; j++) {                                 // running average of n exposures = motion blur
       const off = offAt(p + (n > 1 ? j / (n - 1) - 0.5 : 0) * sh), [ox, oy] = vert ? [0, off] : [off, 0], [nx, ny] = vert ? [0, off - sg * span] : [off - sg * span, 0];
@@ -963,7 +989,7 @@ const TRANS = {
   },
   /** ink wipe (tr.dir 'lr' | 'rl' | 'tb'): a curved inked front sweeps across; the new plate slides in slightly behind it */
   wipe(p, X) {
-    const e = E.inOut3(p), dir = X.tr.dir || 'lr', vert = dir === 'tb', span = vert ? H : W, f = lerp(-180, span + 180, dir === 'rl' ? 1 - e : e);
+    const e = X.ez(p, E.inOut3), dir = X.tr.dir || 'lr', vert = dir === 'tb', span = vert ? H : W, f = lerp(-180, span + 180, dir === 'rl' ? 1 - e : e);
     const edge = smooth(shape.ridge(-20, (vert ? W : H) + 20, 0, 70, X.seed + 3, 0.004, 40), 2).map(([u, d]) => vert ? [u, f + d] : [f + d, u]);
     const poly = dir === 'rl' ? [[W + 10, -10], ...edge, [W + 10, H + 10]] : vert ? [[-10, -30], ...edge, [W + 10, -30]] : [[-30, -10], ...edge, [-30, H + 10]];
     const slide = (1 - e) * 90 * (dir === 'rl' ? 1 : -1);
@@ -988,7 +1014,7 @@ const TRANS = {
       ink(teardrop(fx, y, s), { closed: true, w: 2, color: PAL.ink, fill: dropCol, amp: 0.3, seed: 5 });
       return 0;
     }
-    const u = (p - fall) / (1 - fall), e = E.inOutSine(u);
+    const u = (p - fall) / (1 - fall), e = X.ez(u, E.inOutSine);
     // the splat: a main blot plus satellite droplets and short splash chains; blobs merge where they touch
     const R = mulberry(X.seed + 31), drops = [[fx, fy, 1, 0]];
     for (let k = 0; k < 7; k++) { const a = R() * TAU, D = 150 + R() * 230;       // splash chains: droplets shrinking outward
@@ -1019,7 +1045,7 @@ const TRANS = {
   },
   /** burn: the old page chars from a spot (tr.at, default the old hero) outward: scorch, char, a glowing ember edge, then a hole onto the new plate; ash lifts off the front */
   burn(p, X) {
-    const e = E.inOutSine(p), [fx, fy] = X.tr.at || X.focusOld, w = 480, h = 270, nf = noiseField(X.seed + 5, w, h, 0.4), dm = coverR(fx, fy);
+    const e = X.ez(p, E.inOutSine), [fx, fy] = X.tr.at || X.focusOld, w = 480, h = 270, nf = noiseField(X.seed + 5, w, h, 0.4), dm = coverR(fx, fy);
     const charW = 0.05, scorchW = 0.13, emberW = 0.012, nw = X.tr.rough ?? 0.22;
     const m = maskCanvas('m', w, h), om = maskCanvas('r', w, h), gm = maskCanvas('g', w, h), md = m.img.data, od = om.img.data, gd = gm.img.data;
     const vAt = (px, py) => Math.hypot(px - fx, py - fy) / dm * 0.9 + nf[clamp(Math.floor(py / H * h), 0, h - 1) * w + clamp(Math.floor(px / W * w), 0, w - 1)] * nw;
@@ -1069,7 +1095,7 @@ const TRANS = {
    *  'right' = the left corner travels right); the page folds along a moving crease and slides off. Its back takes the look
    *  of the page being turned to (tr.back 'new' | 'old'), so the new world curls into view over the old one. */
   page(p, X) {
-    const e = E.inOut3(p), fl = (X.tr.dir || 'left') === 'right', hx = x => fl ? W - x : x;
+    const e = X.ez(p, E.inOut3), fl = (X.tr.dir || 'left') === 'right', hx = x => fl ? W - x : x;
     const P = [hx(W + 4), H + 4], Q = [hx(lerp(W + 4, -1.25 * W, e)), lerp(H + 4, 0.7 * H, Math.sin(e * Math.PI / 2))];
     const dx = P[0] - Q[0], dy = P[1] - Q[1], len = Math.hypot(dx, dy);
     if (len < 2) { X.drawOld(); return 0; }
@@ -1099,7 +1125,7 @@ const TRANS = {
   },
   /** roll (window blind / projector screen): the old page rolls up from the bottom edge (inked roll, shadow below), revealing the new page */
   roll(p, X) {
-    const e = E.inOut3(p), R = X.tr.radius ?? 60, yc = lerp(H + 6, -R - 40, e), step = 2;
+    const e = X.ez(p, E.inOut3), R = X.tr.radius ?? 60, yc = lerp(H + 6, -R - 40, e), step = 2;
     X.drawNew();
     if (yc < H) { const g = ctx.createLinearGradient(0, yc + R, 0, yc + R + 110); g.addColorStop(0, 'rgba(30,20,10,0.32)'); g.addColorStop(1, 'rgba(30,20,10,0)');
       ctx.fillStyle = g; ctx.fillRect(0, yc + R, W, 110); }                                   // shadow the roll casts on the new page
@@ -1120,7 +1146,7 @@ const TRANS = {
   },
   /** shape reveal (match cut): an object morphs into its counterpart while a window centred on it opens onto the new world */
   shape(p, X) {
-    const { tr } = X, e = E.inOut5(p);
+    const { tr } = X, e = X.ez(p, E.inOut5);
     const A = tr.from(X.prev, X.pt), B = tr.to(X.pl, X.t), M = morph(A, B, e), b = bounds(M), cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
     const ba = bounds(A), bb = bounds(B), ax = (ba.x0 + ba.x1) / 2, ay = (ba.y0 + ba.y1) / 2, bx = (bb.x0 + bb.x1) / 2, by = (bb.y0 + bb.y1) / 2;
     const r0 = Math.max(6, Math.min(b.x1 - b.x0, b.y1 - b.y0) * 0.45), q = E.inOut3(inv(0.1, 0.92, p)), r = zlerp(r0, coverR(cx, cy), q);
@@ -1137,7 +1163,7 @@ const TRANS = {
   },
   /** dissolve through hatching: the new plate appears as pen strokes that thicken until they merge */
   hatch(p, X) {
-    const e = E.inOut3(p), gap = 16, ang = -0.7, R = Math.hypot(W, H) / 2 + 40, r = mulberry(X.seed + 21);
+    const e = X.ez(p, E.inOut3), gap = 16, ang = -0.7, R = Math.hypot(W, H) / 2 + 40, r = mulberry(X.seed + 21);
     X.drawOld();
     const L = layer(() => {
       X.drawNew(); ctx.globalCompositeOperation = 'destination-in';
@@ -1156,6 +1182,8 @@ function headerDelay(pl) { const tr = pl.enter; if (!tr || pl.i === 0) return 0.
 TRANS.morph = TRANS.shape;   // v2 name
 
 /* ---------- timeline ---------- */
+/** presets whose main easing enter.ease replaces (see renderFrame) */
+const EASED = { lensIn: 1, lensOut: 1, fade: 1, zoom: 1, pan: 1, wipe: 1, bleed: 1, burn: 1, page: 1, roll: 1, shape: 1, hatch: 1 };
 /** transition length when a plate's enter has no dur (seconds) */
 const DEFAULT_DUR = { custom: 1.6, through: 1.4, cut: 0, lensIn: 0.6, lensOut: 0.6, zoom: 0.8, pan: 0.8, wipe: 0.8, bleed: 1.5, burn: 1.4, iris: 0.9, shape: 1.1, morph: 1.1, hatch: 0.8, page: 1.2, roll: 1.0, fade: 0.8 };
 let STORY = null, TOTAL_T = 0, TOTAL_F = 0;
@@ -1169,23 +1197,28 @@ function defineStory(story) {
  * o.all applies xf to everything (pans, page curls); o.hud scales HUD alpha; o.bg = false skips the paper.
  */
 function drawPlate(pl, t, o = {}) {
-  const { xf = null, all = false, hud = 1, bg = true, hudOnly = false } = o;
+  const { xf = null, all = false, hud = 1, bg = true, hudOnly = false, chrome = true } = o;   // chrome: false skips header, dial, log and marks (the reticle still follows hud)
+  const darkWas = S.dark; S.dark = !!pl.dark;
   ctx.save();
   if (all && xf) xf();
   if (!hudOnly) {
   if (bg) background(pl.dark, t);
   const cam = camOf(pl, t), ms = entryShift(pl, t), mo = momentum(pl, t) * (ms ? ms.s : 1);
   ctx.save(); if (xf && !all) xf();
+  ctx.save();                                                          // scene: entry shift + momentum + camera
   if (ms) ctx.translate(ms.dx, ms.dy);
   if (mo !== 1) { const [hx, hy] = focusOf(pl, t); ctx.translate(hx, hy); ctx.scale(mo, mo); ctx.translate(-hx, -hy); }
   withCamera(cam, () => pl.draw(t, pl));
-  if (pl.hero && !S.noReticle) { const h = heroOf(pl, t); if (h.label !== undefined || h.r) {
-    const m = ctx.getTransform(), sc = Math.hypot(m.a, m.b) || 1;       // counter-scale: the reticle is furniture
+  if (pl.hero && !S.noReticle) { const hh = pl.hero(t); if (hh.label !== undefined || hh.r) {
+    const h = heroRaw(pl, t), m = ctx.getTransform(), sc = Math.hypot(m.a, m.b) || 1;       // counter-scale: the reticle is furniture
     withAlpha((h.alpha ?? 1) * clamp(hud * 1.5), () => { ctx.translate(h.x, h.y); ctx.scale(1 / sc, 1 / sc); reticle(0, 0, t, { label: h.label, r: h.r ?? 34, dark: pl.dark, tag: h.tag ?? !!h.label }); }); } }
-  if (pl.overlay) pl.overlay(t, pl);                                   // art that must not move with the camera
+  ctx.restore();
+  // overlay: art that must not move with the camera. Camera, momentum and entry shift don't apply (they would slide
+  // cards and stats off the frame before a lens or zoom); a transition's xf still does, so it leaves with its plate.
+  if (pl.overlay) pl.overlay(t, pl);
   ctx.restore();
   }
-  if (hud > 0) {
+  if (hud > 0 && chrome) {
     ctx.globalAlpha *= clamp(hud);
     const ht = t - headerDelay(pl);
     if (pl.header) plateHeader(ht, { ...pl.header, dark: pl.dark });
@@ -1193,7 +1226,7 @@ function drawPlate(pl, t, o = {}) {
     if (pl.log) journeyLog(ht - 0.35, pl.log(t), pl.dark);
     if (pl.marks !== false) regMarks(pl.dark);
   }
-  ctx.restore();
+  ctx.restore(); S.dark = darkWas;
 }
 /** renderFrame(f): animated on twos (each drawing held 2 frames; STORY.twos = false for ones), with gate weave (STORY.weave px) and film grain (STORY.grain 0..1) */
 function renderFrame(f) {
@@ -1208,13 +1241,17 @@ function renderFrame(f) {
   if (wv) { ctx.translate(W / 2 + (hash3(db, 1, 7) - 0.5) * 2 * wv, H / 2 + (hash3(db, 2, 7) - 0.5) * 2 * wv); ctx.rotate((hash3(db, 3, 7) - 0.5) * 0.0012 * wv); ctx.scale(1.004, 1.004); ctx.translate(-W / 2, -H / 2); }
   if (i > 0 && tr && tr.type !== 'cut' && t < tr.dur) {
     const prev = P[i - 1], pt = prev.dur + t, raw = t / tr.dur;
-    // pacing: enter.ease reshapes the whole transition, enter.curve maps clock -> progress with holds and per-segment easing
-    const p = clamp(tr.curve ? curve(raw, tr.curve) : tr.ease ? easeOf(tr.ease)(raw) : raw);   // presets clamp overshoot; custom draws can read S.trans.raw
+    // pacing: enter.curve maps clock -> progress (holds, per-segment easing). enter.ease REPLACES the main easing of the
+    // presets that have one (EASED); for the rest (iris, through, custom) it reshapes the clock instead. Never both,
+    // so a transition is never eased twice (that left dead starts and two-drawing snaps).
+    const own = !!(tr.ease && EASED[tr.type]);
+    const p = clamp(tr.curve ? curve(raw, tr.curve) : tr.ease && !own ? easeOf(tr.ease)(raw) : raw);   // presets clamp overshoot; custom draws can read S.trans.raw
     S.trans = { type: tr.type, p, raw };
     const side = (sd, fn) => { const k = S.side; S.side = sd; try { fn(); } finally { S.side = k; } };   // plates can ask S.side which role they are playing
     const X = { drawOld: () => side('old', () => drawPlate(prev, pt)), drawNew: () => side('new', () => drawPlate(pl, t)),
       drawOldX: o => side('old', () => drawPlate(prev, pt, o)), drawNewX: o => side('new', () => drawPlate(pl, t, o)),
-      focusOld: focusOf(prev, pt), focusNew: focusOf(pl, t), darkOld: prev.dark, darkNew: pl.dark, prev, pl, pt, t, tr, seed: i * 7 + 1 };
+      focusOld: focusOf(prev, pt), focusNew: focusOf(pl, t), darkOld: prev.dark, darkNew: pl.dark, prev, pl, pt, t, tr, seed: i * 7 + 1,
+      ez: (v, def) => own ? easeOf(tr.ease)(v) : def(v) };   // a preset's main easing, unless enter.ease replaces it
     const share = (tr.draw || TRANS[tr.type] || TRANS.fade)(p, X);        // enter.draw: a transition written by the story itself
     ctx.save(); ctx.globalAlpha = 1 - share; ctx.drawImage(vig(prev.dark), 0, 0); ctx.globalAlpha = share; ctx.drawImage(vig(pl.dark), 0, 0); ctx.restore();
   } else {
@@ -1322,7 +1359,7 @@ async function renderAudio() {
     const t0 = p.start, tr = p.enter, ty = tr?.type, d = tr?.dur || 0.5;
     if (p.i > 0) { if (ty !== 'fade') SFX.riser(ac, out, Math.max(0, t0 - 0.35)); (TRANS_SFX[ty] || TRANS_SFX.cut)(ac, out, t0, d, tr || {}); duck(t0, 0.5, d + 0.4); }
     if (p.header) { const hd = t0 + headerDelay(p), h = p.header;
-      SFX.scratch(ac, out, hd, { chars: 9, cps: 30 }); SFX.scratch(ac, out, hd + 0.15, { chars: h.title.length, cps: 17 }); SFX.scratch(ac, out, hd + 0.7, { chars: h.sub.length, cps: 30, g: 0.012 }); }
+      SFX.scratch(ac, out, hd, { chars: 9, cps: 30 }); SFX.scratch(ac, out, hd + 0.15, { chars: h.title.length, cps: 17 }); if (h.sub) SFX.scratch(ac, out, hd + 0.7, { chars: h.sub.length, cps: 30, g: 0.012 }); }
     const bed = p.bed || autoBed(p); if (bed) bed(ac, bedBus, t0, p.dur);
     for (const [ct, type, opt] of (p.cues || [])) { SFX[type](ac, out, t0 + ct, opt || {}); if (type === 'chime' || type === 'pop') duck(t0 + ct, 0.25, 0.35); }
   }
@@ -1346,9 +1383,49 @@ function wavBytes(buf) {
 function b64(bytes) { let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s); }
 
 /* ---------- boot: render hooks + preview player ---------- */
+/**
+ * Wait for the web fonts, but never forever: the Google Fonts stylesheet loads without blocking the page (shell.html
+ * marks it data-state ok / failed), and a blocked or silent network gives up after FONT_WAIT ms. Missing faces are
+ * detected by measuring text against two fallbacks (document.fonts.check() says true when a face was never declared)
+ * and reported in window.__fontWarning, which render.mjs prints and the preview shows. Wall-clock time is fine here:
+ * this runs once at boot, never inside renderFrame.
+ * If any face is missing at the cap, the fallback is frozen: the Google stylesheet is removed, so no face that arrives
+ * later can change frames mid-render. ?nofonts=1 freezes it at once (render.mjs passes it to extra workers when the
+ * first page already fell back, so every page draws with the same faces without waiting the cap again).
+ */
+const FONT_WAIT = +(QS.get('fontwait') || 10000);
+const FONT_PKG = { 'Fraunces': '@fontsource-variable/fraunces', 'Inter Tight': '@fontsource/inter-tight', 'IBM Plex Mono': '@fontsource/ibm-plex-mono' };
+function missingFonts() {
+  const g = document.createElement('canvas').getContext('2d'), probe = 'Hamburgefonstiv 0123 AQWxyz';
+  return [['Fraunces', '500 40px'], ['Inter Tight', '400 40px'], ['IBM Plex Mono', '400 40px']].filter(([fam, spec]) =>
+    ['monospace', 'serif'].every(fb => { g.font = `${spec} "${fam}", ${fb}`; const a = g.measureText(probe).width; g.font = `${spec} ${fb}`; return a === g.measureText(probe).width; }))
+    .map(m => m[0]);
+}
+async function loadFonts() {
+  const link = document.getElementById('webfonts'), state = link ? link.dataset.state : null;
+  let missing, why;
+  if (QS.has('nofonts') && link) { missing = Object.keys(FONT_PKG); why = 'fonts skipped (?nofonts); '; }   // embedded fonts are never skipped
+  else {
+    const late = new Promise(r => setTimeout(() => r('timeout'), FONT_WAIT));
+    if (link && !link.dataset.state) await Promise.race([late, new Promise(r => { link.addEventListener('load', r); link.addEventListener('error', r); })]);
+    await Promise.race([late, Promise.all(FONT_LOADS.map(f => document.fonts.load(f).catch(() => null))).then(() => document.fonts.ready)]);
+    missing = missingFonts();
+    why = link && link.dataset.state === 'failed' ? 'Google Fonts is blocked; ' : link ? 'Google Fonts did not answer; ' : '';
+  }
+  if (!missing.length) return;
+  if (link) {                                              // freeze: drop the stylesheet so its faces are no longer declared
+    link.remove(); for (const l of document.querySelectorAll('link[href*="fonts.g"]')) l.remove();
+    for (const f of [...document.fonts]) if (f.status !== 'loaded') document.fonts.delete(f);   // non-CSS faces still loading
+    await new Promise(r => setTimeout(r, 50));             // not document.fonts.ready: it never settles while a request hangs
+    missing = missingFonts();                              // removing the sheet also drops faces that had loaded
+  }
+  window.__fontWarning = `fonts not loaded (${missing.join(', ')}): text uses fallback faces. ` + why +
+    (link ? 'build with: python3 build.py story.js film.html --fonts local'
+      : `the embedded fonts lack them: npm i ${missing.map(m => FONT_PKG[m]).join(' ')} in the film folder and rebuild with --fonts local`);
+  console.warn(window.__fontWarning);
+}
 async function boot() {
-  await Promise.all(FONT_LOADS.map(f => document.fonts.load(f).catch(() => null)));
-  await document.fonts.ready;
+  await loadFonts();
   buildTextures();
   window.__story = { fps: FPS, frames: TOTAL_F, width: W, height: H, title: STORY.title, starts: STORY.plates.map(p => ({ t: p.start, type: p.enter ? p.enter.type : null, dur: p.enter ? p.enter.dur : 0, settle: p.enter ? p.enter.settle ?? 0.9 : 0 })) };
   window.__renderFrame = f => { renderFrame(f); return true; };
@@ -1384,4 +1461,5 @@ function player() {
     requestAnimationFrame(loop);
   })();
   ui.style.display = 'flex';
+  if (window.__fontWarning) { const w = document.createElement('span'); w.textContent = '⚠ ' + window.__fontWarning; w.style.color = '#e8577a'; ui.appendChild(w); ui.style.opacity = 1; }
 }

@@ -9,4 +9,7 @@ qa/
 qa_*/
 film.html
 reel.html
+gallery.html
 node_modules/
+
+__pycache__/

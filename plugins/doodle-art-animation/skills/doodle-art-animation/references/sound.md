@@ -18,4 +18,14 @@ The reference's spectrogram shows several layers: pure harmonic stacks, filtered
   - `thump` for landings; `hiss`, `noise` and `tone` for anything else;
   - a long, quiet `noise` bed for continuous motion (wind for a fall, a hum for an updraft).
 - **Stereo:** small cues are panned deterministically, pads are spread wide, and wipes pan with their direction.
-- **Level:** mean about −18 to −21 dB, peak about −3 dB. Check with `ffmpeg -i film.mp4 -af volumedetect -f null -`.
+- **Level:** mean about −18 to −21 dB, peak about −3 dB. The example measures a mean of −20.2 dB, a peak of −5.8 dB and about −17.7 LUFS integrated.
+- **Check it** with `python3 audio_check.py film.mp4 --starts <transition times>`. It prints PASS, WARN or FAIL for:
+  - level (warns outside −21.5 to −17.5 dB) and peak (warns above −1 or below −6 dB);
+  - EBU R128 loudness and true peak (warns above 0 dBTP);
+  - clipping (runs of 3+ full-scale samples fail);
+  - stereo (one channel, or left and right the same, fails; side/mid below −20 dB warns);
+  - silence (1.5 s or more below −50 dBFS warns);
+  - audio against video length (more than 0.2 s apart fails);
+  - with `--starts`, a sound onset within 0.25 s of each transition. `bleed`, `fade` and `hatch` have slow swells, so a warning there is normal.
+
+  It exits 1 only on a failure; `--profile` prints the level for each second.

@@ -76,7 +76,7 @@ Give a plate `cam: t => ({ x, y, s, dx, dy, rot })`. It moves the **scene only**
 | Slow turn | Night plates, "inside" views | `rot: 0.04–0.08 * Math.sin(t * 0.35)` about the hero |
 | Fall / climb | Something falls or rises | Keep the hero near the centre and scroll the world past it (`ctx.translate(0, -700 * fall)` on layers), with `flow` streaks in the opposite direction |
 
-- Put text that must not move with the camera (stats, callouts, the title-card type) in `overlay(t)`.
+- Put text that must not move with the camera (stats, callouts, cards, charts, the title-card type) in `overlay(t)`. Overlay art also ignores momentum and the match-cut/carry shift, so a card never slides toward the frame edge before a lens or zoom; it only moves with its plate's transition. Text anchored to scene positions (labels on a map) belongs in `draw(t)`, where it moves with the scene.
 - To anchor a callout to a moving hero, read `heroOf(plate, t)`, which returns screen coordinates.
 
 ## Transitions
@@ -87,7 +87,7 @@ Every transition is a pure function of progress `p`, animated on twos. Zooms int
 |---|---|---|---|---|
 | `lensIn` | Down the scale ladder into a **different world** (paper → night) | Anticipation dot, then the old scene dives 2.4× at the hero while a lens opens on it with the new world growing inside; 0.4 s bare hold before the title. Options: `dive`, `scaleFrom`. | 0.5–0.6 s | swell up |
 | `lensOut` | Up the scale ladder (night → paper) | The old world shrinks into a lens that travels to the new hero, while the new world pulls back from 2.4× into place. | 0.5–0.6 s | swell down |
-| `zoom` | One step on the scale ladder **within the same world** | Both plates pivot on the hero; the old scale shrinks (or grows) by `k` and fades while the new grows in; the HUD crossfades. `dir` 'out' or 'in', `k` 6–10. | 0.7–0.9 s | glide |
+| `zoom` | One step on the scale ladder **within the same world** | Both plates pivot on the hero; the old scale shrinks (or grows) by `k` and fades while the new grows in; the HUD crossfades. A plate shrunk below full size is seen through a soft disc, so its world's edges never show. `dir` 'out' or 'in', `k` 6–10. | 0.7–0.9 s | glide |
 | `shape` (alias `morph`) | Match cut: **one object becomes another** | The object morphs from `from(prev, pt)` to `to(pl, t)` (closed outlines) while a circular window centred on it opens onto the new world. The outline's fill blends from the old object's colour to the new one's (sampled automatically, or set `fromFill` / `toFill`) and fades onto the real object at the end; `style(e)` can override fill and width. Plates skip their own copy while `S.morph` is true. | 1.1 s | bend + swell |
 | `pan` | Same scale, **somewhere else along the journey** (downstream, next room) | Whip pan along one long sheet: both plates slide (`dir` 'left', 'right', 'up', 'down'), motion-blurred at speed, a faint fold shadow at the join, speed lines at full speed. The corner labels travel with the sheet. | 0.8–1.0 s | whoosh |
 | `wipe` | A reveal with a direction | A curved inked front sweeps across (`dir` 'lr', 'rl', 'tb'), with spray ahead; the new plate slides in slightly behind it. | 0.6–0.8 s | whoosh |
@@ -105,10 +105,10 @@ Every transition is a pure function of progress `p`, animated on twos. Zooms int
 
 Every transition's pace is yours to set. `dur` sets its length, and one of these reshapes its timing:
 
-- **`ease`:** one easing for the whole transition, e.g. `ease: 'inOutSine'` (slow in and out), `'outBounce'` (lands with bounces), `'inBack'` (pulls back before going), `'outExpo'` (fast start, long settle).
+- **`ease`:** the easing for the whole transition, e.g. `ease: 'inOutSine'` (slow in and out), `'outBounce'` (lands with bounces), `'inBack'` (pulls back before going), `'outExpo'` (fast start, long settle). On presets with one main easing (lensIn, lensOut, zoom, pan, wipe, bleed, burn, page, roll, shape, hatch, fade) it **replaces** that easing; on iris, through and custom transitions it reshapes the clock. Presets already ease, so leave `ease` out unless you want a different feel; often a longer `dur` is the better fix for a transition that feels rushed.
 - **`curve`:** keyframes from clock to progress, with holds and a different easing per segment. `[[0, 0], [0.3, 0.45, 'out3'], [0.6, 0.55, 'lin'], [1, 1, 'inOut3']]` rushes to the middle, lingers there, then finishes smoothly. Repeat a value to hold it.
 - **Easings (`E`):** `lin`, `in2`, `in3`, `in5`, `out2`, `out3`, `out5`, `inOut2`, `inOut3`, `inOut5`, `inSine`, `outSine`, `inOutSine`, `inExpo`, `outExpo`, `inOutExpo`, `inBack`, `outBack`, `outBack2`, `inOutBack`, `anticipate`, `outElastic`, `outBounce`, `hold`, and `E.spring(k)` for a settle with k overshoots.
-- **Limits:** built-in transitions clamp progress to 0..1, so overshooting easings flatten at the ends there. Inside a custom transition, `S.trans.raw` is the unshaped clock, and `curve(t, keys, { geo: true })` shapes any value you like: zoom scales (geometric, so zooms never rush), positions, colours, alphas.
+- **Limits:** `curve` always reshapes the clock, on top of the preset's own easing, so give presets a `curve` that is mostly linear with holds, or use `ease` instead. Built-in transitions clamp progress to 0..1, so overshooting easings flatten at the ends there. Inside a custom transition, `S.trans.raw` is the unshaped clock, and `curve(t, keys, { geo: true })` shapes any value you like: zoom scales (geometric, so zooms never rush), positions, colours, alphas.
 - **Pace the plates around it.** A long or slow seam eats into the next plate's opening, so delay that plate's own action and beats by about the extra time.
 
 ## Writing your own transition
@@ -137,7 +137,7 @@ The built-in types are presets. When a seam matters, write it in the story: give
   - one object becoming another, a custom morph (or `shape` for simple outlines); going into a surface, `through`.
   - Better still, design the seam first (`references/writing.md`, "Designing the seams") and let the link choose the type.
 - Use 4–6 types per film, and never the same one three times in a row.
-- **Motion carries across the seam.** When the old plate's hero (or camera pan) is still moving at the cut, the new plate enters travelling the same way and eases to rest (`enter.carry`, seconds, default 0.35; `false` turns it off). It is off for `pan`, `page`, `roll` and `fade`.
+- **Motion carries across the seam.** When the old plate's hero (or camera pan) is still moving at the cut, the new plate enters travelling the same way and eases to rest (`enter.carry`, seconds, default 0.35; `false` turns it off). It is off for `pan`, `page`, `roll`, `fade`, `through` and `shape`.
 - **Pans follow the action.** `pan` with no `dir` (or `dir: 'auto'`) keeps the camera travelling the way it was, whether it was chasing a moving hero or panning on its own; it falls back to `'left'` when nothing is moving.
 - **Momentum** is automatic (`LEAD` and `SETTLE` in the engine). Set `enter.momentum: false` to turn it off, or `enter.settle` (seconds) to change the settle length. Momentum scales only upward, because scenes bleed past the frame edges only when enlarged.
 - The engine plays a 0.35 s riser before every transition except `fade`, and ducks the music bed under it.

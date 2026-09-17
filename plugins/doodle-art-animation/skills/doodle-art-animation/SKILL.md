@@ -17,7 +17,7 @@ The plugin fixes the **look and feel**: ink and paper, type, the HUD, camera beh
 
 Everything else is **yours to create**: the topic, the scenery, the objects, the diagrams, the hero and its journey. Films can be about anything (code, AI and agents, geology, geography, web design, biology, space, art, history) and each should look like its own subject, not like the example. Use engine components where they fit, and draw new art in each plate's `draw(t)` wherever they don't. Build that art from the engine's ink primitives (`pen`, `ink`, `hatch`, `shade`, `shape.*`) so it matches the style. Inventing new elements is expected, not a workaround.
 
-If you build something other films could reuse (a server rack, a tree, a galaxy, a browser window), keep it as a self-contained helper in `story.js` and mention it to the user as a candidate for the plugin.
+Before drawing a common object, check `references/components.md`: the kits already have seas, coasts, mountains, forests, strata, weather, terminals, code cards, browsers, server racks, circuit boards, cursors, neural networks, agents with tools, chat threads, token streams, attention arcs, star fields, planets, orbits, comets, telescopes, glassware, cells, molecules, microscopes, pipettes, easels, brush strokes, swatches, wireframes and pen-tool paths. If you build something other films could reuse (a DNA helix, a volcano, a phone), write it in the kit component shape and mention it to the user as a candidate for the plugin ("Growing the kits" in `references/components.md`).
 
 
 
@@ -27,9 +27,17 @@ If you build something other films could reuse (a server rack, a tree, a galaxy,
 | `toolkit/shell.html`, `toolkit/build.py` | `python3 build.py story.js film.html` inlines the engine and the story into one self-contained HTML file. |
 | `toolkit/render.mjs` | Frame capture, stills, contact sheets, transition strips, MP4 muxing. |
 | `toolkit/motion_check.py` | Measures how alive a render is. |
-| `toolkit/story_example.js` | Worked example "One Drop" (49 s, 7 plates). Read it for **structure** (plate objects, beats, camera moves, transitions, the end card). Don't reuse its scenery for an unrelated topic. |
+| `toolkit/audio_check.py` | Checks the sound: level, peak, clipping, stereo, silence, length, cue timing. |
+| `toolkit/text_check.mjs` | Measures on-screen text: reading time, text off the frame, overlaps, text that scales. |
+| `toolkit/smoke_test.py` | Automated check: builds your own `story*.js` (the bundled examples when there are none), renders 3 stills of each and a short MP4 segment, and fails on page errors, font failures, blank frames, a missing, mono or silent audio track, or no motion. |
+| `toolkit/story_example.js` | The main worked example, "The Long Release" (55.5 s): one PLGA nanoparticle from syringe to drug release, in a title, 4 plates and an end card. Read it for **structure**: plate objects, beats that enter and leave, text in `overlay()`, motivated cameras (a tracking shot, a slow push and turn, a follow that pulls back to the full diagram), and a designed seam list at the top of the file. Don't reuse its scenery for an unrelated topic. |
+| `toolkit/story_one_drop.js` | A second example, "One Drop" (49 s, the water cycle): scenery recipes (far mountains, trees, birds, a coast cross-section), dense night plates, a size-ladder card. |
 | `toolkit/story_seams.js` | "Pencil to Ladybug" (29 s): a short example of designed seams (a custom eraser-to-ladybug morph, an auto-direction `pan`, a match `cut`, a `page` turn). Read it with "Designing the seams" in `references/writing.md`. |
 | `toolkit/story_reel.js` | Test reel with all 14 transition types back to back. |
+| `toolkit/kits/` | Component kits: ready-made, on-style building blocks (`KIT.earth`, `KIT.tech`, `KIT.ai`, `KIT.space`, `KIT.lab`, `KIT.studio`). `build.py` inlines the ones a story uses. Catalogue in `references/components.md`. |
+| `toolkit/story_gallery.js` | "Component Gallery" (36 s): every kit component drawing on and idling, one plate per kit. The visual test for the kits. |
+| `toolkit/story_components.js` | Component test reel: stats, callouts, cards, charts, rulers, inset lenses and gather on moving cameras and across transitions. |
+| `references/components.md` | Every kit component: its call, options, look, motion and good uses, plus how to add new ones. |
 | `references/style.md` | Worlds, palette, type, line and texture recipes, composition, HUD positions. |
 | `references/motion.md` | Keeping every drawing alive, beats, timings, camera moves, the transition table and rules. |
 | `references/writing.md` | Explainer voice, how to adapt any subject or dataset, the plate script format. |
@@ -38,7 +46,7 @@ If you build something other films could reuse (a server rack, a tree, a galaxy,
 | `references/film-grammar.md` | Editing and animation grammar for seams and camera moves (eye trace, screen direction, lead room, motivated camera, the switch-up rule, the twelve principles) and the seam review rubric. |
 | `references/render.md` | How rendering works, options and speed. |
 
-Read `references/style.md`, `references/motion.md`, `references/writing.md` and `references/film-grammar.md` before writing the plate script. Open `references/api.md` while building, and `references/sound.md` when adding cues.
+Read `references/style.md`, `references/motion.md`, `references/writing.md` and `references/film-grammar.md` before writing the plate script. Open `references/api.md` and `references/components.md` while building, and `references/sound.md` when adding cues.
 
 ## Feedback Loop
 
@@ -56,21 +64,23 @@ Read `FEEDBACK.md` in this skill's folder before every use and apply its lessons
 1. **Get the substance first.** Research the topic, or read the user's data or source. Every number on screen needs a source; write the sources down now, because they go on the end card.
 2. **Pick the hero and the journey.** Something small that travels through the whole story, with an ID tag like `H₂O·01`, `NP·01`, `γ·01`, `PKT·01` (see `references/writing.md`).
 3. **Write the plate script** in the table format from `references/writing.md`, with camera, transition and exit columns, then **design every seam** (exit, entry, link) in the seam list and let the link pick the transition. For films longer than about a minute, show the script to the user before building.
-4. **Set up a working folder** (not inside this skill): `cp "${CLAUDE_SKILL_DIR}"/toolkit/* .` then write a new `story.js` that follows the example's structure, with art built for this topic. Copy a helper from the example only when it genuinely fits. If that variable is not filled in, the `toolkit` folder sits next to this SKILL.md.
+4. **Set up a working folder** (not inside this skill): `cp -R "${CLAUDE_SKILL_DIR}"/toolkit/. .` then write a new `story.js` that follows the structure of `story_example.js`, with art built for this topic. Use kit components (`references/components.md`) where they fit your subject, and draw everything else yourself. Copy a helper from the example only when it genuinely fits. If that variable is not filled in, the `toolkit` folder sits next to this SKILL.md.
 5. **Build plate by plate.** After each plate run `python3 build.py story.js film.html` and `node render.mjs film.html --stills <frames>`, then look at the stills: beats, collisions, empty regions.
 6. **QA the motion, not just the stills.**
    - `node render.mjs film.html --sheet 1` writes one frame per second to `qa/contact_sheet.jpg`.
    - `node render.mjs film.html --strips` writes a 12-frame, 8 fps strip around every plate start.
    - `node render.mjs film.html --seams` shows both sides of every transition and their overlay. Check that exit and entry line up and that motion keeps its direction.
-   - Before the final render, run the plugin's `seam-reviewer` agent on the working folder (or apply the rubric in `references/film-grammar.md` yourself) and fix every seam it fails.
+   - `node text_check.mjs film.html` measures every line of text as it plays: lines up for less than `readTime` or cut off while typing, text off the frame, overlapping text, and HUD or overlay text that changes size.
+   - `python3 smoke_test.py --work qa_smoke` builds and renders your story (3 stills, plus a 3.5 s MP4 segment with audio) and exits non-zero on any page error, font failure, blank frame or silent audio (exit 2 means a setup problem). Run it after any engine or story change; it does not replace looking at the frames.
+   - Before the final render, run the plugin's `film-reviewer` and `seam-reviewer` agents on the working folder (or `/doodle-art-animation:doodle-qa`, which runs every check and both agents), and fix everything they fail. Without the agents, apply the rubric in `references/film-grammar.md` yourself.
    - Open every strip and work through the QA checklist below.
-   - After the first full render, run `python3 motion_check.py film.mp4` and compare with the targets.
-7. **Render**: `node render.mjs film.html film.mp4 --workers 6`, adding `--bitrate 3800k` for a shareable file (a one-minute film lands near 25–30 MB).
+   - After the first full render, run `python3 motion_check.py film.mp4` and compare with the targets, and `python3 audio_check.py film.mp4 --starts <transition times>` (targets in `references/sound.md`).
+7. **Render**: `/doodle-art-animation:doodle-render`, or by hand `node render.mjs film.html film.mp4 --workers 6 --bitrate 3800k --strict-fonts` (a one-minute film lands near 20–30 MB), then `motion_check.py` and `audio_check.py`. Leave out `--bitrate` only for a master you will re-encode: the grain makes constant-quality files huge (a 2.7-minute film was 1.36 GB). For films over two minutes, read "Long films" in `references/render.md`.
 8. **Deliver** the MP4 and the HTML. The HTML is also a player: space plays and pauses, the arrow keys move 2 s, `[` and `]` jump between plates, and there is a scrubber.
 
-If you change or add a transition, test it in the reel first: `python3 build.py story_reel.js reel.html`, then `node render.mjs reel.html --strips`.
+If you change or add a kit component, render the gallery (`python3 build.py story_gallery.js gallery.html`, then `node render.mjs gallery.html --sheet 1`). If you change or add a transition, test it in the reel first: `python3 build.py story_reel.js reel.html`, then `node render.mjs reel.html --strips`. After changing a component, do the same with `story_components.js`.
 
-**Requirements:** Node 18+, Playwright with Chromium, ffmpeg, Python 3 with numpy, and network access to Google Fonts. If fonts are blocked, install `@fontsource/fraunces`, `@fontsource/inter-tight` and `@fontsource/ibm-plex-mono` and replace the `<link>` in `shell.html` with `@font-face` rules.
+**Requirements:** Node 18+, Playwright with Chromium, ffmpeg, Python 3 with numpy, and network access to Google Fonts. If `render.mjs` prints `WARNING: fonts not loaded`, the film is using fallback faces and its layout will be off. Build it with embedded fonts instead: `npm i @fontsource-variable/fraunces @fontsource/inter-tight @fontsource/ibm-plex-mono` in the film folder (the variable Fraunces package, not the static one), then `python3 build.py story.js film.html --fonts local` (details in `references/render.md`, "Fonts"). Don't edit `shell.html` by hand.
 
 ## The rules that matter most
 
@@ -82,7 +92,8 @@ Each has its details in the references.
 - **Scenes bleed to all four edges**, with the horizon at 48–52% and a sky element on every paper plate. One idea per region: top-centre stat, one side for callouts, bottom card.
 - **Vary the scenery:** different ground, trees, far mountains, birds or open sea from plate to plate, and a recap with its own composition.
 - **Pen for subjects, ink for measurement**, shading made of pen strokes (never gradients), and at least two textures on any fill wider than 200 px.
-- **The HUD and the hero reticle never scale with the camera.** Text that must stay still goes in `overlay(t)`.
+- **Use the kits, then go further.** Kit components are on-style and already move; use them where they fit, restyle them with their options, and draw the rest of the scene yourself. A film should never look like the gallery: a few components inside a scene built for its topic.
+- **The HUD and the hero reticle never scale with the camera.** Stats, callouts, cards and charts that must stay still go in `overlay(t)`, which ignores the camera, momentum and the match-cut shift and only moves with its plate's transition. Anchor overlay art to moving things through `camPoint` or `heroOf(plate, t)`, keeping labels fixed. Put a chart in `draw(t)` only when it belongs to the world and should zoom with it.
 - **Honest numbers:** `≈` for estimates, real units, "illustrative" for schematic curves, sources on the end card.
 
 ## Determinism rules (these are what make frame capture work)
@@ -112,15 +123,15 @@ Look at the actual frames, not your code.
   - the page turn shows the back of the page with a crease shadow, and the roll has inked edges and a shadow;
   - pans show a single join and speed lines, not two frozen frames.
 - **Seams** (`--seams`): the exit and entry objects line up in the overlay, motion keeps its direction across the cut, and nothing pops in or vanishes at the join. Then watch each seam at full speed: if it feels like a camera trick rather than one continuous thing, redesign it.
-- **Collisions.**
+- **Collisions** (plus any `text_check` `OVERLAP` and `EDGE` lines; they cover text boxes only, so look at the frames for text over art).
   - Callout text over art, or touching a card.
-  - Callouts running off the frame edge: flip them.
+  - Callouts the engine had to turn around (their leader points the other way from what you wrote): check that the text doesn't now cover the art or a HUD box, and move the callout if it does.
   - The STATE row overrunning (the engine wraps it only when it must).
   - Log-ruler labels near the right edge (the engine flips them).
   - A bottom card hitting the frame counter.
 - **Motion.** `python3 motion_check.py film.mp4` meets the targets. Its per-second profile has no flat stretches, and no transition spikes out of a near-zero second.
 - **Momentum.** In the strips, the old scene visibly leans in before each zoomy cut, and the new scene is still easing when the title starts.
-- **Reading.** Every line stays up for `readTime`, and no beat is replaced before it can be read.
+- **Reading.** `node text_check.mjs film.html` shows no `READ` lines: every line stays up for `readTime` from when it starts typing until it starts to fade, and no line fades while still typing. In a `stat`, the note starts 1.2 s in, so the beat needs at least 1.5 s + `readTime(note)`; in a `callout`, the sub starts 0.7 s in, so it needs 1.0 s + `readTime(sub)`. Keep a moving callout's label fixed and let only its leader track the camera.
 - **Facts.** Every on-screen number matches the plate script and its source. Check every comparison with arithmetic before it goes on screen: 1,200 mm of rain is 1,200 litres on each square metre, which is several bathtubs, not one.
 - **Edges.** Stat notes, callout subs and card labels stay inside the frame. Measure long notes; a stat at x 1330 with a 45-character note ran off the right edge.
-- **File.** `ffprobe` shows the frame count equal to `__story.frames`, the audio level is in range, and the audio is really stereo.
+- **File.** `ffprobe` shows the frame count equal to `__story.frames`, and `python3 audio_check.py film.mp4` passes (level, peak, no clipping, real stereo, audio as long as the video).
