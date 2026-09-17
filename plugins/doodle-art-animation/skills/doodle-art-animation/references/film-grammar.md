@@ -29,7 +29,7 @@ Murch ranks an edit's qualities, and says to give up the lower ones before the h
 | **Push in / pull out** | Zoom towards or away from a subject | `cam.s`, `zoom`, `lensIn`, `lensOut` |
 | **Track / follow** | The camera travels with a subject | `follow()` |
 | **Crane / rise** | The camera moves up or down | `cam.dy` keyframes |
-| **Hold / rest** | A still-ish moment after a big move so the eye can land | a flat stretch in a `curve`; 0.3–0.8 s with ambient motion only; no text starts before `dur + 0.4` |
+| **Hold / rest** | A still-ish moment after a big move so the eye can land | a flat stretch in a `curve`; 0.3–0.8 s with ambient motion only; no text starts before the move lands (`landAt(enter) + 0.4`) |
 
 ### The switch-up rule: don't mirror
 
@@ -45,12 +45,12 @@ Example (`story_seams.js`, `SEAM = 'macro'`): sink into the red eraser → red f
 ## Motion principles (the twelve principles, applied)
 
 - **Anticipation:** a small move against the main one, long enough to read (0.3–0.5 s): a crouch before a jump, `E.inBack`, the ring that locks onto a hero before a lens. (The engine's `LEAD` is a slow-in, not an anticipation.)
-- **Slow in and slow out:** ease every start and stop; pick the easing to match the weight (`curve`, `ease`).
+- **Slow in and slow out:** ease every start and stop, but not equally. Real moves are asymmetric: a quick attack and a long release (arrivals), or a long build and a quick finish (departures). Equal ease-in and ease-out on every move reads as mechanical and slow (`E.arrive`, `E.depart`, `E.shaped`).
 - **Arcs:** things travel on curves, not straight lines; move morphs and flights along arcs.
 - **Follow-through and overlapping action:** parts keep moving after the main body stops (wings settle, legs catch up, the camera settles after a move with `SETTLE`).
 - **Secondary action:** small motion that supports the main one (grass swaying while the ladybug walks).
-- **Timing:** the number of drawings sets weight and mood; slow for large, fast for small. A change of scale or world needs 1.4–2 s; transitions render on ones (24 drawings a second) and must stay inside the speed limits in `motion.md` (at most 5% scale or 40 px per drawing without blur; mask edges eased, not areas). Fewer drawings read as a snap, however well eased.
-- **Staging:** one clear idea at a time, framed so the eye finds it first. Nothing reads while the camera is still landing: text starts at the transition's `dur + 0.4`.
+- **Timing:** the number of drawings sets weight and mood; slow for large, fast for small. A change of scale or world needs 1.4–2 s; transitions render on ones (24 drawings a second) and must stay inside the speed limits in `motion.md` (at most 5% scale or 40 px per drawing without blur; mask edges eased, not areas). Fewer drawings read as a snap, however well eased. The timing lives in *where* the speed peaks, not only in the length.
+- **Staging:** one clear idea at a time, framed so the eye finds it first. Nothing reads while the camera is still landing: text starts once the move has landed (`landAt(enter) + 0.4`).
 - **Squash and stretch, exaggeration, appeal:** push shapes a little further than realistic so they read at a glance; keep designs simple and pleasant.
 - **Straight ahead and pose to pose:** plan key poses (keyframes), then let easing fill the in-betweens.
 
@@ -64,9 +64,9 @@ Score each seam 0 (fails), 1 (weak) or 2 (good). Anything scoring 0, or a total 
 4. **Motivation:** every camera move has a reason visible on screen.
 5. **No mirroring:** the exit is not the entry played backwards, and the seam's verb differs from the previous seam's on the same subject (a lens-in followed by a pull-out is a yo-yo).
 6. **Cut on action or carried motion:** the seam happens during movement, or movement continues through it.
-7. **Easing, arcs and speed:** no linear starts or stops; paths curve; the move stays inside the speed limits; motion_check shows no `SNAP`, pop or jerk at the seam; motion keeps its direction through the hand-off (no pull-back right after a push-in).
-8. **Hold and staging:** the eye gets a beat to land after the biggest move, and no header, stat, callout or card starts before `dur + 0.4`.
+7. **Easing, arcs and speed:** no linear starts or stops; paths curve; the move stays inside the speed limits; motion_check shows no `SNAP`, pop or jerk at the seam; motion keeps its direction through the hand-off (no pull-back right after a push-in); the speed peak sits where the meaning is (early for arrivals, late for departures), and the move is not a symmetric bell unless it is a dissolve.
+8. **Hold and staging:** the eye gets a beat to land after the biggest move, and no header, stat, callout or card starts before the move has landed (`landAt(enter) + 0.4`).
 9. **Hand-off:** at the end, the transition's picture matches the plate's own (no pop, no jump in size or place).
-10. **Rhythm:** its length and energy differ from its neighbours where that helps the film.
+10. **Rhythm:** its length, energy and speed shape differ from its neighbours where that helps the film.
 
-Fail conditions regardless of score: (F1) a size, place or colour jump at the hand-off; (F2) HUD or text scaling with the camera; (F3) an object duplicated, missing or popping in; (F4) a seam that reads as a camera trick rather than one continuous thing; (F5) flat colour or an empty frame held long enough to read as a glitch (about 0.15 s); (F6) a snap or pop: motion_check marks the seam `SNAP` (a drawing changing more than 60, or two in a row above 45), or a pop or jerk it lists there is visible in the drawings, and it is not a hard cut; (F7) text or a card starting inside the transition.
+Fail conditions regardless of score: (F1) a size, place or colour jump at the hand-off; (F2) HUD or text scaling with the camera; (F3) an object duplicated, missing or popping in; (F4) a seam that reads as a camera trick rather than one continuous thing; (F5) flat colour or an empty frame held long enough to read as a glitch (about 0.15 s); (F6) a snap or pop: motion_check marks the seam `SNAP` (a drawing changing more than 75, or two in a row above 55), or a pop or jerk it lists there is visible in the drawings, and it is not a hard cut; (F7) text or a card starting inside the transition; (F8) a move that visibly creeps for more than 0.3 s at its end, or a camera moving into a seam that stalls at the cut.

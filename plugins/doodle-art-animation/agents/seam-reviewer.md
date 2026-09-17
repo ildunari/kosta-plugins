@@ -30,10 +30,10 @@ The caller gives you a working folder containing `render.mjs`, the built film HT
 4. **Motivation:** every camera move has a visible reason (a subject moving, pointing or looking; something to reveal).
 5. **No mirroring:** the exit is not the entry played backwards, and the seam's verb differs from the previous seam's on the same subject. A push in answered by a straight pull out is a yo-yo, even a seam later and even with some drift added; prefer a switch-up (track the subject, pan where it points, rise, hand off to a moving object).
 6. **Cut on action / carried motion:** the seam happens during movement, or the movement continues through it.
-7. **Easing, arcs and speed:** no linear starts or stops (cameras included: at least 6 drawings to start or stop); moving things travel on curves; the move stays inside the speed limits in `references/motion.md`; no `SNAP`, pop or jerk in motion_check at this seam; the scale keeps its direction through the hand-off. A change of scale or world needs 1.4–2 s.
-8. **Hold and staging:** after the biggest move the eye gets 0.3–0.8 s to land, and no header, stat, callout or card starts before the transition's `dur + 0.4` (a card frame may open at `dur + 0.2`).
+7. **Easing, arcs and speed:** no linear starts or stops (cameras included: at least 6 drawings to start or stop); moving things travel on curves; the move stays inside the speed limits in `references/motion.md`; no `SNAP`, pop or jerk in motion_check at this seam; the scale keeps its direction through the hand-off; the speed peak is early for arrivals and late for departures, never a symmetric bell on every seam. A change of scale or world needs 1.4–2 s.
+8. **Hold and staging:** after the biggest move the eye gets 0.3–0.8 s to land, and no header, stat, callout or card starts before the transition's `landAt(enter) + 0.4` (a card frame may open at `landAt(enter) + 0.2`).
 9. **Hand-off:** at the end of the transition the picture matches the plate's own drawing exactly (no jump in size, place or colour; nothing pops in or vanishes).
-10. **Rhythm:** the seam's length and energy suit its place in the film and differ from its neighbours where that helps.
+10. **Rhythm:** the seam's length, energy and speed shape suit its place in the film and differ from its neighbours (the film needs at least one snap and one slow breath).
 
 Automatic fails, whatever the score:
 
@@ -42,8 +42,9 @@ Automatic fails, whatever the score:
 - **F3** an object duplicated, missing or popping in mid-transition;
 - **F4** a seam that reads as a camera trick rather than one continuous thing;
 - **F5** a stretch of perfectly flat colour or empty frame long enough to read as a glitch (more than about 0.15 s);
-- **F6** a snap or pop: motion_check marks the seam `SNAP` (any drawing above 60, or two in a row above 45), or you can see a pop or jerk at it in the drawings, and it is not a hard cut;
-- **F7** text, a stat, a callout or a card starting inside the transition or its hold.
+- **F6** a snap or pop: motion_check marks the seam `SNAP` (any drawing above 75, or two in a row above 55), or you can see a pop or jerk at it in the drawings, and it is not a hard cut;
+- **F7** text, a stat, a callout or a card starting inside the transition or its hold;
+- **F8** a move that visibly creeps for more than 0.3 s at its end, or a camera moving into a seam that stalls at the cut.
 
 Redesign any seam with a 0, an automatic fail, or a total under 14.
 
@@ -51,7 +52,7 @@ Redesign any seam with a 0, an automatic fail, or a total under 14.
 
 Start with a one-line verdict for the film. Then one block per seam:
 
-- **Seam N (type, duration):** total /20, with any automatic fail named by its code (F1–F7), and the motion_check lines for it.
+- **Seam N (type, duration):** total /20, with any automatic fail named by its code (F1–F8), and the motion_check lines for it.
 - **What happens:** one sentence describing what the viewer sees.
 - **Problems:** each with the frame numbers or image where you saw it.
 - **Fix:** concrete and small where possible: an easing or `curve` change, a `dur`, a `match` or `carry` value, a different preset, or a custom transition design in two or three sentences (which objects, which camera verb, the pacing).
