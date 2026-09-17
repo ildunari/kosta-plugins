@@ -97,5 +97,48 @@ const STUDIO = {
   },
 };
 
-defineStory({ title: 'Component Gallery', stages: 6, music: { tonic: 220 }, plates: [EARTH, TECH, AI, SPACE, LAB, STUDIO] });
+const NATURE = {
+  dur: DUR, cam: FLOAT(7), enter: { type: 'wipe', dur: 0.8 }, header: header(7, 'Earth kit, wilder', 'river, volcano, cave, dunes, iceberg, flowers'),
+  draw(t) {
+    KIT.earth.river(t, { x: 70, y: 270, w: 600, h: 290, from: [0.75, 0], to: [0.3, 1], width: [16, 120], draw: DR(t, 0), seed: 61 });
+    KIT.earth.volcano(t, { x: 1010, y: 520, w: 540, h: 270, draw: DR(t, 1), seed: 62 });
+    KIT.earth.cave(t, { x: 1330, y: 90, w: 540, h: 430, glow: true, draw: DR(t, 2), seed: 63 });
+    KIT.earth.dunes(t, { x: 70, y: 620, w: 600, h: 340, draw: DR(t, 3), seed: 64 });
+    KIT.earth.iceberg(t, { x: 1000, y: 745, w: 560, h: 220, size: 190, above: 110, draw: DR(t, 4), seed: 65 });
+    KIT.earth.flowers(t, { x: 1340, y: 950, w: 510, h: 200, n: 10, draw: DR(t, 5), seed: 66 });
+    [['earth.river', 70, 598], ['earth.volcano', 740, 598], ['earth.cave  (glow)', 1330, 558],
+      ['earth.dunes', 70, 998], ['earth.iceberg', 720, 998], ['earth.flowers', 1340, 998]].forEach(([s, x, y], k) => FIG(t, k, s, x, y));
+  },
+};
+
+const LIFE = {
+  dur: DUR, cam: FLOAT(8), enter: { type: 'page', dur: 1.1 }, header: header(8, 'Life kit', 'quadruped, fishSchool, insect, flock, figure, crowd'),
+  draw(t) {
+    KIT.life.flock(t, { x: 720, y: 40, w: 560, h: 220, mode: 'v', size: 13, speed: 40, at: 0.3, draw: DR(t, 0), seed: 71 });
+    KIT.life.flock(t, { x: 1320, y: 30, w: 560, h: 250, mode: 'murmur', draw: DR(t, 0), seed: 72 });
+    pen([[40, 560], [1180, 560]], { w: 3.4, seed: 73, taper: 0.02, draw: DR(t, 0) });
+    KIT.life.quadruped(t, { x: 210, y: 560, kind: 'horse', s: 1.05, draw: DR(t, 1), seed: 74 });
+    KIT.life.quadruped(t, { x: 450 + 42 * t, y: 560, kind: 'deer', walk: 40, s: 1.05, draw: DR(t, 1.3), seed: 75 });
+    KIT.life.quadruped(t, { x: 870, y: 560, kind: 'dog', s: 1.05, draw: DR(t, 1.6), seed: 76 });
+    KIT.life.quadruped(t, { x: 1080, y: 560, kind: 'fox', dir: -1, s: 1.05, draw: DR(t, 1.9), seed: 77 });
+    const pond = shape.rect(1240, 330, 640, 300);
+    withAlpha(DR(t, 2), () => { flat(pond, PAL.sea, 0.3); hatch(pond, { color: PAL.seaDeep, alpha: 0.35, gap: 9, len: 14, angle: 0.02, seed: 78 }); });
+    KIT.life.fishSchool(t, { x: 1240, y: 330, w: 640, h: 300, n: 14, draw: DR(t, 2), seed: 79 });
+    pen([[40, 960], [1880, 960]], { w: 3.4, seed: 80, taper: 0.02, draw: DR(t, 3) });
+    KIT.life.crowd(t, { x: 60, y: 960, w: 520, n: 36, rows: 3, size: 70, draw: DR(t, 3), seed: 81 });
+    KIT.life.figure(t, { x: 700, y: 960, pose: 'point', aim: 0.25, draw: DR(t, 3.3), seed: 82 });
+    KIT.life.figure(t, { x: 870 + 36 * t, y: 960, pose: 'walk', walk: 36, draw: DR(t, 3.6), seed: 83 });
+    KIT.life.figure(t, { x: 1250, y: 960, pose: 'hold', item: 'box', dir: -1, draw: DR(t, 3.9), seed: 84 });
+    KIT.life.figure(t, { x: 1400, y: 960, pose: 'wave', draw: DR(t, 4.2), seed: 85 });
+    KIT.life.insect(t, { x: 1560, y: 740, kind: 'butterfly', rot: -0.4, s: 1.6, draw: DR(t, 4.5), seed: 89 });
+    KIT.life.insect(t, { x: 1700, y: 760, kind: 'bee', s: 1.6, draw: DR(t, 4.6), seed: 88 });
+    KIT.life.insect(t, { x: 1815, y: 800, kind: 'ladybug', rot: -1.2, s: 1.5, draw: DR(t, 4.7), seed: 87 });
+    KIT.life.insect(t, { x: 1590 + 18 * t, y: 850, kind: 'beetle', walk: 12, s: 1.5, draw: DR(t, 4.8), seed: 86 });
+    KIT.life.insect(t, { x: 1880 - 16.8 * t, y: 905, kind: 'ant', walk: 14, rot: Math.PI, s: 1.2, draw: DR(t, 4.9), seed: 90 });
+    [['life.flock  v · murmur', 720, 300], ['life.quadruped  horse · deer · dog · fox', 40, 598], ['life.fishSchool', 1240, 668],
+      ['life.crowd', 60, 998], ['life.figure  point · walk · hold · wave', 700, 998], ['life.insect', 1500, 935]].forEach(([s, x, y], k) => FIG(t, k, s, x, y));
+  },
+};
+
+defineStory({ title: 'Component Gallery', stages: 8, music: { tonic: 220 }, plates: [EARTH, TECH, AI, SPACE, LAB, STUDIO, NATURE, LIFE] });
 boot();
