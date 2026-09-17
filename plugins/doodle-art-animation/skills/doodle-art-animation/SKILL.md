@@ -75,12 +75,12 @@ Read `FEEDBACK.md` in this skill's folder before every use and apply its lessons
    - Before the final render, run the plugin's `film-reviewer` and `seam-reviewer` agents on the working folder (or `/doodle-art-animation:doodle-qa`, which runs every check and both agents), and fix everything they fail. Without the agents, apply the rubric in `references/film-grammar.md` yourself.
    - Open every strip and work through the QA checklist below.
    - After the first full render, run `python3 motion_check.py film.mp4` and compare with the targets, and `python3 audio_check.py film.mp4 --starts <transition times>` (targets in `references/sound.md`).
-7. **Render**: `/doodle-art-animation:doodle-render`, or by hand `node render.mjs film.html film.mp4 --workers 6 --bitrate 3800k` (a one-minute film lands near 20–30 MB), then `motion_check.py` and `audio_check.py`.
+7. **Render**: `/doodle-art-animation:doodle-render`, or by hand `node render.mjs film.html film.mp4 --workers 6 --bitrate 3800k --strict-fonts` (a one-minute film lands near 20–30 MB), then `motion_check.py` and `audio_check.py`. Leave out `--bitrate` only for a master you will re-encode: the grain makes constant-quality files huge (a 2.7-minute film was 1.36 GB). For films over two minutes, read "Long films" in `references/render.md`.
 8. **Deliver** the MP4 and the HTML. The HTML is also a player: space plays and pauses, the arrow keys move 2 s, `[` and `]` jump between plates, and there is a scrubber.
 
-If you change or add a kit component, render the gallery (`python3 build.py story_gallery.js gallery.html`, then `node render.mjs gallery.html --sheet 1`). If you change or add a transition, test it in the reel first: `python3 build.py story_reel.js reel.html`, then `node render.mjs reel.html --strips`.
+If you change or add a kit component, render the gallery (`python3 build.py story_gallery.js gallery.html`, then `node render.mjs gallery.html --sheet 1`). If you change or add a transition, test it in the reel first: `python3 build.py story_reel.js reel.html`, then `node render.mjs reel.html --strips`. After changing a component, do the same with `story_components.js`.
 
-**Requirements:** Node 18+, Playwright with Chromium, ffmpeg, Python 3 with numpy, and network access to Google Fonts. If fonts are blocked, install `@fontsource/fraunces`, `@fontsource/inter-tight` and `@fontsource/ibm-plex-mono` and replace the `<link>` in `shell.html` with `@font-face` rules.
+**Requirements:** Node 18+, Playwright with Chromium, ffmpeg, Python 3 with numpy, and network access to Google Fonts. If `render.mjs` prints `WARNING: fonts not loaded`, the film is using fallback faces and its layout will be off. Build it with embedded fonts instead: `npm i @fontsource-variable/fraunces @fontsource/inter-tight @fontsource/ibm-plex-mono` in the film folder (the variable Fraunces package, not the static one), then `python3 build.py story.js film.html --fonts local` (details in `references/render.md`, "Fonts"). Don't edit `shell.html` by hand.
 
 ## The rules that matter most
 
@@ -93,7 +93,7 @@ Each has its details in the references.
 - **Vary the scenery:** different ground, trees, far mountains, birds or open sea from plate to plate, and a recap with its own composition.
 - **Pen for subjects, ink for measurement**, shading made of pen strokes (never gradients), and at least two textures on any fill wider than 200 px.
 - **Use the kits, then go further.** Kit components are on-style and already move; use them where they fit, restyle them with their options, and draw the rest of the scene yourself. A film should never look like the gallery: a few components inside a scene built for its topic.
-- **The HUD and the hero reticle never scale with the camera.** Text that must stay still goes in `overlay(t)`.
+- **The HUD and the hero reticle never scale with the camera.** Stats, callouts, cards and charts that must stay still go in `overlay(t)`, which ignores the camera, momentum and the match-cut shift and only moves with its plate's transition. Anchor overlay art to moving things through `camPoint` or `heroOf(plate, t)`, keeping labels fixed. Put a chart in `draw(t)` only when it belongs to the world and should zoom with it.
 - **Honest numbers:** `≈` for estimates, real units, "illustrative" for schematic curves, sources on the end card.
 
 ## Determinism rules (these are what make frame capture work)
@@ -125,7 +125,7 @@ Look at the actual frames, not your code.
 - **Seams** (`--seams`): the exit and entry objects line up in the overlay, motion keeps its direction across the cut, and nothing pops in or vanishes at the join. Then watch each seam at full speed: if it feels like a camera trick rather than one continuous thing, redesign it.
 - **Collisions** (plus any `text_check` `OVERLAP` and `EDGE` lines; they cover text boxes only, so look at the frames for text over art).
   - Callout text over art, or touching a card.
-  - Callouts running off the frame edge: flip them.
+  - Callouts the engine had to turn around (their leader points the other way from what you wrote): check that the text doesn't now cover the art or a HUD box, and move the callout if it does.
   - The STATE row overrunning (the engine wraps it only when it must).
   - Log-ruler labels near the right edge (the engine flips them).
   - A bottom card hitting the frame counter.

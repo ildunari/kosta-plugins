@@ -21,7 +21,7 @@ Make the shareable MP4 of a film in the current working folder and check it befo
 
 ```
 python3 build.py <story> <film>.html
-node render.mjs <film>.html <film>.mp4 --workers <workers> --bitrate 3800k
+node render.mjs <film>.html <film>.mp4 --workers <workers> --bitrate 3800k --strict-fonts
 ```
 
 Run the render in the background and check on it. It prints the frame total first and then progress every 120 frames; expect roughly 40–70 ms per frame with 6 workers (a one-minute film takes 1–2 minutes). Stop and report if a `PAGE ERROR` appears.
