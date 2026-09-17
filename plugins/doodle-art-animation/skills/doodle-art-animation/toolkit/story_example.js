@@ -1,313 +1,427 @@
-/* =====================  STORY: One Drop  ·  worked example (engine v3.1)  ===================== */
-/* Something moves in every drawing: camera crane, follow-pan with parallax, flowing water, swaying trees and grass,
-   swirling molecules, droplets rising in layers, a falling drop with the world scrolling past, a coast cross-section
-   recap, rippling end card. Transitions: pan → lensIn → zoom → shape → bleed → page. */
-Object.assign(PAL, { soilTop: '#b98457', gravel: '#d8c9a6', aquifer: '#6d9aa6', drop: '#bfe0f0', hill: '#b9b48a',
-  rock: '#b3ab9c', snow: '#f4f0e6', bark: '#6b4a32', leafDeep: '#3f6b3a', vapour: '#cdd3ec' });
-const STATES = ['VAPOUR', 'LIQUID', 'ICE'];
-const HERO = 'H₂O·01';
-const CLOUD = [[0, 110], [-150, 80], [130, 90], [-260, 60], [240, 62], [60, 70, 40], [-80, 100], [-200, 50, 30], [190, 46, 36]];
-const SMALL_CLOUD = [[0, 60], [-80, 44], [76, 48], [20, 40, 26]];
-const WORLD = 3400;                                                            // the valley is wider than the frame
-const RIVER = [[-40, 650], [420, 672], [760, 700], [1100, 690], [1500, 724], [1900, 740], [2300, 736], [2700, 770], [3100, 780], [3460, 790]];
-const BUN = (cx, cy, s, wob = 0) => Array.from({ length: 48 }, (_, i) => { const a = i / 48 * TAU, x = Math.cos(a), y = Math.sin(a);
-  return [cx + s * (1 + wob) * x * (y > 0 ? 1.08 : 1), cy + s * (1 - wob) * (y < 0 ? y : 0.38 * y - 0.12 * Math.max(0, 1 - Math.abs(x) * 1.6))]; });
-const TEAR = (cx, cy, s) => [[cx, cy - 1.6 * s], [cx + 0.55 * s, cy - 0.7 * s], [cx + 0.95 * s, cy + 0.1 * s], [cx + 0.8 * s, cy + 0.75 * s], [cx, cy + 1.05 * s], [cx - 0.8 * s, cy + 0.75 * s], [cx - 0.95 * s, cy + 0.1 * s], [cx - 0.55 * s, cy - 0.7 * s]];
+/* =====================  STORY: The Long Release  ·  worked example  ===================== */
+/* One PLGA nanoparticle (NP·01), from the syringe to the slow release of its drug, in 4 plates plus title and end card.
+   Read this for structure: plates, beats that enter and leave, text in overlay(), motivated cameras, and designed seams.
 
-function sun(x, y, t, draw = 1) {
-  const g = E.outBack(clamp(draw * 1.4)); if (g <= 0) return;
-  const disc = shape.circle(x, y, 58 * g, 48);
-  ink(disc, { closed: true, w: 3.4, fill: PAL.sun, seed: 70 }); crosshatch(disc, { color: '#a4521f', seed: 71, alpha: 0.4 });
-  for (let i = 0; i < 16; i++) { const a = i / 16 * TAU + t * 0.08, L = (i % 2 ? 26 : 44) * (1 + 0.12 * Math.sin(t * 2 + i)), q = stagger(i, draw, { t0: 0.4, step: 0.03, dur: 0.3 });
-    pen([[x + Math.cos(a) * 74, y + Math.sin(a) * 74], [x + Math.cos(a) * (74 + L * q), y + Math.sin(a) * (74 + L * q)]], { w: 3.4, color: PAL.accent, seed: 80 + i, taper: 0.45, draw: q }); }
-}
-function hills(x0, x1) {                                                       // far layer (use with parallax depth ~0.5)
-  const r = shape.ridge(x0 - 40, x1 + 40, 520, 70, 21, 0.0025);
-  flat(shape.band(r, 640), PAL.hill, 0.8); hatch(shape.band(r, 640), { color: '#6b6a3f', alpha: 0.25, gap: 7, len: 10, angle: 0.5, seed: 22 });
-  ink(r, { w: 2, alpha: 0.7, seed: 23 });
-}
-const groundY = x => 560 + 40 * (0.7 * vnoise(x * 0.004, 3) + 0.3 * vnoise(x * 0.012, 12));   // the top ridge used by landscape()
-function mountain(x, base, w, h, seed) {                                       // far peak with a snowcap (use with parallax ~0.3)
-  const r = mulberry(seed), pts = [];
-  for (let k = 0; k <= 12; k++) { const u = k / 6 - 1, j = k === 0 || k === 12 || k === 6 ? 0 : (r() - 0.5) * h * 0.12;
-    pts.push([x + u * w / 2, base - h * (1 - Math.abs(u)) ** 1.15 + j]); }
-  const poly = [...pts, [x + w / 2, base + 40], [x - w / 2, base + 40]];
-  flat(poly, PAL.rock); shade(poly, { color: '#4d4640', seed: seed + 1, alpha: 0.4, light: [-0.8, -0.5] });
-  const snow = pts.filter(([, y]) => y < base - h * 0.62), zig = [];
-  if (snow.length > 1) { const [sx0] = snow[0], [sx1] = snow[snow.length - 1];
-    for (let k = 0; k <= 6; k++) zig.push([lerp(sx1, sx0, k / 6), base - h * (0.66 + (k % 2 ? -0.06 : 0.03))]);
-    const cap = [...snow, ...zig]; ink(cap, { closed: true, w: 1.4, fill: PAL.snow, amp: 0.6, seed: seed + 2 }); }
-  pen(pts, { w: 2.6, seed: seed + 3, taper: 0.05 });
-}
-function tree(x, y, s, seed, t) {                                              // trunk + shaded canopy that sways
-  const sw = 3 * s * Math.sin(t * 1.3 + x * 0.01), cx = x + sw, cy = y - 88 * s;
-  pen([[x, y + 4], [x + sw * 0.3, y - 40 * s], [cx, cy + 10 * s]], { w: 5 * s, color: PAL.bark, seed, taper: 0.3 });
-  const c = shape.blob(cx, cy, 44 * s, seed, 0.28, 40);
-  ink(c, { closed: true, w: 2.4, fill: PAL.leaf, amp: 1, seed: seed + 1 });
-  shade(c, { color: PAL.leafDeep, seed: seed + 2, alpha: 0.55 });
-}
-function sea(x0, y0, t, poly) {                                                // open water: flat, two hatch tones, moving wave strokes
-  flat(poly, PAL.sea); hatch(poly, { color: '#bfe3ea', alpha: 0.45, gap: 9, len: 14, angle: 0.02, seed: 71 });
-  hatch(poly, { color: PAL.seaDeep, alpha: 0.4, gap: 7, len: 12, angle: 0.02, seed: 72, keep: (px, py) => clamp((py - y0) / 300) });
-  pen([[x0, y0], [W + 320, y0]], { w: 3.4, seed: 73, taper: 0.02 });
-  for (let i = 0; i < 24; i++) { const x = x0 + 30 + ((i * 97 + t * (30 + (i % 3) * 12)) % (W - x0 + 280)), y = y0 + 22 + (i % 5) * 26;
-    pen([[x, y], [x + 14, y - 6], [x + 28, y], [x + 42, y - 6]], { w: 2, color: '#e8f3f5', seed: 74 + i, taper: 0.3, alpha: 0.9 }); }
-}
-function birds(t, x0, y0, n = 4, seed = 181) {                                // a small flock crossing the sky, wings flapping on twos
-  const r = mulberry(seed);
-  for (let i = 0; i < n; i++) { const x = ((x0 + i * 46 + r() * 30 + t * 42) % (W + 300)) - 150, y = y0 + r() * 50 + 6 * Math.sin(t * 1.1 + i), f = Math.sin(t * 9 + i * 1.7), s = 9 + r() * 5;
-    pen([[x - s, y - f * s * 0.6], [x - s * 0.4, y - 2], [x, y + 1], [x + s * 0.4, y - 2], [x + s, y - f * s * 0.6]], { w: 1.8, seed: seed + i, taper: 0.25, amp: 0.2 }); }
-}
-function landscape(t, o = {}) {                                                // ground layers from x0 to x1, bleeding past both
-  const { x0 = 0, x1 = W, draw = 1, detail = 1, dy = 0, river: showRiver = true } = o, a = x0 - 30, b = x1 + 30;
-  ctx.save(); ctx.translate(0, dy);
-  const sky = shape.ridge(a, b, 560, 40, 3), top = shape.ridge(a, b, 640, 30, 4), mid = shape.ridge(a, b, 800, 40, 6), low = shape.ridge(a, b, 930, 20, 7);
-  const ground = shape.band(sky, H + 40); flat(ground, '#e4d9bd'); if (detail) stipple(ground, 2600 * (x1 - x0) / W, { seed: 3, alpha: 0.28 });
-  const soil = shape.between(sky, top); flat(soil, PAL.soilTop); hatch(soil, { color: '#6b4426', alpha: 0.35, gap: 5, len: 10, angle: 0.1, seed: 5 });
-  const grav = shape.between(top, mid); flat(grav, PAL.gravel); if (detail) pebbles(grav, 260 * (x1 - x0) / W, { seed: 8, alpha: 0.45, rmin: 6, rmax: 16 });
-  const aq = shape.between(mid, low); flat(aq, PAL.aquifer); hatch(aq, { color: '#2f5c68', alpha: 0.5, gap: 6, len: 16, angle: 0.02, seed: 9 });
-  const rock = shape.band(low, H + 40); flat(rock, '#5a5250'); if (detail) scribble(rock, { color: '#2b2523', alpha: 0.35, gap: 12, seed: 11, angle: 0.5 });
-  pen(sky, { w: 4, seed: 12, draw, taper: 0.02 }); pen(top, { w: 2.4, seed: 13, draw, taper: 0.02 });
-  flow(shape.ridge(a, b, 870, 6, 7), t, { speed: 22, gap: 140, len: 40, color: '#1f3f48', w: 2, alpha: 0.6 });   // groundwater creeping
-  grass(sky, { every: 34, h: 16, seed: 14, draw, sway: 4 });
-  if (showRiver) { const river = RIVER.filter(([x]) => x > a - 500 && x < b + 500);
-    fluxArrow(river, { width: 26, draw, fill: '#9ec4d3', seed: 15 });
-    flow(river, t, { speed: 140, gap: 90, len: 34, color: '#ffffff', w: 2.4, alpha: 0.9 * draw }); }
+   Seams (exit → entry, link, transition):
+     0 → I    the drop lands in a pool of blood → a red blood cell beside NP·01 in a vein
+              link: going into a surface (the blood) and out of a red object inside it → `through`, eased, 1.6 s
+     I → II   NP·01, tracked along the vein → the same particle, huge, in plasma
+              link: scale (paper world → microscope world) → `lensIn`
+     II → III the coated particle → a dot in a capillary
+              link: scale back up → `lensOut`
+     III → IV NP·01 lodged in the tumour, camera pulled back → the particle up close, swelling with water
+              link: scale, but slower than seam I → II so the rhythm differs → `lensIn`, 0.9 s, inOutSine
+     IV → V   the eroded particle → the small particle of the end card
+              link: the same object becomes a symbol → `shape` morph, 1.3 s
+
+   Values are rounded and illustrative; the end card says so. Checked: 1 mg of 150 nm PLGA spheres (density ≈ 1.3 g/cm³)
+   is ≈ 4.3 × 10¹¹ particles; a red cell (≈ 7.5 µm) is 50× the particle; plasma holds ≈ 60–80 g of protein per litre. */
+Object.assign(PAL, {
+  blood: '#b8453e', bloodDeep: '#8a2e2b', plasma: '#efd8b0', plasmaLine: '#d7b584',
+  flesh: '#e4b8a2', fleshDeep: '#c98770', tumor: '#bb8aa0', tumorDeep: '#8d5c77',
+  cellFill: '#e6dcb8', nucleus: '#6a5478', plga: '#27336b', plgaLine: '#d9dbf2', drug: '#e6c65c',
+  sus: '#d6e6e8',
+});
+const STATES = ['FLOWING', 'LODGED', 'RELEASING'];
+const heart = (g, notes) => (ac, out, t0, dur) => {
+  for (let t = 0.3; t < dur; t += 0.9) { SFX.thump(ac, out, t0 + t, { g }); SFX.thump(ac, out, t0 + t + 0.24, { g: g * 0.55 }); }
+  SFX.pad(ac, out, t0, { dur, notes, g: 0.016 });
+};
+const darkBed = notes => (ac, out, t0, dur) => {
+  SFX.pad(ac, out, t0, { dur, notes, g: 0.02, dark: true });
+  SFX.noise(ac, out, t0, { dur, g: 0.03, f0: 180, type: 'lowpass', q: 0.5, a: 1 });
+};
+
+/* ---------- shared drawings ---------- */
+function rbc(x, y, r, tumble, seed, alpha = 1) {
+  const ry = r * Math.max(0.32, Math.abs(Math.cos(tumble)));
+  ctx.save(); ctx.globalAlpha *= alpha;
+  const body = shape.ellipse(x, y, r, ry, 0.2, 36);
+  flat(body, PAL.blood);
+  if (ry > r * 0.45) flat(shape.ellipse(x + 2, y + 1, r * 0.5, ry * 0.5, 0.2, 24), PAL.bloodDeep, 0.65);
+  shade(body, { color: '#5a1a1c', seed, angle: -0.6, gap: 4.5, len: 7, alpha: 0.55 });
+  ink(body, { closed: true, w: 2.2, amp: 0.7, seed });
+  ink(shape.arc(x - r * 0.1, y - ry * 0.1, r * 0.72, 3.5, 4.4, 8).map(([a, b]) => [a, lerp(y, b, ry / r)]), { w: 2, color: '#f0b3a2', amp: 0.3, alpha: 0.8 });
   ctx.restore();
 }
-function rain(x0, x1, yTop, yBot, t, n = 16, alpha = 1) {                     // streaks that keep falling
-  const r = mulberry(61);
-  for (let i = 0; i < n; i++) { const x = lerp(x0, x1, r()), ph = r(), u = (t * 1.3 + ph) % 1, y = lerp(yTop, yBot, u);
-    pen([[x, y], [x - 6, y + 46]], { w: 2.2, color: PAL.peri, seed: 60 + i, taper: 0.35, alpha: alpha * Math.sin(Math.PI * u) }); }
+function particle(x, y, R, t, o = {}) {
+  const { irr = 0.02, seed = 40, drugs = 30, pits = 0, detail = 1 } = o;
+  const body = shape.blob(x, y, R, seed, irr, 72);
+  flat(body, PAL.plga);
+  if (detail) { hatch(body, { color: '#9aa2e0', alpha: 0.22, angle: 0.6, gap: 8, len: 10, seed: 41, w: 1.2 });
+    speckle(body, Math.round(R * 1.1), { color: '#fff', alpha: 0.45, rmin: 0.7, rmax: 1.8, seed: 42 }); }
+  const r = mulberry(43);
+  for (let i = 0; i < drugs; i++) { const a = r() * TAU + t * 0.05, d = Math.sqrt(r()) * R * 0.8; hex(x + Math.cos(a) * d, y + Math.sin(a) * d, R * 0.035, PAL.drug, 0.8); }
+  for (let i = 0; i < pits; i++) { const a = hash3(i, 7) * TAU, s = R * (0.05 + hash3(i, 8) * 0.06);
+    ink(shape.blob(x + Math.cos(a) * R * 0.97, y + Math.sin(a) * R * 0.97, s, 60 + i, 0.3, 20), { closed: true, w: 1.5, color: PAL.plgaLine, fill: PAL.night, amp: 0.3 }); }
+  ink(body, { closed: true, w: Math.max(2, R * 0.017), color: PAL.plgaLine, amp: 0.8, seed: 44 });
+  ink(shape.arc(x, y, R * 0.74, 3.55, 4.25, 16), { w: Math.max(2, R * 0.025), color: '#ffffff', amp: 0.4, alpha: 0.9 });
 }
-function molecule(x, y, r, seed, rot = 0) {
-  const body = shape.circle(x, y, r, 24);
-  ink(body, { closed: true, w: 1.6, color: PAL.nightInk, fill: PAL.navyFill, amp: 0.4, seed }); speckle(body, Math.round(r * 0.8), { seed });
-  ctx.fillStyle = PAL.pink; ctx.beginPath();
-  for (const s of [-1, 1]) { const a = Math.PI / 2 + s * 0.91 + rot; ctx.moveTo(x + Math.cos(a) * r * 0.95 + r * 0.38, y + Math.sin(a) * r * 0.95); ctx.arc(x + Math.cos(a) * r * 0.95, y + Math.sin(a) * r * 0.95, r * 0.38, 0, TAU); }
-  ctx.fill();
+function hex(x, y, r, color, alpha = 1) {
+  ctx.save(); ctx.globalAlpha *= alpha; ctx.beginPath();
+  for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; ctx[i ? 'lineTo' : 'moveTo'](x + Math.cos(a) * r, y + Math.sin(a) * r); }
+  ctx.closePath(); ctx.fillStyle = color; ctx.fill(); ctx.strokeStyle = 'rgba(40,30,10,0.6)'; ctx.lineWidth = 1; ctx.stroke(); ctx.restore();
+}
+function protein(x, y, r, kind, seed, alpha = 1) {
+  const col = [PAL.pink, PAL.cyan, PAL.drug][kind];
+  ctx.save(); ctx.globalAlpha *= alpha;
+  const p = kind === 2 ? shape.ellipse(x, y, r * 1.5, r * 0.6, seed, 24) : shape.blob(x, y, r, seed, 0.35, 24);
+  ink(p, { closed: true, w: 1.6, color: '#f3eef8', fill: col, amp: 0.5, seed });
+  ink(shape.arc(x, y, r * 0.45, seed, seed + 2.2, 8), { w: 1.4, color: 'rgba(20,20,50,0.7)', amp: 0.2 });
+  ctx.restore();
+}
+function fluid(t, y0, front, colA, colB, seed = 1) {
+  const sx = Math.min(front, W + 200);
+  const surf = [];
+  for (let x = -20; x <= sx; x += 14) {
+    const crest = front < W + 150 ? 105 * Math.max(0, 1 - (front - x) / 420) ** 2.2 : 0;
+    surf.push([x, y0 + 4 * Math.sin(x * 0.012 + t * 2) - crest]);
+  }
+  if (front < W + 150) surf.push([front + 34, y0 - 96], [front + 44, y0 - 70], [front + 18, y0 - 58], [front + 30, y0 + 10], [front + 70, H + 20]);
+  const poly = [...surf, [Math.min(front + 70, W + 200), H + 20], [-20, H + 20]];
+  ink(poly, { closed: true, w: 3, fill: colA, amp: 1, seed });
+  hatch(poly, { color: colB, alpha: 0.7, angle: 0.02, gap: 6, len: 14, w: 1.5, seed: seed + 3, keep: (x, y) => 0.2 + 0.7 * clamp((y - y0) / 260) });
+  hatch(poly, { color: '#5e1c1c', alpha: 0.5, angle: 0.5, gap: 5, len: 8, w: 1.1, seed: seed + 4, keep: (x, y) => 0.8 * clamp((y - y0 - 120) / 200) });
+  for (let k = 0; k < 16; k++) { const wy = y0 + 40 + (k % 4) * 60 + k * 3, wx = ((k * 263 + t * 30) % (W + 300)) - 150;
+    if (wx < front) ink([[wx, wy], [wx + 40, wy - 6], [wx + 90, wy + 2], [wx + 140, wy - 3]], { w: 2.2, color: '#f2c1b4', amp: 0.6, seed: 30 + k, alpha: 0.8 }); }
+  hatch(poly, { color: '#f6d9c8', alpha: 0.5, angle: -0.02, gap: 13, len: 10, w: 1.4, seed: seed + 5, keep: (x, y) => 0.35 * (1 - clamp((y - y0) / 260)) });
+  if (front < W + 150) { const r = mulberry(seed + 9); for (let i = 0; i < 14; i++) { const a = r() * 1.6 - 1.2, d = 20 + r() * 50;
+    ctx.beginPath(); ctx.arc(front + 40 + Math.cos(a) * d, y0 - 100 + Math.sin(a) * d * 0.6, 1.5 + r() * 3, 0, TAU); ctx.fillStyle = PAL.ink; ctx.fill(); } }
+  return poly;
 }
 
-/* ---------- title: the camera cranes down while a drop forms, falls and splashes ---------- */
-const DROP_X = 560, dropY = t => kf(t, [[3.0, 450], [4.2, 684]], E.in2);
-const T0 = {
-  dur: 6, dark: false,
-  cam: t => ({ x: W / 2, y: H / 2, s: kf(t, [[0, 1.14], [6, 1.0]], E.inOutSine), dy: kf(t, [[0, -70], [6, 0]], E.inOutSine) }),
-  hero: t => ({ x: DROP_X, y: t < 4.2 ? dropY(t) : 684, r: 26, alpha: inv(2.6, 3.0, t) }),
-  cues: [[0.3, 'noise', { dur: 1.4, g: 0.05, f0: 300, f1: 1500, q: 0.8 }], [2.6, 'plink', { f: 1760 }], [4.2, 'plink', { f: 880 }], [4.25, 'chime', { f: 523 }], [0.6, 'scratch', { chars: 25, cps: 34 }], [1.0, 'scratch', { chars: 8, cps: 13 }]],
+/* ---------- camera helpers ---------- */
+const mixCam = (a, b, u) => ({ x: lerp(a.x, b.x, u), y: lerp(a.y, b.y, u), s: lerp(a.s, b.s, u), dx: lerp(a.dx || 0, b.dx || 0, u), dy: lerp(a.dy || 0, b.dy || 0, u), rot: lerp(a.rot || 0, b.rot || 0, u) });
+const FULL = { x: W / 2, y: H / 2, s: 1, dx: 0, dy: 0 };
+
+/* ---------- PLATE 0 · title card: the syringe, a drop, the blood ---------- */
+const TIP = [780, 262], LAND = [780, 804];
+const P0 = {
+  dur: 6.5, dark: false,
+  // a small settle while the title writes, then a push towards the landing ripple that motivates the dive
+  cam: t => ({ x: LAND[0], y: LAND[1], s: curve(t, [[0, 1.05], [2.6, 1.0, 'out3'], [4.6, 1.035, 'inOutSine'], [6.5, 1.14, 'in2']]), dx: 16 * Math.sin(t * 0.7), dy: 6 * Math.sin(t * 0.9) }),   // never quite still
+  hero: t => ({ x: LAND[0], y: 792, label: 'NP·01', r: 36, alpha: E.out3(clamp((t - 2.55) * 3)) }),
+  cues: [[0.25, 'noise', { dur: 1.6, g: 0.07, f0: 400, f1: 1800, q: 0.8 }], [2.55, 'plink'], [2.6, 'chime', { f: 523 }], [4.9, 'tick']],
+  bed: (ac, out, t0, dur) => SFX.pad(ac, out, t0, { dur, notes: [261.6, 329.6, 392], g: 0.016 }),
   draw(t) {
-    landscape(t, { draw: E.out3(inv(0, 1.4, t)) });
-    lobedCloud(560 + 12 * Math.sin(t * 0.5), 400, CLOUD, { draw: inv(0.3, 2.2, t), seed: 21 });
-    lobedCloud(1350 + t * 14, 250, SMALL_CLOUD, { draw: inv(0.8, 2.0, t), seed: 25 });
-    rain(330, 800, 420, 640, t, 14, inv(2.0, 2.6, t));
-    const f = E.outBack(inv(2.6, 3.0, t));                                   // the drop forms, falls, lands
-    if (f > 0 && t < 4.2) { const y = dropY(t); ink(BUN(DROP_X, y, 12 * f, 0.15 * Math.sin(t * 20)), { closed: true, w: 2.4, fill: PAL.drop, amp: 0.3 }); }
-    for (let k = 0; k < 3; k++) { const q = inv(4.2 + k * 0.18, 5.4 + k * 0.18, t); if (q > 0 && q < 1) ink(shape.ellipse(DROP_X, 684, 12 + q * 110, 4 + q * 22, 0, 40), { closed: true, w: 2.2, color: '#ffffff', alpha: 1 - q, amp: 0.4 }); }
-    pen(smooth([[1180, 120], [1330, 150], [1480, 128], [1600, 170]], 3), { w: 5, seed: 31, draw: E.out3(inv(0.2, 1.2, t)), taper: 0.1 });
-    withAlpha(inv(1.5, 2.5, t), () => birds(t, 1100, 520, 4, 191));
+    fluid(t, 800, lerp(-300, W + 400, E.inOut3(inv(0.25, 1.6, t))), PAL.blood, PAL.bloodDeep, 3);
+    for (let i = 0; i < 9; i++) { const x = ((i * 233 + t * (40 + i * 6)) % (W + 200)) - 100, y = 870 + (i % 3) * 70;   // cells drift in the pool
+      if (t > 1.4) rbc(x, y + 6 * Math.sin(t + i), 16 + (i % 3) * 3, i + t * 0.6, 1200 + i, 0.55 * inv(1.4, 2.2, t)); }
+    // syringe (local frame: needle tip at origin, pointing +x)
+    ctx.save(); ctx.translate(TIP[0], TIP[1]); ctx.rotate(0.42);
+    const d = E.out3(inv(0.05, 0.9, t));
+    if (d >= 1) { flat(shape.rect(-560, -30, 358, 60), PAL.sus, 0.9); hatch(shape.rect(-560, -30, 358, 60), { color: PAL.peri, alpha: 0.4, gap: 6, len: 8, angle: 0.7, seed: 8 }); }
+    ink(shape.rect(-640, -36, 440, 72), { closed: true, w: 3, amp: 1, seed: 11, draw: d });
+    ink([[-200, -14], [-176, -8], [-176, 8], [-200, 14]], { w: 3, seed: 12, draw: d });
+    ink([[-176, 0], [0, 0]], { w: 2.4, seed: 13, draw: d });
+    const push = E.inOut3(inv(0.9, 1.9, t)) * 30;                              // the plunger moves as the drop forms
+    ink(shape.rect(-900 + push, -10, 340, 20), { closed: true, w: 3, fill: PAL.panel, seed: 14, draw: d });
+    ink(shape.rect(-580 + push, -30, 20, 60), { closed: true, w: 3, fill: PAL.ink, seed: 15, draw: d });
+    for (let i = 0; i < 9; i++) ink([[-560 + i * 40, -36], [-560 + i * 40, i % 2 ? -24 : -16]], { w: 1.6, amp: 0.2, draw: inv(0.5 + i * 0.04, 0.8 + i * 0.04, t) });
+    ctx.restore();
+    const form = E.out3(inv(1.0, 1.9, t)), fall = inv(2.05, 2.55, t);          // drop forms, falls on an easing, lands
+    if (form > 0 && fall < 1) {
+      const r = 12 * form, y = TIP[1] + r + 2 + fall * fall * (800 - TIP[1] - 14);
+      ink([[TIP[0] - r * 0.5, y - r * 0.7], [TIP[0], y - r * (1.9 + fall * 1.2)], [TIP[0] + r * 0.5, y - r * 0.7]], { w: 2.2, amp: 0.2, fill: PAL.sus, closed: true });
+      ink(shape.circle(TIP[0], y, r, 24), { closed: true, w: 2.4, fill: PAL.sus, amp: 0.3 });
+    }
+    if (t > 2.55) { const u = t - 2.55;                                         // ripples keep spreading (the end of the plate still moves)
+      for (let k = 0; k < 5; k++) { const q = clamp((u * 0.9 - k * 0.3) % 1.6); if (u * 0.9 - k * 0.3 > 0 && q < 1) ink(shape.ellipse(LAND[0], LAND[1], 20 + q * 140, 5 + q * 26, 0, 40), { closed: true, w: 2, color: '#f3d2c4', amp: 0.4, alpha: 1 - q }); } }
+    const rl = E.out3(inv(1.4, 2.3, t));
+    if (rl > 0) { const x = TIP[0] - 70; ink([[x, 330], [x, lerp(330, 780, rl)]], { w: 1.4, color: PAL.peri, amp: 0 });
+      for (let y = 330; y <= lerp(330, 780, rl); y += 22) ink([[x - (y % 110 ? 7 : 13), y], [x, y]], { w: 1.2, color: PAL.peri, amp: 0 }); }
   },
   overlay(t) {
-    sun(1720, 170, t, inv(0.5, 1.5, t));
-    text(typed('A FIELD STUDY IN 5 PLATES', t - 0.6, 34), 1000, 300, { kind: 'mono', size: 21, ls: 9, color: PAL.inkSoft });
-    dropText('One Drop', 992, 420, t - 1.0, { kind: 'display', size: 112, weight: 500, cps: 13 });
-    text(typed('the journey of one raindrop', t - 2.4, 26), 996, 486, { kind: 'display', size: 44, italic: true, color: PAL.inkSoft });
+    const fl = E.out3(inv(0, 0.9, t)), c = { w: 1.2, color: PAL.peri, amp: 0, alpha: 0.55 };
+    ink([[34, 34], [lerp(34, W - 34, fl), 34]], c); ink([[W - 34, 34], [W - 34, lerp(34, H - 34, fl)]], c); ink([[34, 34], [34, lerp(34, H - 34, fl)]], c);
+    text(typed('Ø 150 nm', t - 2.0, 20), TIP[0] - 96, 500, { kind: 'mono', size: 18, align: 'right', color: PAL.peri });
+    withAlpha(1 - inv(5.95, 6.45, t), () => {                                  // the title clears just before the dive
+      text(typed('A FIELD STUDY IN 4 PLATES', t - 0.5, 34), 922, 392, { kind: 'mono', size: 21, ls: 9, color: PAL.inkSoft });
+      dropText('The Long Release', 914, 508, t - 0.95, { kind: 'display', size: 112, weight: 500, cps: 13 });
+      const ul = E.out3(inv(2.0, 2.8, t));
+      if (ul > 0) { ink([[918, 548], [lerp(918, 1800, ul), 548]], { w: 1.6, color: PAL.peri, amp: 0 });
+        for (let x = 918; x <= lerp(918, 1800, ul); x += 40) ink([[x, 548], [x, x % 200 === 118 ? 557 : 553]], { w: 1.2, color: PAL.peri, amp: 0 }); }
+      text(typed('the journey of one nanoparticle', t - 2.5, 26), 918, 618, { kind: 'display', size: 46, italic: true, color: PAL.inkSoft });
+    });
   },
 };
-/* ---------- plate I · the valley (whip pan): the camera follows the hero downstream, hills in parallax ---------- */
-const riverAt = t => along(RIVER, 0.12 + 0.62 * E.inOutSine(clamp(t / 7.5)));
-const MOUNTAINS = [[180, 520, 150], [640, 620, 175], [1120, 480, 140], [1600, 640, 170], [2080, 560, 155]];   // [x, width, height], layer coords
-const TREES = [[330, 1.0], [700, 1.25], [1040, 0.9], [1380, 1.15], [1880, 1.3], [2260, 0.95], [2640, 1.2], [3060, 1.05]];
+
+/* ---------- PLATE I · into the blood: the camera travels with NP·01 down the vein ---------- */
+const LUMEN = [470, 850], SPAN1 = W + 900;
+const npI = t => [lerp(300, 1150, E.inOutSine(clamp(t / 11))), 690 + 28 * Math.sin(t * 1.3)];
+const rbcI = t => [lerp(640, 1000, t / 10), 560];
+const camI = t => ({ x: W / 2, y: H / 2, s: 1.04, dx: -0.5 * (npI(t)[0] - 300), dy: 6 * Math.sin(t * 0.9) });   // lags the particle: it drifts ahead of centre
+const cellsI = (() => { const r = mulberry(101); return Array.from({ length: 44 }, (_, i) => ({ x0: r() * SPAN1, y: lerp(505, 815, r()), r: 30 + r() * 8, a0: r() * TAU, spin: 0.4 + r() * 0.9, seed: 200 + i })); })();
 const P1 = {
-  dur: 7.5, dark: false, enter: { type: 'pan', dur: 1.0, dir: 'left' },
-  header: { num: 1, title: 'The Valley', sub: 'where the river collects the rain' }, stage: { n: 1, name: 'RUNOFF', prevN: 0 },
-  log: t => ({ title: `JOURNEY LOG · ${HERO}`, rows: [['ELAPSED', `T+ ${Math.floor(lerp(0, 40, t / 7.5))} min`], ['ALTITUDE', `${fmt(Math.round(lerp(640, 120, t / 7.5)))} m`]], states: STATES, state: 1 }),
-  cam: t => ({ x: W / 2, y: H / 2, s: 1, dx: -clamp(riverAt(t - 0.4)[0] - 820, 0, WORLD - W) }),
-  hero: t => { const [x, y] = riverAt(t); return { x, y, label: HERO, r: 30 }; },
-  cues: [[1.3, 'scratch', { chars: 30 }], [2.5, 'chime', { f: 660 }], [4.4, 'pop'], [4.6, 'scratch', { chars: 14 }]],
+  dur: 10, dark: false,
+  enter: { type: 'through', dur: 1.6, ease: 'inOutSine', from: { at: LAND, r: 30 }, to: (pl, t) => ({ at: rbcI(t), r: 42 }), fromFill: PAL.blood, toFill: PAL.blood },
+  header: { num: 1, title: 'Into the Blood', sub: 'carried along at the pace of the heart' },
+  stage: { n: 1, name: 'CIRCULATION', prevN: 0 },
+  log: t => ({ title: 'JOURNEY LOG · NP·01', rows: [['ELAPSED', `T+ ${Math.floor(lerp(0, 9, t / 10))} s`], ['SITE', t < 5 ? 'VEIN' : 'RIGHT HEART'], ['DIAMETER', '150 nm']], states: STATES, state: 0 }),
+  cam: camI,
+  hero: t => { const [x, y] = npI(t); return { x, y, label: 'NP·01', r: 36 }; },
+  bed: heart(0.24, [220, 277.2, 329.6]),
+  cues: [[1.4, 'chime', { f: 660 }], [4.2, 'pop'], [6.0, 'pop'], [6.9, 'plink'], [7.25, 'plink'], [7.6, 'plink'], [7.95, 'plink']],
   draw(t) {
-    const c = P1.cam(t);
-    parallax(c, 0.15, () => { lobedCloud(1480, 430, SMALL_CLOUD, { seed: 25 }); lobedCloud(2500, 400, SMALL_CLOUD, { seed: 26 }); sun(1340, 200, t); });
-    parallax(c, 0.3, () => MOUNTAINS.forEach(([x, w, h], i) => mountain(x, 560, w, h, 90 + i * 7)));
-    parallax(c, 0.5, () => hills(0, WORLD));
-    landscape(t, { x0: 0, x1: WORLD });
-    TREES.forEach(([x, s], i) => tree(x, groundY(x), s, 120 + i * 5, t));
+    const v = y => 110 + 260 * (1 - ((y - 660) / 200) ** 2), x0 = -200, x1 = SPAN1;
+    const tissue = shape.band(shape.ridge(x0, x1, 392, 8, 5), H + 20);
+    flat(tissue, PAL.flesh, 0.55);
+    hatch(tissue, { color: PAL.fleshDeep, alpha: 0.35, gap: 12, len: 9, angle: 0.9, seed: 6, keep: 0.45 });
+    const lumen = shape.rect(x0, LUMEN[0], x1 - x0, LUMEN[1] - LUMEN[0]);
+    flat(lumen, PAL.plasma);
+    hatch(lumen, { color: '#caa577', alpha: 0.35, angle: 0.03, gap: 10, len: 14, seed: 57, keep: (x, y) => 0.1 + 0.6 * (Math.abs(y - 660) / 190) ** 2 });
+    const r = mulberry(55); ctx.save(); ctx.strokeStyle = PAL.plasmaLine; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.beginPath();
+    for (let i = 0; i < 100; i++) { const y = lerp(485, 835, r()), L = 30 + r() * 70, x = ((r() * SPAN1 + v(y) * 1.2 * t) % SPAN1) - 150; ctx.moveTo(x, y); ctx.lineTo(x + L, y); }
+    ctx.stroke(); ctx.restore();
+    for (const c of cellsI) { const x = ((c.x0 + v(c.y) * t) % SPAN1) - 150; rbc(x, c.y, c.r, c.a0 + t * c.spin, c.seed); }
+    const [fx, fy] = rbcI(t);
+    rbc(fx, fy, 42, 0.25 + 0.15 * Math.sin(t), 999);
+    for (let k = 0; k < 3; k++) { const x = ((300 + k * 900 + 90 * t) % SPAN1) - 150, y = 760 - (k % 2) * 180;
+      ink(shape.blob(x, y, 50, 300 + k, 0.12), { closed: true, w: 2.4, fill: '#d6c8e2', seed: 300 + k });
+      ink(shape.blob(x - 8, y + 4, 24, 310 + k, 0.5), { closed: true, w: 1.8, fill: '#7a5a96', seed: 310 + k }); }
+    const [nx, ny] = npI(t);
+    ctx.beginPath(); ctx.arc(nx, ny, 6, 0, TAU); ctx.fillStyle = PAL.plga; ctx.fill();
+    for (const [y0, y1, s] of [[420, 470, 1], [850, 900, 2]]) {
+      const top = shape.ridge(x0, x1, y0, 5, 20 + s), bot = shape.ridge(x0, x1, y1, 5, 30 + s);
+      const wall = [...top, ...bot.slice().reverse()];
+      flat(wall, PAL.fleshDeep); hatch(wall, { color: PAL.bloodDeep, alpha: 0.45, gap: 6, len: 14, angle: 0.15, seed: 40 + s });
+      ink(top, { w: 3, seed: 50 + s }); ink(bot, { w: 3, seed: 60 + s });
+    }
   },
   overlay(t) {
-    withAlpha(beat(t, 1.1, 4.1), () => stat(t - 1.1, { x: 700, y: 330, kicker: 'RAIN ON THIS VALLEY, EACH YEAR', value: u => '≈ ' + countUp(1200, u, 1.3) + ' mm', note: '1,200 litres on every square metre' }));
-    const h = heroOf(P1, t);
-    withAlpha(beat(t, 4.4, 7.2), () => callout(t - 4.4, { ax: h.x, ay: h.y - 12, ex: h.x - 70, ey: 330, x2: h.x - 130, align: 'right', title: 'surface runoff', sub: 'what the ground cannot take flows downhill' }));
+    withAlpha(beat(t, 1.3, 6.7), () => stat(t - 1.3, { x: 610, y: 335, kicker: 'ONE MG OF 150 NM PLGA SPHERES', value: u => '≈ ' + countUp(430, u, 1.5) + ' billion', note: 'solid spheres, density ≈ 1.3 g/cm³' }));
+    const [ax, ay] = camPoint(camI(t), [rbcI(t)[0] + 20, rbcI(t)[1] - 30]);
+    withAlpha(beat(t, 4.6, 9.8), () => callout(t - 4.6, { ax, ay, ex: 1180, ey: 300, x2: 1240, title: 'red blood cell', sub: '≈ 7.5 µm across · 50× our particle' }));
+    const cp = withCard(t, 6.0);
+    if (cp) logRuler(t - 6.4, { x: 540, y: 1000, w: 1180, min: 1e-8, max: 1e-3,
+      ticks: [[1e-8, '10 nm'], [1e-7, '100 nm'], [1e-6, '1 µm'], [1e-5, '10 µm'], [1e-4, '100 µm'], [1e-3, '1 mm']],
+      marks: [{ v: 1.5e-7, label: 'NP·01 · 150 nm', color: PAL.accent }, { v: 1e-6, label: 'bacterium · ~1 µm', row: 1 },
+        { v: 7.5e-6, label: 'red cell · 7.5 µm' }, { v: 7e-5, label: 'hair · ~70 µm', row: 1 }] });
   },
 };
-/* ---------- plate II · inside the drop (lens in): molecules jiggle, bonds flicker, the camera turns slowly ---------- */
-const C2 = [960, 600];
-const RX = 540, RY = 330;                                                      // the crowd fills an elliptical patch of liquid
-const MOLS = (() => { const r = mulberry(41), out = []; for (let i = 0; i < 1400 && out.length < 120; i++) { const x = C2[0] + (r() * 2 - 1) * RX, y = C2[1] + (r() * 2 - 1) * RY;
-  if (((x - C2[0]) / RX) ** 2 + ((y - C2[1]) / RY) ** 2 < 0.92 && Math.hypot(x - C2[0], y - C2[1]) > 80 && out.every(m => Math.hypot(m.x - x, m.y - y) > 46)) out.push({ x, y, i }); } return out; })();
-const molAt = (m, t) => {                                                     // slow swirl inside the patch plus thermal jiggle
-  const ux = (m.x - C2[0]) / RX, uy = (m.y - C2[1]) / RY, a = 0.16 * t * (1.3 - Math.hypot(ux, uy)), c = Math.cos(a), sn = Math.sin(a);
-  const [dx, dy] = wander(m.i, t, 13, 2.2, 5); return [C2[0] + (ux * c - uy * sn) * RX + dx, C2[1] + (ux * sn + uy * c) * RY + dy]; };
+const withCard = (t, t0) => card(t - t0, { x: 490, y: 902, w: 1300, h: 142, title: 'SIZE LADDER · LOG SCALE', fig: 'FIG. 1' }) > 0;
+
+/* ---------- PLATE II · the corona: a slow push and turn while the protein coat builds ---------- */
+const C2 = [960, 600], R2 = 200;
+const camII = t => ({ x: C2[0], y: C2[1], s: curve(t, [[0, 1], [10.5, 1.12, 'inOutSine']]), rot: 0.05 * E.inOutSine(clamp(t / 10.5)) });
+const protII = (() => { const r = mulberry(202); return Array.from({ length: 72 }, (_, i) => ({ a: i * 2.39996 + r() * 0.2, ta: 0.9 + 7.8 * (i / 72) ** 1.15, d0: 330 + r() * 260, r: 9 + r() * 7, kind: Math.floor(r() * 3), seed: 400 + i })); })();
+const edgeII = (a, extra, t) => camPoint(camII(t), [C2[0] + Math.cos(a) * (R2 + extra), C2[1] + Math.sin(a) * (R2 + extra)]);
 const P2 = {
-  dur: 6.5, dark: true, enter: { type: 'lensIn', dur: 0.55 },
-  header: { num: 2, title: 'Inside the Drop', sub: 'a crowd of molecules holding hands' }, stage: { n: 2, name: 'LIQUID' },
-  log: t => ({ title: `JOURNEY LOG · ${HERO}`, rows: [['ELAPSED', 'T+ 40 min'], ['SIZE', '≈ 0.3 nm']], states: STATES, state: 1 }),
-  cam: t => ({ x: C2[0], y: C2[1], s: 1 + 0.08 * E.inOutSine(t / 6.5), rot: 0.08 * Math.sin(t * 0.45) }),
-  hero: t => { const [dx, dy] = wander(99, t, 8, 1.6, 5); return { x: C2[0] + dx, y: C2[1] + dy, label: HERO, r: 64 }; },
-  cues: [[1.6, 'scratch', { chars: 15 }], [3.0, 'chime', { f: 440 }], [3.8, 'pop'], [4.0, 'scratch', { chars: 14 }], ...Array.from({ length: 6 }, (_, i) => [0.9 + i * 0.45, 'plink', { f: note(880, i) }])],
+  dur: 10, dark: true, enter: { type: 'lensIn', dur: 0.6 },
+  header: { num: 2, title: 'The Corona', sub: 'the blood dresses the particle in protein' },
+  stage: { n: 2, name: 'CORONA', prevN: 1 },
+  log: t => { const s = lerp(12, 300, E.inOut3(t / 10));
+    return { title: 'JOURNEY LOG · NP·01', rows: [['ELAPSED', s < 60 ? `T+ ${s | 0} s` : `T+ ${Math.floor(s / 60)} min ${String(Math.floor(s % 60)).padStart(2, '0')} s`], ['SITE', 'PLASMA'], ['DIAMETER', `${Math.round(lerp(150, 172, inv(1, 9, t)))} nm`]], states: STATES, state: 0 }; },
+  cam: camII,
+  hero: () => ({ x: C2[0], y: C2[1], label: 'NP·01', r: 270 }),
+  bed: darkBed([110, 164.8, 196]),
+  cues: [[3.1, 'chime', { f: 523 }], [4.0, 'pop'], [6.2, 'pop'], ...Array.from({ length: 12 }, (_, i) => [1.0 + i * 0.62, 'plink'])],
   draw(t) {
-    const pts = MOLS.map(m => molAt(m, t)), hx = P2.hero(t);
-    for (let a = 0; a < pts.length; a++) for (let b = a + 1; b < pts.length; b++) {    // hydrogen bonds blink on and off
-      const d = Math.hypot(pts[a][0] - pts[b][0], pts[a][1] - pts[b][1]), on = vnoise(t * 2.4 + a * 3.1 + b, 17);
-      if (d < 78 && on > 0) ink([pts[a], pts[b]], { w: 1.4, color: PAL.gold, alpha: 0.6 * clamp(on * 3) * stagger(0, t, { t0: 0.6 }), dash: [4, 6], amp: 0 });
+    const r = mulberry(210);                                                  // a dense plasma of proteins drifting past
+    for (let i = 0; i < 90; i++) { const x0 = r() * (W + 400) - 200, y0 = 160 + r() * 860, sp = 14 + r() * 26, [wx, wy] = wander(i, t, 16, 0.6, 3);
+      const x = ((x0 + sp * t) % (W + 400)) - 200 + wx, y = y0 + wy;
+      if (Math.hypot(x - C2[0], y - C2[1]) > 330) protein(x, y, 5 + r() * 5, i % 3, 500 + i, 0.4 + 0.3 * r()); }
+    for (let i = 0; i < 90; i++) { const a = i / 90 * TAU, L = 38 + 6 * Math.sin(t * 1.5 + i);
+      const pts = [0, 0.33, 0.66, 1].map(u => { const d = R2 + u * L, w = 5 * Math.sin(u * 6 + t * 2 + i) * u; return [C2[0] + Math.cos(a) * d - Math.sin(a) * w, C2[1] + Math.sin(a) * d + Math.cos(a) * w]; });
+      ink(pts, { w: 1.6, color: '#9296da', amp: 0, alpha: 0.75 }); }
+    particle(C2[0], C2[1], R2, t, { drugs: 34 });
+    for (const p of protII) {
+      const u = E.out3(inv(p.ta - 1.3, p.ta, t)), d = lerp(p.d0, R2 + 18, u), al = clamp((t - (p.ta - 1.6)) * 3);
+      if (al <= 0) continue;
+      const jig = u >= 1 ? Math.sin(t * 3 + p.a * 5) * 1.5 : 0;
+      protein(C2[0] + Math.cos(p.a) * (d + jig), C2[1] + Math.sin(p.a) * (d + jig), p.r, p.kind, p.seed, al);
     }
-    MOLS.forEach((m, k) => { const a = stagger(k % 12, t, { t0: 0.1, step: 0.04, dur: 0.45, ease: E.outBack }); if (a > 0) withAlpha(clamp(a), () => molecule(pts[k][0], pts[k][1], 14 * a, m.i, 0.8 * Math.sin(t * 2.4 + m.i))); });
-    if (!S.morph) molecule(hx.x, hx.y, 40, 99, 0.3 * Math.sin(t * 1.7));
   },
   overlay(t) {
-    withAlpha(beat(t, 1.6, 5.0), () => stat(t - 1.6, { x: 1540, y: 420, kicker: 'IN ONE RAINDROP', value: u => '≈ ' + countUp(1.4, u, 1.3, 1) + ' × 10' + SUP('20'), note: 'molecules in a 2 mm drop', dark: true, size: 54 }));
-    const h = heroOf(P2, t);
-    withAlpha(beat(t, 3.8), () => callout(t - 3.8, { ax: h.x - 40, ay: h.y + 30, ex: 520, ey: 770, x2: 470, align: 'right', title: 'hydrogen bonds', sub: 'each held by up to four', dark: true }));
+    withAlpha(beat(t, 0.6, 9.6), () => { const lt = t - 0.6;                  // backbone schematic, left
+      text(typed('PLGA  ·  50 : 50', lt, 30), 250, 430, { kind: 'mono', size: 18, ls: 5, align: 'center', color: '#b9b9d6' });
+      const beads = Array.from({ length: 6 }, (_, i) => [130 + i * 48, 520 + (i % 2 ? 18 : -18) + 3 * Math.sin(t * 1.4 + i)]);
+      ink(beads, { w: 2, color: '#b9b9d6', amp: 0, draw: E.out3(clamp(lt / 0.9)) });
+      beads.forEach(([x, y], i) => { const s = E.outBack(clamp((lt - i * 0.12) * 4)); if (s <= 0) return;
+        ink(shape.circle(x, y, 15 * s, 24), { closed: true, w: 2, color: '#f0eef8', fill: i % 2 ? PAL.pink : PAL.drug, amp: 0.3, seed: 70 + i });
+        if (i % 2 === 0) ink([[x, y - 15 * s], [x - 6, y - 32 * s]], { w: 2, color: '#f0eef8', amp: 0 });
+        if (i < 5) { ctx.beginPath(); ctx.arc((x + beads[i + 1][0]) / 2, (y + beads[i + 1][1]) / 2, 3.5 * s, 0, TAU); ctx.fillStyle = PAL.accent; ctx.fill(); } });
+      text(typed('lactide  ·  glycolide', lt - 1.0, 30), 250, 580, { kind: 'mono', size: 15, align: 'center', color: PAL.nightMuted });
+      text(typed('ester bonds hold it together', lt - 1.4, 30), 250, 616, { kind: 'display', size: 22, italic: true, align: 'center', color: '#9d9dbd' }); });
+    withAlpha(beat(t, 1.4, 7.0), () => stat(t - 1.4, { x: 1330, y: 580, kicker: 'PLASMA PROTEIN', value: u => '≈ ' + countUp(70, u, 1.2) + ' g per litre', note: 'enough to coat a particle within minutes', dark: true, size: 56 }));
+    const [sx, sy] = edgeII(0.5, 22, t);
+    withAlpha(beat(t, 3.8, 9.9), () => callout(t - 3.8, { ax: sx, ay: sy, ex: 1270, ey: 800, x2: 1330, title: 'protein corona', sub: 'the body now sees the coat, not the particle', dark: true }));
+    const [px, py] = edgeII(2.5, 32, t);
+    withAlpha(beat(t, 5.3, 9.95), () => callout(t - 5.3, { ax: px, ay: py, ex: 660, ey: 830, x2: 600, align: 'right', title: 'PEG brush', sub: 'slows tagging by immune proteins', dark: true }));
+    const sb = E.out3(inv(0.8, 1.4, t));
+    ink([[1627, 1000], [lerp(1627, 1760, sb), 1000]], { w: 2, color: PAL.nightInk, amp: 0 });
+    if (sb >= 1) { ink([[1627, 992], [1627, 1008]], { w: 2, color: PAL.nightInk, amp: 0 }); ink([[1760, 992], [1760, 1008]], { w: 2, color: PAL.nightInk, amp: 0 });
+      text(`${Math.round(50 / camII(t).s)} nm`, 1693, 985, { kind: 'mono', size: 15, align: 'center', color: PAL.nightInk }); }   // the scale bar follows the zoom
   },
 };
-/* ---------- plate III · the cloud within (zoom out 8×): droplets drift on an updraft ---------- */
-const DROPS = (() => { const r = mulberry(51); return Array.from({ length: 260 }, (_, i) => { const a = r() * TAU, d = 60 + Math.sqrt(r()) * 620, z = r();
-  return { x: C2[0] + Math.cos(a) * d * 1.2, y: C2[1] + Math.sin(a) * d * 0.7, r: 2 + z * 7, z, i }; }).sort((p, q) => p.z - q.z); })();   // z: far (0) to near (1)
+
+/* ---------- PLATE III · leaky vessels: follow NP·01 out through a gap, then pull back to the whole diagram ---------- */
+const PATH3 = [[200, 425], [1282, 425], [1282, 515], [1300, 600], [1330, 700], [1318, 760]];
+const npIII = t => kf(t, [[0, PATH3[0]], [3.4, PATH3[1]], [4.4, PATH3[2]], [5.3, PATH3[3]], [6.3, PATH3[4]], [7.2, PATH3[5]]], E.inOutSine);
+const camIII = t => { const fol = follow(npIII, t, { s: 1.3, lead: 200, lag: 0.3, anchor: [W * 0.5, H * 0.55] }), clampCam = c => ({ ...c, dx: clamp(c.dx, -W * 0.3 * c.s, W * 0.35), dy: clamp(c.dy, -140, 140) });
+  return mixCam(clampCam(fol), FULL, E.inOutSine(inv(5.6, 8.2, t))); };
+const tumorCells = (() => { const r = mulberry(303), out = [];
+  for (let k = 0; k < 400 && out.length < 34; k++) { const x = lerp(1010, 1880, r()), y = lerp(585, 880, r()), rr = 34 + r() * 20;
+    if (PATH3.slice(2).some(([px, py]) => Math.hypot(px - x, py - y) < rr + 14)) continue;
+    if (out.some(c => Math.hypot(c.x - x, c.y - y) < (c.r + rr) * 0.82)) continue;
+    out.push({ x, y, r: rr, seed: 600 + k }); } return out; })();
 const P3 = {
-  dur: 6.5, dark: true, enter: { type: 'zoom', dur: 0.8, dir: 'out', k: 8 },
-  header: { num: 3, title: 'The Cloud Within', sub: 'a million of these make one raindrop' }, stage: { n: 3, name: 'CLOUD' },
-  log: t => ({ title: `JOURNEY LOG · ${HERO}`, rows: [['ELAPSED', 'T+ 3 h'], ['SIZE', '≈ 20 µm']], states: STATES, state: 1 }),
-  cam: t => ({ x: C2[0], y: C2[1], s: 1 + 0.07 * E.inOutSine(t / 6.5), dy: -12 * t, rot: 0.03 * Math.sin(t * 0.5) }),
-  hero: t => ({ x: C2[0], y: C2[1] + 6 * Math.sin(t * 1.4), label: HERO, r: 30 }),
-  cues: [[1.3, 'scratch', { chars: 23 }], [2.4, 'chime', { f: 392 }], [2.9, 'pop'], [3.4, 'scratch', { chars: 30 }], [0, 'noise', { dur: 6.5, g: 0.03, f0: 500, f1: 900, q: 0.6, a: 1.5 }]],
+  dur: 12.8, dark: false, enter: { type: 'lensOut', dur: 0.6 },
+  header: { num: 3, title: 'Leaky Vessels', sub: 'it slips out where the walls are broken' },
+  stage: { n: 3, name: 'EXTRAVASATION', prevN: 2 },
+  log: t => ({ title: 'JOURNEY LOG · NP·01', rows: [['ELAPSED', `T+ ${Math.round(lerp(6, 24, E.inOut3(t / 12.8)))} h`], ['SITE', t < 4.4 ? 'CAPILLARY' : 'TUMOUR'], ['DIAMETER', '172 nm']], states: STATES, state: t < 6.2 ? 0 : 1 }),
+  cam: camIII,
+  hero: t => { const [x, y] = npIII(t); return { x, y, label: 'NP·01', r: 34 }; },
+  bed: heart(0.14, [196, 246.9, 293.7]),
+  cues: [[1.8, 'pop'], [2.4, 'chime', { f: 587 }], [4.4, 'plink'], [5.2, 'pop'], [7.2, 'chime', { f: 784 }]],
   draw(t) {
-    for (let i = 0; i < 7; i++) flow([[300 + i * 230, 1040], [330 + i * 230 + 40 * Math.sin(i), 620], [300 + i * 230, 180]], t, { speed: 160, gap: 150, len: 60, color: PAL.nightMuted, w: 1.8, alpha: 0.6, seed: 30 + i });
-    for (const d of DROPS) {                                                   // near droplets are bigger, brighter and rise faster (depth)
-      const [dx, dy] = wander(d.i, t, 10 + 14 * d.z, 0.8, 9), sp = 25 + 75 * d.z, up = ((d.y - t * sp - 140) % 900 + 900) % 900 + 140 - d.y;
-      ink(shape.circle(d.x + dx, d.y + dy + up, d.r, 10), { closed: true, w: 0.6 + d.z, color: '#9fb4ff', fill: `rgba(80,110,200,${0.3 + 0.4 * d.z})`, amp: 0.2, seed: d.i, alpha: 0.45 + 0.55 * d.z }); }
-    if (!S.morph) ink(shape.circle(C2[0], C2[1] + 6 * Math.sin(t * 1.4), 9, 20), { closed: true, w: 1.6, color: PAL.nightInk, fill: PAL.navyFill, amp: 0.2, seed: 7 });
+    const topW = shape.band(shape.ridge(-400, W + 400, 338, 3, 71), 360);
+    flat(shape.rect(-400, 360, W + 800, 130), PAL.plasma);
+    for (let i = 0; i < 12; i++) rbc(((i * 260 + 150 * t) % (W + 800)) - 400, 420 + 22 * Math.sin(i * 2.1), 24, i + t * 0.7, 700 + i);
+    flat(topW, PAL.fleshDeep); hatch(topW, { color: PAL.bloodDeep, alpha: 0.4, gap: 5, len: 12, seed: 72 });
+    ink(shape.ridge(-400, W + 400, 338, 3, 71), { w: 3, seed: 73 }); ink([[-400, 360], [W + 400, 360]], { w: 2.4, seed: 74 });
+    flat(shape.rect(-400, 0, W + 800, 338), PAL.flesh, 0.35);                  // tissue above the capillary, for the close framing
+    const cells = [];
+    for (let x = -340; x < 960; x += 150) cells.push([x, 150]);
+    for (let x = 980; x < W + 340; x += 158) cells.push([x, 130]);
+    cells.forEach(([x, w], i) => { const body = shape.blob(x + w / 2, 510, 1, 800 + i, 0, 40).map(([a, b]) => [x + w / 2 + (a - x - w / 2) * w * 0.5, 510 + (b - 510) * 20]);
+      ink(body, { closed: true, w: 2.4, fill: PAL.flesh, seed: 800 + i });
+      ink(shape.ellipse(x + w / 2, 512, w * 0.18, 8, 0, 20), { closed: true, w: 1.6, fill: PAL.nucleus, seed: 820 + i }); });
+    for (let k = 0; k < 7; k++) { const u = ((t * 0.09 + k / 7) % 1), gx = 1124 + 158 * (k % 4);
+      const p = kf(u, [[0, [150, 400 + k * 6]], [0.55, [gx, 420]], [0.7, [gx, 520]], [1, [gx + 30 * Math.sin(k), 640 + k * 30]]], E.inOutSine);
+      ctx.beginPath(); ctx.arc(p[0], p[1], 5, 0, TAU); ctx.fillStyle = PAL.plga; ctx.globalAlpha = clamp(u * 10) * clamp((1 - u) * 10); ctx.fill(); ctx.globalAlpha = 1; }
+    for (let row = 0; row < 4; row++) for (let col = -2; col < 7; col++) {
+      const x = 80 + col * 124 + (row % 2) * 40, y = 690 + row * 88;
+      const b = shape.blob(x, y, 1, 900 + row * 10 + col, 0.1, 30).map(([a, c]) => [x + (a - x) * 54, y + (c - y) * 38]);
+      ink(b, { closed: true, w: 2, fill: PAL.cellFill, seed: 900 + row * 10 + col });
+      ink(shape.circle(x + 6, y, 11, 16), { closed: true, w: 1.6, fill: PAL.nucleus, seed: 950 + col });
+    }
+    for (const c of tumorCells) {
+      const b = shape.blob(c.x, c.y + 2 * Math.sin(t * 0.8 + c.seed), c.r, c.seed, 0.28, 36);
+      ink(b, { closed: true, w: 2.2, fill: PAL.tumor, seed: c.seed });
+      hatch(b, { color: PAL.tumorDeep, alpha: 0.5, gap: 6, len: 8, angle: 0.8, seed: c.seed, w: 1.1 });
+      ink(shape.blob(c.x + 4, c.y - 3, c.r * 0.42, c.seed + 1, 0.3, 20), { closed: true, w: 1.8, fill: '#4e3656', seed: c.seed + 1 });
+    }
+    ink([[960, 250], [960, 900]], { w: 1.6, color: PAL.peri, amp: 0, dash: [10, 8], alpha: E.out3(inv(0.3, 1, t)) });
+    withAlpha(inv(7.2, 8.2, t), () => {                                         // side labels only once the wide view is back
+      text(typed('HEALTHY', t - 7.2, 20), 930, 322, { kind: 'mono', size: 17, ls: 6, align: 'right', color: PAL.muted });
+      text(typed('TUMOUR', t - 7.2, 20), 990, 322, { kind: 'mono', size: 17, ls: 6, color: PAL.muted }); });
+    const lp = E.out3(inv(1.2, 2.2, t));
+    if (lp > 0) { const tube = [[430, 918], [lerp(430, 920, lp), 918], [lerp(430, 920, lp), 958], [430, 958]];
+      ink(tube, { closed: true, w: 2.4, fill: '#e7eef0', seed: 88 });
+      for (let i = 0; i < 6; i++) { const x = 450 + ((i * 80 + t * 60) % 460); if (x < lerp(430, 900, lp)) arrowHead(x, 938, 0, 9, PAL.peri, 1.8); } }
+    const [nx, ny] = npIII(t);
+    ctx.beginPath(); ctx.arc(nx, ny, 6.5, 0, TAU); ctx.fillStyle = PAL.plga; ctx.fill();
   },
   overlay(t) {
-    stat(t - 1.3, { x: 1280, y: 420, kicker: 'A TYPICAL CLOUD DROPLET', value: u => '≈ ' + countUp(20, u, 1.2) + ' µm', note: 'about 70,000 molecules across', dark: true, size: 54 });
-    const k = card(t - 2.9, { x: 470, y: 890, w: 980, h: 150, dark: true, title: 'SIZE LADDER', fig: 'LOG SCALE' });
-    if (k > 0) logRuler(t - 3.4, { x: 510, y: 985, w: 900, min: 1e-10, max: 1e-2, dark: true,
-      ticks: [[1e-9, '1 nm'], [1e-6, '1 µm'], [1e-3, '1 mm']],
-      marks: [{ v: 2.8e-10, label: 'MOLECULE', t0: 0.5 }, { v: 2e-5, label: 'CLOUD DROPLET', color: PAL.accent, t0: 0.9 }, { v: 2e-3, label: 'RAINDROP', t0: 1.3 }] });
+    const c = camIII(t), at = p => camPoint(c, p);
+    withAlpha(beat(t, 0.8, 6.4), () => stat(t - 0.8, { x: 720, y: 196, kicker: 'GAPS IN MANY TUMOUR VESSELS', value: u => typed('≈ 200–800 nm', u, 16), note: 'typical range; varies between tumours', size: 56 }));
+    const [jx, jy] = at([760, 505]);                                           // a junction the particle passes while the label is up
+    withAlpha(beat(t, 1.2, 6.2), () => callout(t - 1.2, { ax: jx, ay: jy, ex: 520, ey: 760, x2: 580, title: 'tight junctions', sub: 'healthy walls leave only tiny clefts' }));   // the label stays put; only its leader follows the camera
+    const [gx, gy] = at([1282, 505]);
+    withAlpha(beat(t, 5.2, 12.6), () => callout(t - 5.2, { ax: gx, ay: gy, ex: 1380, ey: 262, x2: 1430, title: 'EPR effect', sub: 'leaky walls, poor drainage · clearest in mice' }));
+    withAlpha(beat(t, 8.3, 12.6), () => { const [lx, ly] = at([432, 1000]);   // once the wide view is back
+      text(typed('lymph drains fluid away', t - 8.3, 30), lx, ly, { kind: 'mono', size: 16, color: PAL.inkSoft });
+      text(typed('no drainage: particles stay put', t - 8.6, 30), at([1000, 1000])[0], ly, { kind: 'display', size: 24, italic: true, color: PAL.inkSoft }); });
   },
 };
-/* ---------- plate IV · a raindrop (shape reveal): the drop wobbles while the world scrolls up past it ---------- */
+
+/* ---------- PLATE IV · slow release: a slow push while the particle swells, pits and lets its drug go ---------- */
+const C4 = [700, 600];
+const rel = d => 22 * (1 - Math.exp(-d / 0.7)) + 66 * (1 - Math.exp(-d / 11));
+const R4 = t => 220 - 38 * E.inOut3(inv(1, 12, t));
+const camIV = t => ({ x: C4[0], y: C4[1], s: curve(t, [[0, 1.06], [12.5, 1.14, 'inOutSine']]), dx: 10 * Math.sin(t * 0.4) });
+const drugsIV = (() => { const r = mulberry(404); return Array.from({ length: 46 }, (_, i) => ({ a: r() * TAU, d0: Math.sqrt(r()) * 150, tr: 0.8 + 10.5 * (i / 46) ** 1.7, v: 45 + r() * 30 })); })();
 const P4 = {
-  dur: 7, dark: false,
-  enter: { type: 'shape', dur: 0.9, from: () => shape.circle(C2[0], C2[1], 9, 20), to: () => BUN(960, 400, 110),
-    style: e => ({ color: e > 0.5 ? PAL.ink : PAL.nightInk, fill: e > 0.5 ? PAL.drop : PAL.navyFill, w: lerp(1.6, 3.2, e) }) },
-  header: { num: 4, title: 'A Raindrop', sub: 'not a teardrop: a bun with a flat belly' }, stage: { n: 4, name: 'FALL' },
-  log: t => ({ title: `JOURNEY LOG · ${HERO}`, rows: [['ELAPSED', 'T+ 3 h 20 min'], ['ALTITUDE', `${fmt(Math.round(lerp(1200, 300, t / 7)))} m`]], states: STATES, state: 1 }),
-  drift: false,
-  hero: t => ({ x: 960, y: 400 + 8 * Math.sin(t * 2.2), label: HERO, r: 140 }),
-  cues: [[1.0, 'pop'], [1.2, 'scratch', { chars: 17 }], [2.8, 'pop'], [4.8, 'hiss', { dur: 0.9 }], [0, 'noise', { dur: 7, g: 0.05, f0: 900, q: 0.5, a: 1 }]],
+  dur: 12, dark: true, enter: { type: 'lensIn', dur: 0.9, ease: 'inOutSine' },
+  header: { num: 4, title: 'Slow Release', sub: 'water gets in, the drug gets out' },
+  stage: { n: 4, name: 'RELEASE', prevN: 3 },
+  log: t => { const day = lerp(1, 28, inv(1.0, 11.5, t));
+    return { title: 'JOURNEY LOG · NP·01', rows: [['ELAPSED', `T+ ${Math.round(day)} days`], ['SITE', 'TUMOUR'], ['RELEASED', `${Math.round(rel(day))} %`]], states: STATES, state: 2 }; },
+  cam: camIV,
+  hero: t => ({ x: C4[0], y: C4[1], label: 'NP·01', r: R4(t) + 50 }),
+  bed: (ac, out, t0, dur) => { darkBed([98, 146.8, 185])(ac, out, t0, dur); },
+  cues: [[2.6, 'pop'], [6.4, 'pop'], [11.6, 'chime', { f: 440 }], ...drugsIV.slice(0, 16).map(d => [d.tr + 0.2, 'plink'])],
   draw(t) {
-    const fall = E.inOutSine(clamp(t / 7));
-    ctx.save(); ctx.translate(0, -700 * fall);                                  // the sky slides up as we fall
-    lobedCloud(560, 180, CLOUD, { seed: 21, alpha: 0.9 }); lobedCloud(1500, 420, SMALL_CLOUD, { seed: 27 });
-    ctx.restore();
-    landscape(t, { detail: 0, dy: lerp(640, -60, fall) });
-    for (let i = 0; i < 9; i++) flow([[860 + i * 25, 1000], [860 + i * 25, -40]], t + i * 0.13, { speed: 900, gap: 360, len: 70, color: PAL.peri, w: 2, alpha: 0.7 });   // air rushing up
-    const { y } = P4.hero(t), wob = 0.05 * Math.sin(t * 9);
-    if (!S.morph) { const d = BUN(960, y, 110, wob); ink(d, { closed: true, w: 3.2, fill: PAL.drop, amp: 1, seed: 5 });
-      shade(d, { color: '#2f6f8f', seed: 6, alpha: 0.45 }); ink(shape.arc(930, y - 30, 55, 3.6, 4.4, 10), { w: 5, color: '#ffffff', amp: 0.3, alpha: 0.9 }); }
+    const e = inv(1, 12, t), R = R4(t);
+    const r = mulberry(410);
+    for (let i = 0; i < 120; i++) { const a = r() * TAU, dIn = 60 + r() * 120, dOut = 330 + r() * 260, u = (t * 0.1 + r()) % 1;
+      const d = lerp(dOut, dIn, E.inOutSine(u)), x = C4[0] + Math.cos(a) * d, y = C4[1] + Math.sin(a) * d, al = clamp(u * 6) * clamp((1 - u) * 4);
+      ctx.save(); ctx.globalAlpha = al * 0.9; ctx.fillStyle = PAL.cyan; ctx.beginPath(); ctx.arc(x, y, 4, 0, TAU); ctx.fill();
+      ctx.fillStyle = PAL.pink; ctx.beginPath(); ctx.arc(x - 4, y + 3, 2.2, 0, TAU); ctx.arc(x + 4, y + 3, 2.2, 0, TAU); ctx.fill(); ctx.restore(); }
+    if (!S.morph) particle(C4[0], C4[1], R, t, { irr: lerp(0.02, 0.13, e), drugs: 0, pits: Math.floor(lerp(0, 16, e)), seed: 45 });
+    for (let k = 0; k < 7; k++) { const a = hash3(k, 3) * TAU, g = E.out3(inv(1.5 + k * 1.1, 3 + k * 1.1, t)); if (g <= 0 || S.morph) continue;
+      const pts = [0, 0.3, 0.6, 1].map(u => [C4[0] + Math.cos(a + u * 0.3 * (k % 2 ? 1 : -1)) * R * lerp(0.98, 0.45, u), C4[1] + Math.sin(a + u * 0.3 * (k % 2 ? 1 : -1)) * R * lerp(0.98, 0.45, u)]);
+      ink(pts, { w: 2, color: '#b8bbef', amp: 1.2, seed: 90 + k, draw: g, alpha: 0.9 }); }
+    for (const d of drugsIV) {
+      const u = t - d.tr, dist = u <= 0 ? d.d0 * (R / 220) : d.d0 + u * d.v * (1 + u * 0.15);
+      const x = C4[0] + Math.cos(d.a) * dist + (u > 0 ? u * 12 : 0), y = C4[1] + Math.sin(d.a) * dist;
+      const al = u <= 0 ? 0.85 : clamp((560 - dist) / 120);
+      if (al > 0) hex(x, y, u > 0 ? 8 : 7, PAL.drug, al);
+    }
+    for (let k = 0; k < 10; k++) { const u = t - 3 - k * 0.8; if (u <= 0) continue; const a = hash3(k, 11) * TAU, d = R + u * 28;
+      const x = C4[0] + Math.cos(a) * d, y = C4[1] + Math.sin(a) * d, al = clamp((6 - u) / 2);
+      [0, 1, 2].slice(0, 2 + k % 2).forEach(j => { ctx.save(); ctx.globalAlpha = al; ctx.beginPath(); ctx.arc(x + j * 11 * Math.cos(a + 1.3), y + j * 11 * Math.sin(a + 1.3), 5, 0, TAU); ctx.fillStyle = j % 2 ? PAL.pink : PAL.drug; ctx.fill(); ctx.restore(); }); }
   },
   overlay(t) {
-    const { y } = P4.hero(t);
-    withAlpha(beat(t, 1.0), () => callout(t - 1.0, { ax: 1050, ay: y + 25, ex: 1180, ey: 300, x2: 1240, title: 'flattened by drag', sub: 'air pushes up the belly; big drops flatten most' }));
-    const m = TEAR(420, 380, 60), ea = eraseOut(m, inv(4.8, 5.8, t));           // the myth: drawn, crossed out, rubbed out
-    withAlpha(beat(t, 2.8) * ea, () => { ink(m, { closed: true, w: 2.4, color: PAL.muted, fill: PAL.panel, amp: 0.8, seed: 8, draw: inv(2.8, 3.4, t), fillReveal: 'sweep' });
-      pen([[350, 310], [490, 460]], { w: 4, color: PAL.accent, draw: inv(3.4, 3.7, t), taper: 0.2 }); pen([[490, 310], [350, 460]], { w: 4, color: PAL.accent, draw: inv(3.6, 3.9, t), taper: 0.2 });
-      text(typed('not a teardrop', t - 3.7, 30), 420, 510, { kind: 'sans', size: 24, weight: 600, align: 'center' }); });
-  },
-};
-/* ---------- plate V · the whole route (ink bleed): a coast cross-section, every flow at once ---------- */
-const ROUTE = [[560, 440], [590, 500], [630, 570], [660, 640], [900, 668], [1150, 664], [1330, 668], [1470, 700], [1640, 690], [1700, 600], [1680, 520]];
-const VAPOUR = [[1720, 640], [1700, 520], [1580, 450], [1200, 436], [760, 420]];
-const RUNOFF = [[640, 646], [900, 672], [1150, 668], [1330, 672], [1440, 700]];
-const GROUND = [[780, 884], [1100, 876], [1420, 860]];
-const LAND = [[-100, -100], [1400, -100], [1400, 600], [1350, 660], [1400, 800], [1480, H + 100], [-100, H + 100]];
-const SEA = [[1400, 600], [W + 320, 600], [W + 320, H + 40], [1480, H + 40], [1400, 800], [1350, 660]];
-const PEAK = (() => { const r = mulberry(141), p = [[-60, 480], [60, 450]];
-  for (let k = 0; k <= 10; k++) { const x = 120 + k * 60, y = k <= 3 ? lerp(420, 330, k / 3) : lerp(330, 640, (k - 3) / 7); p.push([x, y + (k === 3 ? 0 : (k % 2 ? 1 : -1) * r() * 14)]); }
-  return [...p, [760, 700], [690, H + 60], [-60, H + 60]]; })();   // the rock runs down under the valley
-const MID_CLOUD = [[0, 70], [-90, 52], [90, 56], [20, 48, 30], [-40, 40, 24]];
-function snowcap(pts, yLine, seed) {                                           // white cap over the points above yLine, with a zig-zag lower edge
-  const top = pts.filter(([, y]) => y < yLine); if (top.length < 2) return;
-  const x0 = top[0][0], x1 = top[top.length - 1][0], zig = [];
-  for (let k = 0; k <= 8; k++) zig.push([lerp(x1, x0, k / 8), yLine + (k % 2 ? 7 : -3) + 4 * Math.sin(k * 2.3 + seed)]);
-  ink([...top, ...zig], { closed: true, w: 1.4, fill: PAL.snow, amp: 0.6, seed });
-}
-const routeU = t => E.inOut3(inv(1.8, 8.4, t));
-const P5 = {
-  dur: 10, dark: false, enter: { type: 'bleed', dur: 1.4 },
-  cam: t => ({ x: 640, y: 440, s: kf(t, [[0, 1.6], [3.0, 1.0], [10, 1.08]], E.inOut3), dx: kf(t, [[0, 60], [3.0, 0], [10, -150]], E.inOutSine) }),
-  header: { num: 5, title: 'The Whole Route', sub: 'every plate, retraced' }, stage: { n: 5, name: 'RETURN' },
-  log: t => { const u = routeU(t); return { title: `JOURNEY LOG · ${HERO}`, rows: [['ELAPSED', `T+ ${Math.max(1, Math.round(9 * u))} day${Math.round(9 * u) > 1 ? 's' : ''}`], ['PLACE', u < 0.12 ? 'CLOUD' : u < 0.3 ? 'SLOPE' : u < 0.68 ? 'RIVER' : u < 0.86 ? 'SEA' : 'AIR']],
-    states: STATES, state: u < 0.12 || u > 0.9 ? 0 : 1 }; },
-  hero: t => { const [x, y] = along(ROUTE, routeU(t)); return { x, y, label: HERO, r: 26 }; },
-  cues: [[1.0, 'noise', { dur: 2.5, g: 0.04, f0: 400, f1: 1600, q: 0.7 }], [2.2, 'plink', { f: note(660, 0) }], [3.2, 'plink', { f: note(660, 2) }], [3.4, 'scratch', { chars: 24 }],
-    [4.4, 'plink', { f: note(660, 4) }], [4.6, 'chime', { f: 587 }], [5.6, 'pop'], [5.9, 'scratch', { chars: 26 }], [6.6, 'plink', { f: note(660, 5) }], [7.4, 'chime', { f: 784 }]],
-  draw(t) {
-    const fd = k => E.out3(inv(0.9 + k * 0.5, 2.6 + k * 0.5, t));             // the flows draw on one after another
-    sun(1650, 330, t);
-    fluxArrow(VAPOUR, { width: 24, draw: fd(0), fill: PAL.vapour, seed: 151 });
-    flow(VAPOUR, t, { speed: 90, gap: 110, len: 30, color: '#ffffff', w: 2, alpha: 0.9 * fd(0) });
-    ctx.save(); trace(LAND, true); ctx.clip();
-    landscape(t, { x1: 1500, river: false });
-    flat(PEAK, PAL.rock); shade(PEAK, { color: '#4d4640', seed: 142, alpha: 0.45, light: [-0.8, -0.5] }); scribble(PEAK, { color: '#4d4640', alpha: 0.18, gap: 16, seed: 143 });
-    snowcap(PEAK, 392, 144);
-    pen(PEAK.slice(0, -2), { w: 3.2, seed: 145, taper: 0.04 }); pen([[760, 700], [690, H + 60]], { w: 2.2, seed: 146, alpha: 0.7, taper: 0.05 });
-    fluxArrow(RUNOFF, { width: 26, draw: fd(2), fill: '#9ec4d3', seed: 152 });
-    flow(RUNOFF, t, { speed: 140, gap: 90, len: 34, color: '#ffffff', w: 2.4, alpha: 0.9 * fd(2) });
-    arrowPath(GROUND, { draw: fd(3), dash: [8, 8], w: 2.4, color: '#1f3f48' });
-    ctx.restore();
-    sea(1400, 600, t, SEA);
-    for (let i = 0; i < 8; i++) { const x = 1480 + i * 50 + 10 * Math.sin(t + i), u = ((t * 0.5 + i * 0.37) % 1);  // vapour rising off the sea
-      pen([[x, 590 - u * 90], [x + 6, 560 - u * 90]], { w: 2, color: PAL.peri, taper: 0.4, seed: 160 + i, alpha: Math.sin(Math.PI * u) * fd(0) }); }
-    lobedCloud(560 + 8 * Math.sin(t * 0.4), 420, MID_CLOUD, { seed: 21 });
-    rain(480, 660, 440, 600, t, 18, fd(1));
-    birds(t, 900, 520, 5);
-    journeyPath(ROUTE, { draw: routeU(t), waypoints: [{ u: 0.02, label: 'II · III', dx: -70 }, { u: 0.14, label: 'IV', dx: -34 }, { u: 0.42, label: 'I' }, { u: 0.8, label: 'V', dy: 30 }] });
-  },
-  overlay(t) {
-    const c = P5.cam(t), lab = (s, x, y, k, o = {}) => withAlpha(E.out3(inv(1.8 + k * 0.5, 2.4 + k * 0.5, t)), () => text(s, x, y, { kind: 'mono', size: 15, weight: 600, ls: 3, color: PAL.inkSoft, ...o }));
-    if (c.s < 1.02) { lab('EVAPORATION', 1745, 560, 0); lab('RAIN', 690, 470, 1); lab('RUNOFF', 1000, 720, 2, { color: '#1f3f48' }); lab('GROUNDWATER', 800, 852, 3, { color: '#e8f3f5' }); }
-    withAlpha(beat(t, 3.2), () => stat(t - 3.2, { x: 820, y: 330, kicker: 'WATER VAPOUR STAYS ALOFT', value: u => '≈ ' + countUp(9, u, 1.2) + ' days', note: 'on average, before it rains out' }));
-    const k = card(t - 5.6, { x: 470, y: 890, w: 980, h: 150, title: 'WHERE A YEAR OF VALLEY RAIN GOES', fig: 'ILLUSTRATIVE SPLIT' });
-    if (k > 0) {
-      const segs = [[0.5, '#9a9ad4', 'BACK TO THE AIR · 600 MM'], [1 / 3, PAL.sea, 'RUNS OFF · 400 MM'], [1 / 6, PAL.soilTop, 'SOAKS IN · 200 MM']];
-      let x = 500;
-      segs.forEach(([f, col, label], i) => { const g = E.out3(inv(0.2 + i * 0.35, 0.7 + i * 0.35, t - 5.6)), w = 920 * f;
-        if (g <= 0) { x += w; return; }
-        const r = shape.rect(x, 950, w * g, 26); ink(r, { closed: true, w: 1.6, fill: col, amp: 0.4, seed: 170 + i }); hatch(r, { alpha: 0.25, gap: 6, len: 9, seed: 175 + i });
-        text(label, x + w / 2, 1010, { kind: 'mono', size: 14, weight: 600, ls: 2, align: 'center', color: PAL.inkSoft, alpha: g });
-        x += w; });
+    const c = camIV(t), R = R4(t), at = a => camPoint(c, [C4[0] + Math.cos(a) * R, C4[1] + Math.sin(a) * R]);
+    const [hx, hy] = at(-0.7);
+    withAlpha(beat(t, 2.2, 7.4), () => callout(t - 2.2, { ax: hx, ay: hy, ex: 930, ey: 290, x2: 990, title: 'ester hydrolysis', sub: 'water splits the polyester backbone', dark: true }));
+    const [dx, dy] = at(0.95);
+    withAlpha(beat(t, 6.6, 11.9), () => callout(t - 6.6, { ax: dx, ay: dy, ex: 870, ey: 895, x2: 930, title: 'drug diffuses out', sub: 'slowly, over days to weeks', dark: true }));
+    const cp = card(t - 0.9, { x: 1262, y: 380, w: 608, h: 560, dark: true, title: 'CUMULATIVE RELEASE', fig: 'FIG. 2' });
+    if (cp > 0) {
+      const draw = inv(1.0, 11.5, t), day = lerp(0, 28, draw);
+      const pts = Array.from({ length: 113 }, (_, i) => [i / 4, rel(i / 4)]).filter(([d]) => d <= Math.max(day, 0.01));
+      const g = lineChart(t - 1.3, { x: 1340, y: 470, w: 480, h: 340, xr: [0, 28], yr: [0, 100], xticks: [0, 7, 14, 21, 28], yticks: [0, 25, 50, 75, 100], xlab: 'DAYS', ylab: '% OF DRUG RELEASED', dark: true,
+        series: [{ pts: pts.length > 1 ? pts : [[0, 0], [0.01, 0]], color: PAL.accent, draw: 1, w: 3.4 }] });
+      const [ex, ey] = [g.X(day), g.Y(rel(day))];
+      if (draw > 0) { ctx.beginPath(); ctx.arc(ex, ey, 7, 0, TAU); ctx.fillStyle = PAL.nightInk; ctx.fill();
+        text(`${Math.round(rel(day))}%`, ex + 12, ey - 12, { kind: 'mono', size: 16, weight: 600, color: PAL.nightInk }); }
+      if (day > 2) text(typed('burst', (day - 2) / 3, 20), g.X(1.5), g.Y(30), { kind: 'display', size: 24, italic: true, color: PAL.gold });
+      if (day > 13) text(typed('sustained', (day - 13) / 3, 20), g.X(15), g.Y(56), { kind: 'display', size: 24, italic: true, color: PAL.gold });
+      text(typed('illustrative profile · shape depends on Mw, LA:GA, size', t - 3, 40), 1286, 918, { kind: 'mono', size: 13, color: PAL.nightMuted });
     }
   },
 };
-/* ---------- end card (page roll): ripples spread from the drop ---------- */
-const END = {
-  dur: 5.5, dark: true, enter: { type: 'page', dur: 1.2 }, counter: false, focus: () => [960, 400],
-  hero: t => ({ x: 960, y: 400, r: 70, tag: false, alpha: inv(0.3, 1, t) }),
-  cues: [[1.0, 'chime', { f: 392 }], [0.6, 'scratch', { chars: 34, cps: 22 }], [1.8, 'plink', { f: 880 }], [3.4, 'plink', { f: 660 }]],
+
+/* ---------- END CARD: the eroded particle becomes the card's emblem ---------- */
+const P5 = {
+  dur: 9.5, dark: true, counter: false,
+  enter: { type: 'shape', dur: 1.3, ease: 'inOutSine',
+    from: (pl, t) => { const c = camIV(t), [x, y] = camPoint(c, C4); return shape.blob(x, y, R4(t) * c.s, 45, 0.13, 64); },
+    to: () => shape.circle(960, 380, 44, 64), fromFill: PAL.plga, toFill: PAL.plga },
+  focus: () => [960, 380],
+  cam: t => ({ x: 960, y: 380, s: 1 + 0.05 * E.inOutSine(clamp(t / 9.5)), dx: 14 * Math.sin(t * 0.6), dy: 8 * Math.sin(t * 0.45), rot: 0.02 * Math.sin(t * 0.3) }),   // a slow drift; the text in overlay stays put
+  bed: (ac, out, t0, dur) => SFX.pad(ac, out, t0, { dur: dur - 0.5, notes: [130.8, 196, 246.9, 329.6], g: 0.02, dark: true }),
+  cues: [[1.2, 'chime', { f: 392 }], [3.3, 'chime', { f: 587 }]],
   draw(t) {
-    for (let k = 0; k < 4; k++) { const q = ((t - 1.0 + k * 0.45) % 1.8) / 1.8; if (t < 1.0 - k * 0.45 + 0.001 || q < 0) continue;   // ripples, one every 0.45 s
-      ink(shape.ellipse(960, 400, 80 + q * 420, (80 + q * 420) * 0.42, 0, 64), { closed: true, w: 3 - 1.5 * q, color: '#b9bbef', alpha: 0.9 * (1 - q), amp: 0.5, seed: k }); }
-    withAlpha(inv(0.2, 1.0, t) * 0.5, () => { ctx.save(); ctx.translate(960, 400); ctx.rotate(t * 0.35); ctx.setLineDash([18, 14]); ctx.lineWidth = 2; ctx.strokeStyle = PAL.peri;
-      ctx.beginPath(); ctx.arc(0, 0, 250, 0, TAU); ctx.stroke(); ctx.restore(); });
-    for (let i = 0; i < 40; i++) { const a = i / 40 * TAU + t * (0.35 + (i % 3) * 0.12), [dx, dy] = wander(i, t, 16, 1.1), rr = 150 + 70 * Math.sin(i * 1.7);
-      withAlpha(inv(0.4, 1.2, t) * 0.9, () => ink(shape.circle(960 + Math.cos(a) * rr + dx, 400 + Math.sin(a) * rr * 0.6 + dy, 3 + (i % 4), 10), { closed: true, w: 1.2, color: '#9fb4ff', fill: 'rgba(80,110,200,0.6)', amp: 0.2, seed: i })); }
-    const q = 'Every drop is on its way somewhere.', qo = { kind: 'display', size: 56, italic: true, color: PAL.nightInk, cps: 22 };
-    dropText(q, 960 - measure(q, qo) / 2, 640, t - 0.6, qo);
-    const rl = E.out3(inv(2.2, 2.9, t)); if (rl > 0) pen([[960 - 300 * rl, 676], [960 + 300 * rl, 676]], { w: 1.4, color: PAL.peri, taper: 0.3 });
-    const col = `ONE DROP  ·  5 PLATES  ·  ${fmt(TOTAL_F)} FRAMES  ·  DRAWN IN CODE`, co = { kind: 'mono', size: 20, ls: 6, color: '#9fa0c8' };
-    text(typed(col, t - 2.4, 60), 960 - measure(col, co) / 2, 724, co);
-    const src = 'NOTES  ·  ROUNDED VALUES  ·  THE VALLEY SPLIT IS ILLUSTRATIVE  ·  VAPOUR STAY: VAN DER ENT & TUINENBURG 2017', so = { kind: 'mono', size: 14, ls: 4, color: PAL.nightMuted };
-    text(typed(src, t - 3.2, 70), 960 - measure(src, so) / 2, 930, so);
+    const [cx, cy] = [960, 380], a = E.out3(inv(0.3, 1.4, t));
+    const dust = mulberry(1300);                                              // drifting motes behind everything
+    for (let i = 0; i < 70; i++) { const x0 = dust() * (W + 200) - 100, y0 = dust() * H, sp = 8 + dust() * 22, [wx, wy] = wander(i, t, 10, 0.5, 13);
+      ctx.beginPath(); ctx.arc(((x0 + sp * t) % (W + 200)) - 100 + wx, y0 + wy, 1.2 + dust() * 1.8, 0, TAU); ctx.fillStyle = 'rgba(160,165,230,0.45)'; ctx.fill(); }
+    for (let k = 0; k < 5; k++) { const q = ((t * 0.3 + k / 5) % 1); ink(shape.circle(cx, cy, 90 + q * 320, 72), { closed: true, w: 1.4, color: PAL.peri, amp: 0.3, seed: k, alpha: 0.55 * (1 - q) * a }); }   // ripples keep spreading
+    ink([[cx - 260 * a, cy], [cx + 260 * a, cy]], { w: 1, color: PAL.peri, amp: 0, alpha: 0.3 });
+    ink([[cx, cy - 170 * a], [cx, cy + 170 * a]], { w: 1, color: PAL.peri, amp: 0, alpha: 0.3 });
+    ink(shape.circle(cx, cy, 86), { closed: true, w: 2.4, color: PAL.nightInk, amp: 0.6, draw: E.out3(inv(0.4, 1.2, t)) });
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(t * 0.3); ctx.translate(-cx, -cy);    // the tick ring turns
+    for (let i = 0; i < 48; i++) { const q = inv(0.6 + i * 0.012, 0.8 + i * 0.012, t); if (!q) continue; const an = i / 48 * TAU - Math.PI / 2;
+      ink([[cx + Math.cos(an) * 98, cy + Math.sin(an) * 98], [cx + Math.cos(an) * (i % 4 ? 106 : 114), cy + Math.sin(an) * (i % 4 ? 106 : 114)]], { w: 1.4, color: i % 12 ? PAL.peri : PAL.accent, amp: 0, alpha: q }); }
+    ctx.restore();
+    for (let i = 0; i < 14; i++) { const an = i / 14 * TAU + t * (i % 2 ? 0.5 : -0.35), rr = i % 2 ? 150 : 190, [wx, wy] = wander(i, t, 8, 0.9); hex(cx + Math.cos(an) * rr + wx, cy + Math.sin(an) * rr * 0.7 + wy, 7, PAL.drug, 0.8 * a); }   // drug molecules orbit both ways
+    if (!S.morph) particle(cx, cy, 44 * (1 + 0.04 * Math.sin(t * 1.6)), t, { drugs: 10, detail: 1 });   // it breathes
+    reticle(cx, cy, t, { r: 62, dark: true, tag: false, alpha: inv(1.4, 2, t) });
+  },
+  overlay(t) {
+    const cx = 960, q = 'Every dose is a slow journey.', qo = { kind: 'display', size: 60, italic: true, color: PAL.nightInk, cps: 20 };
+    dropText(q, cx - measure(q, qo) / 2, 610, t - 1.8, qo);
+    const rl = E.out3(inv(3.3, 4.1, t)); if (rl > 0) ink([[cx - 320 * rl, 650], [cx + 320 * rl, 650]], { w: 1.2, color: PAL.peri, amp: 0, alpha: 0.7 });
+    const col = `THE LONG RELEASE  ·  4 PLATES  ·  ${fmt(TOTAL_F)} FRAMES  ·  DRAWN IN CODE`, co = { kind: 'mono', size: 20, ls: 6, color: '#9fa0c8' };
+    text(typed(col, t - 2.8, 60), cx - measure(col, co) / 2, 700, co);
+    const src = 'NOTES  ·  VALUES ARE ROUNDED AND ILLUSTRATIVE  ·  EPR IS VARIABLE IN PATIENTS  ·  NOT A SPECIFIC FORMULATION', so = { kind: 'mono', size: 15, ls: 5, color: PAL.nightMuted };
+    text(typed(src, t - 3.4, 60), cx - measure(src, so) / 2, 930, so);
   },
 };
-defineStory({ title: 'One Drop', stages: 5, music: { tonic: 220 }, plates: [T0, P1, P2, P3, P4, P5, END] });
+
+defineStory({ title: 'The Long Release', stages: 4, plates: [P0, P1, P2, P3, P4, P5] });
 boot();

@@ -27,7 +27,8 @@ If you build something other films could reuse (a server rack, a tree, a galaxy,
 | `toolkit/shell.html`, `toolkit/build.py` | `python3 build.py story.js film.html` inlines the engine and the story into one self-contained HTML file. |
 | `toolkit/render.mjs` | Frame capture, stills, contact sheets, transition strips, MP4 muxing. |
 | `toolkit/motion_check.py` | Measures how alive a render is. |
-| `toolkit/story_example.js` | Worked example "One Drop" (49 s, 7 plates). Read it for **structure** (plate objects, beats, camera moves, transitions, the end card). Don't reuse its scenery for an unrelated topic. |
+| `toolkit/story_example.js` | The main worked example, "The Long Release" (55.5 s): one PLGA nanoparticle from syringe to drug release, in a title, 4 plates and an end card. Read it for **structure**: plate objects, beats that enter and leave, text in `overlay()`, motivated cameras (a tracking shot, a slow push and turn, a follow that pulls back to the full diagram), and a designed seam list at the top of the file. Don't reuse its scenery for an unrelated topic. |
+| `toolkit/story_one_drop.js` | A second example, "One Drop" (49 s, the water cycle): scenery recipes (far mountains, trees, birds, a coast cross-section), dense night plates, a size-ladder card. |
 | `toolkit/story_seams.js` | "Pencil to Ladybug" (29 s): a short example of designed seams (a custom eraser-to-ladybug morph, an auto-direction `pan`, a match `cut`, a `page` turn). Read it with "Designing the seams" in `references/writing.md`. |
 | `toolkit/story_reel.js` | Test reel with all 14 transition types back to back. |
 | `references/style.md` | Worlds, palette, type, line and texture recipes, composition, HUD positions. |
@@ -56,7 +57,7 @@ Read `FEEDBACK.md` in this skill's folder before every use and apply its lessons
 1. **Get the substance first.** Research the topic, or read the user's data or source. Every number on screen needs a source; write the sources down now, because they go on the end card.
 2. **Pick the hero and the journey.** Something small that travels through the whole story, with an ID tag like `H₂O·01`, `NP·01`, `γ·01`, `PKT·01` (see `references/writing.md`).
 3. **Write the plate script** in the table format from `references/writing.md`, with camera, transition and exit columns, then **design every seam** (exit, entry, link) in the seam list and let the link pick the transition. For films longer than about a minute, show the script to the user before building.
-4. **Set up a working folder** (not inside this skill): `cp "${CLAUDE_SKILL_DIR}"/toolkit/* .` then write a new `story.js` that follows the example's structure, with art built for this topic. Copy a helper from the example only when it genuinely fits. If that variable is not filled in, the `toolkit` folder sits next to this SKILL.md.
+4. **Set up a working folder** (not inside this skill): `cp "${CLAUDE_SKILL_DIR}"/toolkit/* .` then write a new `story.js` that follows the structure of `story_example.js`, with art built for this topic. Copy a helper from the example only when it genuinely fits. If that variable is not filled in, the `toolkit` folder sits next to this SKILL.md.
 5. **Build plate by plate.** After each plate run `python3 build.py story.js film.html` and `node render.mjs film.html --stills <frames>`, then look at the stills: beats, collisions, empty regions.
 6. **QA the motion, not just the stills.**
    - `node render.mjs film.html --sheet 1` writes one frame per second to `qa/contact_sheet.jpg`.

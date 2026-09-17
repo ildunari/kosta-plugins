@@ -23,11 +23,13 @@ plugins/doodle-art-animation/       the plugin
     FEEDBACK.md                     lessons log (feedback-loop convention)
     references/                     style, motion, writing, film-grammar, sound, api, render
     toolkit/                        engine.js, shell.html, build.py, render.mjs,
-                                    motion_check.py, story_example.js, story_seams.js, story_reel.js
+                                    motion_check.py, story_example.js (The Long Release),
+                                    story_one_drop.js, story_seams.js, story_reel.js
 docs/doodle-art-animation/          not shipped with the plugin
   DEVELOPING.md                     this file
   HANDOFF.md                        history, measurements, known weaknesses (paths in it refer to the original handoff zip)
-  history/  reference/  examples/   design review, reference-film study images, older story files
+  history/  reference/  examples/   design review, reference-film study images, an older story file
+                                    (The Long Release now lives in the toolkit as story_example.js)
 ```
 
 ## Testing the plugin
@@ -53,7 +55,7 @@ node render.mjs film.html film.mp4 --workers 6      # full render
 python3 motion_check.py film.mp4                    # target: median >= 1.5, still < 5%
 ```
 
-Look at the images yourself before calling anything done. Baseline for the example: median 1.57, still 1% (see `HANDOFF.md`).
+Look at the images yourself before calling anything done. Baselines on engine v0.9: `story_one_drop.js` median 1.95, 0% still; `story_example.js` (The Long Release) is recorded in the commit that made it the example.
 
 ## Engine rules that must not break
 

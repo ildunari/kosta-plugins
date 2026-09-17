@@ -67,7 +67,7 @@ A transition is part of the story, not a wipe laid over it. Design each one from
 - **Don't mirror.** After a push in, leave by a different, motivated move: track the subject, pan where it points, rise, or hand the camera to something moving (`references/film-grammar.md`, the switch-up rule).
 - **Compose both ends to meet.** Place the entry object where the exit object will be when the cut lands, keep camera motion going the same way across the cut, and give the exit a reason (the pencil lifts, the ladybug takes off). If no link exists, change the plates until one does, or say so in the script and use a plain `cut`.
 
-Example (`toolkit/story_seams.js`, "Pencil to Ladybug"):
+Example (`toolkit/story_seams.js`, "Pencil to Ladybug"; `story_example.js` lists its own seams at the top of the file):
 
 | Seam | Exit | Entry | Link | Transition |
 |---|---|---|---|---|
@@ -82,9 +82,9 @@ Write this before coding. One row per plate. Beat times are local seconds, writt
 
 | # | Plate (world) | Dur | Enter | Camera | Header: title / subtitle | Hero route | Beats (start→end) | Journey log | Stage | Sound |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 0 | Title (paper) | 6 | – | crane: s 1.14→1, dy −70→0 | *One Drop* / *the journey of one raindrop* | drop forms 2.6, falls 3.0–4.2, splashes | 0 ground draws on · 0.3 cloud lobes · 1.0 title pops · 2.0 rain · 4.2 ripples | – | – | noise sweep, plinks, chime 4.25 |
-| I | The Valley (paper) | 7.5 | pan left 1.0 | follow pan, hills at parallax 0.5 | … | along a 3,400 px river | 1.1→4.1 stat ≈1,200 mm · 4.4→7.2 callout (flipped left, overlay) | T+ 0→40 min | 01 RUNOFF | chime 2.5, pop 4.4 |
-| II | Inside the Drop (night) | 6.5 | lensIn 0.55 | push 8% + slow turn | … | jiggling centre | 0.1 a crowd of 120 molecules staggers in and swirls · 0.6 bonds flicker · 1.6→5.0 stat ≈1.4 × 10²⁰ · 3.8→ callout | … | 02 LIQUID | pitched plinks |
-| III | The Cloud Within (night) | 6.5 | zoom out k 8 | push + rise + slight turn | … | bobbing | droplets rise in depth layers · 1.3 stat 20 µm · 2.9 size-ladder card · 3.4 ruler marks | … | 03 CLOUD | glide, updraft hum, pop |
-| IV | A Raindrop (paper) | 7 | shape circle → bun | none; world scrolls up | … | bobbing, wobbling | 1.0→ callout · 2.8 myth drawn · 3.4 crossed · 4.8 erased | altitude 1,200→300 m | 04 FALL | bend, wind bed |
-| V | The Whole Route (paper) | 10 | bleed 1.4 | pull-out 1.6→1, then slow push and pan | … | cloud → slope → river → sea → air | 0.9–4.6 flows draw on in turn (vapour, rain, runoff, groundwater) · 1.8 labels · 3.2→ stat ≈9 days · 5.6→ parts-of-a-whole card | T+ 1→9 days, place, state | 05 RETURN | plinks up the scale, chimes |
+| 0 | Title (paper) | 6.5 | – | settle s 1.05→1, then push to 1.14 on the landing ripple | *The Long Release* / *the journey of one nanoparticle* | drop forms 1.0, falls 2.05–2.55, lands; NP·01 appears in the ripple | 0 frame lines draw · 0.25 blood floods in · 0.5→6.45 title types · 2.0 ruler Ø 150 nm · ripples keep spreading | – | – | noise sweep, plink, chime 2.6 |
+| I | Into the Blood (paper) | 10 | through 1.6, inOutSine: blood surface → a red cell | tracking: the world slides at half the particle's speed | … | along the vein, bobbing | 1.3→6.7 stat ≈430 billion per mg · 4.6→9.8 callout red cell (leader anchored through the camera) · 6.0→ size-ladder card | T+ 0→9 s, VEIN → RIGHT HEART | 01 CIRCULATION | heartbeat bed, pops |
+| II | The Corona (night) | 10 | lensIn 0.6 | push 1→1.12 with a slow 0.05 rad turn | … | fixed centre | 0.6→9.6 backbone schematic · 72 proteins land in turn · 1.4→7.0 stat ≈70 g/L · 3.8→9.9 corona callout · 5.3→9.95 PEG callout · scale bar follows the zoom | T+ 12 s→5 min, diameter 150→172 nm | 02 CORONA | dark bed, plinks |
+| III | Leaky Vessels (paper) | 12.8 | lensOut 0.6 | follow NP·01 at s 1.3 with lead room, then pull back to the full diagram 5.6→8.2 | … | along the capillary, down through a gap | 0.8→6.4 stat ≈200–800 nm · 1.2→6.2 junction callout (fixed label) · 5.2→12.6 EPR callout · 7.2 side labels · 8.3→12.6 lymph notes (wide view only) | T+ 6→24 h, FLOWING → LODGED | 03 EXTRAVASATION | heartbeat bed, chimes |
+| IV | Slow Release (night) | 12 | lensIn 0.9, inOutSine (slower than seam I → II) | slow push 1.06→1.14 with a sway | … | fixed; the particle swells and pits | 0.9→ release card, the curve draws with the clock · 2.2→7.4 hydrolysis callout · 6.6→11.9 diffusion callout | T+ 1→28 days, released % | 04 RELEASE | dark bed, plinks per drug |
+| End | End card (night) | 9.5 | shape 1.3: the eroded particle → the emblem | – | – | – | drifting camera, ripples, turning tick ring, orbiting drug · 1.8 quote · 2.8 credits · 3.4 notes | – | – | pad, chimes |
