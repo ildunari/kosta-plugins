@@ -45,7 +45,35 @@ const E = {
   outBack2: t => { const c = 2.7; return 1 + (c + 1) * (t - 1) ** 3 + c * (t - 1) ** 2; },
   anticipate: t => { const c = 1.7; return t * t * ((c + 1) * t - c); },       // small pull-back, then go
   outElastic: t => t >= 1 ? 1 : 1 - 2 ** (-7 * t) * Math.cos(t * TAU * 1.15),  // spring settle (objects, not text)
+  in5: t => t ** 5, out5: t => 1 - (1 - t) ** 5,
+  inOut2: t => t < .5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2,
+  inSine: t => 1 - Math.cos(t * Math.PI / 2), outSine: t => Math.sin(t * Math.PI / 2),
+  inExpo: t => t <= 0 ? 0 : 2 ** (10 * t - 10),
+  inOutExpo: t => t <= 0 ? 0 : t >= 1 ? 1 : t < .5 ? 2 ** (20 * t - 10) / 2 : (2 - 2 ** (-20 * t + 10)) / 2,
+  inBack: t => { const c = 1.7; return (c + 1) * t ** 3 - c * t * t; },
+  inOutBack: t => { const c = 1.7 * 1.525; return t < .5 ? ((2 * t) ** 2 * ((c + 1) * 2 * t - c)) / 2 : ((2 * t - 2) ** 2 * ((c + 1) * (t * 2 - 2) + c) + 2) / 2; },
+  outBounce: t => { const n = 7.5625, d = 2.75; if (t < 1 / d) return n * t * t; if (t < 2 / d) return n * (t -= 1.5 / d) * t + 0.75;
+    if (t < 2.5 / d) return n * (t -= 2.25 / d) * t + 0.9375; return n * (t -= 2.625 / d) * t + 0.984375; },
+  hold: t => t < 1 ? 0 : 1,                                                     // jump at the end of a segment
+  /** spring(k): a settle with k overshoots (1 = one gentle bounce past the target) */
+  spring: (k = 1) => t => t >= 1 ? 1 : 1 - Math.exp(-5 * t) * Math.cos(t * Math.PI * (k + 0.5)),
 };
+/** easeOf('inOut3' | fn | null): an easing by name, a function, or linear */
+const easeOf = e => typeof e === 'function' ? e : (e && E[e]) || E.lin;
+/**
+ * curve(t, keys, { geo }): a value over time with its own easing per segment. keys = [[t, value, ease?], ...]; the
+ * ease on a key shapes the segment that ends there (name or function, default inOut3). Repeat a value to hold it.
+ * geo: true interpolates positive numbers geometrically (use it for zoom scales, so zooms never rush or stall).
+ */
+function curve(t, keys, { geo = false } = {}) {
+  if (t <= keys[0][0]) return keys[0][1];
+  for (let i = 1; i < keys.length; i++) if (t <= keys[i][0]) {
+    const [ta, va] = keys[i - 1], [tb, vb, eb] = keys[i], e = easeOf(eb ?? 'inOut3')(inv(ta, tb, t));
+    const mix = (a, b) => geo && a > 0 && b > 0 ? zlerp(a, b, e) : lerp(a, b, e);
+    return Array.isArray(va) ? va.map((v, j) => mix(v, vb[j])) : mix(va, vb);
+  }
+  return keys[keys.length - 1][1];
+}
 /** keyframed value: kf(t, [[t0,v0],[t1,v1],...], ease); values may be numbers or [x,y] */
 function kf(t, keys, ease = E.inOut3) {
   if (t <= keys[0][0]) return keys[0][1];
@@ -80,7 +108,7 @@ function vnoise(x, seed = 0) {                        // smooth 1-D value noise 
   const i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f);
   return lerp(hash3(i, seed), hash3(i + 1, seed), u) * 2 - 1;
 }
-const S = { f: 0, boil: 0, T: 0, morph: false, trans: null, noReticle: false };   // per-frame globals
+const S = { f: 0, boil: 0, T: 0, morph: false, trans: null, side: null, noReticle: false };   // per-frame globals
 /** jitter that re-rolls every 2 frames: the hand-drawn "boil" (animation on twos) */
 const boil = (seed, k, amp) => (hash3(seed, k, S.boil) - 0.5) * 2 * amp;
 
@@ -140,6 +168,16 @@ function morph(A, B, u, n = 72) {
   const a = resample(A, n), b0 = resample(B, n), b1 = b0.slice().reverse(); let best = null, bd = Infinity;
   for (const b of [b0, b1]) for (let k = 0; k < n; k++) { let d = 0; for (let i = 0; i < n; i += 3) { const q = b[(i + k) % n]; d += (a[i][0] - q[0]) ** 2 + (a[i][1] - q[1]) ** 2; } if (d < bd) { bd = d; best = [b, k]; } }
   const [b, k] = best; return a.map((p, i) => { const q = b[(i + k) % n]; return [lerp(p[0], q[0], u), lerp(p[1], q[1], u)]; });
+}
+/**
+ * morphPose(A, B, u, pa, pb): morph two outlines that each live in their own local frame (centred on 0, 0) while the
+ * frame itself travels: pa / pb = { x, y, rot, s }. Shape, position, turn and size all blend together, so one object
+ * turns into another without collapsing. Returns screen points. Use it to write object-to-object seams.
+ */
+function morphPose(A, B, u, pa, pb, n = 72) {
+  const M = morph(A.map(([x, y]) => [x * pa.s, y * pa.s]), B.map(([x, y]) => [x * pb.s, y * pb.s]), u, n);
+  const x = lerp(pa.x, pb.x, u), y = lerp(pa.y, pb.y, u), r = lerp(pa.rot || 0, pb.rot || 0, u), c = Math.cos(r), sn = Math.sin(r);
+  return M.map(([px, py]) => [x + px * c - py * sn, y + px * sn + py * c]);
 }
 /** gather(targets, t, {t0, dur, spread, seed}) -> [[x,y,u],...]: particles fly in from a scatter to form a shape */
 function gather(targets, t, { t0 = 0, dur = 1.2, spread = 400, seed = 9 } = {}) {
@@ -664,6 +702,18 @@ function camOf(pl, t) {
   const d = pl.drift ?? STORY.drift ?? 0.04; if (!d) return null;
   return { x: W / 2, y: H * 0.55, s: 1 + d * E.inOutSine(clamp(t / pl.dur)) };
 }
+/**
+ * follow(target, t, { s, lead, lag, anchor, turn }): a tracking camera. It keeps a moving subject (target: t => [x, y],
+ * scene coordinates) near `anchor` on screen with lead room: space opens up in the direction the subject is heading,
+ * growing with its speed. The camera trails by `lag` seconds, so the subject leads the frame. s: zoom, a number or
+ * t => number. Returns a cam for plate.cam.
+ */
+function follow(target, t, { s = 1, lead = 180, lag = 0.2, anchor = [W / 2, H / 2], turn = 0.4 } = {}) {
+  const sc = typeof s === 'function' ? s(t) : s, [px, py] = target(t - lag), [qx, qy] = target(t - lag - turn);
+  const vx = px - qx, vy = py - qy, sp = Math.hypot(vx, vy), k = E.inOutSine(clamp(sp / turn / 260)) * lead;
+  const ax = anchor[0] - (sp ? vx / sp : 0) * k, ay = anchor[1] - (sp ? vy / sp : 0) * k;
+  return { x: px, y: py, s: sc, dx: ax - px, dy: ay - py };
+}
 /** parallax(cam, depth, fn): inside draw(), makes fn's layer pan at `depth` times the camera's pan (0 = pinned sky, 1 = ground) */
 function parallax(cam, depth, fn) { if (!cam) return fn(); ctx.save(); ctx.translate(-(cam.dx || 0) * (1 - depth), -(cam.dy || 0) * (1 - depth)); fn(); ctx.restore(); }
 /** a plate's hero on screen: from plate.hero(t) (scene coords, camera applied) or plate.focus(t) (screen coords) */
@@ -678,20 +728,57 @@ const focusOf = (pl, t) => { const h = heroOf(pl, t); return [h.x, h.y]; };
  * so the camera never stops dead at a cut. enter.momentum = false turns it off for one plate.
  */
 const LEAD = { lensIn: 1.14, zoom: 1.08, shape: 1.12, iris: 1.06, bleed: 1.03, burn: 1.03, cut: 1.03 };   // always >= 1: scenes only bleed past the edges when enlarged
-const SETTLE = { lensIn: 1.12, lensOut: 1.08, zoom: 1.06, shape: 1.08, iris: 1.06, bleed: 1.05, burn: 1.05, cut: 1.05, wipe: 1.03, page: 1.04, roll: 1.04, fade: 1.02, hatch: 1.03 };
+const SETTLE = { through: 1.04, lensIn: 1.12, lensOut: 1.08, zoom: 1.06, shape: 1.08, iris: 1.06, bleed: 1.05, burn: 1.05, cut: 1.05, wipe: 1.03, page: 1.04, roll: 1.04, fade: 1.02, hatch: 1.03 };
+/**
+ * motionOf(pl, t): how the plate's content is moving on screen at local time t, in px/s. Uses the hero when there is
+ * one (camera included), otherwise the camera pan. Measured over one drawing (1/12 s).
+ */
+function motionOf(pl, t) {
+  const dt = 1 / 12, t0 = Math.max(0, t - dt);
+  if (pl.hero) { const [x0, y0] = focusOf(pl, t0), [x1, y1] = focusOf(pl, t); return [(x1 - x0) / (t - t0 || dt), (y1 - y0) / (t - t0 || dt)]; }
+  const c0 = camOf(pl, t0) || {}, c1 = camOf(pl, t) || {};
+  return [((c1.dx || 0) - (c0.dx || 0)) / (t - t0 || dt), ((c1.dy || 0) - (c0.dy || 0)) / (t - t0 || dt)];
+}
+/**
+ * Motion carry-over. The new plate enters still travelling the way the old plate's content was moving at the cut
+ * (enter.carry: seconds for that motion to die away, default 0.35; false turns it off), so movement flows through
+ * the transition instead of stopping at it. On by default except for pan, page and roll, which move the sheet themselves.
+ */
+/** travelOf(plate, t): which way the camera is effectively travelling (px/s): chasing a moving hero, or panning */
+function travelOf(pl, t) {
+  const dt = 1 / 12, t0 = Math.max(0, t - dt), c0 = camOf(pl, t0) || {}, c1 = camOf(pl, t) || {};
+  const cx = ((c1.dx || 0) - (c0.dx || 0)) / (t - t0 || dt), cy = ((c1.dy || 0) - (c0.dy || 0)) / (t - t0 || dt);
+  const [hx, hy] = pl.hero ? motionOf(pl, t) : [0, 0];
+  return [hx - cx, hy - cy];
+}
+const NO_CARRY = { pan: 1, page: 1, roll: 1, fade: 1 };
+function carryShift(pl, t) {
+  const tr = pl.enter; if (!tr || !pl.i) return null;
+  const tau = tr.carry ?? (NO_CARRY[tr.type] ? 0 : 0.35); if (!tau) return null;
+  const prev = STORY.plates[pl.i - 1], [vx, vy] = motionOf(prev, prev.dur - 1e-3), sp = Math.hypot(vx, vy);
+  if (sp < 40) return null;
+  const k = Math.min(1, 900 / sp), f = -tau * Math.exp(-t / tau) * k;        // velocity at t = 0 equals the old plate's (capped)
+  if (Math.abs(f) * sp < 0.5) return null;
+  return [vx * f, vy * f];
+}
 /**
  * Match cut. After a `cut` (or any enter with match: 0..1) the new plate starts shifted so its hero sits where the
  * old hero was (by the match fraction, 0.6 for cuts), holds a beat, then eases home over enter.settle s. It zooms
  * just enough to keep covering the frame while shifted. enter.match = 0 turns it off.
  */
 function matchShift(pl, t) {
-  const tr = pl.enter; if (!tr || !pl.i) return null;
+  const tr = pl.enter; if (!tr || !pl.i) return null;   // returns the shift only; entryShift adds carry and cover zoom
   const k = tr.match ?? (tr.type === 'cut' ? 0.6 : 0); if (!k) return null;
   const d = tr.dur || 0, q = 1 - E.inOut3(inv(d + 0.15, d + 0.15 + (tr.settle ?? 1.0), t)); if (q <= 0) return null;
   const prev = STORY.plates[pl.i - 1], [ox, oy] = focusOf(prev, prev.dur), [nx, ny] = focusOf(pl, d);
-  const dx = (ox - nx) * k * q, dy = (oy - ny) * k * q;
-  const cov = (c, dd, span) => Math.max(1, (c + dd) / (c + 20), (span - c - dd) / (span + 20 - c));   // scenes bleed ~20 px past the edges
-  return { dx, dy, s: Math.max(cov(nx, dx, W), cov(ny, dy, H)) };
+  return { dx: (ox - nx) * k * q, dy: (oy - ny) * k * q, hx: nx, hy: ny };
+}
+/** everything that shifts a plate as it enters (match cut + carried motion), with just enough zoom to keep covering the frame */
+function entryShift(pl, t) {
+  const m = matchShift(pl, t), c = carryShift(pl, t); if (!m && !c) return null;
+  const dx = (m ? m.dx : 0) + (c ? c[0] : 0), dy = (m ? m.dy : 0) + (c ? c[1] : 0), [hx, hy] = m ? [m.hx, m.hy] : focusOf(pl, t);
+  const cov = (h, dd, span) => Math.max(1, (h + dd) / (h + 20), (span - h - dd) / (span + 20 - h));   // scenes bleed ~20 px past the edges
+  return { dx, dy, s: Math.max(cov(hx, dx, W), cov(hy, dy, H)) };
 }
 function momentum(pl, t) {
   let s = 1;
@@ -723,6 +810,17 @@ function maskCanvas(key, w, h) {
 function frontAt(vals, u) {
   const sorted = vals.slice().sort(), n = sorted.length;
   return sorted[Math.min(n - 1, Math.max(0, Math.floor(clamp(u) * (n - 1))))];
+}
+/**
+ * softReveal(fn, cx, cy, r, feather, slot): draw fn() only inside a soft-edged circle, as a dissolve that spreads from
+ * one point. Uses offscreen layer `slot` (default 1).
+ */
+function softReveal(fn, cx, cy, r, feather = 260, slot = 1) {
+  if (r <= 0) return;
+  const L = layer(() => { fn(); ctx.globalCompositeOperation = 'destination-in';
+    const g = ctx.createRadialGradient(cx, cy, Math.max(0, r - feather), cx, cy, r + 1);
+    g.addColorStop(0, '#000'); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }, slot);
+  ctx.drawImage(L, 0, 0);
 }
 /** clipHalf(poly, f): the part of a convex polygon where f(point) <= 0 (f linear) */
 function clipHalf(poly, f) {
@@ -810,7 +908,11 @@ const TRANS = {
   },
   /** whip pan along one long sheet (tr.dir 'left' | 'right' | 'up' | 'down'): both plates slide, speed lines at full speed */
   pan(p, X) {
-    const dir = X.tr.dir || 'left', vert = dir === 'up' || dir === 'down', sg = dir === 'left' || dir === 'up' ? -1 : 1, span = vert ? H : W;
+    let dir = X.tr.dir || 'auto';
+    if (dir === 'auto') {   // keep the camera travelling the way it was: sheets slide opposite to the camera
+      const [vx, vy] = travelOf(X.prev, X.prev.dur - 1e-3);
+      dir = Math.hypot(vx, vy) < 40 ? 'left' : Math.abs(vx) >= Math.abs(vy) ? (vx > 0 ? 'left' : 'right') : (vy > 0 ? 'up' : 'down'); }
+    const vert = dir === 'up' || dir === 'down', sg = dir === 'left' || dir === 'up' ? -1 : 1, span = vert ? H : W;
     const Lo = layer(() => X.drawOldX({ all: true }), 1), Ln = layer(() => X.drawNewX({ all: true }), 2);
     const offAt = q => sg * span * E.inOut3(clamp(q)), sh = 0.5 / (12 * (X.tr.dur || 0.8));   // half-drawing shutter
     const n = Math.round(clamp(Math.abs(offAt(p + sh / 2) - offAt(p - sh / 2)) / 5, 1, 48));
@@ -830,6 +932,34 @@ const TRANS = {
       pen(pts, { w: 1.4 + r() * 2.2, color: X.darkNew ? PAL.nightInk : PAL.ink, alpha: 0.45 * v, taper: 0.45, seed: i, amp: 0.4 });
     }
     return E.inOut3(inv(0.35, 0.65, p));
+  },
+  /**
+   * through (bridge): the camera dives into an object in the old plate (tr.from) until its colour fills the frame,
+   * the colour shifts, and the camera pulls back out of an object in the new plate (tr.to). from / to are
+   * { at: [x, y], r } in scene coordinates, or functions (plate, t) returning one; defaults are the heroes with r 40.
+   * The new object starts where the old one was and glides to its own place. Colours are sampled unless
+   * tr.fromFill / tr.toFill are given.
+   */
+  through(p, X) {
+    const { tr } = X, anc = (a, pl, t, def) => { const v = typeof a === 'function' ? a(pl, t) : a; const cam = camOf(pl, t);
+      if (!v) return { at: def, r: 40 }; return { at: camPoint(cam, v.at), r: (v.r ?? 40) * (cam ? cam.s || 1 : 1) }; };
+    const A = anc(tr.from, X.prev, X.pt, X.focusOld), B = anc(tr.to, X.pl, X.t, X.focusNew), [ax, ay] = A.at, [bx, by] = B.at;
+    const cA = tr.fromFill || sampleColor(X, 'old', ax, ay), cB = tr.toFill || sampleColor(X, 'new', bx, by);
+    const col = mixColor(cA, cB, E.inOut3(inv(0.44, 0.56, p)));
+    if (p < 0.5) {
+      const q = p / 0.5, kA = coverR(ax, ay) / A.r * 1.1, sc = zlerp(1, kA, E.in3(q));
+      X.drawOldX({ hud: 1 - inv(0, 0.4, q), xf: about(ax, ay, sc) });
+      withAlpha(E.inOut3(inv(0.05, 0.35, q)), () => { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(ax, ay, A.r * sc, 0, TAU); ctx.fill(); });   // the object becomes a field of its colour
+    } else {
+      const q = (p - 0.5) / 0.5, kB = coverR(bx, by) / B.r * 1.1, sc = zlerp(kB, 1, E.out3(q)), g = E.inOut3(q);
+      const px = lerp(ax, bx, g), py = lerp(ay, by, g);
+      ctx.fillStyle = col; ctx.fillRect(-20, -20, W + 40, H + 40);
+      S.noReticle = q < 0.6;
+      X.drawNewX({ hud: inv(0.6, 1, q), xf: about(bx, by, sc, px, py) });
+      S.noReticle = false;
+      withAlpha(1 - E.inOut3(inv(0.6, 0.9, q)), () => { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(px, py, B.r * sc, 0, TAU); ctx.fill(); });   // the colour field shrinks into the new object, then gives way to it
+    }
+    return E.inOut3(inv(0.44, 0.56, p));
   },
   /** ink wipe (tr.dir 'lr' | 'rl' | 'tb'): a curved inked front sweeps across; the new plate slides in slightly behind it */
   wipe(p, X) {
@@ -1021,13 +1151,13 @@ const TRANS = {
 };
 /** header start delay per transition (measured from the reference: bare hold after a lens-in, none after a lens-out) */
 const HEADER_DELAY = { cut: () => 0.25, lensIn: d => d + 0.4, lensOut: () => 0.05, fade: d => d * 0.6, burn: d => d * 0.7, bleed: d => d * 0.7, wipe: d => d * 0.55,
-  iris: d => d * 0.5 + 0.3, zoom: d => d * 0.85, shape: d => d * 0.85, morph: d => d * 0.85, page: d => d * 0.6, roll: d => d * 0.6, hatch: d => d * 0.6, pan: d => d * 0.8 };
+  iris: d => d * 0.5 + 0.3, zoom: d => d * 0.85, shape: d => d * 0.85, morph: d => d * 0.85, page: d => d * 0.6, roll: d => d * 0.6, through: d => d * 0.8, custom: d => d * 0.8, hatch: d => d * 0.6, pan: d => d * 0.8 };
 function headerDelay(pl) { const tr = pl.enter; if (!tr || pl.i === 0) return 0.1; return (HEADER_DELAY[tr.type] || HEADER_DELAY.cut)(tr.dur || 0.5); }
 TRANS.morph = TRANS.shape;   // v2 name
 
 /* ---------- timeline ---------- */
 /** transition length when a plate's enter has no dur (seconds) */
-const DEFAULT_DUR = { cut: 0, lensIn: 0.6, lensOut: 0.6, zoom: 0.8, pan: 0.8, wipe: 0.8, bleed: 1.5, burn: 1.4, iris: 0.9, shape: 1.1, morph: 1.1, hatch: 0.8, page: 1.2, roll: 1.0, fade: 0.8 };
+const DEFAULT_DUR = { custom: 1.6, through: 1.4, cut: 0, lensIn: 0.6, lensOut: 0.6, zoom: 0.8, pan: 0.8, wipe: 0.8, bleed: 1.5, burn: 1.4, iris: 0.9, shape: 1.1, morph: 1.1, hatch: 0.8, page: 1.2, roll: 1.0, fade: 0.8 };
 let STORY = null, TOTAL_T = 0, TOTAL_F = 0;
 function defineStory(story) {
   STORY = story; let t = 0;
@@ -1044,7 +1174,7 @@ function drawPlate(pl, t, o = {}) {
   if (all && xf) xf();
   if (!hudOnly) {
   if (bg) background(pl.dark, t);
-  const cam = camOf(pl, t), ms = matchShift(pl, t), mo = momentum(pl, t) * (ms ? ms.s : 1);
+  const cam = camOf(pl, t), ms = entryShift(pl, t), mo = momentum(pl, t) * (ms ? ms.s : 1);
   ctx.save(); if (xf && !all) xf();
   if (ms) ctx.translate(ms.dx, ms.dy);
   if (mo !== 1) { const [hx, hy] = focusOf(pl, t); ctx.translate(hx, hy); ctx.scale(mo, mo); ctx.translate(-hx, -hy); }
@@ -1077,10 +1207,15 @@ function renderFrame(f) {
   const wv = STORY.weave ?? 0.9, db = Math.floor(fq / 2);
   if (wv) { ctx.translate(W / 2 + (hash3(db, 1, 7) - 0.5) * 2 * wv, H / 2 + (hash3(db, 2, 7) - 0.5) * 2 * wv); ctx.rotate((hash3(db, 3, 7) - 0.5) * 0.0012 * wv); ctx.scale(1.004, 1.004); ctx.translate(-W / 2, -H / 2); }
   if (i > 0 && tr && tr.type !== 'cut' && t < tr.dur) {
-    const prev = P[i - 1], pt = prev.dur + t, p = t / tr.dur; S.trans = { type: tr.type, p };
-    const X = { drawOld: () => drawPlate(prev, pt), drawNew: () => drawPlate(pl, t), drawOldX: o => drawPlate(prev, pt, o), drawNewX: o => drawPlate(pl, t, o),
+    const prev = P[i - 1], pt = prev.dur + t, raw = t / tr.dur;
+    // pacing: enter.ease reshapes the whole transition, enter.curve maps clock -> progress with holds and per-segment easing
+    const p = clamp(tr.curve ? curve(raw, tr.curve) : tr.ease ? easeOf(tr.ease)(raw) : raw);   // presets clamp overshoot; custom draws can read S.trans.raw
+    S.trans = { type: tr.type, p, raw };
+    const side = (sd, fn) => { const k = S.side; S.side = sd; try { fn(); } finally { S.side = k; } };   // plates can ask S.side which role they are playing
+    const X = { drawOld: () => side('old', () => drawPlate(prev, pt)), drawNew: () => side('new', () => drawPlate(pl, t)),
+      drawOldX: o => side('old', () => drawPlate(prev, pt, o)), drawNewX: o => side('new', () => drawPlate(pl, t, o)),
       focusOld: focusOf(prev, pt), focusNew: focusOf(pl, t), darkOld: prev.dark, darkNew: pl.dark, prev, pl, pt, t, tr, seed: i * 7 + 1 };
-    const share = (TRANS[tr.type] || TRANS.fade)(p, X);
+    const share = (tr.draw || TRANS[tr.type] || TRANS.fade)(p, X);        // enter.draw: a transition written by the story itself
     ctx.save(); ctx.globalAlpha = 1 - share; ctx.drawImage(vig(prev.dark), 0, 0); ctx.globalAlpha = share; ctx.drawImage(vig(pl.dark), 0, 0); ctx.restore();
   } else {
     drawPlate(pl, t); ctx.drawImage(vig(pl.dark), 0, 0);
@@ -1157,6 +1292,8 @@ const SFX = {
   },
 };
 const TRANS_SFX = {
+  custom: (ac, o, t, d, tr) => tr.sfx ? tr.sfx(ac, o, t, d) : SFX.swell(ac, o, t, { dur: d, up: true }),
+  through: (ac, o, t, d) => { SFX.glide(ac, o, t, { dur: d / 2, up: true }); SFX.glide(ac, o, t + d / 2, { dur: d / 2 }); },
   lensIn: (ac, o, t, d) => SFX.swell(ac, o, t - 0.05, { dur: d + 0.2, up: true }), lensOut: (ac, o, t, d) => SFX.swell(ac, o, t - 0.05, { dur: d + 0.2, up: false }),
   cut: (ac, o, t) => SFX.thump(ac, o, t), fade: () => {}, burn: (ac, o, t, d) => SFX.crackle(ac, o, t, { dur: d }),
   wipe: (ac, o, t, d, tr) => SFX.whoosh(ac, o, t, { dur: d, dir: tr.dir }), iris: (ac, o, t, d) => SFX.shutter(ac, o, t, { dur: d }),
@@ -1213,7 +1350,7 @@ async function boot() {
   await Promise.all(FONT_LOADS.map(f => document.fonts.load(f).catch(() => null)));
   await document.fonts.ready;
   buildTextures();
-  window.__story = { fps: FPS, frames: TOTAL_F, width: W, height: H, title: STORY.title, starts: STORY.plates.map(p => ({ t: p.start, type: p.enter ? p.enter.type : null, dur: p.enter ? p.enter.dur : 0 })) };
+  window.__story = { fps: FPS, frames: TOTAL_F, width: W, height: H, title: STORY.title, starts: STORY.plates.map(p => ({ t: p.start, type: p.enter ? p.enter.type : null, dur: p.enter ? p.enter.dur : 0, settle: p.enter ? p.enter.settle ?? 0.9 : 0 })) };
   window.__renderFrame = f => { renderFrame(f); return true; };
   window.__frameData = (f, type = 'image/jpeg', q = 0.94) => { renderFrame(f); return cvs.toDataURL(type, q).split(',')[1]; };
   window.__audioWav = async () => b64(wavBytes(await renderAudio()));

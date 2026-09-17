@@ -28,15 +28,17 @@ If you build something other films could reuse (a server rack, a tree, a galaxy,
 | `toolkit/render.mjs` | Frame capture, stills, contact sheets, transition strips, MP4 muxing. |
 | `toolkit/motion_check.py` | Measures how alive a render is. |
 | `toolkit/story_example.js` | Worked example "One Drop" (49 s, 7 plates). Read it for **structure** (plate objects, beats, camera moves, transitions, the end card). Don't reuse its scenery for an unrelated topic. |
-| `toolkit/story_reel.js` | Test reel with all 13 transition types back to back. |
+| `toolkit/story_seams.js` | "Pencil to Ladybug" (29 s): a short example of designed seams (a custom eraser-to-ladybug morph, an auto-direction `pan`, a match `cut`, a `page` turn). Read it with "Designing the seams" in `references/writing.md`. |
+| `toolkit/story_reel.js` | Test reel with all 14 transition types back to back. |
 | `references/style.md` | Worlds, palette, type, line and texture recipes, composition, HUD positions. |
 | `references/motion.md` | Keeping every drawing alive, beats, timings, camera moves, the transition table and rules. |
 | `references/writing.md` | Explainer voice, how to adapt any subject or dataset, the plate script format. |
 | `references/sound.md` | The synthesized sound design and cue names. |
 | `references/api.md` | Every function and plate field a story can use. |
+| `references/film-grammar.md` | Editing and animation grammar for seams and camera moves (eye trace, screen direction, lead room, motivated camera, the switch-up rule, the twelve principles) and the seam review rubric. |
 | `references/render.md` | How rendering works, options and speed. |
 
-Read `references/style.md`, `references/motion.md` and `references/writing.md` before writing the plate script. Open `references/api.md` while building, and `references/sound.md` when adding cues.
+Read `references/style.md`, `references/motion.md`, `references/writing.md` and `references/film-grammar.md` before writing the plate script. Open `references/api.md` while building, and `references/sound.md` when adding cues.
 
 ## Feedback Loop
 
@@ -53,12 +55,14 @@ Read `FEEDBACK.md` in this skill's folder before every use and apply its lessons
 
 1. **Get the substance first.** Research the topic, or read the user's data or source. Every number on screen needs a source; write the sources down now, because they go on the end card.
 2. **Pick the hero and the journey.** Something small that travels through the whole story, with an ID tag like `H₂O·01`, `NP·01`, `γ·01`, `PKT·01` (see `references/writing.md`).
-3. **Write the plate script** in the table format from `references/writing.md`, with camera, transition and exit columns. For films longer than about a minute, show the script to the user before building.
+3. **Write the plate script** in the table format from `references/writing.md`, with camera, transition and exit columns, then **design every seam** (exit, entry, link) in the seam list and let the link pick the transition. For films longer than about a minute, show the script to the user before building.
 4. **Set up a working folder** (not inside this skill): `cp "${CLAUDE_SKILL_DIR}"/toolkit/* .` then write a new `story.js` that follows the example's structure, with art built for this topic. Copy a helper from the example only when it genuinely fits. If that variable is not filled in, the `toolkit` folder sits next to this SKILL.md.
 5. **Build plate by plate.** After each plate run `python3 build.py story.js film.html` and `node render.mjs film.html --stills <frames>`, then look at the stills: beats, collisions, empty regions.
 6. **QA the motion, not just the stills.**
    - `node render.mjs film.html --sheet 1` writes one frame per second to `qa/contact_sheet.jpg`.
    - `node render.mjs film.html --strips` writes a 12-frame, 8 fps strip around every plate start.
+   - `node render.mjs film.html --seams` shows both sides of every transition and their overlay. Check that exit and entry line up and that motion keeps its direction.
+   - Before the final render, run the plugin's `seam-reviewer` agent on the working folder (or apply the rubric in `references/film-grammar.md` yourself) and fix every seam it fails.
    - Open every strip and work through the QA checklist below.
    - After the first full render, run `python3 motion_check.py film.mp4` and compare with the targets.
 7. **Render**: `node render.mjs film.html film.mp4 --workers 6`, adding `--bitrate 3800k` for a shareable file (a one-minute film lands near 25–30 MB).
@@ -74,7 +78,7 @@ Each has its details in the references.
 
 - **Every drawing moves.** The engine adds twos, gate weave, grain, line boil, a slow push-in and momentum across cuts. Each plate must also keep at least two of its own motions going (flow, drifting particles, weather, a moving hero, a camera move, flickering links), with much more on night plates. Target: `motion_check.py` median of at least 1.5 per drawing and fewer than 5% of drawings below 0.5 (the reference measures a median of 2.0 with 2% still drawings over the whole film). Night plates need dense crowds (100+ small bodies) or depth layers to register, and end cards need motion too (ripples, orbiting specks). A plate that sits near zero needs more life, not a faster transition.
 - **Beats enter and leave.** Wrap stats, callouts and cards in `withAlpha(beat(t, t0, t1), …)`. Text fades out; it never un-types. Give every line `readTime(s)` on screen.
-- **Pick transitions by meaning:** `lensIn`/`lensOut` between worlds, `zoom` within a world, `shape` when an object persists across the cut, `pan` along the journey, `bleed` (an ink drop) for time passing, `burn` for an ending, `page` (a page turn) for chapter breaks, `roll` for a clean reset, `fade` only into the end card. Use 4–6 types per film, never the same one three times in a row.
+- **Design the seams, then pick transitions by the link between them.** The built-in types are presets; when one object becomes another, or a seam carries meaning, write a custom transition in the story (`references/motion.md`, "Writing your own transition"). Set each transition's pace too (`dur`, `ease`, `curve`: slow in and out, bounces, holds). Presets: `lensIn`/`lensOut` between worlds, `zoom` within a world, `shape` when an object persists across the cut, `pan` along the journey, `bleed` (an ink drop) for time passing, `burn` for an ending, `page` (a page turn) for chapter breaks, `roll` for a clean reset, `fade` only into the end card. Use 4–6 types per film, never the same one three times in a row.
 - **Scenes bleed to all four edges**, with the horizon at 48–52% and a sky element on every paper plate. One idea per region: top-centre stat, one side for callouts, bottom card.
 - **Vary the scenery:** different ground, trees, far mountains, birds or open sea from plate to plate, and a recap with its own composition.
 - **Pen for subjects, ink for measurement**, shading made of pen strokes (never gradients), and at least two textures on any fill wider than 200 px.
@@ -107,6 +111,7 @@ Look at the actual frames, not your code.
   - the bleed front looks organic, not blocky;
   - the page turn shows the back of the page with a crease shadow, and the roll has inked edges and a shadow;
   - pans show a single join and speed lines, not two frozen frames.
+- **Seams** (`--seams`): the exit and entry objects line up in the overlay, motion keeps its direction across the cut, and nothing pops in or vanishes at the join. Then watch each seam at full speed: if it feels like a camera trick rather than one continuous thing, redesign it.
 - **Collisions.**
   - Callout text over art, or touching a card.
   - Callouts running off the frame edge: flip them.

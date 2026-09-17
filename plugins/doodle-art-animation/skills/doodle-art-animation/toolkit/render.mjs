@@ -4,6 +4,8 @@
 //   node render.mjs film.html --stills 0,120,480 [--dir qa]     single frames
 //   node render.mjs film.html --sheet 1 [--dir qa]              1 frame every N seconds -> qa/contact_sheet.jpg
 //   node render.mjs film.html --strips [--dir qa]               8 fps strip around every transition -> qa/strip_XX.jpg
+//   node render.mjs film.html --seams [--dir qa]                both sides of every transition -> qa/seam_XX.jpg
+//        top row: old plate's last drawing | the two overlaid | new plate once settled; bottom row: 4 drawings inside the transition
 import { createRequire } from 'module';
 import { pathToFileURL } from 'url';
 import fs from 'fs'; import path from 'path'; import { execFileSync } from 'child_process';
@@ -44,6 +46,22 @@ if (opt('stills', null) || opt('sheet', null)) {
   for (const f of list) await grab(first, f, `f_${String(f).padStart(5, '0')}.jpg`);
   console.log(`wrote ${list.length} stills to ${dir}`);
   if (opt('sheet', null)) { tile('f_*.jpg', 6, Math.ceil(list.length / 6), 'contact_sheet.jpg'); console.log('contact sheet:', path.join(dir, 'contact_sheet.jpg')); }
+  await browser.close(); process.exit(0);
+}
+if (opt('seams', null)) {
+  const fps = info.fps, fr = t => Math.max(0, Math.min(info.frames - 1, Math.round(t * fps)));
+  for (const [i, s] of info.starts.entries()) {
+    if (i === 0) continue;
+    const d = s.dur || 0, tag = `m${String(i).padStart(2, '0')}`, span = d || 0.6;
+    const shots = [['a', fr(s.t) - 2], ['b', fr(s.t + d + s.settle)], ...[0.2, 0.4, 0.6, 0.8].map((u, k) => ['c' + k, fr(s.t + u * span)])];
+    for (const [n, f] of shots) await grab(first, f, `${tag}_${n}.jpg`);
+    const P = n => path.join(dir, `${tag}_${n}.jpg`), out = path.join(dir, `seam_${String(i).padStart(2, '0')}_${s.type || 'cut'}.jpg`);
+    execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', P('a'), '-i', P('b'), '-i', P('c0'), '-i', P('c1'), '-i', P('c2'), '-i', P('c3'), '-filter_complex',
+      '[0]scale=640:360,split[a][a2];[1]scale=640:360,split[b][b2];[a2][b2]blend=all_mode=average[o];[a][o][b]hstack=3[top];' +
+      '[2]scale=480:270[c0];[3]scale=480:270[c1];[4]scale=480:270[c2];[5]scale=480:270[c3];[c0][c1][c2][c3]hstack=4[bot];[top][bot]vstack', '-frames:v', '1', out]);
+    for (const fn of fs.readdirSync(dir)) if (fn.startsWith(tag + '_')) fs.unlinkSync(path.join(dir, fn));
+    console.log(`seam ${i} (${s.type || 'cut'}) at ${s.t.toFixed(2)} s`);
+  }
   await browser.close(); process.exit(0);
 }
 if (opt('strips', null)) {   // 12 frames at 8 fps, from 0.25 s before each plate start

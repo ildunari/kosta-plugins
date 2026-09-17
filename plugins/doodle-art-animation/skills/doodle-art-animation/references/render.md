@@ -5,6 +5,7 @@
   - Audio comes from `window.__audioWav()`.
   - ffmpeg joins them at `-crf 16`, or at `--bitrate` if you pass one.
 - **Options:** `--png` for lossless frames, and `--from/--to` to re-render a range.
+- **Seams:** `node render.mjs film.html --seams` writes `qa/seam_NN_type.jpg` for every transition. The top row shows the old plate's last drawing, the two overlaid, and the new plate once settled; the bottom row shows four drawings inside the transition. Use the overlay to check that the exit and entry objects line up.
 - **Speed** depends mostly on CPU cores, because headless Chromium draws the canvas on the CPU.
   - On a machine with plenty of cores, 6 workers averaged about 60–70 ms per frame, so a 4.5-minute film takes about 7–8 minutes.
   - On a 2-core machine, the 49 s example averaged about 140 ms per frame with 4 workers (about 7 minutes).

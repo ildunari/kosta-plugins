@@ -98,7 +98,34 @@ Every transition is a pure function of progress `p`, animated on twos. Zooms int
 | `page` | A chapter break: turning to the next part of the notebook | Page turn: a bottom corner lifts and is dragged across (`dir` 'left' moves the right corner leftward, the default; 'right' the reverse), the page folds along a moving crease and slides off. The back of the turning page takes the new page's look, so the new world curls into view (`back: 'old'` keeps the old page's look, with its print showing through). The old corner labels fade in place. | 1.2 s | flick |
 | `roll` | A clean reset: into the recap or the end card | The old page rolls up from the bottom edge like a window blind or projector screen (inked roll, shadow below), revealing the new page. The old corner labels fade in place. Option: `radius`. | 1.0 s | flick + thump |
 | `cut` | Same scale, new place, with a hard edit | Match cut: the new plate opens shifted so its hero sits where the old hero was (`match`, default 0.6 of the way), holds a beat, then eases home over `settle` s. The old plate leans in 3% beforehand; the header follows 0.25 s later. `match: 0` gives a plain hard cut. Any other transition can take `match` too. | 0 | riser + thump |
+| `through` | Going **into a surface**: a screen, a window, a pool of colour. Not for one object becoming another (that reads as a jarring zoom in and out; write a custom morph instead). | The camera dives into an object in the old plate until its colour fills the frame, the colour shifts, and the camera pulls back out of an object in the new plate, which starts where the old one was and glides home. `from` / `to`: `{ at: [x, y], r }` in scene coordinates, or `(plate, t) => …`; `fromFill` / `toFill` set the colours (set them when the anchor point sits on detail such as a spot or seam). | 1.4 s | glide up, glide down |
 | `fade` | The end card only | Crossfade. | 0.8 s | none |
+
+## Pacing a transition
+
+Every transition's pace is yours to set. `dur` sets its length, and one of these reshapes its timing:
+
+- **`ease`:** one easing for the whole transition, e.g. `ease: 'inOutSine'` (slow in and out), `'outBounce'` (lands with bounces), `'inBack'` (pulls back before going), `'outExpo'` (fast start, long settle).
+- **`curve`:** keyframes from clock to progress, with holds and a different easing per segment. `[[0, 0], [0.3, 0.45, 'out3'], [0.6, 0.55, 'lin'], [1, 1, 'inOut3']]` rushes to the middle, lingers there, then finishes smoothly. Repeat a value to hold it.
+- **Easings (`E`):** `lin`, `in2`, `in3`, `in5`, `out2`, `out3`, `out5`, `inOut2`, `inOut3`, `inOut5`, `inSine`, `outSine`, `inOutSine`, `inExpo`, `outExpo`, `inOutExpo`, `inBack`, `outBack`, `outBack2`, `inOutBack`, `anticipate`, `outElastic`, `outBounce`, `hold`, and `E.spring(k)` for a settle with k overshoots.
+- **Limits:** built-in transitions clamp progress to 0..1, so overshooting easings flatten at the ends there. Inside a custom transition, `S.trans.raw` is the unshaped clock, and `curve(t, keys, { geo: true })` shapes any value you like: zoom scales (geometric, so zooms never rush), positions, colours, alphas.
+- **Pace the plates around it.** A long or slow seam eats into the next plate's opening, so delay that plate's own action and beats by about the extra time.
+
+## Writing your own transition
+
+The built-in types are presets. When a seam matters, write it in the story: give the plate `enter: { type: 'custom', dur, draw: (p, X) => share }`. `draw` is called for every drawing of the transition with progress `p` (0..1) and must return the share of the frame the new plate owns (for the vignettes). Everything else about it is up to you.
+
+- **`X`:** `drawOld()`, `drawNew()`, `drawOldX(o)`, `drawNewX(o)` (options `xf`, `hud`, `bg`, `all`, `hudOnly`), `prev` and `pl` (the plates), `pt` and `t` (their local times), `focusOld`, `focusNew`, `darkOld`, `darkNew`, `tr`, `seed`.
+- **Knowing your role:** while a plate is drawn inside a transition, `S.trans` is `{ type, p }` and `S.side` is `'old'` or `'new'`. Use them to hide the object your transition is animating (the demo's pencil hides its eraser, the garden hides its ladybug until the hand-off).
+- **Building blocks:**
+  - `morphPose(A, B, u, poseA, poseB)`: morph two outlines drawn in their own local frames while position, rotation and size blend too, so one object turns into another without collapsing.
+  - `softReveal(fn, x, y, r, feather)`: draw the new plate inside a soft circle growing from a point, a dissolve centred on the action.
+  - `morph`, `mixColor`, `about`, `camPoint`, `layer`, `clipHalf`, `withAlpha`, and any drawing helper from your story (grow the new object's details in with its own drawing function).
+- **Hand-off:** at the end, the object you animated must match what the new plate draws (same place, turn, size and colour). Fade your version out over the last 10–15% while the plate's own copy fades in. For camera moves, end the transition on the plate's own opening camera (a close-up, if the plate starts close) and let the plate's camera carry on, instead of resetting to zoom 1.
+- **Tracking:** `follow(target, t, { s, lead, lag })` returns a camera that travels with a moving subject and leaves lead room ahead of it; give `s` a `curve` to pull back while travelling.
+- **Other options:** `carry: false` and `momentum: false` when your transition places things exactly; `sfx: (ac, out, t, dur) => …` for its sound.
+- **Examples:** `toolkit/story_seams.js` has two designs for the same seam. `eraserToBug` morphs the eraser into the ladybug; `eraserToBugMacro` sinks into the red eraser until red fills the screen, lets black spots bloom, then pulls back slowly to the ladybug, holds, and pulls back again to the garden, with every phase paced by a `curve`. Set `SEAM` at the top of the file to switch.
+- **Judge it moving.** Render the seam as a clip and watch it at full speed. A transition can line up perfectly frame by frame and still feel forced; ask whether it reads as one continuous thing.
 
 **Rules:**
 - **Pick by meaning:**
@@ -106,8 +133,12 @@ Every transition is a pure function of progress `p`, animated on twos. Zooms int
   - within a world, `zoom`;
   - an object that persists across the cut, `shape`;
   - moving along the journey, `pan`;
-  - time passing, `bleed`.
+  - time passing, `bleed`;
+  - one object becoming another, a custom morph (or `shape` for simple outlines); going into a surface, `through`.
+  - Better still, design the seam first (`references/writing.md`, "Designing the seams") and let the link choose the type.
 - Use 4–6 types per film, and never the same one three times in a row.
+- **Motion carries across the seam.** When the old plate's hero (or camera pan) is still moving at the cut, the new plate enters travelling the same way and eases to rest (`enter.carry`, seconds, default 0.35; `false` turns it off). It is off for `pan`, `page`, `roll` and `fade`.
+- **Pans follow the action.** `pan` with no `dir` (or `dir: 'auto'`) keeps the camera travelling the way it was, whether it was chasing a moving hero or panning on its own; it falls back to `'left'` when nothing is moving.
 - **Momentum** is automatic (`LEAD` and `SETTLE` in the engine). Set `enter.momentum: false` to turn it off, or `enter.settle` (seconds) to change the settle length. Momentum scales only upward, because scenes bleed past the frame edges only when enlarged.
 - The engine plays a 0.35 s riser before every transition except `fade`, and ducks the music bed under it.
 - **Inset lens** (`insetLens()`) is not a transition. It is a magnifier bubble tied to an object by two tangent lines, showing a close-up. The close-up stays at full size while the circle opens around it.

@@ -10,13 +10,13 @@ Plate fields:
 |---|---|
 | `dur` | Plate length in seconds |
 | `dark` | `true` for the night world |
-| `enter` | `{ type, dur, momentum, settle, match, …type options (dir, k, dive, scaleFrom, from, to, fromFill, toFill, style, at, ink, drop, fall, rim, rimAlpha, rough, color, opacity, back, radius) }` |
+| `enter` | `{ type, dur, ease, curve, draw (custom transition), momentum, settle, match, carry, sfx, …type options (dir, k, dive, scaleFrom, from, to, fromFill, toFill, style, at, ink, drop, fall, rim, rimAlpha, rough, color, opacity, back, radius) }` |
 | `header` | `{ num, title, sub }` |
 | `log` | `t => ({ title, rows: [[label, value]], states, state })` |
 | `stage` | `{ n, name, prevN }` |
 | `hero` | `t => ({ x, y, label, r, tag, alpha })` |
 | `focus` | `t => [x, y]` in screen coordinates, for plates without a hero |
-| `cam` | `t => ({ x, y, s, dx, dy, rot })` |
+| `cam` | `t => ({ x, y, s, dx, dy, rot })`, or `t => follow(target, t, { s, lead, lag, anchor })` to track a moving subject |
 | `drift` | Override the automatic push-in (a fraction, or `false`) |
 | `draw(t)` | The scene |
 | `overlay(t)` | Art that ignores the camera |
@@ -30,7 +30,8 @@ Plate fields:
 - `inv(a, b, t)`: 0..1 progress inside a window.
 - `kf(t, [[t0, v0], …], ease)`: keyframed numbers or `[x, y]` points.
 - `beat(t, t0, t1)`, `stagger(i, t, opts)`, `withAlpha(a, fn)`, `readTime(s)`.
-- `E.*` easings, plus `clamp`, `lerp` and `zlerp(a, b, e)` (geometric, for scales).
+- `E.*` easings (list in `references/motion.md`, "Pacing a transition"), `easeOf(nameOrFn)`, plus `clamp`, `lerp` and `zlerp(a, b, e)` (geometric, for scales).
+- `curve(t, [[t, value, ease?], …], { geo })`: keyframes with a different easing per segment and holds; values may be numbers or arrays.
 - Motion: `wander(i, t, amp, speed, seed)`, `flow(path, t, { speed, gap, len, color, w, alpha })`, `subpath(path, a, b)`, `vnoise`, `vnoise2`.
 
 **Geometry** (functions return point arrays):
@@ -55,8 +56,9 @@ Plate fields:
 
 **Advanced:**
 - `layer(fn, slot)` draws into an offscreen canvas (it swaps `ctx`, which is why `ctx` is a `let`).
-- `withCamera`, `camPoint`, `camOf`, `heroOf`, `parallax(cam, depth, fn)`, `momentum(plate, t)`, `coverR(x, y)`, `bgTex(dark)`, `about(px, py, s, tx, ty)`.
-- `TRANS[type](p, X)` adds a new transition. It returns the share of the frame the new plate owns, and should get matching `HEADER_DELAY` and `TRANS_SFX` entries.
+- `motionOf(plate, t)` (on-screen velocity of the hero or camera, px/s), `travelOf(plate, t)` (which way the camera is effectively travelling), `follow(target, t, opts)` (tracking camera with lead room), `withCamera`, `camPoint`, `camOf`, `heroOf`, `parallax(cam, depth, fn)`, `momentum(plate, t)`, `coverR(x, y)`, `bgTex(dark)`, `about(px, py, s, tx, ty)`.
+- Custom transitions: `enter: { type: 'custom', draw(p, X) }` (see `references/motion.md`), with `morphPose(A, B, u, poseA, poseB)`, `softReveal(fn, x, y, r, feather)`, `S.side` ('old' or 'new') and `S.trans` ({ type, p }).
+- `TRANS[type](p, X)` adds a new built-in transition. It returns the share of the frame the new plate owns, and should get matching `HEADER_DELAY` and `TRANS_SFX` entries.
 - `S.trans = { type, p }` lets plates react to their own transition.
 
 **Theme.** `Object.assign(PAL, { … })` at the top of the story adds subject colours. `FONT` and `FONT_LOADS` hold the three faces.
