@@ -11,7 +11,15 @@ Every pixel and every sound is computed by JavaScript in one HTML file with one 
 
 **Reference:** the Claude Opus 5 "The Water Cycle" film (4 min 34 s, 1920×1080, 24 fps, 15 plates, no narration), which was built the same way. The toolkit here was rebuilt from a frame-by-frame study of it and then tuned against its measured motion.
 
-## Files in this skill
+## What the plugin fixes and what you create
+
+The plugin fixes the **look and feel**: ink and paper, type, the HUD, camera behaviour, transitions, sound and rendering all live in `toolkit/engine.js`, and every film shares them. Don't restyle them per film.
+
+Everything else is **yours to create**: the topic, the scenery, the objects, the diagrams, the hero and its journey. Films can be about anything (code, AI and agents, geology, geography, web design, biology, space, art, history) and each should look like its own subject, not like the example. Use engine components where they fit, and draw new art in each plate's `draw(t)` wherever they don't. Build that art from the engine's ink primitives (`pen`, `ink`, `hatch`, `shade`, `shape.*`) so it matches the style. Inventing new elements is expected, not a workaround.
+
+If you build something other films could reuse (a server rack, a tree, a galaxy, a browser window), keep it as a self-contained helper in `story.js` and mention it to the user as a candidate for the plugin.
+
+
 
 | Path | What it is |
 |---|---|
@@ -19,7 +27,7 @@ Every pixel and every sound is computed by JavaScript in one HTML file with one 
 | `toolkit/shell.html`, `toolkit/build.py` | `python3 build.py story.js film.html` inlines the engine and the story into one self-contained HTML file. |
 | `toolkit/render.mjs` | Frame capture, stills, contact sheets, transition strips, MP4 muxing. |
 | `toolkit/motion_check.py` | Measures how alive a render is. |
-| `toolkit/story_example.js` | Worked example "One Drop" (44.5 s, 7 plates). Start every new film from a copy of it. |
+| `toolkit/story_example.js` | Worked example "One Drop" (44.5 s, 7 plates). Read it for **structure** (plate objects, beats, camera moves, transitions, the end card). Don't reuse its scenery for an unrelated topic. |
 | `toolkit/story_reel.js` | Test reel with all 12 transition types back to back. |
 | `references/style.md` | Worlds, palette, type, line and texture recipes, composition, HUD positions. |
 | `references/motion.md` | Keeping every drawing alive, beats, timings, camera moves, the transition table and rules. |
@@ -46,7 +54,7 @@ Read `FEEDBACK.md` in this skill's folder before every use and apply its lessons
 1. **Get the substance first.** Research the topic, or read the user's data or source. Every number on screen needs a source; write the sources down now, because they go on the end card.
 2. **Pick the hero and the journey.** Something small that travels through the whole story, with an ID tag like `H₂O·01`, `NP·01`, `γ·01`, `PKT·01` (see `references/writing.md`).
 3. **Write the plate script** in the table format from `references/writing.md`, with camera, transition and exit columns. For films longer than about a minute, show the script to the user before building.
-4. **Set up a working folder** (not inside this skill): `cp "${CLAUDE_SKILL_DIR}"/toolkit/* .` then `cp story_example.js story.js`. If that variable is not filled in, the `toolkit` folder sits next to this SKILL.md.
+4. **Set up a working folder** (not inside this skill): `cp "${CLAUDE_SKILL_DIR}"/toolkit/* .` then write a new `story.js` that follows the example's structure, with art built for this topic. Copy a helper from the example only when it genuinely fits. If that variable is not filled in, the `toolkit` folder sits next to this SKILL.md.
 5. **Build plate by plate.** After each plate run `python3 build.py story.js film.html` and `node render.mjs film.html --stills <frames>`, then look at the stills: beats, collisions, empty regions.
 6. **QA the motion, not just the stills.**
    - `node render.mjs film.html --sheet 1` writes one frame per second to `qa/contact_sheet.jpg`.

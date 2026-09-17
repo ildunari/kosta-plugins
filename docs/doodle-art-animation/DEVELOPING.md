@@ -2,6 +2,16 @@
 
 The `kosta-plugins` repo holds the **doodle-art-animation** plugin: a skill that makes hand-inked, notebook-style explainer films drawn entirely in canvas code, plus the toolkit it copies into each film's working folder. The full history, measurements and open problems are in `docs/doodle-art-animation/HANDOFF.md`. Read it before changing the engine or the skill.
 
+## Design principle
+
+The plugin owns the **style and feel**, and the model owns the **content**.
+
+- **Engine (fixed, tested in the reel):** ink, paper, type, HUD, camera, transitions, sound, rendering. Fix problems here in code, not with more instructions.
+- **Story (written per film by the model):** topic, scenery, objects, layout, pacing. Films can be about any subject, so the engine should supply broad, reusable building blocks (scenery and object components across nature, tech, science, space, art and so on) plus the primitives to draw anything else.
+- The instructions should push the model to invent art for its topic and never to copy the example's look. Reusable pieces a model builds during a film are candidates to fold back into the engine.
+
+When a film looks wrong, first decide which layer caused it. If it happens in every film or in the transition reel, it's the engine.
+
 ## Layout
 
 ```
