@@ -101,7 +101,7 @@ const NATURE = {
   dur: DUR, cam: FLOAT(7), enter: { type: 'wipe', dur: 0.8 }, header: header(7, 'Earth kit, wilder', 'river, volcano, cave, dunes, iceberg, flowers'),
   draw(t) {
     KIT.earth.river(t, { x: 70, y: 270, w: 600, h: 290, from: [0.75, 0], to: [0.3, 1], width: [16, 120], draw: DR(t, 0), seed: 61 });
-    KIT.earth.volcano(t, { x: 1010, y: 520, w: 540, h: 270, draw: DR(t, 1), seed: 62 });
+    KIT.earth.volcano(t, { x: 1010, y: 520, w: 540, h: 270, plume: 0.55, draw: DR(t, 1), seed: 62 });
     KIT.earth.cave(t, { x: 1330, y: 90, w: 540, h: 430, glow: true, draw: DR(t, 2), seed: 63 });
     KIT.earth.dunes(t, { x: 70, y: 620, w: 600, h: 340, draw: DR(t, 3), seed: 64 });
     KIT.earth.iceberg(t, { x: 1000, y: 745, w: 560, h: 220, size: 190, above: 110, draw: DR(t, 4), seed: 65 });
@@ -135,7 +135,7 @@ const LIFE = {
     KIT.life.insect(t, { x: 1815, y: 800, kind: 'ladybug', rot: -1.2, s: 1.5, draw: DR(t, 4.7), seed: 87 });
     KIT.life.insect(t, { x: 1590 + 18 * t, y: 850, kind: 'beetle', walk: 12, s: 1.5, draw: DR(t, 4.8), seed: 86 });
     KIT.life.insect(t, { x: 1880 - 16.8 * t, y: 905, kind: 'ant', walk: 14, rot: Math.PI, s: 1.2, draw: DR(t, 4.9), seed: 90 });
-    [['life.flock  v · murmur', 720, 300], ['life.quadruped  horse · deer · dog · fox', 40, 598], ['life.fishSchool', 1240, 668],
+    [['life.flock  v · murmur', 1320, 305], ['life.quadruped  horse · deer · dog · fox', 40, 598], ['life.fishSchool', 1240, 668],
       ['life.crowd', 60, 998], ['life.figure  point · walk · hold · wave', 700, 998], ['life.insect', 1500, 935]].forEach(([s, x, y], k) => FIG(t, k, s, x, y));
   },
 };
