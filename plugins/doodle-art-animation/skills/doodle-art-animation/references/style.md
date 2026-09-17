@@ -7,11 +7,11 @@ Read this before drawing any plate. It covers the two worlds, palette, type, lin
 | World | Use it for | Background | Ink |
 |---|---|---|---|
 | **Paper** | Human scale and larger: landscapes, organs, cross-sections, maps, diagrams | Cream `#ebe2cc`, soft-edged 45° bands (66 px every 132 px), large mottles, fibres, grain, warm vignette | Near-black `#1b1518` |
-| **Night** | Microscopic or "inside" views: molecules, pores, cells, circuits | Navy gradient `#0b0a1e` → `#16142e`, faint 120 px grid, crosshatch weave, specks, strong vignette | Pale lavender `#dcdcef` |
+| **Night** | Inside, hidden or abstract views: molecules, cells, the inside of a machine, a chip or a network, a mind, deep space, night itself | Navy gradient `#0b0a1e` → `#16142e`, faint 120 px grid, crosshatch weave, specks, strong vignette | Pale lavender `#dcdcef` |
 
 Both worlds carry four large, smooth topographic loops that drift slowly (muted pink, teal, yellow and periwinkle), plus crosshair registration marks in the corners. The end card is always night.
 
-## Palette (sampled from the reference)
+## Palette
 
 | Role | Hex | Role | Hex |
 |---|---|---|---|
@@ -45,7 +45,7 @@ Use real subscripts and superscripts (`H₂O`, `km³`, `10²⁰`) with the `SUB(
 - **Two kinds of line:**
   - `pen()` is a nib stroke: tapered ends, slow pressure variation, and a pen-tip taper while it draws on. Use it for subjects: outlines of big things, horizons, ground lines, rays, rain, branches, and callout leaders.
   - `ink()` is a constant-width wobbly line. Use it for measurement (rulers, ticks, scale bars, grids) and for small repeated marks. `double: true` adds the faint second contour the reference shows on cards and clouds.
-- **The boil:** every wobble re-rolls every 2 frames (animation "on twos"), so still lines feel alive. The reference's counter shows it: `EXP` is always `F / 2`.
+- **The boil:** every wobble re-rolls every 2 frames (animation "on twos"), so still lines feel alive. The HUD counter shows it: `EXP` is always `F / 2`.
 - **Shading is pen strokes, never gradients.** Put **two textures minimum** on any fill wider than 200 px, and make at least one of them denser on the shadow side.
 - **Weight shows depth:** far objects get `w` 2 at alpha 0.7; near objects get `w` 3.5 and shading.
 - **Vary the scenery.** Don't reuse one landscape on every paper plate. Change the ground (valley, mountains, open sea, cutaway), add trees, a far mountain range or a flock of birds, and give the recap its own composition.
@@ -65,6 +65,27 @@ Use real subscripts and superscripts (`H₂O`, `km³`, `10²⁰`) with the `SUB(
 | Tree | Tapered `pen` trunk, `shape.blob` canopy (irregularity about 0.28) filled leaf green, `shade()` in dark green, canopy swaying 2–3 px. |
 | Birds | 4–5 small `pen` "v" shapes crossing the sky at about 40 px/s, wings flapping. Cheap motion for any paper sky. |
 | Coast cross-section | Clip the land layers to a coastline polygon, fill the sea on the other side, and run the mountain's rock down under the valley. |
+
+## Brushes
+
+Beside `pen` and `ink`, the engine has a natural-media brush set (`brush.stroke`, `brush.hatch`, `brush.field`) and watercolour washes (`wash`, the same as `brush.wash`). The techniques are adapted from [p5.brush](https://github.com/acamposuribe/p5.brush) by Alejandro Campos Uribe (MIT) and rebuilt for the 2D canvas; nothing is loaded at runtime. `story_brushes.js` shows every one of them.
+
+| Medium | Reads as | Use it for |
+|---|---|---|
+| `pencil-2b` | Soft, dark, grainy graphite | Sketched subjects, loose outlines, notebook drawings |
+| `pencil-hb` | Everyday pencil, lighter grain | Hatching, small details, annotations drawn in the scene |
+| `pencil-2h` | Hard, pale, thin | Construction lines, perspective guides, faint grids |
+| `cpencil` | Waxy coloured pencil (vermilion by default) | Coloured accents, children's-drawing warmth, a sun or a flower |
+| `charcoal` | Broad, dusty, broken | Mountains, shadows, dramatic masses, rubbed backgrounds |
+| `marker` | Round felt tip, pigment pooled at the edges | Highlights over text, bold diagram strokes, labels |
+| `marker-2` | Chisel marker whose width turns with direction | Underlines, lettering, wide flat bands |
+| `techpen` | Crisp, constant width, an ink blot where it starts | Technical diagrams, boxes, arrows, anything that should look exact |
+| `spray` | Airbrush mist with droplets | Haze, glow, smoke, mist behind a diagram |
+
+- **Washes are a tint under the ink.** Draw `wash()` first and the `pen`/`ink` lines on top; the ink lines stay on top and carry the drawing. Let the wash run a little past the line (`bleed`); a wash that stops exactly at its outline looks like a digital fill.
+- **This relaxes the old rule.** Shading used to be pen strokes only. Watercolour washes are now allowed as flat-ish tints with pooled edges and paper grain, and brush hatching counts as a texture. Smooth digital gradients are still not allowed: no `createLinearGradient` or `createRadialGradient` fills on subjects.
+- Keep one or two media per scene besides the house ink. Pencils and charcoal suit sketchbook plates, markers and the technical pen suit diagrams, and washes suit landscapes and night bodies (on night paper they blend as a glow).
+- Moving art passes a `seed`: the grain stays fixed per seed and only the outline boils, like `pen()`.
 
 ## Composition rules
 

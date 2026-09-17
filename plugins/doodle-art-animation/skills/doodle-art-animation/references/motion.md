@@ -27,9 +27,18 @@ A still frame reads as a slideshow, and a transition out of stillness reads as f
 
 **Targets.** `motion_check.py` measures the mean absolute change between drawings at 192×108.
 - Aim for a median of at least 1.5 per drawing, and fewer than 5% of drawings below 0.5.
-- The reference measures a median of 2.0 with 2% still drawings over the whole film (2.3 and 0% over its first two minutes). Its quietest seconds sit around 0.7–1.0.
+- A lively film lands around a median of 2.0 with about 2% still drawings; its quietest seconds sit around 0.7–1.0.
 - In the per-second profile, keep plates above about 1.2 between transitions.
 - A plate that measures near zero between beats needs more life, not a faster transition.
+
+**Specimen sheets are the one exception.** A film whose subject *is* a drawn sample — a brush or component
+specimen sheet, a credit card, a palette page — cannot reach that median without breaking the thing it exists to
+show. Its samples must hold still to be read, and the brushes deliberately keep their grain fixed per seed, so
+sliding a specimen around would read as crawling texture, not as life. These films are measured on three things
+instead: no `SNAP`, no plate that is *wholly* still (something drifts, breathes or drives past on every plate),
+and a lively drawing-on pass. Measured on the two the plugin ships: `story_gallery.js` median 1.48 (0% still),
+`story_brushes.js` median 1.23 with 5% still drawings — both far below 1.5 and both correct. This exception is for
+specimen sheets only; an explainer film, which is what you are almost always making, holds to the 1.5 target.
 
 ## Beats enter and leave
 
@@ -39,13 +48,13 @@ Every stat, callout, card and myth has a start **and an end**. Wrap a component 
 - Drawn objects may exit with `eraseOut(poly, p)`, where a paper-coloured scribble rubs them out.
 - A plate longer than about 15 s is 2–3 sub-scenes joined by clears or by a `zoom` hand-off. It is not one picture that keeps accumulating.
 
-## Timings (measured from the reference)
+## Timings (defaults)
 
 | Beat | Timing |
 |---|---|
 | Header after a **cut** | Title at +0.25 s, stage dial +0.25 s after that, journey log +0.35 s after the title |
 | Header after any other transition | The title starts 0.3 s after the move *lands* (90% of its travel: `landAt(enter)`, about 0.6–0.85 × `dur` depending on its curve), not after its last creeping drawing |
-| Header after a **lensOut** | The title starts immediately (the one exception, from the reference) |
+| Header after a **lensOut** | The title starts immediately (the one exception: the new world is already open) |
 | Anticipation before a lensIn | In the last 0.5 s a ring locks onto the hero (70 → 16 px) and fills with the next world's colour (automatic) |
 | The transition itself | Never a snap. The lead-in starts 0.5 s before the cut and runs into the transition; the move itself follows the table's lengths and the speed limits below; the settle continues in the same direction. |
 | Scene content after a transition | Already on screen (it came in with the transition). Stats, callouts and cards start at `landAt(enter) + 0.4` or later; a card frame that anchors the plate may open at `landAt(enter) + 0.2`. |
@@ -81,6 +90,15 @@ Give a plate `cam: t => ({ x, y, s, dx, dy, rot })`. It moves the **scene only**
 - Put text that must not move with the camera (stats, callouts, cards, charts, the title-card type) in `overlay(t)`. Overlay art also ignores momentum and the match-cut/carry shift, so a card never slides toward the frame edge before a lens or zoom; it only moves with its plate's transition. Text anchored to scene positions (labels on a map) belongs in `draw(t)`, where it moves with the scene.
 - To anchor a callout to a moving hero, read `heroOf(plate, t)`, which returns screen coordinates.
 
+## Pace is a choice
+
+Every speed and length in this file is a default: a starting point that usually reads well, not a rule a film must obey. Each film sets its own pace by taste. A calm nature film may hold its moves long and let seams breathe; a film about a crash, a spark or a reflex may cut quicker and move harder than the table suggests. Decide from the story, then check the result by watching it.
+
+- Choose the pace per film and per seam: which moment is the snap, which is the slow breath, where the film rests. Keep a contrast of quick and slow; a film where every move has the same length and curve feels mechanical, however well each one is shaped.
+- Going faster or slower than a default is fine when you mean it. Note the reason in the seam list so a reviewer can judge it against your intent.
+- `speed_check.mjs` marks moves above the comfortable default as `FAST`. Treat that as a question ("did I mean this?"), not a failure.
+- The hard limits are few: nothing may visibly snap (`SNAP` in `speed_check.mjs` or `motion_check.py`), text needs its reading time, and frames stay deterministic. Everything else is taste.
+
 ## Transitions
 
 Every transition is a pure function of progress `p`. Transitions, and the half second on either side of them, render **on ones** (24 drawings a second) so scale and mask steps stay small; the line boil stays on twos. A plate can ask for ones during its own fast camera move with `ones: t => bool`. Zooms interpolate scale geometrically with `zlerp`, so the speed never seems to stall or rush. Masks (lens, window, iris) ease their **edge**, which is what the eye follows; easing their area instead makes them pop open in the first drawings.
@@ -95,6 +113,8 @@ A transition must never snap or pop. Between two consecutive drawings:
 - nothing holds still and then jumps: no drawing changes more than 2.5× the drawing before it, except at a hard cut.
 
 A transition that cannot meet these at its ratio is redesigned (a smaller ratio, a colour or mask hand-off, blur), never sped up. `motion_check.py` measures them after a render: `spikes` marks `SNAP` where a non-cut transition changes too much per drawing (any drawing above 75, or two in a row above 55), `pops` lists drawings where a lot of the frame changes at once from near rest (something appeared instead of growing in), and `jerks` lists drawings that change far more than the one before. A SNAP at a non-cut seam fails review. Pops and jerks are leads, not verdicts: render every drawing around each one and look (a whip pan or a high-contrast sweep can trip them honestly; a camera that bobs, a colour that switches or a mask that jumps cannot). Before shortening a transition below its default, render it and check those lines.
+
+**`speed_check.mjs`** measures the same limits without a render, straight from the page's own transition and camera values (`toolkit/speed_check.mjs film.html`): a camera-scale ratio, a mask/edge travel in px, and a sheet pan in px, per seam, plus each plate's own camera across its life and its speed just before and after every cut. It marks a seam `ok`, `FAST` (past the limits above, a warning — a film may run faster than the default on purpose, see "Pace is a choice") or `SNAP` (would visibly snap; the only failure, exit code 1). Run it alongside `motion_check.py`: this script catches a seam before it's rendered and points at which quantity (scale, pan, which mask) is the problem; `motion_check.py` is still the ground truth on the actual pixels once a render exists.
 
 **Minimum lengths.** lensIn and lensOut 1.4 s (dive ≤ 2×), zoom 1.9 s at `k` 4 (2.15 s at `k` 5), through 1.6 s, shape 1.3 s, iris 1.4 s, pan 0.8 s, wipe 0.8 s, bleed 1.5 s, burn 1.4 s, page 1.6 s, roll 1.3 s, fade 1.0 s.
 

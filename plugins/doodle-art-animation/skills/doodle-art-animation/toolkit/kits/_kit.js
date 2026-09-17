@@ -1,7 +1,7 @@
 /* =====================  COMPONENT KITS · shared base  =====================
    build.py inlines every toolkit/kits/*.js in name order, after engine.js and before the story, so this file
    (its name starts with "_") loads first. Each kit lives in its own namespace: KIT.earth, KIT.tech, KIT.ai,
-   KIT.space, KIT.lab, KIT.studio. Every component has the same call shape:
+   KIT.life, KIT.settle, KIT.space, KIT.lab, KIT.studio. Every component has the same call shape:
 
        KIT.<kit>.<name>(t, { x, y, s, rot, draw, alpha, seed, dark, ...its own options })
 

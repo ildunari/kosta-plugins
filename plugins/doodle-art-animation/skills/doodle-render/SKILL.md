@@ -38,7 +38,7 @@ ls -lh <film>.mp4 <film>.html; du -sh <film>_frames
 - The frame count must equal the total `render.mjs` printed, at 1920×1080 and 24 fps.
 - `motion_check`: median at least 1.5, still drawings under 5%.
 - `audio_check` must not FAIL (it exits 1 on no audio, mono, clipping, or a length mismatch). Report its WARN lines.
-- At 3800k the MP4 lands at about 20–30 MB per minute (the 49 s example is 18 MB).
+- At 3800k the MP4 lands at about 20–30 MB per minute (the 55 s One Drop example is 18 MB).
 
 If anything fails, say what and suggest `/doodle-art-animation:doodle-qa`; don't deliver a failing file as final.
 

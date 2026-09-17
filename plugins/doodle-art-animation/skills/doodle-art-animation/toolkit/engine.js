@@ -350,7 +350,7 @@ function grass(ridge, o = {}) {
       ink([[x + dx, y], [x + dx + (r() - 0.5) * 8 + sw, y - hh]], { w, color, amp: 0.4, seed: seed + i * 3 + k }); } }
 }
 /**
- * lobedCloud(x, base, bumps, opts): the reference cloud. bumps = [[dx, r, dy?], ...]. Each lobe is its own outlined
+ * lobedCloud(x, base, bumps, opts): the house cloud. bumps = [[dx, r, dy?], ...]. Each lobe is its own outlined
  * disc, drawn back to front so front lobes cut the ones behind, pen-shaded on its underside, closed by a flat base.
  * opts: w, color, fill, seed, draw (lobes appear one by one, then the base), hatchColor, alpha
  */
@@ -413,6 +413,519 @@ function textOnPath(s, path, u0, o = {}) {
     const a = along(path, u), b = along(path, Math.min(1, u + 0.004));
     ctx.save(); ctx.translate(a[0], a[1]); ctx.rotate(Math.atan2(b[1] - a[1], b[0] - a[0])); text(ch, -w / 2 + ls / 2, 0, { ...o, kind, size, align: 'left' }); ctx.restore(); s0 += w; }
 }
+
+/* ===================== BRUSHES · natural media: pencils, charcoal, markers, pens, spray, watercolor ===================== */
+/* Techniques adapted from p5.brush by Alejandro Campos Uribe, MIT (https://github.com/acamposuribe/p5.brush, v2.2.2).
+   Nothing is loaded at runtime: the ideas are rebuilt for the 2D canvas.
+   - p5.brush stamps thousands of dots per stroke on the GPU. Here a stroke is an outline whose width follows a
+     seeded pressure bell (p5.brush's gaussian pressure), filled in layers with grain tiles (paper tooth: pigment only
+     catches the high points of the paper), with bristle streaks that follow the curve and, for markers, pigment
+     pooled along the edges.
+   - A wash is the watercolor recipe p5.brush uses (after Tyler Hobbs): a polygon deformed by recursive midpoint
+     displacement, many translucent layers, outline strokes that pool pigment at the edges, blotches erased out,
+     and paper grain breaking the colour up. It is rendered once per shape and cached.
+   - brush.hatch lays scanline hatching drawn with brush strokes; flow fields are angle functions that bend a stroke
+     as it is drawn (p5.brush's plot + field).
+   Texture is seeded per shape and anchored to the stroke, so it never re-rolls between drawings (no crawl); only the
+   centre line wobbles with the boil, like pen(). Same arguments -> same pixels. */
+const brush = (() => {
+  const TILE = 256;
+  const newCanvas = (w, h) => { const c = document.createElement('canvas'); c.width = Math.max(1, Math.ceil(w)); c.height = Math.max(1, Math.ceil(h)); return c; };
+
+  /* ---- caches: raster entries are bounded by pixel count, geometry by entry count (least recently used goes first) */
+  function lru(cap, budget = Infinity) {
+    const m = new Map(); let used = 0;
+    return (key, make, size = () => 1) => {
+      if (m.has(key)) { const v = m.get(key); m.delete(key); m.set(key, v); return v.v; }
+      const v = make(), s = size(v); m.set(key, { v, s }); used += s;
+      while ((m.size > cap || used > budget) && m.size > 1) { const k = m.keys().next().value; used -= m.get(k).s; m.delete(k); }
+      return v;
+    };
+  }
+  const rasters = lru(160, 60e6), geom = lru(256);
+  /** a stable number for a list of points, relative to its first point (moving a shape keeps its seed and texture) */
+  function shapeKey(pts, q = 2) {
+    const x0 = pts[0][0], y0 = pts[0][1]; let h = 2166136261 ^ pts.length;
+    for (const [x, y] of pts) { h = Math.imul(h ^ Math.round((x - x0) * q), 16777619); h = Math.imul(h ^ Math.round((y - y0) * q), 16777619); }
+    return h >>> 0;
+  }
+  const seedOf = pts => shapeKey(pts, 0.25) % 100000;
+  function gauss(r) { let u = 0; while (u === 0) u = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * r()); }
+
+  /* ---- grain tiles: seamless noise built once, turned into alpha masks, tinted per colour */
+  let NZ = null;
+  function noise() {
+    if (NZ) return NZ;
+    const n = TILE * TILE;
+    const lattice = (cell, seed) => { const g = TILE / cell, v = new Float32Array(g * g), r = mulberry(seed), out = new Float32Array(n);
+      for (let i = 0; i < g * g; i++) v[i] = r();
+      for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) {
+        const fx = x / cell, fy = y / cell, ix = Math.floor(fx), iy = Math.floor(fy), ux = fx - ix, uy = fy - iy;
+        const sx = ux * ux * (3 - 2 * ux), sy = uy * uy * (3 - 2 * uy), x1 = (ix + 1) % g, y1 = (iy + 1) % g;
+        const a = v[iy * g + ix], b = v[iy * g + x1], c = v[y1 * g + ix], d = v[y1 * g + x1];
+        out[y * TILE + x] = a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy; }
+      return out; };
+    const r = mulberry(4242), white = new Float32Array(n); for (let i = 0; i < n; i++) white[i] = r();
+    const l2 = lattice(2, 11), l4 = lattice(4, 12), l8 = lattice(8, 13), l32 = lattice(32, 14), fine = new Float32Array(n), coarse = new Float32Array(n), wax = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      fine[i] = 0.42 * l2[i] + 0.30 * white[i] + 0.18 * l4[i] + 0.10 * l32[i];     // graphite on laid paper
+      coarse[i] = 0.34 * l4[i] + 0.26 * l8[i] + 0.22 * white[i] + 0.18 * l32[i];   // charcoal: bigger pits
+      wax[i] = 0.5 * l2[i] + 0.2 * l8[i] + 0.3 * l32[i];                           // coloured pencil: waxy, fewer pinholes
+    }
+    NZ = { fine, coarse, wax, white, l32 };
+    return NZ;
+  }
+  const masks = new Map(), specIds = new WeakMap();
+  const idOf = spec => { let id = specIds.get(spec); if (!id) { id = JSON.stringify(spec); specIds.set(spec, id); } return id; };
+  /** mask(spec): a TILE² white alpha tile. spec = { src, lo, hi, gain } thresholds a noise field; { dots } scatters discs */
+  function mask(spec) {
+    const id = idOf(spec);
+    if (masks.has(id)) return masks.get(id);
+    const c = newCanvas(TILE, TILE), g = c.getContext('2d');
+    if (spec.dots) {
+      const r = mulberry(spec.seed || 77); g.fillStyle = '#fff'; g.globalAlpha = spec.gain ?? 1;
+      for (let i = 0; i < spec.dots; i++) { const x = r() * TILE, y = r() * TILE, rr = lerp(spec.r0 ?? 0.45, spec.r1 ?? 1.2, r() ** 2);
+        for (const dx of [-TILE, 0, TILE]) for (const dy of [-TILE, 0, TILE]) {
+          if (x + dx < -3 || x + dx > TILE + 3 || y + dy < -3 || y + dy > TILE + 3) continue;
+          g.beginPath(); g.arc(x + dx, y + dy, rr, 0, TAU); g.fill(); } }
+    } else {
+      const src = noise()[spec.src], im = g.createImageData(TILE, TILE), d = im.data, lo = spec.lo, span = (spec.hi - spec.lo) || 1e-3, gain = spec.gain ?? 1, fl = spec.floor ?? 0;
+      for (let i = 0, j = 0; i < src.length; i++, j += 4) { const a = clamp((src[i] - lo) / span); d[j] = d[j + 1] = d[j + 2] = 255; d[j + 3] = 255 * gain * (fl + (1 - fl) * a * a * (3 - 2 * a)); }
+      g.putImageData(im, 0, 0);
+    }
+    masks.set(id, c);
+    return c;
+  }
+  const pats = new Map();
+  /** pattern(spec, color): the mask tinted with colour, as a repeating pattern (cached) */
+  function pattern(spec, color) {
+    const key = idOf(spec) + color;
+    let p = pats.get(key);
+    if (!p) {
+      const c = newCanvas(TILE, TILE), g = c.getContext('2d');
+      g.drawImage(mask(spec), 0, 0); g.globalCompositeOperation = 'source-in'; g.fillStyle = color; g.fillRect(0, 0, TILE, TILE);
+      p = ctx.createPattern(c, 'repeat'); pats.set(key, p);
+      if (pats.size > 400) pats.delete(pats.keys().next().value);
+    }
+    return p;
+  }
+
+  /* ---- the media. layers go outer -> inner: k = width share, thr = pressure a layer needs before it shows (so light
+     pressure leaves only the sparse outer grain), jag = ragged edge, grain = the tile spec */
+  const G = (src, lo, hi, gain, o) => ({ src, lo, hi, gain, ...o });
+  const GRAPHITE = () => PAL.graphite || '#3b3834';   // pencils default to graphite grey on paper (night: the night ink)
+  const MEDIA = {
+    'pencil-2b': { w: 5.2, amp: 0.9, alpha: 0.95, press: [0.4, 1], taper: 0.16, jag: 0.14, color: GRAPHITE,
+      layers: [{ k: 1.3, grain: G('fine', 0.54, 0.74, 0.7) }, { k: 0.95, thr: 0.2, grain: G('fine', 0.42, 0.6, 0.85) }, { k: 0.55, thr: 0.55, grain: G('fine', 0.3, 0.5, 0.95) }],
+      streaks: { n: 3, w: 0.8, alpha: 0.4, dash: 22 } },
+    'pencil-hb': { w: 3.8, amp: 0.8, alpha: 0.9, press: [0.45, 1], taper: 0.14, jag: 0.1, color: GRAPHITE,
+      layers: [{ k: 1.25, grain: G('fine', 0.52, 0.72, 0.6) }, { k: 0.85, thr: 0.25, grain: G('fine', 0.44, 0.64, 0.8) }],
+      streaks: { n: 2, w: 0.6, alpha: 0.35, dash: 26 } },
+    'pencil-2h': { w: 2.8, amp: 0.6, alpha: 0.8, press: [0.55, 1], taper: 0.12, jag: 0.05, color: () => PAL.muted,
+      layers: [{ k: 1.2, grain: G('fine', 0.5, 0.7, 0.5) }, { k: 0.7, thr: 0.3, grain: G('fine', 0.44, 0.62, 0.7) }] },
+    'cpencil': { w: 6, amp: 0.8, alpha: 0.9, press: [0.55, 1], taper: 0.12, jag: 0.14, color: () => PAL.accent,
+      layers: [{ k: 1.2, grain: G('wax', 0.5, 0.66, 0.7) }, { k: 0.85, thr: 0.25, grain: G('wax', 0.38, 0.56, 0.9) }],
+      streaks: { n: 3, w: 0.9, alpha: 0.3, dash: 30 } },
+    'charcoal': { w: 13, amp: 1.3, alpha: 0.92, press: [0.4, 1], taper: 0.1, jag: 0.28,
+      layers: [{ k: 1.55, grain: { dots: 260, r0: 0.5, r1: 1.4, gain: 0.55, seed: 5 } }, { k: 1.2, grain: G('coarse', 0.58, 0.72, 0.7) },
+        { k: 0.9, thr: 0.2, grain: G('coarse', 0.44, 0.6, 0.9) }, { k: 0.55, thr: 0.5, grain: G('coarse', 0.3, 0.48, 1) }],
+      streaks: { n: 5, w: 1.1, alpha: 0.5, dash: 16 } },
+    'marker': { w: 12, amp: 0.7, alpha: 0.8, press: [0.9, 1], taper: 0, jag: 0.02, round: true, blend: 'multiply', blendNight: 'screen',
+      layers: [{ k: 1, grain: G('l32', 0, 1, 0.58, { floor: 0.8 }) }],
+      rim: { w: 2.2, alpha: 0.75 }, streaks: { n: 3, w: 1.6, alpha: 0.28, dash: 70 } },
+    'marker-2': { w: 22, amp: 0.7, alpha: 0.8, press: [0.92, 1], taper: 0, jag: 0.02, chisel: -0.7, blend: 'multiply', blendNight: 'screen',
+      layers: [{ k: 1, grain: G('l32', 0, 1, 0.5, { floor: 0.72 }) }],
+      rim: { w: 1.6, alpha: 0.6 }, streaks: { n: 9, w: 1.3, alpha: 0.5, dash: 110, light: true } },
+    'techpen': { w: 2, amp: 0.35, alpha: 1, vector: true },
+    'spray': { w: 16, amp: 0.4, alpha: 0.85, press: [0.7, 1], taper: 0.25, jag: 0.12, spray: true,
+      layers: [{ k: 2.6, grain: { dots: 1400, r0: 0.4, r1: 0.95, gain: 0.6, seed: 21 } }, { k: 1.9, grain: { dots: 3200, r0: 0.4, r1: 0.95, gain: 0.7, seed: 22 } },
+        { k: 1.3, grain: { dots: 6000, r0: 0.45, r1: 1.05, gain: 0.75, seed: 23 } }, { k: 0.8, thr: 0.2, grain: { dots: 10000, r0: 0.5, r1: 1.1, gain: 0.8, seed: 24 } }] },
+  };
+  const TYPES = Object.keys(MEDIA);
+
+  /* ---- pressure: a seeded bell like p5.brush's gaussian pressure, times a taper at the ends */
+  function pressureOf(M, o, seed) {
+    const [pmin, pmax] = M.press || [1, 1], taper = o.taper ?? M.taper ?? 0.1, P = o.pressure;
+    const end = u => taper > 0 ? Math.sqrt(Math.min(1, Math.min(u, 1 - u) / taper)) * 0.85 + 0.15 : 1;
+    if (typeof P === 'function') return u => clamp(P(u), 0, 1.5) * end(u);
+    if (typeof P === 'number') return u => P * end(u);
+    if (Array.isArray(P)) { const [a, b, c] = P.length === 2 ? [P[0], (P[0] + P[1]) / 2, P[1]] : P;
+      return u => (u < 0.5 ? lerp(a, b, u * 2) : lerp(b, c, u * 2 - 1)) * end(u); }
+    const peak = 0.3 + 0.4 * hash3(seed, 91), half = 0.45 + 0.25 * hash3(seed, 92), c = 1.6 + hash3(seed, 93);
+    return u => lerp(pmin, pmax, 1 / (1 + Math.abs((u - peak) / (u < peak ? half * 1.2 : half * 0.8)) ** (2 * c))) * end(u);
+  }
+
+  /* ---- flow fields: angle(x, y, t) in radians, added to a stroke's heading as it is drawn */
+  const fields = {
+    hand: (x, y, t) => 0.22 * vnoise2(x * 0.02 + t * 0.2, y * 0.02, 5) + 0.08 * Math.sin(x * 0.05 + y * 0.03),
+    curved: (x, y, t) => 1.1 * vnoise2(x * 0.0022 + t * 0.05, y * 0.0022, 9),
+    zigzag: (x, y) => ((Math.floor(x / 34) + Math.floor(y / 34)) % 2 ? 0.55 : -0.55),
+    waves: (x, y, t) => 0.75 * Math.sin(x * 0.018 + t) * Math.cos(y * 0.009),
+    seabed: (x, y, t) => 0.7 * Math.sin((x * y) * 0.000045 + 17) * Math.cos(t * 0.5),
+    spiral: (x, y) => 0.8 * Math.sin(Math.atan2(y - H / 2, x - W / 2) * 2 + Math.hypot(x - W / 2, y - H / 2) * 0.012),
+    columns: x => 0.6 * Math.sin(Math.floor(x / 48) * 1.9),
+  };
+  let ACTIVE = null;
+  const fieldOf = f => typeof f === 'function' ? f : f ? (fields[f] || null) : null;
+  /** bend(pts, f): walk the path in short steps, turning each step by the field (the stroke drifts, as in p5.brush) */
+  function bend(pts, f, amt, t) {
+    let x = pts[0][0], y = pts[0][1]; const out = [[x, y]];
+    for (let i = 1; i < pts.length; i++) {
+      const dx = pts[i][0] - pts[i - 1][0], dy = pts[i][1] - pts[i - 1][1], L = Math.hypot(dx, dy); if (!L) continue;
+      const h = Math.atan2(dy, dx), n = Math.ceil(L / 7), st = L / n;
+      for (let k = 0; k < n; k++) { const a = h + amt * f(x, y, t); x += Math.cos(a) * st; y += Math.sin(a) * st; out.push([x, y]); }
+    }
+    return out;
+  }
+
+  /* ---- one stroke */
+  let DOMM = null;
+  const anchorOf = (x, y, seed) => { DOMM = DOMM || new DOMMatrix(); DOMM.e = Math.round(x) + (seed * 37) % TILE; DOMM.f = Math.round(y) + (seed * 91) % TILE; return DOMM; };
+  /**
+   * stroke(pts, opts): a natural-media line along pts.
+   * opts: type ('pencil-2b' | 'pencil-hb' | 'pencil-2h' | 'cpencil' | 'charcoal' | 'marker' | 'marker-2' | 'techpen' | 'spray'),
+   *       w, color, alpha, pressure (fn(u) | number | [start, end] | [start, mid, end]), taper, seed, draw (0..1),
+   *       closed, amp (outline wobble, boils on twos), field (name | fn), fieldAmt, fieldT, nib (marker-2 chisel angle),
+   *       blend (composite op), dark
+   */
+  function mediumOf(o) {
+    const type = o.type || 'pencil-hb', M = MEDIA[type];
+    if (!M) throw new Error(`brush.stroke: unknown type "${type}" (use ${TYPES.join(', ')})`);
+    return M;
+  }
+  /** prep: the stroke's geometry for this drawing (wobbled centre line, normals, pressure, ragged edges), or null */
+  function prep(pts, o, M) {
+    const draw = o.draw ?? 1;
+    if (draw <= 0 || !pts || pts.length < 2) return null;
+    const w = o.w ?? M.w, seed = o.seed ?? seedOf(pts), closed = !!o.closed;
+    let p = pts;
+    const fld = fieldOf(o.field === undefined ? ACTIVE : o.field);
+    if (fld) p = bend(closed ? p.concat([p[0]]) : p, fld, o.fieldAmt ?? 1, o.fieldT ?? 0);
+    p = wobble(p, closed && !fld, o.amp ?? M.amp, seed, o.step ?? 7);
+    if (closed && !fld) p = p.concat([p[0]]);
+    const n0 = p.length, s = new Float32Array(n0);
+    for (let i = 1; i < n0; i++) s[i] = s[i - 1] + Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]);
+    const L = s[n0 - 1]; if (L <= 0.5) return null;
+    let n = n0;
+    if (draw < 1) {                                    // cut the path where the draw-on has reached
+      const cut = L * draw; let i = 1; while (i < n0 - 1 && s[i] < cut) i++;
+      const k = (cut - s[i - 1]) / ((s[i] - s[i - 1]) || 1);
+      p = p.slice(0, i + 1); p[i] = [lerp(p[i - 1][0], p[i][0], k), lerp(p[i - 1][1], p[i][1], k)]; s[i] = cut; n = i + 1;
+    }
+    if (n < 2) return null;
+    const G = { p, n, s, L, w, hw0: w / 2, seed, ax: pts[0][0], ay: pts[0][1], nib: o.nib ?? M.chisel };
+    if (M.vector) return G;
+    const Lp = s[n - 1], prof = pressureOf(M, o, seed), tipLen = Math.min(Lp, Math.max(w * 2.5, 10));
+    const nx = G.nx = new Float32Array(n), ny = G.ny = new Float32Array(n), pr = G.pr = new Float32Array(n), jl = G.jl = new Float32Array(n), jr = G.jr = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const a = p[Math.max(0, i - 1)], b = p[Math.min(n - 1, i + 1)], dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1;
+      nx[i] = -dy / l; ny[i] = dx / l;
+      let q = prof(s[i] / L);
+      if (draw < 1) q *= Math.min(1, (Lp - s[i]) / tipLen * 0.8 + 0.2);        // the pen tip narrows the drawing end
+      if (G.nib != null) q *= 0.22 + 0.78 * Math.abs(Math.sin(Math.atan2(dy, dx) - G.nib));
+      pr[i] = q;
+      jl[i] = 1 + M.jag * vnoise(s[i] * 0.11, seed + 5); jr[i] = 1 + M.jag * vnoise(s[i] * 0.11, seed + 6);
+    }
+    return G;
+  }
+  /** add one layer's outline (share k of the width, shown above pressure thr) to the current path */
+  function outlinePath(G, M, k, thr) {
+    const { p, n, nx, ny, pr, jl, jr, hw0, nib } = G, round = M.round, nc = round ? 5 : 3, capK = round ? 1 : 0.7;
+    const hOf = i => hw0 * k * (thr ? clamp((pr[i] - thr) / (1 - thr)) : pr[i]);
+    ctx.moveTo(p[0][0] + nx[0] * hOf(0) * jl[0], p[0][1] + ny[0] * hOf(0) * jl[0]);
+    for (let i = 1; i < n; i++) { const h = hOf(i) * jl[i]; ctx.lineTo(p[i][0] + nx[i] * h, p[i][1] + ny[i] * h); }
+    const cap = (i, dir, from) => {                    // round (or blunt) ends; a chisel nib ends flat
+      const h = hOf(i); if (h < 0.2 || nib != null) return;
+      const tx = ny[i] * dir, ty = -nx[i] * dir;
+      for (let j = 1; j < nc; j++) { const a = (from ? j : nc - j) / nc * Math.PI, c = Math.cos(a), sn = Math.sin(a);
+        ctx.lineTo(p[i][0] + (nx[i] * c + tx * sn) * h * capK, p[i][1] + (ny[i] * c + ty * sn) * h * capK); }
+    };
+    cap(n - 1, 1, true);
+    for (let i = n - 1; i >= 0; i--) { const h = hOf(i) * jr[i]; ctx.lineTo(p[i][0] - nx[i] * h, p[i][1] - ny[i] * h); }
+    cap(0, -1, false);
+    ctx.closePath();
+  }
+  /** fill a set of prepared strokes of one medium, one path per layer (hatching batches every line into one fill) */
+  function paint(Gs, M, o, streaks) {
+    const alpha = (o.alpha ?? 1) * M.alpha; if (alpha <= 0 || !Gs.length) return;
+    const dark = o.dark ?? S.dark, color = o.color || (M.color && !dark ? M.color() : inkOf(dark)), G0 = Gs[0];
+    ctx.save();
+    ctx.globalAlpha *= alpha;
+    const blend = o.blend || (dark ? M.blendNight : M.blend); if (blend) ctx.globalCompositeOperation = blend;
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    if (M.vector) { for (const G of Gs) techpen(G, color); ctx.restore(); return; }
+    for (let li = 0; li < M.layers.length; li++) {
+      const Ly = M.layers[li], pat = pattern(Ly.grain, color);
+      ctx.beginPath(); for (const G of Gs) outlinePath(G, M, Ly.k, Ly.thr || 0);
+      pat.setTransform(anchorOf(G0.ax + li * 53, G0.ay + li * 29, G0.seed));
+      ctx.fillStyle = pat; ctx.fill();
+      if (li === 0 && M.rim) { ctx.save(); ctx.clip(); ctx.globalAlpha *= M.rim.alpha; ctx.strokeStyle = color; ctx.lineWidth = M.rim.w * 2 * Math.sqrt(G0.w / M.w); ctx.stroke(); ctx.restore(); }   // pigment pooled on the inside edge
+    }
+    if (M.spray) for (const G of Gs) sprayDrops(G, color);
+    const st = M.streaks;
+    if (st && streaks) for (const G of Gs) {           // bristle / grain streaks that follow the curve
+      const { p, n, nx, ny, pr, hw0 } = G;
+      ctx.save(); ctx.globalAlpha *= st.alpha; ctx.lineWidth = st.w * Math.sqrt(G.w / M.w);
+      ctx.strokeStyle = st.light ? (dark ? PAL.night : PAL.paper) : color;
+      const r = mulberry(G.seed + 404), dash = [];
+      for (let j = 0; j < 6; j++) dash.push(st.dash * (0.4 + r() * 1.2), st.dash * (0.15 + r() * 0.5));
+      ctx.setLineDash(dash); ctx.lineDashOffset = r() * 200;
+      ctx.beginPath();
+      for (let j = 0; j < st.n; j++) {
+        const v = (r() * 2 - 1) * 0.72;
+        for (let i = 0; i < n; i++) { const h = hw0 * pr[i] * v; if (i) ctx.lineTo(p[i][0] + nx[i] * h, p[i][1] + ny[i] * h); else ctx.moveTo(p[i][0] + nx[i] * h, p[i][1] + ny[i] * h); }
+      }
+      ctx.stroke(); ctx.restore();
+    }
+    ctx.restore();
+  }
+  function stroke(pts, o = {}) {
+    const M = mediumOf(o), G = prep(pts, o, M);
+    if (G) paint([G], M, o, o.streaks !== false);
+  }
+  /** a technical pen: constant width, crisp, a small ink blot where the nib touched down, a faint bleed */
+  function techpen(G, color) {
+    const { p, n, w, seed } = G;
+    ctx.beginPath(); ctx.moveTo(p[0][0], p[0][1]); for (let i = 1; i < n; i++) ctx.lineTo(p[i][0], p[i][1]);
+    ctx.strokeStyle = color;
+    ctx.save(); ctx.globalAlpha *= 0.16; ctx.lineWidth = w + 1.1; ctx.stroke(); ctx.restore();
+    ctx.lineWidth = w; ctx.stroke();
+    ctx.fillStyle = color; ctx.beginPath(); ctx.arc(p[0][0], p[0][1], w * (0.62 + 0.1 * hash3(seed, 3)), 0, TAU); ctx.fill();
+  }
+  /** spray: larger droplets scattered around the path, fixed per stroke */
+  function sprayDrops(G, color) {
+    const { p, n, s, L, nx, ny, pr, hw0, seed } = G;
+    const r = mulberry(seed + 808), cnt = Math.min(300, Math.round(L * hw0 * 0.012)), us = [];
+    for (let k = 0; k < cnt; k++) us.push([r(), gauss(r) * 1.1, 0.45 + r() * r() * 1.1]);
+    us.sort((a, b) => a[0] - b[0]);
+    ctx.fillStyle = color; ctx.beginPath(); let i = 1;
+    for (const [u, v, rad] of us) {
+      const d = u * L; if (d > s[n - 1]) break;
+      while (i < n - 1 && s[i] < d) i++;
+      const h = hw0 * 2 * pr[i] * v, x = p[i][0] + nx[i] * h, y = p[i][1] + ny[i] * h;
+      ctx.moveTo(x + rad, y); ctx.arc(x, y, rad, 0, TAU);
+    }
+    ctx.fill();
+  }
+
+  /* ---- watercolor wash */
+  function areaOf(p) { let a = 0; for (let i = 0; i < p.length; i++) { const q = p[(i + 1) % p.length]; a += p[i][0] * q[1] - q[0] * p[i][1]; } return a / 2; }
+  /** deform: one round of midpoint displacement (Hobbs): each edge gets a new vertex pushed off its midpoint by a
+      gaussian share of the edge length, mostly outward; mods carry how much each part of the edge bleeds */
+  function deform(v, m, amt, r, sign, dir) {
+    const out = [], om = [], N = v.length;
+    for (let i = 0; i < N; i++) {
+      const a = v[i], b = v[(i + 1) % N], ex = b[0] - a[0], ey = b[1] - a[1], el = Math.hypot(ex, ey) || 1;
+      const nxo = ey / el * sign, nyo = -ex / el * sign;             // outward normal
+      out.push(a); om.push(m[i]);
+      const lean = dir ? 0.45 + 1.3 * Math.max(0, nxo * dir[0] + nyo * dir[1]) : 1;
+      const d = (0.22 + gauss(r) * 0.3) * el * amt * m[i] * lean;
+      const tw = gauss(r) * 0.12;
+      out.push([a[0] + ex * (0.5 + tw) + nxo * d, a[1] + ey * (0.5 + tw) + nyo * d]);
+      om.push(clamp(m[i] * (0.9 + gauss(r) * 0.12), 0.1, 2.5));
+    }
+    return [out, om];
+  }
+  function grow(v, m, amt, rounds, r, sign, dir, cap = 700) {
+    for (let k = 0; k < rounds; k++) {
+      if (v.length * 2 > cap) { v = v.filter((_, i) => i % 2 === 0); m = m.filter((_, i) => i % 2 === 0); }
+      [v, m] = deform(v, m, amt, r, sign, dir);
+    }
+    return [v, m];
+  }
+  const WASH_GRAIN = { src: 'fine', lo: 0.3, hi: 0.8, gain: 1 }, WASH_GRAN = { src: 'coarse', lo: 0.45, hi: 0.75, gain: 1 };
+  function renderWash(rel, bw, bh, o) {
+    const { seed, bleed, layers, texture, edge, strength, res, dirAngle } = o;
+    const size = Math.max(bw, bh), mrg = Math.ceil(size * bleed * 0.4 + 12);
+    const c = newCanvas((bw + 2 * mrg) * res, (bh + 2 * mrg) * res), g = c.getContext('2d');
+    g.scale(res, res); g.translate(mrg, mrg);
+    const r = mulberry(seed * 7 + 13), sign = areaOf(rel) >= 0 ? 1 : -1;   // makes (ey, -ex) point outward
+    const dir = dirAngle == null ? null : [Math.cos(dirAngle), Math.sin(dirAngle)];
+    // base: a few even vertices, bled three times; a stretch of the edge stays calm (p5.brush's "fluid" share)
+    const per = pathLen(rel.concat([rel[0]])), nv = clamp(Math.round(per / Math.max(10, size / 7)), 10, 60);
+    const even = resample(rel, nv), calm = Math.floor(r() * nv);
+    const m0 = even.map((_, i) => ((i - calm + nv) % nv < nv * 0.3 ? 0.4 : 1) * (0.8 + r() * 0.7));
+    let [base, bm] = grow(even, m0, bleed * 0.55, 3, r, sign, dir);
+    const fills = layers * 3.6, a = 1 - Math.pow(1 - strength, 1 / fills);
+    const mid = even.reduce((q, [x, y]) => [q[0] + x / nv, q[1] + y / nv], [0, 0]);
+    // spread: push every vertex out along its normal in soft lobes (some layers run wide, some stay in), so the colour
+    // fades out past the ink line instead of stopping at it
+    const spread = (v, amt, ph) => v.map((q, i) => {
+      const N = v.length, pa = v[(i - 1 + N) % N], pb = v[(i + 1) % N], ex = pb[0] - pa[0], ey = pb[1] - pa[1], el = Math.hypot(ex, ey) || 1;
+      const nxo = ey / el * sign, nyo = -ex / el * sign, lean = dir ? 0.3 + 1.4 * Math.max(0, nxo * dir[0] + nyo * dir[1]) : 1;
+      const d = amt * lean * clamp(0.35 + 1.1 * vnoise(i / N * 6 + ph, seed + 17));
+      return [q[0] + nxo * d, q[1] + nyo * d]; });
+    const trace2 = pts => { g.beginPath(); g.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]); g.closePath(); };
+    g.fillStyle = '#fff'; g.strokeStyle = '#fff'; g.lineJoin = 'round';   // a white mask first: tinting at the end keeps the hue exact
+    for (let i = 0; i < layers; i++) {
+      if (i % 4 === 0) [base, bm] = grow(base, bm, bleed * 0.1, 1, r, sign, dir, 360);
+      for (let k = 0; k < 3; k++) {                    // three bleeds of the same shape per layer, wide to narrow
+        const [lv] = grow(spread(base, bleed * size * 0.22 * (0.15 + 0.85 * r()) * (1 - k * 0.3), k * 0.35), bm, bleed * (0.62 - k * 0.2), 3, r, sign, dir);
+        trace2(lv); g.globalAlpha = a; g.fill();
+        g.globalAlpha = a * 0.9 * edge; g.lineWidth = size / 70 + 1; g.stroke();   // faint wide rims pile up into a darker edge
+      }
+      if (i % 2 === 0) {                                // a darker pool inside
+        const sc = 0.5 + r() * 0.35, cx = mid[0] + (r() - 0.5) * bw * 0.35, cy = mid[1] + (r() - 0.5) * bh * 0.35;
+        const [pv] = grow(base.map(([x, y]) => [cx + (x - cx) * sc, cy + (y - cy) * sc]), bm, bleed * 0.5, 2, r, sign, dir, 300);
+        trace2(pv); g.globalAlpha = a * 1.2; g.fill();
+      }
+      if (i % 4 === 3 && texture > 0) {                 // lift blotches out (p5.brush's erase)
+        g.save(); g.globalCompositeOperation = 'destination-out'; g.fillStyle = '#000';
+        const cnt = Math.round(20 + 40 * texture);
+        for (let j = 0; j < cnt; j++) { const x = mid[0] + gauss(r) * bw / 2.4, y = mid[1] + gauss(r) * bh / 2.4, rr = size * lerp(0.02, 0.22, r() ** 1.4);
+          g.globalAlpha = (0.03 + r() * 0.07) * texture; g.beginPath(); g.arc(x, y, rr, 0, TAU); g.fill(); }
+        g.restore();
+      }
+    }
+    // tide line: pigment dried hard along the edge
+    const [tv] = grow(base, bm, bleed * 0.25, 2, r, sign, dir);
+    g.globalAlpha = 0.3 * edge; g.lineWidth = 1.3; trace2(tv); g.stroke();
+    g.globalAlpha = 0.12 * edge; g.lineWidth = 3.5; g.stroke();
+    // paper grain breaks the colour up (granulation), then the mask is tinted
+    if (texture > 0) { g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = 'destination-out';
+      for (const [sp, al, k] of [[WASH_GRAIN, 0.35, 13], [WASH_GRAN, 0.3, 29]]) { const tile = pattern(sp, '#000');
+        tile.setTransform(new DOMMatrix([1, 0, 0, 1, (seed * k) % TILE, (seed * (k + 4)) % TILE])); g.globalAlpha = al * texture; g.fillStyle = tile; g.fillRect(0, 0, c.width, c.height); }
+      g.restore(); }
+    g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = 'source-in'; g.fillStyle = o.color; g.fillRect(0, 0, c.width, c.height); g.restore();
+    return { c, mrg };
+  }
+  /**
+   * wash(poly, opts): a watercolor fill. Soft, layered, darker where the pigment pooled at the edges, broken up by the
+   * paper grain. It is a tint: draw it first and the ink lines on top. Rendered once per shape and cached (moving the
+   * shape keeps the cache; changing its outline, colour or options renders it again).
+   * opts: color, alpha (0..1, applied when drawn), seed, bleed (0..1, how far it spreads past the outline, default 0.3),
+   *       layers (default 14), strength (opacity where the layers pile up, default 0.42, 0.55 at night), texture (0..1 blotches and
+   *       grain, default 0.6), edge (0..1 pooled edge, default 0.7), dir (angle the colour bleeds toward), res (raster
+   *       scale: default 1, 0.75 above 160k px², 0.5 above 500k px²; raise it for zoomed shots), draw (0..1 the wash spreads out), reveal ('bloom' | 'sweep'), from ([x, y]
+   *       where a bloom starts), blend, dark
+   */
+  /** big washes are soft: they are rasterised at half resolution, which keeps their image memory (and the frame's) small */
+  const autoRes = bb => { const a = (bb.x1 - bb.x0) * (bb.y1 - bb.y0); return a > 500000 ? 0.5 : a > 160000 ? 0.75 : 1; };
+  function washFn(poly, o = {}) {
+    const draw = o.draw ?? 1, alpha = o.alpha ?? 1;
+    if (draw <= 0 || alpha <= 0 || !poly || poly.length < 3) return;
+    const dark = o.dark ?? S.dark, color = o.color || (dark ? PAL.cyan : PAL.sea);
+    const bb = bounds(poly), seed = o.seed ?? seedOf(poly);
+    const opt = { seed, color, bleed: o.bleed ?? 0.3, layers: o.layers ?? 14, texture: o.texture ?? 0.6, edge: o.edge ?? 0.7,
+      strength: o.strength ?? (dark ? 0.55 : 0.42), res: o.res ?? autoRes(bb), dirAngle: o.dir ?? null };
+    const key = `w|${shapeKey(poly, 2)}|${poly.length}|${JSON.stringify(opt)}`;       // relative to the shape: moving it reuses the raster
+    const R = rasters(key, () => renderWash(poly.map(([x, y]) => [x - bb.x0, y - bb.y0]), bb.x1 - bb.x0, bb.y1 - bb.y0, opt), v => v.c.width * v.c.height);
+    ctx.save(); ctx.globalAlpha *= clamp(alpha);
+    ctx.globalCompositeOperation = o.blend || (dark ? 'screen' : 'multiply');
+    if (draw < 1) {                                      // the wet edge spreads out from a point (or sweeps across)
+      const e = E.out2(draw);
+      if (o.reveal === 'sweep') {
+        const x = lerp(bb.x0 - R.mrg, bb.x1 + R.mrg, e), amp = Math.max(24, (bb.y1 - bb.y0) * 0.09), pts = [[bb.x0 - R.mrg - 5, bb.y0 - R.mrg - 5]];
+        for (let k = 0; k <= 20; k++) { const y = lerp(bb.y0 - R.mrg - 5, bb.y1 + R.mrg + 5, k / 20);   // the wet front runs ahead in tongues
+          pts.push([x + amp * (0.6 * vnoise(k * 0.8, seed + 2) + 0.4 * vnoise(k * 2.3, seed + 3)), y]); }
+        pts.push([bb.x0 - R.mrg - 5, bb.y1 + R.mrg + 5]); trace(pts, true); ctx.clip();
+      } else {
+        const [fx, fy] = o.from || [(bb.x0 + bb.x1) / 2, (bb.y0 + bb.y1) / 2];
+        const far = Math.max(...[[bb.x0, bb.y0], [bb.x1, bb.y0], [bb.x0, bb.y1], [bb.x1, bb.y1]].map(([x, y]) => Math.hypot(x - fx, y - fy))) + R.mrg;
+        trace(shape.blob(fx, fy, far * e * 1.15 + 1, seed + 3, 0.3, 28), true); ctx.clip();
+      }
+    }
+    ctx.drawImage(R.c, bb.x0 - R.mrg + boil(seed, 1, 0.35), bb.y0 - R.mrg + boil(seed, 2, 0.35), R.c.width / opt.res, R.c.height / opt.res);
+    ctx.restore();
+  }
+
+  /* ---- hatching with brush strokes */
+  function scanSegments(poly, angle, gap, gradient) {
+    const ca = Math.cos(angle), sa = Math.sin(angle), rot = poly.map(([x, y]) => [x * ca + y * sa, -x * sa + y * ca]);
+    let y0 = Infinity, y1 = -Infinity; for (const q of rot) { y0 = Math.min(y0, q[1]); y1 = Math.max(y1, q[1]); }
+    const segs = []; let Y = y0 + gap * 0.5, step = gap, row = 0;
+    while (Y < y1) {
+      const xs = [];
+      for (let i = 0; i < rot.length; i++) { const a = rot[i], b = rot[(i + 1) % rot.length];
+        if ((a[1] <= Y) !== (b[1] <= Y)) xs.push(a[0] + (Y - a[1]) / (b[1] - a[1]) * (b[0] - a[0])); }
+      xs.sort((p, q) => p - q);
+      for (let i = 0; i + 1 < xs.length; i += 2) segs.push({ row, a: [xs[i] * ca - Y * sa, xs[i] * sa + Y * ca], b: [xs[i + 1] * ca - Y * sa, xs[i + 1] * sa + Y * ca] });
+      Y += step; step *= gradient; row++;
+    }
+    return segs;
+  }
+  /**
+   * hatch(poly, opts): hatching laid with brush strokes (textured, pressure-shaped), unlike the engine's pen hatch().
+   * opts: type (a stroke type, default 'pencil-hb'), angle (radians, default -0.6), gap (px, default 9), w, color, alpha,
+   *       seed, rand (0..1 end jitter, default 0.25), gradient (0..1 gaps widen across the shape), continuous (one
+   *       zig-zag stroke), inset (px kept clear of the outline), keep (0..1 or fn(x, y) -> 0..1, thins lines), draw (0..1
+   *       lines appear in order), field, dark
+   */
+  function hatchFn(poly, o = {}) {
+    const draw = o.draw ?? 1; if (draw <= 0 || !poly || poly.length < 3) return;
+    const angle = o.angle ?? -0.6, gap = Math.max(1.5, o.gap ?? 9), grad = 1 + 0.1 * clamp(o.gradient ?? 0), seed = o.seed ?? seedOf(poly);
+    const rand = o.rand ?? 0.25, inset = o.inset ?? 0, keep = o.keep ?? 1;
+    const lines = geom(`h|${shapeKey(poly, 2)}|${poly.length}|${angle}|${gap}|${grad}|${seed}|${rand}|${inset}`, () => {
+      const r = mulberry(seed + 71), out = [], x0 = poly[0][0], y0 = poly[0][1];
+      for (const sg of scanSegments(poly.map(([x, y]) => [x - x0, y - y0]), angle, gap, grad)) {   // relative, so a moved shape reuses it
+        const dx = sg.b[0] - sg.a[0], dy = sg.b[1] - sg.a[1], l = Math.hypot(dx, dy); if (l < inset * 2 + 2) continue;
+        const ux = dx / l, uy = dy / l, j = () => (r() * 2 - 1) * rand * gap * 1.5;
+        const a = [sg.a[0] + ux * (inset + j()), sg.a[1] + uy * (inset + j())], b = [sg.b[0] - ux * (inset + j()), sg.b[1] - uy * (inset + j())];
+        out.push({ a, b, keep: r(), row: sg.row });
+      }
+      return out;
+    });
+    const X0 = poly[0][0], Y0 = poly[0][1];
+    const kept = lines.filter(Ln => Ln.keep < (typeof keep === 'function' ? keep(X0 + (Ln.a[0] + Ln.b[0]) / 2, Y0 + (Ln.a[1] + Ln.b[1]) / 2) : keep))
+      .map(Ln => ({ a: [X0 + Ln.a[0], Y0 + Ln.a[1]], b: [X0 + Ln.b[0], Y0 + Ln.b[1]] }));
+    const so = { type: o.type || 'pencil-hb', w: o.w, color: o.color, alpha: o.alpha ?? 0.85, dark: o.dark, field: o.field, amp: o.amp ?? 0.5, blend: o.blend,
+      step: o.step ?? 12, pressure: o.pressure };
+    const M = mediumOf(so);
+    if (o.continuous) {
+      const path = []; kept.forEach((Ln, i) => { if (i % 2) path.push(Ln.b, Ln.a); else path.push(Ln.a, Ln.b); });
+      const G = path.length > 1 && prep(path, { ...so, seed, draw, pressure: o.pressure ?? 0.9 }, M);
+      if (G) paint([G], M, so, false);
+      return;
+    }
+    const N = kept.length, reach = draw * N, Gs = [];
+    for (let i = 0; i < N && i < reach; i++) { const G = prep([kept[i].a, kept[i].b], { ...so, seed: seed + i * 13, draw: clamp(reach - i) }, M); if (G) Gs.push(G); }
+    paint(Gs, M, so, false);
+  }
+
+  /**
+   * field(name | fn, drawFn?): resolves a flow field to its angle function fn(x, y, t). With drawFn, every brush stroke
+   * drawn inside it bends along that field (and the field is switched off again afterwards). Named fields: hand,
+   * curved, zigzag, waves, seabed, spiral, columns. Add your own to brush.fields.
+   */
+  function field(f, drawFn) {
+    const fn = fieldOf(f);
+    if (f && !fn) throw new Error(`brush.field: unknown field "${f}" (use ${Object.keys(fields).join(', ')})`);
+    if (drawFn) { const was = ACTIVE; ACTIVE = fn; try { drawFn(fn); } finally { ACTIVE = was; } }
+    return fn;
+  }
+  /** flow(x, y, len, opts): a stroke that starts at (x, y) heading opts.dir and follows the field (opts.field) for len px */
+  function flow(x, y, len, o = {}) {
+    const d = o.dir ?? 0; stroke([[x, y], [x + Math.cos(d) * len, y + Math.sin(d) * len]], { field: 'curved', ...o });
+  }
+
+  /* ---- test hook: one fixed sample of each kind, drawn offscreen; returns a pixel hash and the draw time */
+  function sample(kind) {
+    const wave = Array.from({ length: 24 }, (_, i) => [30 + i * 18, 110 + 45 * Math.sin(i * 0.45)]);
+    if (TYPES.includes(kind)) { stroke(wave, { type: kind, seed: 7 }); return; }
+    const blobP = shape.blob(240, 110, 80, 3, 0.25, 40);
+    if (kind === 'wash') { washFn(blobP, { seed: 5, color: PAL.sea }); return; }
+    if (kind === 'hatch') { hatchFn(blobP, { seed: 5, gap: 8 }); return; }
+    if (kind === 'field') { field('curved', () => { for (let k = 0; k < 6; k++) stroke([[30, 40 + k * 28], [450, 40 + k * 28]], { type: 'pencil-hb', seed: 20 + k }); }); return; }
+    throw new Error(`__brushProbe: unknown kind "${kind}"`);
+  }
+  if (typeof window !== 'undefined') {
+    // performance.now() here only reports how long the sample took; it never reaches a drawing
+    window.__brushProbe = (kind, boilV = 0) => {
+      const c = newCanvas(480, 220), g = c.getContext('2d'), was = ctx, wasBoil = S.boil, wasDark = S.dark;
+      let ms = 0; ctx = g; S.boil = boilV; S.dark = false;
+      try { const t0 = performance.now(); sample(kind); ms = performance.now() - t0; }
+      finally { ctx = was; S.boil = wasBoil; S.dark = wasDark; }
+      const d = g.getImageData(0, 0, c.width, c.height).data; let h = 2166136261;
+      for (let i = 0; i < d.length; i++) h = Math.imul(h ^ d[i], 16777619);
+      return { hash: (h >>> 0).toString(16), ms };
+    };
+  }
+
+  return { stroke, wash: washFn, hatch: hatchFn, field, flow, fields, types: TYPES, media: MEDIA };
+})();
+/** wash(poly, opts): watercolor tint under the ink; same as brush.wash */
+function wash(poly, o) { return brush.wash(poly, o); }
+/* ===================== end of brushes ===================== */
 
 /* ---------- textures (built once) ---------- */
 const TEX = {};
@@ -1227,12 +1740,12 @@ const TRANS = {
     return e;
   },
 };
-/** header start delay per transition (measured from the reference: bare hold after a lens-in, none after a lens-out) */
+/** header start delay per transition (a bare hold after a lens-in, none after a lens-out) */
 /** where each transition lands (90% of its travel), as a share of its length; the title starts 0.3 s after that */
 const LAND_AT = { lensIn: 0.62, lensOut: 0.62, shape: 0.6, morph: 0.6, roll: 0.61, iris: 0.8, zoom: 0.7, through: 0.85, bleed: 0.85, page: 0.78, burn: 0.82, wipe: 0.75, hatch: 0.8, pan: 0.75 };
 /** landAt(tr): seconds after a plate starts when its entering move has landed (use it to time beats) */
 const landAt = tr => !tr ? 0 : tr.type === 'cut' ? 0 : (tr.land ?? LAND_AT[tr.type] ?? 0.85) * (tr.dur || 0);
-/** lensOut keeps the reference's instant title */
+/** lensOut keeps an instant title: the new world is already open */
 const HEADER_DELAY = { cut: () => 0.25, lensOut: () => 0.05, fade: d => d * 0.6 + 0.2 };
 function headerDelay(pl) { const tr = pl.enter; if (!tr || pl.i === 0) return 0.1; const h = HEADER_DELAY[tr.type]; return h ? h(tr.dur || 0) : landAt(tr) + 0.3; }
 TRANS.morph = TRANS.shape;   // v2 name
@@ -1498,6 +2011,64 @@ async function boot() {
   window.__renderFrame = f => { renderFrame(f); return true; };
   window.__frameData = (f, type = 'image/jpeg', q = 0.94) => { renderFrame(f); return cvs.toDataURL(type, q).split(',')[1]; };
   window.__audioWav = async () => b64(wavBytes(await renderAudio()));
+  /* ---- speed_check probes: read-only, for toolkit/speed_check.mjs (references/motion.md, "Speed limits") ----
+   * __camProbe(i, t): plate i's own composed camera at its local time t — camOf(pl,t) folded with momentum()
+   *   and entryShift() (the lean into/out of a cut), i.e. exactly what drawPlate composes for that plate on
+   *   its own, with no transition xf. { s: scale, dx, dy: px pan }. Sample across a plate's life for camera
+   *   jumps, and just before/after a cut for a stall (film-grammar.md F8).
+   * __seamProbe(i, u): the transition ENTERING plate i, at u = 0..1 of its own clock (same `raw` as
+   *   renderFrame). Returns { type, p (eased progress), raw, ...} where the extra fields are the same
+   *   scale/mask/pan quantities TRANS[type] computes for its own xf (read off the preset's own formulas with
+   *   the engine's own E/zlerp/lerp/coverR — not a second implementation of the transition). This is the
+   *   tunable part of a seam (dur, ease, k, dive, ...); a plate's own camera is __camProbe's job, not this
+   *   one's, so the two are never multiplied together here. null before plate i, or when it has no enter. */
+  window.__camProbe = (i, t) => {
+    const pl = STORY.plates[i]; if (!pl) return null;
+    const cam = camOf(pl, t) || { s: 1, dx: 0, dy: 0 }, ms = entryShift(pl, t), mo = momentum(pl, t) * (ms ? ms.s : 1);
+    return { s: (cam.s ?? 1) * mo, dx: (cam.dx || 0) + (ms ? ms.dx : 0), dy: (cam.dy || 0) + (ms ? ms.dy : 0) };
+  };
+  window.__seamProbe = (i, u) => {
+    const P = STORY.plates, pl = P[i]; if (!pl || i === 0) return null;
+    const prev = P[i - 1], tr = pl.enter; if (!tr) return null;
+    const dur = tr.dur || 0, raw = clamp(u), t = raw * dur, pt = prev.dur + t;
+    const own = !!(tr.ease && EASED[tr.type]);
+    const p = clamp(tr.curve ? curve(raw, tr.curve) : tr.ease && !own ? easeOf(tr.ease)(raw) : raw);
+    const ez = (v, def) => own ? easeOf(tr.ease)(v) : def(v);
+    const [ox, oy] = focusOf(prev, pt), [nx, ny] = focusOf(pl, t);
+    const out = { type: tr.type, p, raw };
+    switch (tr.type) {
+      case 'lensIn': { const e = ez(p, E.arrive); out.scaleOld = zlerp(1, tr.dive ?? 2, e); out.maskR = lerp(16, coverR(ox, oy), e); break; }
+      case 'lensOut': { const e = ez(p, E.arrive); out.scaleNew = zlerp(tr.dive ?? 2, 1, e); out.maskR = lerp(coverR(ox, oy), 20, e); break; }
+      case 'zoom': { const e = ez(p, E.arriveSoft), k = tr.k ?? 3.5, isOut = (tr.dir || 'out') === 'out';
+        out.scaleOld = isOut ? zlerp(1, 1 / k, e) : zlerp(1, k, e); out.scaleNew = isOut ? zlerp(k, 1, e) : zlerp(1 / k, 1, e); break; }
+      case 'shape': case 'morph': { const e = ez(p, E.arrive); out.scaleOld = zlerp(1, 1.6, e); out.scaleNew = zlerp(0.7, 1, e);
+        out.maskR = lerp(6, coverR((ox + nx) / 2, (oy + ny) / 2), E.arrive(inv(0.05, 0.9, p))); break; }
+      case 'iris': { let r; if (p < 0.46) r = lerp(coverR(ox, oy), 7, E.shaped(0.65, 2, 2)(p / 0.46));
+        else if (p < 0.54) r = 7; else r = lerp(7, coverR(nx, ny), E.shaped(0.35, 2, 3)((p - 0.54) / 0.46));
+        out.maskR = r; break; }
+      case 'through': { const dive = tr.dive ?? 1.6, rise = tr.rise ?? 1.4;
+        if (p < 0.46) out.scaleOld = zlerp(1, dive, E.in2(p / 0.46));
+        else if (p < 0.49) out.scaleOld = dive;
+        else out.scaleNew = zlerp(rise, 1, E.shaped(0.25, 2, 3)((p - 0.49) / 0.51)); break; }
+      case 'pan': { let dir = tr.dir || 'auto';
+        if (dir === 'auto') { const [vx, vy] = travelOf(prev, prev.dur - 1e-3);
+          dir = Math.hypot(vx, vy) < 40 ? 'left' : Math.abs(vx) >= Math.abs(vy) ? (vx > 0 ? 'left' : 'right') : (vy > 0 ? 'up' : 'down'); }
+        const vert = dir === 'up' || dir === 'down', sg = (dir === 'left' || dir === 'up') ? -1 : 1, span = vert ? H : W;
+        const [mvx, mvy] = motionOf(prev, prev.dur - 1e-3), mv = vert ? mvy : mvx;
+        const v0 = Math.sign(mv) === sg ? clamp(Math.abs(mv) * (dur || 0.8) / span, 0, 1.2) : 0;
+        out.panOff = sg * span * ez(p, E.whip(v0)); break; }
+      case 'wipe': { const e = ez(p, E.ramp(0.25, 0.35)), dir = tr.dir || 'lr', span = dir === 'tb' ? H : W;
+        out.frontPos = lerp(-180, span + 180, dir === 'rl' ? 1 - e : e); break; }
+      case 'bleed': { const fall = tr.fall ?? 0.22;
+        if (p < fall) out.dropY = lerp(-80, ny - (tr.drop ?? 22), E.in2(inv(0, 0.85, p / fall)));
+        else out.splatE = ez((p - fall) / (1 - fall), E.shaped(0.15, 1.6, 3)) ** 2; break; }
+      case 'burn': out.burnE = ez(p, E.depart); break;
+      case 'page': out.creaseX = lerp(W + 4, -0.02 * W, ez(p, E.shaped(0.5, 1.8, 2.5))); break;
+      case 'roll': out.rollY = lerp(H + 6, -((tr.radius ?? 60) + 40), ez(p, E.shaped(0.25, 2, 3))); break;
+      default: break;   // cut, hatch, fade: no scale/mask beyond p itself (exempt from speed limits, or plain crossfade)
+    }
+    return out;
+  };
   window.__ready = true;
   if (RENDER) { renderFrame(+(QS.get('f') || 0)); return; }
   player();
