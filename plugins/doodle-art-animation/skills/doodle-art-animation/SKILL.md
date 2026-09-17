@@ -27,7 +27,7 @@ If you build something other films could reuse (a server rack, a tree, a galaxy,
 | `toolkit/shell.html`, `toolkit/build.py` | `python3 build.py story.js film.html` inlines the engine and the story into one self-contained HTML file. |
 | `toolkit/render.mjs` | Frame capture, stills, contact sheets, transition strips, MP4 muxing. |
 | `toolkit/motion_check.py` | Measures how alive a render is. |
-| `toolkit/story_example.js` | Worked example "One Drop" (44.5 s, 7 plates). Read it for **structure** (plate objects, beats, camera moves, transitions, the end card). Don't reuse its scenery for an unrelated topic. |
+| `toolkit/story_example.js` | Worked example "One Drop" (49 s, 7 plates). Read it for **structure** (plate objects, beats, camera moves, transitions, the end card). Don't reuse its scenery for an unrelated topic. |
 | `toolkit/story_reel.js` | Test reel with all 13 transition types back to back. |
 | `references/style.md` | Worlds, palette, type, line and texture recipes, composition, HUD positions. |
 | `references/motion.md` | Keeping every drawing alive, beats, timings, camera moves, the transition table and rules. |
@@ -72,10 +72,11 @@ If you change or add a transition, test it in the reel first: `python3 build.py 
 
 Each has its details in the references.
 
-- **Every drawing moves.** The engine adds twos, gate weave, grain, line boil, a slow push-in and momentum across cuts. Each plate must also keep at least two of its own motions going (flow, drifting particles, weather, a moving hero, a camera move, flickering links), with much more on night plates. Target: `motion_check.py` median of at least 1.5 per drawing and fewer than 5% of drawings below 0.5 (the reference measures a median of 2.0 with 2% still drawings over the whole film). A plate that sits near zero needs more life, not a faster transition.
+- **Every drawing moves.** The engine adds twos, gate weave, grain, line boil, a slow push-in and momentum across cuts. Each plate must also keep at least two of its own motions going (flow, drifting particles, weather, a moving hero, a camera move, flickering links), with much more on night plates. Target: `motion_check.py` median of at least 1.5 per drawing and fewer than 5% of drawings below 0.5 (the reference measures a median of 2.0 with 2% still drawings over the whole film). Night plates need dense crowds (100+ small bodies) or depth layers to register, and end cards need motion too (ripples, orbiting specks). A plate that sits near zero needs more life, not a faster transition.
 - **Beats enter and leave.** Wrap stats, callouts and cards in `withAlpha(beat(t, t0, t1), …)`. Text fades out; it never un-types. Give every line `readTime(s)` on screen.
 - **Pick transitions by meaning:** `lensIn`/`lensOut` between worlds, `zoom` within a world, `shape` when an object persists across the cut, `pan` along the journey, `bleed` (an ink drop) for time passing, `burn` for an ending, `page` (a page turn) for chapter breaks, `roll` for a clean reset, `fade` only into the end card. Use 4–6 types per film, never the same one three times in a row.
 - **Scenes bleed to all four edges**, with the horizon at 48–52% and a sky element on every paper plate. One idea per region: top-centre stat, one side for callouts, bottom card.
+- **Vary the scenery:** different ground, trees, far mountains, birds or open sea from plate to plate, and a recap with its own composition.
 - **Pen for subjects, ink for measurement**, shading made of pen strokes (never gradients), and at least two textures on any fill wider than 200 px.
 - **The HUD and the hero reticle never scale with the camera.** Text that must stay still goes in `overlay(t)`.
 - **Honest numbers:** `≈` for estimates, real units, "illustrative" for schematic curves, sources on the end card.
@@ -115,5 +116,6 @@ Look at the actual frames, not your code.
 - **Motion.** `python3 motion_check.py film.mp4` meets the targets. Its per-second profile has no flat stretches, and no transition spikes out of a near-zero second.
 - **Momentum.** In the strips, the old scene visibly leans in before each zoomy cut, and the new scene is still easing when the title starts.
 - **Reading.** Every line stays up for `readTime`, and no beat is replaced before it can be read.
-- **Facts.** Every on-screen number matches the plate script and its source.
+- **Facts.** Every on-screen number matches the plate script and its source. Check every comparison with arithmetic before it goes on screen: 1,200 mm of rain is 1,200 litres on each square metre, which is several bathtubs, not one.
+- **Edges.** Stat notes, callout subs and card labels stay inside the frame. Measure long notes; a stat at x 1330 with a 45-character note ran off the right edge.
 - **File.** `ffprobe` shows the frame count equal to `__story.frames`, the audio level is in range, and the audio is really stereo.

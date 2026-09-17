@@ -30,7 +30,7 @@ const P = [
   mk(1, 'lensIn', true, { dur: 0.6 }), mk(2, 'lensOut', false, { dur: 0.6 }), mk(3, 'pan', false, { dur: 0.8, dir: 'left' }),
   mk(4, 'wipe', false, { dur: 0.8 }), mk(5, 'bleed', true), mk(6, 'zoom', true, { dur: 0.8, dir: 'in', k: 6 }),
   mk(7, 'shape', false, { dur: 1.1, from: circAt(6, 40), to: () => STAR(...HEROS[0], 95) }), mk(8, 'iris', false),
-  mk(9, 'burn', false), mk(10, 'cut', false), mk(11, 'hatch', true, { dur: 0.8 }), mk(12, 'page', false), mk(13, 'roll', true),
+  mk(9, 'burn', false), mk(10, 'cut', false), mk(11, 'hatch', true, { dur: 0.8 }), mk(12, 'page', false), mk(13, 'roll', true), mk(14, 'page', false, { dir: 'right' }),
 ];
 defineStory({ title: 'Transition Reel', stages: 1, music: { tonic: 220 }, plates: P });
 boot();

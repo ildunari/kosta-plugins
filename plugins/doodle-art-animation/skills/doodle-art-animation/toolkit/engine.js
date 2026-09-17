@@ -935,10 +935,12 @@ const TRANS = {
     if (r <= r0 + 0.5) { ctx.fillStyle = '#e9e7f5'; ctx.beginPath(); ctx.arc(cx, cy, r0 * 0.6, 0, TAU); ctx.fill(); }
     return E.inOut3(inv(0.4, 0.6, p));
   },
-  /** page turn: the bottom-right corner of the old page is lifted and dragged across; the page folds along a moving line,
-   *  showing its back with curl shading, and slides off to the left to reveal the new page underneath */
+  /** page turn: a bottom corner of the old page is lifted and dragged across (tr.dir 'left' = the right corner travels left,
+   *  'right' = the left corner travels right); the page folds along a moving crease and slides off. Its back takes the look
+   *  of the page being turned to (tr.back 'new' | 'old'), so the new world curls into view over the old one. */
   page(p, X) {
-    const e = E.inOut3(p), P = [W + 4, H + 4], Q = [lerp(W + 4, -1.25 * W, e), lerp(H + 4, 0.7 * H, Math.sin(e * Math.PI / 2))];
+    const e = E.inOut3(p), fl = (X.tr.dir || 'left') === 'right', hx = x => fl ? W - x : x;
+    const P = [hx(W + 4), H + 4], Q = [hx(lerp(W + 4, -1.25 * W, e)), lerp(H + 4, 0.7 * H, Math.sin(e * Math.PI / 2))];
     const dx = P[0] - Q[0], dy = P[1] - Q[1], len = Math.hypot(dx, dy);
     if (len < 2) { X.drawOld(); return 0; }
     const nx = dx / len, ny = dy / len, mx = (P[0] + Q[0]) / 2, my = (P[1] + Q[1]) / 2, md = mx * nx + my * ny;
@@ -954,12 +956,13 @@ const TRANS = {
     if (flap.length > 2) {
       ctx.save(); ctx.filter = 'blur(14px)'; ctx.globalAlpha = 0.28; ctx.translate(-10 * nx, -10 * ny + 6); flat(flap, '#1e140c'); ctx.restore();   // soft drop shadow
       ctx.save(); trace(flap, true); ctx.clip();
-      ctx.drawImage(bgTex(X.darkOld), 0, 0); ctx.fillStyle = X.darkOld ? 'rgba(60,60,110,0.35)' : 'rgba(255,252,240,0.45)'; ctx.fillRect(0, 0, W, H);
-      ctx.save(); ctx.globalAlpha = 0.09; ctx.transform(1 - 2 * nx * nx, -2 * nx * ny, -2 * nx * ny, 1 - 2 * ny * ny, 2 * md * nx, 2 * md * ny); ctx.drawImage(L, 0, 0); ctx.restore();   // print showing through
+      const backDark = (X.tr.back || 'new') === 'new' ? X.darkNew : X.darkOld;
+      ctx.drawImage(bgTex(backDark), 0, 0); ctx.fillStyle = backDark ? 'rgba(60,60,110,0.25)' : 'rgba(255,252,240,0.35)'; ctx.fillRect(0, 0, W, H);
+      if (backDark === X.darkOld) { ctx.save(); ctx.globalAlpha = 0.09; ctx.transform(1 - 2 * nx * nx, -2 * nx * ny, -2 * nx * ny, 1 - 2 * ny * ny, 2 * md * nx, 2 * md * ny); ctx.drawImage(L, 0, 0); ctx.restore(); }   // print showing through
       const g = ctx.createLinearGradient(mx, my, mx - nx * 300, my - ny * 300);   // the curl: dark in the crease, a highlight, then soft shade
       g.addColorStop(0, 'rgba(30,20,10,0.38)'); g.addColorStop(0.12, 'rgba(30,20,10,0.08)'); g.addColorStop(0.35, 'rgba(255,255,255,0.18)'); g.addColorStop(1, 'rgba(30,20,10,0.10)');
       ctx.fillStyle = g; ctx.fillRect(-10, -10, W + 20, H + 20); ctx.restore();
-      ink(flap, { closed: true, w: 2.2, color: X.darkOld ? PAL.nightInk : PAL.ink, amp: 0.5, seed: 61, alpha: 0.85 });
+      ink(flap, { closed: true, w: 2.2, color: backDark ? PAL.nightInk : PAL.ink, amp: 0.5, seed: 61, alpha: 0.85 });
     }
     X.drawOldX({ hudOnly: true, hud: 1 - inv(0, 0.3, p) });
     return e;
