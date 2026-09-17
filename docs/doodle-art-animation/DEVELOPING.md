@@ -23,7 +23,7 @@ plugins/doodle-art-animation/       the plugin
     FEEDBACK.md                     lessons log (feedback-loop convention)
     references/                     style, motion, writing, film-grammar, sound, api, render
     toolkit/                        engine.js, shell.html, build.py, render.mjs,
-                                    motion_check.py, story_example.js, story_seams.js, story_reel.js
+                                    motion_check.py, smoke_test.py, story_example.js, story_seams.js, story_reel.js
 docs/doodle-art-animation/          not shipped with the plugin
   DEVELOPING.md                     this file
   HANDOFF.md                        history, measurements, known weaknesses (paths in it refer to the original handoff zip)
@@ -54,6 +54,29 @@ python3 motion_check.py film.mp4                    # target: median >= 1.5, sti
 ```
 
 Look at the images yourself before calling anything done. Baseline for the example: median 1.57, still 1% (see `HANDOFF.md`).
+
+## Automated smoke test
+
+`toolkit/smoke_test.py` runs the mechanical part of the checks above. For every `story*.js` next to it, it builds the story, loads it once in headless Chromium (no page errors, sane `window.__story`), and renders 3 stills at 20%, 50% and 80% of the film with `render.mjs --stills`. It fails on a non-zero exit, any `PAGE ERROR:`, a blank still, or three identical stills. It then renders a 3.5 s MP4 segment across the first transition of `story_example.js`, and checks the frame count, the duration, a stereo audio track that is not silent, and `motion_check.py` against loose thresholds (median >= 0.5, still <= 50%). It never builds in the plugin folder; everything goes into `--work`, which defaults to a new temp dir.
+
+```
+# from the repo (Playwright installed somewhere; point at its node_modules)
+python3 plugins/doodle-art-animation/skills/doodle-art-animation/toolkit/smoke_test.py \
+    --work /tmp/doodle-smoke --node-modules /path/to/node_modules --workers 3
+
+# inside a film folder (the toolkit was copied there; ./node_modules is picked up)
+python3 smoke_test.py --work qa_smoke
+```
+
+- `--workers N` (or `SMOKE_WORKERS`) sets how many stories are checked at once and the `render.mjs --workers` for the MP4. The default is 3; CI uses 2.
+- `--stories a.js,b.js`, `--skip x.js`, `--video-story`, `--video-seconds` and `--no-video` narrow the run.
+- The output goes to `<work>/smoke_qa/`: `sheet_<story>.jpg` (the 3 stills side by side), the full stills per story, `segment_<story>.mp4`, and `summary.json`.
+- Exit codes: 0 means everything passed, 1 means a check failed (the summary names each story), and 2 means a tool or file is missing.
+- It needs network access for Google Fonts. On an M-series Mac the whole run takes about 50–90 s.
+
+It proves the stories build, boot and render without errors. It does not replace looking at the sheets, strips and seams yourself.
+
+CI: `.github/workflows/doodle-smoke.yml` runs it on ubuntu-latest for pushes to `main` and for pull requests that touch `plugins/doodle-art-animation/**`, and it can also be started by hand. The contact sheets and `summary.json` are uploaded as the `doodle-smoke-sheets` artifact. On a failure, the whole `smoke_qa/` folder is uploaded as `doodle-smoke-failure`.
 
 ## Engine rules that must not break
 
