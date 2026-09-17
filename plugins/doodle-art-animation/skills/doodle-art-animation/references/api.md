@@ -50,6 +50,8 @@ Plate fields:
 - `dropText(s, x, y, t, opts)`: left-aligned only; for centred text, start at `cx - measure(s) / 2`.
 - `countUp(to, t, dur, decimals)`, plus `fmt`, `ROMAN`, `SUB`, `SUP`.
 
+**Kit components:** `KIT.<kit>.<name>(t, { x, y, s, rot, draw, alpha, seed, dark, … })`; the catalogue is `references/components.md`.
+
 **Components:**
 - `stat`, `callout`, `reticle`, `card` (returns 0 until open), `logRuler`, `lineChart` (returns `{ X, Y }`), `insetLens`.
 - The header, journey log, stage dial, hero reticle, frame counter, backgrounds, vignettes, transitions, anticipation dot and audio cues are drawn automatically.

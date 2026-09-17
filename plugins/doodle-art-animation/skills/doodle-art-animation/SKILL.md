@@ -17,7 +17,7 @@ The plugin fixes the **look and feel**: ink and paper, type, the HUD, camera beh
 
 Everything else is **yours to create**: the topic, the scenery, the objects, the diagrams, the hero and its journey. Films can be about anything (code, AI and agents, geology, geography, web design, biology, space, art, history) and each should look like its own subject, not like the example. Use engine components where they fit, and draw new art in each plate's `draw(t)` wherever they don't. Build that art from the engine's ink primitives (`pen`, `ink`, `hatch`, `shade`, `shape.*`) so it matches the style. Inventing new elements is expected, not a workaround.
 
-If you build something other films could reuse (a server rack, a tree, a galaxy, a browser window), keep it as a self-contained helper in `story.js` and mention it to the user as a candidate for the plugin.
+Before drawing a common object, check `references/components.md`: the kits already have seas, coasts, mountains, forests, strata, weather, terminals, code cards, browsers, server racks, circuit boards, cursors, neural networks, agents with tools, chat threads, token streams, attention arcs, star fields, planets, orbits, comets, telescopes, glassware, cells, molecules, microscopes, pipettes, easels, brush strokes, swatches, wireframes and pen-tool paths. If you build something other films could reuse (a DNA helix, a volcano, a phone), write it in the kit component shape and mention it to the user as a candidate for the plugin ("Growing the kits" in `references/components.md`).
 
 
 
@@ -34,6 +34,10 @@ If you build something other films could reuse (a server rack, a tree, a galaxy,
 | `toolkit/story_one_drop.js` | A second example, "One Drop" (49 s, the water cycle): scenery recipes (far mountains, trees, birds, a coast cross-section), dense night plates, a size-ladder card. |
 | `toolkit/story_seams.js` | "Pencil to Ladybug" (29 s): a short example of designed seams (a custom eraser-to-ladybug morph, an auto-direction `pan`, a match `cut`, a `page` turn). Read it with "Designing the seams" in `references/writing.md`. |
 | `toolkit/story_reel.js` | Test reel with all 14 transition types back to back. |
+| `toolkit/kits/` | Component kits: ready-made, on-style building blocks (`KIT.earth`, `KIT.tech`, `KIT.ai`, `KIT.space`, `KIT.lab`, `KIT.studio`). `build.py` inlines the ones a story uses. Catalogue in `references/components.md`. |
+| `toolkit/story_gallery.js` | "Component Gallery" (36 s): every kit component drawing on and idling, one plate per kit. The visual test for the kits. |
+| `toolkit/story_components.js` | Component test reel: stats, callouts, cards, charts, rulers, inset lenses and gather on moving cameras and across transitions. |
+| `references/components.md` | Every kit component: its call, options, look, motion and good uses, plus how to add new ones. |
 | `references/style.md` | Worlds, palette, type, line and texture recipes, composition, HUD positions. |
 | `references/motion.md` | Keeping every drawing alive, beats, timings, camera moves, the transition table and rules. |
 | `references/writing.md` | Explainer voice, how to adapt any subject or dataset, the plate script format. |
@@ -42,7 +46,7 @@ If you build something other films could reuse (a server rack, a tree, a galaxy,
 | `references/film-grammar.md` | Editing and animation grammar for seams and camera moves (eye trace, screen direction, lead room, motivated camera, the switch-up rule, the twelve principles) and the seam review rubric. |
 | `references/render.md` | How rendering works, options and speed. |
 
-Read `references/style.md`, `references/motion.md`, `references/writing.md` and `references/film-grammar.md` before writing the plate script. Open `references/api.md` while building, and `references/sound.md` when adding cues.
+Read `references/style.md`, `references/motion.md`, `references/writing.md` and `references/film-grammar.md` before writing the plate script. Open `references/api.md` and `references/components.md` while building, and `references/sound.md` when adding cues.
 
 ## Feedback Loop
 
@@ -60,7 +64,7 @@ Read `FEEDBACK.md` in this skill's folder before every use and apply its lessons
 1. **Get the substance first.** Research the topic, or read the user's data or source. Every number on screen needs a source; write the sources down now, because they go on the end card.
 2. **Pick the hero and the journey.** Something small that travels through the whole story, with an ID tag like `H₂O·01`, `NP·01`, `γ·01`, `PKT·01` (see `references/writing.md`).
 3. **Write the plate script** in the table format from `references/writing.md`, with camera, transition and exit columns, then **design every seam** (exit, entry, link) in the seam list and let the link pick the transition. For films longer than about a minute, show the script to the user before building.
-4. **Set up a working folder** (not inside this skill): `cp -R "${CLAUDE_SKILL_DIR}"/toolkit/. .` then write a new `story.js` that follows the structure of `story_example.js`, with art built for this topic. Copy a helper from the example only when it genuinely fits. If that variable is not filled in, the `toolkit` folder sits next to this SKILL.md.
+4. **Set up a working folder** (not inside this skill): `cp -R "${CLAUDE_SKILL_DIR}"/toolkit/. .` then write a new `story.js` that follows the structure of `story_example.js`, with art built for this topic. Use kit components (`references/components.md`) where they fit your subject, and draw everything else yourself. Copy a helper from the example only when it genuinely fits. If that variable is not filled in, the `toolkit` folder sits next to this SKILL.md.
 5. **Build plate by plate.** After each plate run `python3 build.py story.js film.html` and `node render.mjs film.html --stills <frames>`, then look at the stills: beats, collisions, empty regions.
 6. **QA the motion, not just the stills.**
    - `node render.mjs film.html --sheet 1` writes one frame per second to `qa/contact_sheet.jpg`.
@@ -74,7 +78,7 @@ Read `FEEDBACK.md` in this skill's folder before every use and apply its lessons
 7. **Render**: `/doodle-art-animation:doodle-render`, or by hand `node render.mjs film.html film.mp4 --workers 6 --bitrate 3800k` (a one-minute film lands near 20–30 MB), then `motion_check.py` and `audio_check.py`.
 8. **Deliver** the MP4 and the HTML. The HTML is also a player: space plays and pauses, the arrow keys move 2 s, `[` and `]` jump between plates, and there is a scrubber.
 
-If you change or add a transition, test it in the reel first: `python3 build.py story_reel.js reel.html`, then `node render.mjs reel.html --strips`.
+If you change or add a kit component, render the gallery (`python3 build.py story_gallery.js gallery.html`, then `node render.mjs gallery.html --sheet 1`). If you change or add a transition, test it in the reel first: `python3 build.py story_reel.js reel.html`, then `node render.mjs reel.html --strips`.
 
 **Requirements:** Node 18+, Playwright with Chromium, ffmpeg, Python 3 with numpy, and network access to Google Fonts. If fonts are blocked, install `@fontsource/fraunces`, `@fontsource/inter-tight` and `@fontsource/ibm-plex-mono` and replace the `<link>` in `shell.html` with `@font-face` rules.
 
@@ -88,6 +92,7 @@ Each has its details in the references.
 - **Scenes bleed to all four edges**, with the horizon at 48–52% and a sky element on every paper plate. One idea per region: top-centre stat, one side for callouts, bottom card.
 - **Vary the scenery:** different ground, trees, far mountains, birds or open sea from plate to plate, and a recap with its own composition.
 - **Pen for subjects, ink for measurement**, shading made of pen strokes (never gradients), and at least two textures on any fill wider than 200 px.
+- **Use the kits, then go further.** Kit components are on-style and already move; use them where they fit, restyle them with their options, and draw the rest of the scene yourself. A film should never look like the gallery: a few components inside a scene built for its topic.
 - **The HUD and the hero reticle never scale with the camera.** Text that must stay still goes in `overlay(t)`.
 - **Honest numbers:** `≈` for estimates, real units, "illustrative" for schematic curves, sources on the end card.
 

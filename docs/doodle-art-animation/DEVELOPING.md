@@ -28,7 +28,8 @@ plugins/doodle-art-animation/       the plugin
     toolkit/                        engine.js, shell.html, build.py, render.mjs,
                                     motion_check.py, audio_check.py, text_check.mjs, smoke_test.py,
                                     story_example.js (The Long Release), story_one_drop.js,
-                                    story_seams.js, story_reel.js
+                                    story_seams.js, story_reel.js, story_gallery.js, story_components.js,
+                                    kits/ (_kit.js, earth, tech, ai, space, lab, studio)
 docs/doodle-art-animation/          not shipped with the plugin
   DEVELOPING.md                     this file
   HANDOFF.md                        history, measurements, known weaknesses (paths in it refer to the original handoff zip)
@@ -40,16 +41,16 @@ docs/doodle-art-animation/          not shipped with the plugin
 
 - Validate: `claude plugin validate plugins/doodle-art-animation --strict`
 - Load it in a session: `claude --plugin-dir plugins/doodle-art-animation`, then `/reload-plugins` after edits.
-- The skill copies its toolkit with `cp "${CLAUDE_SKILL_DIR}"/toolkit/* .`. Never build films inside the plugin folder.
+- The skill copies its toolkit with `cp -R "${CLAUDE_SKILL_DIR}"/toolkit/. .`. Never build films inside the plugin folder.
 
 ## Testing the toolkit (do this after any engine or story change)
 
 Work in a scratch folder outside the repo:
 
 ```
-cp plugins/doodle-art-animation/skills/doodle-art-animation/toolkit/* /tmp/doodle-test/ && cd /tmp/doodle-test   # mkdir -p it first
+mkdir -p /tmp/doodle-test && cp -R plugins/doodle-art-animation/skills/doodle-art-animation/toolkit/. /tmp/doodle-test/ && cd /tmp/doodle-test
 cp story_example.js story.js
-python3 build.py story.js film.html && python3 build.py story_reel.js reel.html
+python3 build.py story.js film.html && python3 build.py story_reel.js reel.html && python3 build.py story_gallery.js gallery.html
 node render.mjs film.html --stills 150,480,700      # quick look
 node render.mjs film.html --sheet 1                 # qa/contact_sheet.jpg
 node render.mjs film.html --strips                  # qa/strip_NN_type.jpg, one per transition
