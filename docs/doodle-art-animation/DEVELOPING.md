@@ -19,19 +19,24 @@ plugins/doodle-art-animation/       the plugin
   .claude-plugin/plugin.json
   agents/seam-reviewer.md           scores every seam against the film-grammar rubric
   agents/film-reviewer.md           reviews the whole film: text, reading time, life, facts, variety, sound
-  skills/doodle-qa/                 /doodle-art-animation:doodle-qa, runs every check and both reviewers
+  agents/script-reviewer.md         reviews the scene script and seam list before any drawing
+  agents/sound-designer.md          turns a reviewed script into a sound plan and cue sheet
+  agents/audio-reviewer.md          checks the rendered audio against the picture, from measurements
+  skills/doodle-qa/                 /doodle-art-animation:doodle-qa, runs every check and the reviewers
   skills/doodle-render/             /doodle-art-animation:doodle-render, final MP4 plus checks
   skills/doodle-art-animation/
     SKILL.md                        workflow and the most important rules (keep it under ~500 lines)
-    FEEDBACK.md                     lessons log (feedback-loop convention)
-    references/                     style, motion, writing, film-grammar, sound, api, render
+    references/                     style, motion, writing, film-grammar, animation-principles,
+                                    intake, sound, api, render, components
     toolkit/                        engine.js, shell.html, build.py, render.mjs,
-                                    motion_check.py, audio_check.py, text_check.mjs, smoke_test.py,
-                                    story_example.js (The Long Release), story_one_drop.js,
+                                    motion_check.py, speed_check.mjs, audio_check.py, text_check.mjs,
+                                    smoke_test.py, story_example.js (The Long Release), story_one_drop.js,
                                     story_seams.js, story_reel.js, story_gallery.js, story_components.js,
-                                    kits/ (_kit.js, earth, tech, ai, space, lab, studio)
+                                    story_brushes.js, kits/ (_kit.js, earth, life, settle, tech, ai,
+                                    space, lab, studio)
 docs/doodle-art-animation/          not shipped with the plugin
   DEVELOPING.md                     this file
+  ACCEPTANCE.md                     the v0.13 go/no-go rules, checked by tests/doodle-art-animation/
   HANDOFF.md                        history, measurements, known weaknesses (paths in it refer to the original handoff zip)
   history/  reference/  examples/   design review, reference-film study images, an older story file
                                     (The Long Release now lives in the toolkit as story_example.js)
@@ -40,6 +45,9 @@ docs/doodle-art-animation/          not shipped with the plugin
 ## Testing the plugin
 
 - Validate: `claude plugin validate plugins/doodle-art-animation --strict`
+- Acceptance checks (v0.13 and later): `python3 tests/doodle-art-animation/acceptance_check.py` for the text and
+  file rules, and `--full --node-modules <playwright>/node_modules` for builds, page probes, renders and timing.
+  They are the written form of what was agreed with the owner; extend them when the plugin gains a feature.
 - Load it in a session: `claude --plugin-dir plugins/doodle-art-animation`, then `/reload-plugins` after edits.
 - The skill copies its toolkit with `cp -R "${CLAUDE_SKILL_DIR}"/toolkit/. .`. Never build films inside the plugin folder.
 
@@ -106,6 +114,13 @@ CI: `.github/workflows/doodle-smoke.yml` runs it on ubuntu-latest for pushes to 
 - `LEAD`, `PUSH_ON` and `SETTLE` values stay at or above 1 (scaling a plate below 1 exposes its edges), and momentum keeps one direction through a cut: push-in types keep easing in, the rest ease out.
 - The HUD and hero reticle never scale with the camera or a transition.
 - Offscreen layer slots: transitions use slot 1 (bleed, hatch) and slot 2 (page). Stories should use slot 0 or 3 and up.
+- Brushes (`brush.stroke`, `brush.wash`, `brush.hatch`, `brush.field`, `wash`) are 2D-canvas ports of p5.brush's
+  ideas, credited in the engine's brush section. Their grain and bleed are seeded per shape and cached, so texture
+  never re-rolls with the boil (only the outline wobbles). A new brush keeps that rule, stays inside the frame-time
+  budget (`story_brushes.js` at most 1.5x `story_example.js`, checked by the acceptance script), and gets a sample
+  in `window.__brushProbe`, an entry in `references/api.md` and a specimen in `story_brushes.js`.
+- Speed: `speed_check.mjs` reads transition and camera speed from the engine's values through `window.__seamProbe`
+  and `window.__camProbe`. Its `FAST` verdict is advice (a film may choose its own pace); `SNAP` is a failure.
 - Stories never edit `engine.js`; they override `PAL` and add helpers. If the engine changes, re-run the example and the reel.
 
 ## Conventions

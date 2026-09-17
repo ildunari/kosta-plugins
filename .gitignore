@@ -13,3 +13,6 @@ gallery.html
 node_modules/
 
 __pycache__/
+
+# agent worktrees (Claude Code)
+.claude/worktrees/
