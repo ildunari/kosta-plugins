@@ -69,4 +69,4 @@ Score each seam 0 (fails), 1 (weak) or 2 (good). Anything scoring 0, or a total 
 9. **Hand-off:** at the end, the transition's picture matches the plate's own (no pop, no jump in size or place).
 10. **Rhythm:** its length and energy differ from its neighbours where that helps the film.
 
-Fail conditions regardless of score: a size or position jump at the hand-off, an object popping in or vanishing, HUD or text scaling with the camera, or a seam that reads as a camera trick rather than one continuous thing.
+Fail conditions regardless of score: (F1) a size, place or colour jump at the hand-off; (F2) HUD or text scaling with the camera; (F3) an object duplicated, missing or popping in; (F4) a seam that reads as a camera trick rather than one continuous thing; (F5) flat colour or an empty frame held long enough to read as a glitch (about 0.15 s).

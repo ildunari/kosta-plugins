@@ -117,7 +117,7 @@ function eraserToBugMacro(p, X) {
   if (p < 0.32) {                                                            // sink into the eraser
     const q = p / 0.32, KA = coverR(ex, ey) / rA * 1.15, sc = curve(q, [[0, 1], [1, KA, 'in3']], { geo: true });
     X.drawOldX({ hud: 1 - inv(0, 0.4, q), xf: about(ex, ey, sc) });
-    withAlpha(curve(q, [[0, 0], [0.3, 0], [0.75, 1]]), () => { ctx.fillStyle = PAL.eraser; ctx.beginPath(); ctx.arc(ex, ey, rA * sc, 0, TAU); ctx.fill(); });
+    withAlpha(curve(q, [[0, 0], [0.45, 0], [0.97, 0.9]]), () => { ctx.fillStyle = PAL.eraser; ctx.beginPath(); ctx.arc(ex, ey, rA * sc, 0, TAU); ctx.fill(); });   // the eraser's grain shows to the last moment
     return 0;
   }
   const KB = coverR(cx, cy) / rB * 1.25;                                     // the shell fills the screen at this zoom
@@ -128,7 +128,7 @@ function eraserToBugMacro(p, X) {
   S.noReticle = p < 0.9;
   X.drawNewX({ hud: inv(0.9, 1, p), xf: about(cx, cy, sc) });
   S.noReticle = false;
-  withAlpha(1 - inv(0.32, 0.4, p), () => { ctx.fillStyle = PAL.eraser; ctx.fillRect(-20, -20, W + 40, H + 40); });   // eraser red settles into shell red
+  withAlpha(0.85 * (1 - inv(0.32, 0.36, p)), () => { ctx.fillStyle = PAL.eraser; ctx.fillRect(-20, -20, W + 40, H + 40); });   // eraser red settles into shell red; never a flat hold
   return inv(0.32, 0.36, p);
 }
 /* ---------- seam I → II (morph): the eraser becomes the ladybug ---------- */
@@ -182,7 +182,7 @@ const P2 = {
     const open = E.outBack(inv(2.8 + BUG_DELAY, 3.3 + BUG_DELAY, t));
     const tr = S.trans && S.trans.type === 'custom' && S.side === 'new' ? S.trans.p : 1;       // role in the seam I → II
     const bug = o => ladybug(...bugB(t), t, { s: 1.25, hd: hdB(t), open, walk: t - BUG_DELAY < 2.8 ? 1 : 0, ...o });
-    if (SEAM === 'macro') bug({ spots: inv(0.36, 0.5, tr), detail: inv(0.55, 0.8, tr), grow: inv(0.45, 0.85, tr) });   // spots bloom, then the head and legs draw on as we ease back
+    if (SEAM === 'macro') bug({ spots: inv(0.33, 0.48, tr), detail: inv(0.55, 0.8, tr), grow: inv(0.45, 0.85, tr) });   // spots bloom, then the head and legs draw on as we ease back
     else withAlpha(inv(0.86, 1, tr), () => bug());
   },
   overlay(t) {
@@ -194,10 +194,10 @@ const P2 = {
 const POPPY = [1150, 540];
 const bugC = t => kf(t, [[0, [560, 380]], [1.5, [900, 350]], [3.0, [POPPY[0], POPPY[1] - 44]]], E.out2);
 const P3 = {
-  dur: 5.5, dark: false,
+  dur: 3.3, dark: false,                                                        // ends as the ladybug settles, so the cut lands on action
   enter: { type: 'pan' },                                                        // dir 'auto': follows the ladybug's flight
   header: { num: 3, title: 'The Meadow', sub: 'looking for a place to land' }, stage: { n: 3, name: 'MEADOW', prevN: 2 },
-  cam: t => ({ x: POPPY[0], y: POPPY[1], s: kf(t, [[0, 1], [3.2, 1.02], [5.5, 1.3]], E.inOutSine) }),
+  cam: t => ({ x: POPPY[0], y: POPPY[1], s: kf(t, [[0, 1], [1.6, 1.02], [3.3, 1.18]], E.inOutSine) }),
   hero: t => { const [x, y] = bugC(t); return { x, y, label: 'LADYBUG·01', r: 58 }; },
   cues: [[3.0, 'chime', { f: 660 }]],
   draw(t) {
@@ -208,11 +208,11 @@ const P3 = {
     for (let i = 0; i < 26; i++) { const x = r() * W, s = 0.6 + r() * 0.5; if (Math.abs(x - POPPY[0]) < 120) continue;
       r() < 0.5 ? daisy(x, 760 + r() * 120, s, t, 730 + i) : poppy(x, 780 + r() * 120, s * 0.8, t, 760 + i); }
     poppy(POPPY[0], 760, 1, t, 790, POPPY[1]);
-    const land = inv(2.7, 3.2, t), [bx, by] = bugC(t);
+    const land = inv(2.7, 3.4, t), [bx, by] = bugC(t);
     ladybug(bx, by, t, { s: 0.95, hd: lerp(-0.25, -0.1, land), open: 1 - E.inOut3(land) });
   },
   overlay(t) {
-    withAlpha(beat(t, 3.3, 5.3), () => stat(t - 3.3, { x: 480, y: 330, kicker: 'A LADYBIRD EATS, PER DAY', value: u => 'up to ≈ ' + countUp(50, u, 1.0), note: 'aphids, as an adult (illustrative)' }));
+    withAlpha(beat(t, 0.9, 3.2), () => stat(t - 0.9, { x: 480, y: 330, kicker: 'A LADYBIRD EATS, PER DAY', value: u => 'up to ≈ ' + countUp(50, u, 1.0), note: 'aphids, as an adult (illustrative)' }));
   },
 };
 /* ---------- plate IV · the notebook: a pencil sketch of the same ladybug, drawn where the real one sat ---------- */
