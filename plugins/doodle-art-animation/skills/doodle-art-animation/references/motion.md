@@ -27,7 +27,7 @@ A still frame reads as a slideshow, and a transition out of stillness reads as f
 
 **Targets.** `motion_check.py` measures the mean absolute change between drawings at 192×108.
 - Aim for a median of at least 1.5 per drawing, and fewer than 5% of drawings below 0.5.
-- The reference measures a median of 2.0 with 2% still drawings over the whole film (2.3 and 0% over its first two minutes). Its quietest seconds sit around 0.7–1.0.
+- A lively film lands around a median of 2.0 with about 2% still drawings; its quietest seconds sit around 0.7–1.0.
 - In the per-second profile, keep plates above about 1.2 between transitions.
 - A plate that measures near zero between beats needs more life, not a faster transition.
 
@@ -39,13 +39,13 @@ Every stat, callout, card and myth has a start **and an end**. Wrap a component 
 - Drawn objects may exit with `eraseOut(poly, p)`, where a paper-coloured scribble rubs them out.
 - A plate longer than about 15 s is 2–3 sub-scenes joined by clears or by a `zoom` hand-off. It is not one picture that keeps accumulating.
 
-## Timings (measured from the reference)
+## Timings (defaults)
 
 | Beat | Timing |
 |---|---|
 | Header after a **cut** | Title at +0.25 s, stage dial +0.25 s after that, journey log +0.35 s after the title |
 | Header after any other transition | The title starts 0.3 s after the move *lands* (90% of its travel: `landAt(enter)`, about 0.6–0.85 × `dur` depending on its curve), not after its last creeping drawing |
-| Header after a **lensOut** | The title starts immediately (the one exception, from the reference) |
+| Header after a **lensOut** | The title starts immediately (the one exception: the new world is already open) |
 | Anticipation before a lensIn | In the last 0.5 s a ring locks onto the hero (70 → 16 px) and fills with the next world's colour (automatic) |
 | The transition itself | Never a snap. The lead-in starts 0.5 s before the cut and runs into the transition; the move itself follows the table's lengths and the speed limits below; the settle continues in the same direction. |
 | Scene content after a transition | Already on screen (it came in with the transition). Stats, callouts and cards start at `landAt(enter) + 0.4` or later; a card frame that anchors the plate may open at `landAt(enter) + 0.2`. |
@@ -80,6 +80,15 @@ Give a plate `cam: t => ({ x, y, s, dx, dy, rot })`. It moves the **scene only**
 
 - Put text that must not move with the camera (stats, callouts, cards, charts, the title-card type) in `overlay(t)`. Overlay art also ignores momentum and the match-cut/carry shift, so a card never slides toward the frame edge before a lens or zoom; it only moves with its plate's transition. Text anchored to scene positions (labels on a map) belongs in `draw(t)`, where it moves with the scene.
 - To anchor a callout to a moving hero, read `heroOf(plate, t)`, which returns screen coordinates.
+
+## Pace is a choice
+
+Every speed and length in this file is a default: a starting point that usually reads well, not a rule a film must obey. Each film sets its own pace by taste. A calm nature film may hold its moves long and let seams breathe; a film about a crash, a spark or a reflex may cut quicker and move harder than the table suggests. Decide from the story, then check the result by watching it.
+
+- Choose the pace per film and per seam: which moment is the snap, which is the slow breath, where the film rests. Keep a contrast of quick and slow; a film where every move has the same length and curve feels mechanical, however well each one is shaped.
+- Going faster or slower than a default is fine when you mean it. Note the reason in the seam list so a reviewer can judge it against your intent.
+- `speed_check.mjs` marks moves above the comfortable default as `FAST`. Treat that as a question ("did I mean this?"), not a failure.
+- The hard limits are few: nothing may visibly snap (`SNAP` in `speed_check.mjs` or `motion_check.py`), text needs its reading time, and frames stay deterministic. Everything else is taste.
 
 ## Transitions
 

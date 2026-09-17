@@ -350,7 +350,7 @@ function grass(ridge, o = {}) {
       ink([[x + dx, y], [x + dx + (r() - 0.5) * 8 + sw, y - hh]], { w, color, amp: 0.4, seed: seed + i * 3 + k }); } }
 }
 /**
- * lobedCloud(x, base, bumps, opts): the reference cloud. bumps = [[dx, r, dy?], ...]. Each lobe is its own outlined
+ * lobedCloud(x, base, bumps, opts): the house cloud. bumps = [[dx, r, dy?], ...]. Each lobe is its own outlined
  * disc, drawn back to front so front lobes cut the ones behind, pen-shaded on its underside, closed by a flat base.
  * opts: w, color, fill, seed, draw (lobes appear one by one, then the base), hatchColor, alpha
  */
@@ -1227,12 +1227,12 @@ const TRANS = {
     return e;
   },
 };
-/** header start delay per transition (measured from the reference: bare hold after a lens-in, none after a lens-out) */
+/** header start delay per transition (a bare hold after a lens-in, none after a lens-out) */
 /** where each transition lands (90% of its travel), as a share of its length; the title starts 0.3 s after that */
 const LAND_AT = { lensIn: 0.62, lensOut: 0.62, shape: 0.6, morph: 0.6, roll: 0.61, iris: 0.8, zoom: 0.7, through: 0.85, bleed: 0.85, page: 0.78, burn: 0.82, wipe: 0.75, hatch: 0.8, pan: 0.75 };
 /** landAt(tr): seconds after a plate starts when its entering move has landed (use it to time beats) */
 const landAt = tr => !tr ? 0 : tr.type === 'cut' ? 0 : (tr.land ?? LAND_AT[tr.type] ?? 0.85) * (tr.dur || 0);
-/** lensOut keeps the reference's instant title */
+/** lensOut keeps an instant title: the new world is already open */
 const HEADER_DELAY = { cut: () => 0.25, lensOut: () => 0.05, fade: d => d * 0.6 + 0.2 };
 function headerDelay(pl) { const tr = pl.enter; if (!tr || pl.i === 0) return 0.1; const h = HEADER_DELAY[tr.type]; return h ? h(tr.dur || 0) : landAt(tr) + 0.3; }
 TRANS.morph = TRANS.shape;   // v2 name

@@ -7,11 +7,11 @@ Read this before drawing any plate. It covers the two worlds, palette, type, lin
 | World | Use it for | Background | Ink |
 |---|---|---|---|
 | **Paper** | Human scale and larger: landscapes, organs, cross-sections, maps, diagrams | Cream `#ebe2cc`, soft-edged 45° bands (66 px every 132 px), large mottles, fibres, grain, warm vignette | Near-black `#1b1518` |
-| **Night** | Microscopic or "inside" views: molecules, pores, cells, circuits | Navy gradient `#0b0a1e` → `#16142e`, faint 120 px grid, crosshatch weave, specks, strong vignette | Pale lavender `#dcdcef` |
+| **Night** | Inside, hidden or abstract views: molecules, cells, the inside of a machine, a chip or a network, a mind, deep space, night itself | Navy gradient `#0b0a1e` → `#16142e`, faint 120 px grid, crosshatch weave, specks, strong vignette | Pale lavender `#dcdcef` |
 
 Both worlds carry four large, smooth topographic loops that drift slowly (muted pink, teal, yellow and periwinkle), plus crosshair registration marks in the corners. The end card is always night.
 
-## Palette (sampled from the reference)
+## Palette
 
 | Role | Hex | Role | Hex |
 |---|---|---|---|
@@ -45,7 +45,7 @@ Use real subscripts and superscripts (`H₂O`, `km³`, `10²⁰`) with the `SUB(
 - **Two kinds of line:**
   - `pen()` is a nib stroke: tapered ends, slow pressure variation, and a pen-tip taper while it draws on. Use it for subjects: outlines of big things, horizons, ground lines, rays, rain, branches, and callout leaders.
   - `ink()` is a constant-width wobbly line. Use it for measurement (rulers, ticks, scale bars, grids) and for small repeated marks. `double: true` adds the faint second contour the reference shows on cards and clouds.
-- **The boil:** every wobble re-rolls every 2 frames (animation "on twos"), so still lines feel alive. The reference's counter shows it: `EXP` is always `F / 2`.
+- **The boil:** every wobble re-rolls every 2 frames (animation "on twos"), so still lines feel alive. The HUD counter shows it: `EXP` is always `F / 2`.
 - **Shading is pen strokes, never gradients.** Put **two textures minimum** on any fill wider than 200 px, and make at least one of them denser on the shadow side.
 - **Weight shows depth:** far objects get `w` 2 at alpha 0.7; near objects get `w` 3.5 and shading.
 - **Vary the scenery.** Don't reuse one landscape on every paper plate. Change the ground (valley, mountains, open sea, cutaway), add trees, a far mountain range or a flock of birds, and give the recap its own composition.

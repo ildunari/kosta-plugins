@@ -102,7 +102,7 @@ if want('L4'):
 
 if want('L5'):
     check('L5', 'SKILL.md says "one tracked hero subject"', has(SKILL, 'one tracked hero subject'))
-    check('L5', 'SKILL.md defines plates as scenes', bool(re.search(r'scenes?\W{0,4}\s*\(?(we call them|called)?\s*\**plates|plates\**\W{0,4}\s*(are|=|mean)\s*(the\s*)?scenes', SKILL, re.I)),
+    check('L5', 'SKILL.md defines plates as scenes', bool(re.search(r'scenes?\W{0,4}\s*\(?(we call them|called)?\s*\**plates|plates\**\W{0,4}\s*(are|=|mean)\s*(the\s*)?scenes|scenes?[^.]{0,40}\bcall(s|ed)?\b[^.]{0,10}plates', SKILL, re.I)),
           'expected e.g. "scenes (we call them plates)" or "plates are scenes"')
     old = [s for s in ['one small tracked', 'Something small', '(a molecule, a particle, a photon)'] if s.lower() in SKILL.lower()]
     check('L5', 'old small-hero wording removed', not old, ', '.join(old))

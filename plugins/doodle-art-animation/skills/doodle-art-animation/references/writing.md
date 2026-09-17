@@ -24,7 +24,7 @@ Read this when planning the film.
 
 ## Adapting any subject
 
-- **The hero.** Choose the smallest thing that passes through every stage: a molecule, a particle, a photon, a dollar, a data packet, a nutrient, a vote, a transcript.
+- **The hero subject.** Choose the one thing the viewer follows through every stage, at whatever size the story needs: a traveller, an animal, a ship, a letter, a dollar, a vote, a data packet, a nutrient, a molecule, a photon.
   - Declare it as `hero: t => ({ x, y, label, r })` in scene coordinates.
   - The engine draws its reticle at a constant size, applies the camera, and aims the transitions at it.
 - **The journey log.** Pick 2–3 quantities that change along the route (time elapsed, plus place, depth, size, concentration or amount) and one three-way state (ICE/LIQUID/VAPOUR, FLOWING/LODGED/RELEASING, QUEUED/IN-FLIGHT/DELIVERED). Time should jump in honest units as the scale changes: seconds, then days, then years.
