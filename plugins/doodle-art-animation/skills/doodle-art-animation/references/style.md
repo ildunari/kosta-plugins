@@ -66,6 +66,27 @@ Use real subscripts and superscripts (`H₂O`, `km³`, `10²⁰`) with the `SUB(
 | Birds | 4–5 small `pen` "v" shapes crossing the sky at about 40 px/s, wings flapping. Cheap motion for any paper sky. |
 | Coast cross-section | Clip the land layers to a coastline polygon, fill the sea on the other side, and run the mountain's rock down under the valley. |
 
+## Brushes
+
+Beside `pen` and `ink`, the engine has a natural-media brush set (`brush.stroke`, `brush.hatch`, `brush.field`) and watercolour washes (`wash`, the same as `brush.wash`). The techniques are adapted from [p5.brush](https://github.com/acamposuribe/p5.brush) by Alejandro Campos Uribe (MIT) and rebuilt for the 2D canvas; nothing is loaded at runtime. `story_brushes.js` shows every one of them.
+
+| Medium | Reads as | Use it for |
+|---|---|---|
+| `pencil-2b` | Soft, dark, grainy graphite | Sketched subjects, loose outlines, notebook drawings |
+| `pencil-hb` | Everyday pencil, lighter grain | Hatching, small details, annotations drawn in the scene |
+| `pencil-2h` | Hard, pale, thin | Construction lines, perspective guides, faint grids |
+| `cpencil` | Waxy coloured pencil (vermilion by default) | Coloured accents, children's-drawing warmth, a sun or a flower |
+| `charcoal` | Broad, dusty, broken | Mountains, shadows, dramatic masses, rubbed backgrounds |
+| `marker` | Round felt tip, pigment pooled at the edges | Highlights over text, bold diagram strokes, labels |
+| `marker-2` | Chisel marker whose width turns with direction | Underlines, lettering, wide flat bands |
+| `techpen` | Crisp, constant width, an ink blot where it starts | Technical diagrams, boxes, arrows, anything that should look exact |
+| `spray` | Airbrush mist with droplets | Haze, glow, smoke, mist behind a diagram |
+
+- **Washes are a tint under the ink.** Draw `wash()` first and the `pen`/`ink` lines on top; the ink lines stay on top and carry the drawing. Let the wash run a little past the line (`bleed`); a wash that stops exactly at its outline looks like a digital fill.
+- **This relaxes the old rule.** Shading used to be pen strokes only. Watercolour washes are now allowed as flat-ish tints with pooled edges and paper grain, and brush hatching counts as a texture. Smooth digital gradients are still not allowed: no `createLinearGradient` or `createRadialGradient` fills on subjects.
+- Keep one or two media per scene besides the house ink. Pencils and charcoal suit sketchbook plates, markers and the technical pen suit diagrams, and washes suit landscapes and night bodies (on night paper they blend as a glow).
+- Moving art passes a `seed`: the grain stays fixed per seed and only the outline boils, like `pen()`.
+
 ## Composition rules
 
 - Scenes **bleed to all four edges**. Ground layers run under the cards, and nothing floats in a band on empty paper.

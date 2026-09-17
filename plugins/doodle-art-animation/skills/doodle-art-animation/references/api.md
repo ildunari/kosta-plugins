@@ -61,6 +61,27 @@ Plate fields:
 - Put these in `overlay(t)` when they should hold still, and in `draw(t)` when they belong to the world (a chart on a wall), where they zoom and pan with the camera.
 - The header, journey log, stage dial, hero reticle, frame counter, backgrounds, vignettes, transitions, anticipation dot and audio cues are drawn automatically.
 
+**Brushes** (natural media, adapted from p5.brush; see `## Brushes` in `references/style.md`):
+- `brush.stroke(pts, { type, w, color, alpha, pressure, taper, seed, draw, closed, amp, field, fieldAmt, fieldT, nib, streaks, blend, dark })`: a textured line along `pts`.
+  - `type`: `'pencil-2b'` (w 5.2), `'pencil-hb'` (3.8, the default), `'pencil-2h'` (2.8), `'cpencil'` (6), `'charcoal'` (13), `'marker'` (12), `'marker-2'` (22, chisel), `'techpen'` (2), `'spray'` (16). `brush.types` lists them.
+  - `color` defaults to graphite (pencils), vermilion (`cpencil`) or the plate's ink (`inkOf(dark)`, so night plates get pale ink). `alpha` multiplies the medium's own opacity.
+  - `pressure`: `fn(u) -> 0..1`, a number, `[start, end]` or `[start, mid, end]`; the default is a seeded bell. `taper` is the share of the length that tapers at each end.
+  - `seed` fixes the grain, bristle streaks and ragged edge; it defaults to one derived from the shape (moving the shape keeps it). `amp` is the outline wobble, which boils on twos.
+  - `draw` (0..1) draws the stroke on with a narrowing tip. `nib` is the `marker-2` chisel angle in radians. `streaks: false` drops the bristle streaks. `blend` is a composite op (markers use `multiply` on paper and `screen` at night).
+  - `field`: a field name or `fn(x, y, t)`, which bends the stroke as it is drawn; `fieldAmt` scales the bend and `fieldT` animates the field.
+- `brush.wash(poly, { color, alpha, seed, bleed, layers, strength, texture, edge, dir, res, draw, reveal, from, blend, dark })` and the global `wash(poly, opts)`: a watercolour fill. Draw it before the ink lines.
+  - `bleed` (0..1, default 0.3) is how far the colour runs past the outline. `layers` (14) sets how many translucent layers are stacked. `strength` (0.42, 0.55 at night) is the opacity where they pile up.
+  - `texture` (0..1, 0.6) controls the lifted blotches and paper grain. `edge` (0..1, 0.7) controls the darker pooled edge. `dir` is the angle the colour bleeds toward.
+  - `draw` (0..1) spreads it out: `reveal: 'bloom'` (the default) grows from `from` (default the centre), and `'sweep'` crosses left to right.
+  - It is rendered once per shape and option set and cached; moving the shape reuses the raster. `res` is the raster scale (default 1, 0.75 above 160k px², 0.5 above 500k px²); raise it for close zooms. Colour, `alpha` and `draw` can animate freely.
+- `brush.hatch(poly, { type, angle, gap, w, color, alpha, seed, rand, gradient, continuous, inset, keep, draw, pressure, field, dark })`: scanline hatching drawn with brush strokes (textured and pressure-shaped), unlike the pen `hatch()`.
+  - `angle` defaults to −0.6, `gap` to 9 px and `type` to `'pencil-hb'`. `rand` (0.25) jitters the line ends. `gradient` (0..1) widens the gaps across the shape. `continuous` draws one zig-zag stroke.
+  - `inset` keeps lines clear of the outline. `keep` (0..1 or `fn(x, y)`) thins the lines, for shading. `draw` makes the lines appear in order.
+- `brush.field(name | fn, drawFn?)`: returns the field's angle function `fn(x, y, t)` (radians, added to a stroke's heading). With `drawFn`, every brush stroke drawn inside it bends along the field.
+  - Named fields: `hand`, `curved`, `zigzag`, `waves`, `seabed`, `spiral`, `columns`. Add your own to `brush.fields`.
+  - `brush.flow(x, y, len, { dir, field, ...stroke opts })` draws a stroke that starts at a point and follows a field.
+- `window.__brushProbe(kind, boil)` (a test hook) draws one fixed sample of a stroke type, `'wash'`, `'hatch'` or `'field'` offscreen and returns `{ hash, ms }`.
+
 **Advanced:**
 - `layer(fn, slot)` draws into an offscreen canvas (it swaps `ctx`, which is why `ctx` is a `let`).
 - `heroOf(plate, t)`: the hero's screen position, including the camera and the entry shift (use it to anchor overlay art).
