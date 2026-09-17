@@ -29,9 +29,9 @@ function specimen(t, k, type, x, y, o = {}) {
 }
 /** breathe(poly, t, k, o): a wash that swells and settles. The transform scales the cached raster, so the points (and
     the cache key) never change — animate a wash this way rather than by moving its points. */
-function breathe(poly, t, k, o) {
+function breathe(poly, t, k, o, amp = 0.035, rate = 1.1) {
   const c = poly.reduce((q, [x, y]) => [q[0] + x / poly.length, q[1] + y / poly.length], [0, 0]);
-  const s = 1 + 0.035 * Math.sin(t * 0.55 + k);
+  const s = 1 + amp * Math.sin(t * rate + k);
   ctx.save(); ctx.translate(c[0], c[1]); ctx.scale(s, s); ctx.translate(-c[0], -c[1]); wash(poly, o); ctx.restore();
 }
 const header = (num, title, sub) => ({ num, title, sub });
@@ -44,7 +44,7 @@ const P0 = {
   cues: [[0.3, 'noise', { dur: 1.2, g: 0.05, f0: 500, f1: 1600 }], [0.7, 'scratch', { chars: 14, cps: 14 }], [1.6, 'scratch', { chars: 30 }]],
   bed: (ac, out, t0, dur) => SFX.pad(ac, out, t0, { dur, notes: [261.6, 329.6, 392], g: 0.015 }),
   draw(t) {
-    breathe(TBLOB, t, 0, { seed: 21, color: PAL.wet, bleed: 0.45, draw: E.out3(inv(0.1, 1.6, t)), from: [700, 470] });
+    breathe(TBLOB, t, 0, { seed: 21, color: PAL.wet, bleed: 0.45, draw: E.out3(inv(0.1, 1.6, t)), from: [700, 470] }, 0.05, 1.5);
     wash(shape.blob(1500 + 6 * Math.sin(t), 250, 80, 22, 0.3, 30), { seed: 22, color: PAL.sun, bleed: 0.5, draw: E.out3(inv(0.6, 1.8, t)) });
     brush.stroke(SWOOSH(640, 560, 640, 10, 0.4), { type: 'charcoal', seed: 23, draw: DR(t, 0, 1.2, 0, 0.9), w: 11 });
     for (let i = 0; i < 90; i++) { const r = mulberry(900 + i), x = (r() * W + t * (60 + r() * 90)) % W, y = r() * H + 26 * Math.sin(t * 1.6 + i);
@@ -70,6 +70,7 @@ const P0 = {
 const RIDGE = shape.ridge(930, 1880, 560, 70, 31, 0.006, 16).map(([x, y]) => [x, y - 90 * Math.sin((x - 930) / 950 * Math.PI)]);
 const HILL = shape.ridge(930, 1880, 700, 26, 32, 0.004, 20);
 const CREST = shape.between(RIDGE.map(([x, y]) => [x, y + 16]), RIDGE.map(([x, y]) => [x, y + 110]));
+const FIELD = shape.between(shape.ridge(930, 1880, 736, 10, 33, 0.005, 28), [[1880, 1010], [930, 1010]]);
 const P1 = {
   dur: DUR, cam: FLOAT(1), enter: { type: 'wipe', dur: 0.9 },
   header: header(1, 'Dry media', 'graphite and charcoal'), stage: { n: 1, name: 'DRY MEDIA', prevN: 0 },
@@ -79,7 +80,7 @@ const P1 = {
     ['pencil-2b', 'pencil-hb', 'pencil-2h', 'cpencil', 'charcoal'].forEach((ty, k) => specimen(t, k, ty, 140, 320 + k * 118, { w: ty === 'charcoal' ? 12 : undefined }));
     // the sketch: 2H construction lines, a charcoal ridge, 2B hills, HB trees, a coloured-pencil sun
     const d = k => DR(t, k, 1.0, 0.35, 1.2);
-    ctx.save(); ctx.translate(26 * Math.sin(t * 1.15), 16 * Math.sin(t * 0.95 + 1));   // the page drifts under the hand
+    ctx.save(); ctx.translate(34 * Math.sin(t * 1.5), 21 * Math.sin(t * 1.25 + 1));   // the page drifts under the hand
     brush.stroke([[930, 720], [1880, 720]], { type: 'pencil-2h', seed: 40, draw: d(0), alpha: 0.7 });
     for (let i = 0; i < 4; i++) brush.stroke([[1400, 720], [930 + i * 320, 1000]], { type: 'pencil-2h', seed: 41 + i, draw: d(0), alpha: 0.45 });
     brush.stroke(RIDGE, { type: 'charcoal', seed: 45, draw: d(1), w: 10 });
@@ -92,12 +93,14 @@ const P1 = {
       withAlpha(d(3), () => flat(crown, PAL.paper, 0.92));                     // the tree stands in front of the hatched ridge
       brush.stroke(crown, { type: 'pencil-hb', closed: true, seed: 52 + j, draw: d(3.2), w: 3.5 });
       brush.hatch(shape.blob(tx + sway + 12 * s, gy - 136 * s, 44 * s, 54 + j, 0.3, 24), { type: 'pencil-hb', gap: 7, angle: -0.7, seed: 56 + j, draw: d(3.6), alpha: 0.6 }); });
+    brush.hatch(FIELD, { type: 'pencil-2h', gap: 12, angle: 0.25, seed: 62, draw: d(2.6), alpha: 0.55, rand: 0.4,
+      keep: (x, y) => 0.25 + 0.6 * clamp((y - 740) / 240) });                  // the near field, hatched flat and pale
     // a 2B path running down to the viewer, along the 2H perspective lines
     brush.stroke([[1400, 722], [1350, 800], [1260, 900], [1140, 1000]], { type: 'pencil-2b', seed: 58, draw: d(3.4), w: 4 });
     brush.stroke([[1410, 722], [1480, 800], [1580, 900], [1700, 1000]], { type: 'pencil-2b', seed: 59, draw: d(3.5), w: 4 });
     const sun = [1690, 250], rot = t * 0.75;
     brush.stroke(shape.circle(sun[0], sun[1], 46, 30), { type: 'cpencil', closed: true, seed: 60, draw: d(4), w: 7 });
-    for (let k = 0; k < 12; k++) { const a = k / 12 * TAU + rot, r0 = 64, r1 = k % 2 ? 96 : 112;
+    for (let k = 0; k < 12; k++) { const a = k / 12 * TAU + rot, r0 = 64, r1 = (k % 2 ? 96 : 112) + 9 * Math.sin(t * 5.5 + k * 1.7);   // the rays flicker
       brush.stroke([[sun[0] + Math.cos(a) * r0, sun[1] + Math.sin(a) * r0], [sun[0] + Math.cos(a) * r1, sun[1] + Math.sin(a) * r1]], { type: 'cpencil', seed: 61 + k, draw: d(4.3 + k * 0.05), w: 5 }); }
     for (let i = 0; i < 3; i++) { const cx = 980 + ((t * 54 + i * 330) % 980), cy = 250 + i * 34 + 8 * Math.sin(t * 1.1 + i);   // HB clouds drifting across
       brush.stroke(shape.blob(cx, cy, 52 - i * 8, 70 + i, 0.34, 26), { type: 'pencil-hb', closed: true, seed: 70 + i, w: 2.6, alpha: 0.5 * inv(1.6, 2.4, t), streaks: false }); }
@@ -107,7 +110,7 @@ const P1 = {
       brush.stroke([[x - 12, y - f], [x, y], [x + 12, y - f]], { type: 'pencil-hb', seed: 80 + i, w: 2.4, alpha: inv(1.8, 2.4, t), streaks: false }); }
     ctx.restore();
   },
-  overlay(t) { KIT.caption(t - 1.9, 'brush.hatch · charcoal', 520, 1010); },
+  overlay(t) { KIT.caption(t - 1.9, 'brush.hatch · charcoal', 1616, 660); },
 };
 
 /* ---------- plate II · pens, markers and spray: a notebook diagram ---------- */
@@ -123,7 +126,7 @@ const P2 = {
     for (let i = 0; i < 3; i++) { const y = 420 + i * 110 + 22 * Math.sin(t * 1.5 + i * 2), dx = 120 * Math.sin(t * 1.3 + i);
       brush.stroke(SWOOSH(930 + dx, y, 820, 30, i), { type: 'spray', seed: 300 + i, w: 30, color: [PAL.peri, PAL.cyan, PAL.pink][i], alpha: 0.7 * DR(t, i, 0.4, 0.3, 1.2) }); }
     const d = k => DR(t, k, 1.0, 0.35, 1.0);
-    ctx.save(); ctx.translate(30 * Math.sin(t * 1.05), 18 * Math.sin(t * 0.85 + 2));   // the diagram drifts as one
+    ctx.save(); ctx.translate(34 * Math.sin(t * 1.45), 22 * Math.sin(t * 1.2 + 2));   // the diagram drifts as one
     BOXES.forEach(([x, y, label], k) => {
       const bob = 9 * Math.sin(t * 2.6 + k), R = shape.rect(x - 110, y - 50 + bob, 220, 100);
       brush.stroke(R, { type: 'techpen', closed: true, seed: 310 + k, draw: d(k), w: 2.4 });
@@ -159,12 +162,12 @@ const P3 = {
   cues: [[0.3, 'noise', { dur: 2.5, g: 0.04, f0: 300, f1: 900, type: 'lowpass' }], [3.4, 'chime', { f: 523 }]],
   draw(t) {
     const w = (k, len = 1.4) => E.out2(inv(0.2 + k * 0.35, 0.2 + k * 0.35 + len, t));
-    wash(SKY, { seed: 70, color: PAL.wet, bleed: 0.18, strength: 0.32, draw: w(0), reveal: 'sweep', texture: 0.8 });
-    breathe(SUNW, t, 1, { seed: 71, color: PAL.sun, bleed: 0.6, draw: w(1) });
-    for (let i = 0; i < 3; i++) breathe(cloudAt(i, t), t, i * 2, { seed: 72 + i, color: PAL.dusk, bleed: 0.5, strength: 0.3, draw: w(1.5 + i * 0.3) });
-    wash(FAR, { seed: 75, color: PAL.hill, bleed: 0.14, draw: w(2) });
-    wash(NEAR, { seed: 76, color: PAL.field, bleed: 0.2, draw: w(3), strength: 0.45 });
-    wash(POND, { seed: 77, color: PAL.sea, bleed: 0.3, draw: w(4, 1.0), strength: 0.55 });
+    breathe(SKY, t, 0, { seed: 70, color: PAL.wet, bleed: 0.18, strength: 0.32, draw: w(0), reveal: 'sweep', texture: 0.8 }, 0.016, 0.9);
+    breathe(SUNW, t, 1, { seed: 71, color: PAL.sun, bleed: 0.6, draw: w(1) }, 0.06, 1.6);
+    for (let i = 0; i < 3; i++) breathe(cloudAt(i, t), t, i * 2, { seed: 72 + i, color: PAL.dusk, bleed: 0.5, strength: 0.3, draw: w(1.5 + i * 0.3) }, 0.05, 1.4);
+    breathe(FAR, t, 3, { seed: 75, color: PAL.hill, bleed: 0.14, draw: w(2) }, 0.02, 1.15);
+    breathe(NEAR, t, 5, { seed: 76, color: PAL.field, bleed: 0.2, draw: w(3), strength: 0.45 }, 0.016, 0.95);
+    breathe(POND, t, 2, { seed: 77, color: PAL.sea, bleed: 0.3, draw: w(4, 1.0), strength: 0.55 }, 0.05, 1.5);
     // ink on top: pen outlines, brush hatching on the far hills, ripples on the pond
     const d = k => DR(t, k, 1.2, 0.4, 1.1);
     pen(FAR.slice(0, -2), { w: 3, seed: 78, draw: d(0) });
@@ -200,7 +203,7 @@ const P4 = {
     });
     CELLS.forEach((c, i) => {
       const [dx, dy] = wander(i, t, 34, 1.2), body = shape.blob(c.x + dx, c.y + dy, c.R, c.s, 0.22, 36);
-      breathe(body, t, i, { seed: c.s, color: c.c, bleed: 0.45, draw: DR(t, i, 0.5, 0.18, 1.2) });
+      breathe(body, t, i, { seed: c.s, color: c.c, bleed: 0.45, draw: DR(t, i, 0.5, 0.18, 1.2) }, 0.055, 1.7);
       pen(body, { closed: true, w: 2, color: PAL.nightInk, seed: c.s, draw: DR(t, i, 0.9, 0.18, 1.0), alpha: 0.8 });
       if (i === 3) brush.hatch(body, { type: 'pencil-2h', gap: 7, angle: 0.8, seed: 520, draw: DR(t, 0, 1.6, 0, 1.0), inset: 6 });
       else speckle(body, 18, { seed: c.s + 1, alpha: 0.5 });
@@ -218,7 +221,7 @@ const P5 = {
   cam: t => ({ x: 960, y: 400, s: 1 + 0.05 * E.inOutSine(clamp(t / 5)), dx: 10 * Math.sin(t * 0.7) + 5 * t, dy: 6 * Math.sin(t * 0.5) - 3 * t }),
   cues: [[0.4, 'chime', { f: 523 }], [1.2, 'scratch', { chars: 26, cps: 22 }]],
   draw(t) {
-    breathe(EMBLEM, t, 0, { seed: 91, color: PAL.cyan, bleed: 0.5, draw: E.out3(inv(0, 1.2, t)) });
+    breathe(EMBLEM, t, 0, { seed: 91, color: PAL.cyan, bleed: 0.5, draw: E.out3(inv(0, 1.2, t)) }, 0.06, 1.8);
     for (let k = 0; k < 5; k++) { const q = (t * 0.5 + k / 5) % 1;
       ink(shape.circle(960, 400, 140 + q * 260, 60), { closed: true, w: 1.3, color: PAL.peri, amp: 0.3, seed: k, alpha: 0.5 * (1 - q) }); }
     brush.stroke(shape.circle(960, 400, 124, 48), { type: 'techpen', closed: true, seed: 92, draw: E.out3(inv(0.3, 1.2, t)), w: 2.2 });
