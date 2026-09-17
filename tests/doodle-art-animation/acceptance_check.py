@@ -226,7 +226,7 @@ if want('REL'):
     mj = json.loads(read(os.path.join(REPO, '.claude-plugin', 'marketplace.json')) or '{}')
     mv = next((p.get('version') for p in mj.get('plugins', []) if p.get('name') == 'doodle-art-animation'), None)
     check('REL', 'plugin.json version 0.13.0', pj.get('version') == '0.13.0', str(pj.get('version')))
-    check('REL', 'marketplace entry version 0.13.0', mv in (None, '0.13.0'), str(mv))
+    check('REL', 'marketplace entry version 0.13.0', mv == '0.13.0', str(mv))
 
 # ---------------------------------------------------------------- full checks (build, probe, render)
 def run(cmd, cwd=None, timeout=1800):
@@ -326,7 +326,11 @@ if a.full:
             md, _ = median(starts[-1], total)
             check('L1', 'end card median >= 1.2', md is not None and md >= 1.2, f'median {md}')
             rc2, out = run(['python3', 'motion_check.py', mp4], cwd=work)
-            check('L2', 'no SNAP in the whole film', 'SNAP' not in out, [l for l in out.splitlines() if 'spikes' in l][:1])
+            # 'SNAP' absent only counts when motion_check actually measured the film
+            measured = rc2 == 0 and re.search(r'^drawings \d+\s+median', out, re.M)
+            check('L2', 'no SNAP in the whole film', bool(measured) and 'SNAP' not in out,
+                  (f'motion_check did not measure the film (rc={rc2}): {out[-200:]}' if not measured
+                   else str([l for l in out.splitlines() if 'spikes' in l][:1])))
         rc, out = run(['node', 'text_check.mjs', ex], cwd=work)
         check('L2', 'text_check CLEAN on story_example', rc == 0 and 'CLEAN' in out, out[-300:])
 
