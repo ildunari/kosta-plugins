@@ -62,7 +62,7 @@ python3 audio_check.py film.mp4                     # level, peak, clipping, ste
 node text_check.mjs film.html                       # reading time, text off frame, overlaps, text that scales
 ```
 
-Look at the images yourself before calling anything done. Baselines on engine v0.9: `story_one_drop.js` median 1.95, 0% still; `story_example.js` (The Long Release, 61.3 s) median 1.70, 0% still, text_check clean, audio_check pass (one soft-onset cue warning).
+Look at the images yourself before calling anything done. Baselines on engine v0.9: `story_one_drop.js` median 1.95, 0% still; `story_example.js` (The Long Release, 61.8 s, 1483 frames) median 1.70, 0% still, text_check clean, audio_check pass (one soft-onset cue warning).
 
 ## Automated smoke test
 
