@@ -1,2 +1,12 @@
 .DS_Store
 **/.DS_Store
+
+# doodle-art-animation: renders and QA output never go in git
+*.mp4
+*.wav
+*_frames/
+qa/
+qa_*/
+film.html
+reel.html
+node_modules/
