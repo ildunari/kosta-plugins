@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Kosta's Claude Code plugin marketplace — design tools, research agents, and productivity plugins.",
-    "version": "1.0.4"
+    "version": "1.0.5"
   },
   "plugins": [
     {
@@ -16,7 +16,12 @@
       "version": "1.0.0",
       "license": "Apache-2.0",
       "category": "development",
-      "tags": ["design", "ui", "ios", "swiftui"]
+      "tags": [
+        "design",
+        "ui",
+        "ios",
+        "swiftui"
+      ]
     },
     {
       "name": "subagent-forge",
@@ -25,16 +30,30 @@
       "version": "1.0.0",
       "license": "MIT",
       "category": "development",
-      "tags": ["research", "subagents", "verification"]
+      "tags": [
+        "research",
+        "subagents",
+        "verification"
+      ]
     },
     {
       "name": "ios-craft",
       "source": "./plugins/ios-craft",
       "description": "Complete iOS development companion — guided workflows for project setup, SwiftUI, networking, testing, Metal, design systems, accessibility, CI/CD, and App Store submission. 15 skills, 6 agents, 12 commands.",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "license": "MIT",
       "category": "development",
-      "tags": ["ios", "swift", "swiftui", "xcode", "mobile", "metal", "testing", "cicd", "appstore"]
+      "tags": [
+        "ios",
+        "swift",
+        "swiftui",
+        "xcode",
+        "mobile",
+        "metal",
+        "testing",
+        "cicd",
+        "appstore"
+      ]
     },
     {
       "name": "productivity-forge",
@@ -43,7 +62,16 @@
       "version": "1.0.0",
       "license": "MIT",
       "category": "productivity",
-      "tags": ["verification", "grants", "compliance", "review", "claims", "scientific", "legal", "financial"]
+      "tags": [
+        "verification",
+        "grants",
+        "compliance",
+        "review",
+        "claims",
+        "scientific",
+        "legal",
+        "financial"
+      ]
     },
     {
       "name": "coding-forge",
@@ -52,7 +80,29 @@
       "version": "0.1.0",
       "license": "MIT",
       "category": "development",
-      "tags": ["orchestration", "tdd", "build-loop", "code-review", "agents", "phased-development"]
+      "tags": [
+        "orchestration",
+        "tdd",
+        "build-loop",
+        "code-review",
+        "agents",
+        "phased-development"
+      ]
+    },
+    {
+      "name": "doodle-art-animation",
+      "source": "./plugins/doodle-art-animation",
+      "description": "Hand-inked, notebook-style explainer films drawn entirely in canvas code, from any topic, dataset or source, rendered to MP4 with synthesized sound.",
+      "version": "0.3.0",
+      "license": "MIT",
+      "category": "creative",
+      "tags": [
+        "animation",
+        "video",
+        "explainer",
+        "canvas",
+        "science-communication"
+      ]
     }
   ]
 }

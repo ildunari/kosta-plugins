@@ -16,6 +16,7 @@ claude plugin marketplace add ildunari/kosta-plugins
 | **ios-craft** | Complete iOS development companion — 18 expert skills, 6 agents, 12 commands covering SwiftUI, concurrency, architecture, Liquid Glass, networking, testing, performance, and App Store submission. | `claude plugin install ios-craft` |
 | **productivity-forge** | Compliance-grade document verification — 9-step agentic loop, Claim Ledger, 13 reviewer agents, 8 domain support. For grants, legal, financial, medical docs. | `claude plugin install productivity-forge` |
 | **stitch-studio** | Google Stitch integration — UI design generation, token extraction, SwiftUI/React conversion | `claude plugin install stitch-studio` |
+| **doodle-art-animation** | Hand-inked, field-notebook explainer films drawn in canvas code and rendered to MP4 with synthesized sound. Needs Node 18+, Playwright (Chromium), ffmpeg and Python 3 with numpy. | `claude plugin install doodle-art-animation` |
 | **subagent-forge** | Research-first subagent orchestration — product scouting, GitHub audits, QA critique | `claude plugin install subagent-forge` |
 
 ## Adding New Plugins
