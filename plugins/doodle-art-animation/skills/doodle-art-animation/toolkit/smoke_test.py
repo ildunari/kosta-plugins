@@ -34,7 +34,7 @@ import argparse, concurrent.futures as cf, glob, json, os, re, shutil, signal, s
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC_EXT = ('.js', '.mjs', '.cjs', '.py', '.html', '.css', '.json', '.txt', '.woff', '.woff2', '.ttf', '.otf')
 SKIP_DIRS = re.compile(r'^(qa.*|.*_frames|node_modules|smoke.*|\.git|__pycache__|\..*)$')
-BUNDLED = {'story_example.js', 'story_one_drop.js', 'story_seams.js', 'story_reel.js', 'story_gallery.js', 'story_components.js'}
+BUNDLED = {'story_example.js', 'story_one_drop.js', 'story_seams.js', 'story_reel.js', 'story_gallery.js', 'story_components.js', 'story_brushes.js'}
 CALL_TIMEOUT = 300
 FONT_HINT = ('(font requests to fonts.googleapis.com / fonts.gstatic.com can fail or time out on a slow network; '
              'if the story itself is fine, re-run before debugging)')
