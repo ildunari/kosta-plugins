@@ -98,6 +98,7 @@ Every transition is a pure function of progress `p`, animated on twos. Zooms int
 | `page` | A chapter break: turning to the next part of the notebook | Page turn: a bottom corner lifts and is dragged across (`dir` 'left' moves the right corner leftward, the default; 'right' the reverse), the page folds along a moving crease and slides off. The back of the turning page takes the new page's look, so the new world curls into view (`back: 'old'` keeps the old page's look, with its print showing through). The old corner labels fade in place. | 1.2 s | flick |
 | `roll` | A clean reset: into the recap or the end card | The old page rolls up from the bottom edge like a window blind or projector screen (inked roll, shadow below), revealing the new page. The old corner labels fade in place. Option: `radius`. | 1.0 s | flick + thump |
 | `cut` | Same scale, new place, with a hard edit | Match cut: the new plate opens shifted so its hero sits where the old hero was (`match`, default 0.6 of the way), holds a beat, then eases home over `settle` s. The old plate leans in 3% beforehand; the header follows 0.25 s later. `match: 0` gives a plain hard cut. Any other transition can take `match` too. | 0 | riser + thump |
+| `through` | A **colour or material** carries across: the eraser becomes a ladybug's shell | The camera dives into an object in the old plate until its colour fills the frame, the colour shifts, and the camera pulls back out of an object in the new plate, which starts where the old one was and glides home. `from` / `to`: `{ at: [x, y], r }` in scene coordinates, or `(plate, t) => …`; `fromFill` / `toFill` set the colours (set them when the anchor point sits on detail such as a spot or seam). | 1.4 s | glide up, glide down |
 | `fade` | The end card only | Crossfade. | 0.8 s | none |
 
 **Rules:**
@@ -106,8 +107,12 @@ Every transition is a pure function of progress `p`, animated on twos. Zooms int
   - within a world, `zoom`;
   - an object that persists across the cut, `shape`;
   - moving along the journey, `pan`;
-  - time passing, `bleed`.
+  - time passing, `bleed`;
+  - a colour or material shared by two objects, `through`.
+  - Better still, design the seam first (`references/writing.md`, "Designing the seams") and let the link choose the type.
 - Use 4–6 types per film, and never the same one three times in a row.
+- **Motion carries across the seam.** When the old plate's hero (or camera pan) is still moving at the cut, the new plate enters travelling the same way and eases to rest (`enter.carry`, seconds, default 0.35; `false` turns it off). It is off for `pan`, `page`, `roll` and `fade`.
+- **Pans follow the action.** `pan` with no `dir` (or `dir: 'auto'`) follows a moving hero (the world slides the opposite way) or continues a camera pan; it falls back to `'left'` when nothing is moving.
 - **Momentum** is automatic (`LEAD` and `SETTLE` in the engine). Set `enter.momentum: false` to turn it off, or `enter.settle` (seconds) to change the settle length. Momentum scales only upward, because scenes bleed past the frame edges only when enlarged.
 - The engine plays a 0.35 s riser before every transition except `fade`, and ducks the music bed under it.
 - **Inset lens** (`insetLens()`) is not a transition. It is a magnifier bubble tied to an object by two tangent lines, showing a close-up. The close-up stays at full size while the circle opens around it.

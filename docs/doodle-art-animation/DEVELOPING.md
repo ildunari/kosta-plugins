@@ -22,7 +22,7 @@ plugins/doodle-art-animation/       the plugin
     FEEDBACK.md                     lessons log (feedback-loop convention)
     references/                     style, motion, writing, sound, api, render
     toolkit/                        engine.js, shell.html, build.py, render.mjs,
-                                    motion_check.py, story_example.js, story_reel.js
+                                    motion_check.py, story_example.js, story_seams.js, story_reel.js
 docs/doodle-art-animation/          not shipped with the plugin
   DEVELOPING.md                     this file
   HANDOFF.md                        history, measurements, known weaknesses (paths in it refer to the original handoff zip)
@@ -46,7 +46,8 @@ python3 build.py story.js film.html && python3 build.py story_reel.js reel.html
 node render.mjs film.html --stills 150,480,700      # quick look
 node render.mjs film.html --sheet 1                 # qa/contact_sheet.jpg
 node render.mjs film.html --strips                  # qa/strip_NN_type.jpg, one per transition
-node render.mjs reel.html --strips --dir qa_reel    # all 13 transitions
+node render.mjs film.html --seams                   # qa/seam_NN_type.jpg, both sides of each transition
+node render.mjs reel.html --strips --dir qa_reel    # all 14 transition types
 node render.mjs film.html film.mp4 --workers 6      # full render
 python3 motion_check.py film.mp4                    # target: median >= 1.5, still < 5%
 ```

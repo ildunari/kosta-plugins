@@ -28,7 +28,7 @@ Read this when planning the film.
   - Declare it as `hero: t => ({ x, y, label, r })` in scene coordinates.
   - The engine draws its reticle at a constant size, applies the camera, and aims the transitions at it.
 - **The journey log.** Pick 2–3 quantities that change along the route (time elapsed, plus place, depth, size, concentration or amount) and one three-way state (ICE/LIQUID/VAPOUR, FLOWING/LODGED/RELEASING, QUEUED/IN-FLIGHT/DELIVERED). Time should jump in honest units as the scale changes: seconds, then days, then years.
-- **The scale ladder.** Sort the plates by size. Paper plates show where things are, and night plates show how they work.
+- **The scale ladder.** Sort the plates by size, then design each seam (see "Designing the seams"). Paper plates show where things are, and night plates show how they work.
   - Between worlds use `lensIn`/`lensOut`; within a world use `zoom`.
   - Same-scale moves use `pan` (along the journey), `cut`, `wipe`, `iris` or `bleed`, chosen by meaning.
   - Use `morph` whenever an object persists across the cut.
@@ -50,6 +50,30 @@ Read this when planning the film.
 - **Datasets.** Chapters become plates. Put extremes and totals in stats, and distributions or trends in cards.
 - **Source documents.** Pull the 10–20 numbers that matter, and turn each section into a plate with one stat and 1–3 callouts. Cite the document on the end card.
 - **Honesty.** Mark estimates with `≈` and ranges with `–`, and say "illustrative" when a curve is schematic. Never invent precision.
+
+## Designing the seams
+
+A transition is part of the story, not a wipe laid over it. Design each one from both sides before choosing its type, and write it in the script's seam list (below the plate table):
+
+- **Exit:** the last thing the viewer looks at, where it is on screen, and which way it is moving.
+- **Entry:** the first thing the viewer should look at in the next plate, where it is, and which way it moves.
+- **Link:** what joins them. Pick the strongest one available:
+  - **colour or material** (a red eraser → a red ladybug shell): `through`;
+  - **outline** (a drop → a planet, a cell → a city block): `shape`;
+  - **position** (the subject stays put while the world changes): `cut` with `match`;
+  - **motion** (something flies, flows or scrolls off one way): `pan` with `dir: 'auto'`, or any type with motion carry-over;
+  - **scale** (inside it, or out of it): `lensIn`, `lensOut`, `zoom`;
+  - **mood or time** (later, elsewhere, gone): `bleed`, `burn`, `hatch`, `iris`, `page`, `roll`.
+- **Compose both ends to meet.** Place the entry object where the exit object will be when the cut lands, keep camera motion going the same way across the cut, and give the exit a reason (the pencil lifts, the ladybug takes off). If no link exists, change the plates until one does, or say so in the script and use a plain `cut`.
+
+Example (`toolkit/story_seams.js`, "Pencil to Ladybug"):
+
+| Seam | Exit | Entry | Link | Transition |
+|---|---|---|---|---|
+| I → II | pencil's red eraser, top centre, camera pushing in | ladybug's red shell, centre, walking | colour | `through` from the eraser (r 24) to the shell (r 44), fills set |
+| II → III | ladybug flying off to the upper right | ladybug still flying right, slowing | motion | `pan`, `dir: 'auto'` |
+| III → IV | ladybug landed on a poppy, right of centre | pencil sketch of the ladybug, half drawn | position | `cut`, `match: 1` |
+| IV → V | the finished note | end card | chapter end | `page`, `dir: 'right'` |
 
 ## Plate script format
 
