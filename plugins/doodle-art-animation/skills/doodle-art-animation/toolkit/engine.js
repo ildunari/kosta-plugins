@@ -86,7 +86,7 @@ function kf(t, keys, ease = E.inOut3) {
 /** beat(t, t0, t1) -> 0..1: eases in at t0, holds, eases out so it is gone at t1 (t1 = null: never leaves) */
 function beat(t, t0, t1 = null, o = {}) {
   const a = E.out3(inv(t0, t0 + (o.in ?? 0.35), t));
-  return t1 == null ? a : Math.min(a, 1 - E.in2(inv(t1 - (o.out ?? 0.3), t1, t)));
+  return t1 == null ? a : Math.min(a, 1 - E.inOutSine(inv(t1 - (o.out ?? 0.4), t1, t)));
 }
 /** stagger(i, t, {t0, step, dur, ease}) -> eased 0..1 for the i-th item of a group */
 const stagger = (i, t, { t0 = 0, step = 0.08, dur = 0.4, ease = E.out3 } = {}) => ease(inv(t0 + i * step, t0 + i * step + dur, t));
@@ -484,15 +484,17 @@ const typed = (s, t, cps = 34) => s.slice(0, Math.floor(clamp(t * cps, 0, s.leng
 function dropText(s, x, y, t, o = {}) {
   const cps = o.cps ?? 16, k = t * cps; if (k <= 0) return 0;
   const full = Math.min(s.length, Math.floor(k));
-  const w = text(s.slice(0, full), x, y, o);
-  if (full < s.length) {
-    const p = clamp(k - full), sc = lerp(1.55, 1, E.outBack(p));
-    const gw = measure(s[full], o), gx = x + measure(s.slice(0, full + 1), o) - gw;   // keeps the kerning pair
+  // each glyph pops on its own 0.25 s clock, so several are mid-pop at once (a single-glyph pop is shorter than a drawing)
+  const pop = 0.25 * cps, settled = Math.max(0, Math.min(s.length, Math.floor(k - pop)));
+  const w = text(s.slice(0, settled), x, y, o);
+  for (let g = settled; g < Math.min(s.length, Math.ceil(k)); g++) {
+    const p = clamp((k - g) / pop), sc = lerp(1.45, 1, E.outBack(p));
+    const gw = measure(s[g], o), gx = x + measure(s.slice(0, g + 1), o) - gw;   // keeps the kerning pair
     const ax = gx + gw / 2, ay = y - (o.size || 24) * 0.35;
     ctx.save(); ctx.translate(ax, ay); ctx.scale(sc, sc); ctx.translate(-ax, -ay);
-    text(s[full], gx, y, { ...o, alpha: (o.alpha ?? 1) * clamp(p * 2.5) }); ctx.restore();
+    text(s[g], gx, y, { ...o, alpha: (o.alpha ?? 1) * clamp(p * 2) }); ctx.restore();
   }
-  return w;
+  return settled === s.length ? w : measure(s.slice(0, full), o);
 }
 const fmt = (v, dec = 0) => v.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
 /** count-up string: ease-out cubic from `from` to `to` over dur seconds */
@@ -728,10 +730,20 @@ function camOf(pl, t) {
  * t => number. Returns a cam for plate.cam.
  */
 function follow(target, t, { s = 1, lead = 180, lag = 0.2, anchor = [W / 2, H / 2], turn = 0.4 } = {}) {
-  const sc = typeof s === 'function' ? s(t) : s, [px, py] = target(t - lag), [qx, qy] = target(t - lag - turn);
-  const vx = px - qx, vy = py - qy, sp = Math.hypot(vx, vy), k = E.inOutSine(clamp(sp / turn / 260)) * lead;
-  const ax = anchor[0] - (sp ? vx / sp : 0) * k, ay = anchor[1] - (sp ? vy / sp : 0) * k;
+  // the anchor is the subject averaged over the last `lag` seconds (a smooth lag), so jitter never reaches the camera
+  const avg = t0 => { let x = 0, y = 0; for (let k = 0; k < 5; k++) { const [a, b] = target(t0 - lag * (0.5 + k / 4)); x += a / 5; y += b / 5; } return [x, y]; };
+  // lead room follows the subject's heading averaged over the last second, so stop-and-go motion never makes the frame bob
+  const leadAt = t0 => { const [ux, uy] = target(t0), [wx, wy] = target(t0 - turn), vx = ux - wx, vy = uy - wy, sp = Math.hypot(vx, vy);
+    const k = E.inOutSine(clamp(sp / turn / 260)) * lead; return sp ? [vx / sp * k, vy / sp * k] : [0, 0]; };
+  let lx = 0, ly = 0; for (let k = 0; k < 7; k++) { const [a, b] = leadAt(t - lag - k / 6); lx += a / 7; ly += b / 7; }
+  const sc = typeof s === 'function' ? s(t) : s, [px, py] = avg(t);
+  const ax = anchor[0] - lx, ay = anchor[1] - ly;
   return { x: px, y: py, s: sc, dx: ax - px, dy: ay - py };
+}
+/** softClamp(x, lo, hi, k): clamp with rounded corners k px wide, so a camera limited by it eases to a stop instead of stopping dead */
+function softClamp(x, lo, hi, k = 240) {
+  const sm = (a, b) => { const h = clamp(0.5 + (b - a) / (2 * k)); return lerp(b, a, h) - k * h * (1 - h); };   // smooth min
+  return -sm(-sm(x, hi), -lo);
 }
 /** parallax(cam, depth, fn): inside draw(), makes fn's layer pan at `depth` times the camera's pan (0 = pinned sky, 1 = ground) */
 function parallax(cam, depth, fn) { if (!cam) return fn(); ctx.save(); ctx.translate(-(cam.dx || 0) * (1 - depth), -(cam.dy || 0) * (1 - depth)); fn(); ctx.restore(); }
@@ -748,8 +760,11 @@ const focusOf = (pl, t) => { const h = heroRaw(pl, t); return [h.x, h.y]; };   /
  * arrives still moving and settles (SETTLE, over enter.settle s after the transition). Both scale about the hero,
  * so the camera never stops dead at a cut. enter.momentum = false turns it off for one plate.
  */
-const LEAD = { lensIn: 1.14, zoom: 1.08, shape: 1.12, iris: 1.06, bleed: 1.03, burn: 1.03, cut: 1.03 };   // always >= 1: scenes only bleed past the edges when enlarged
-const SETTLE = { through: 1.04, lensIn: 1.12, lensOut: 1.08, zoom: 1.06, shape: 1.08, iris: 1.06, bleed: 1.05, burn: 1.05, cut: 1.05, wipe: 1.03, page: 1.04, roll: 1.04, fade: 1.02, hatch: 1.03 };
+const LEAD = { lensIn: 1.1, zoom: 1.06, shape: 1.08, iris: 1.05, bleed: 1.03, burn: 1.03, cut: 1.03 };   // always >= 1: scenes only bleed past the edges when enlarged
+// After a push-in the new plate keeps easing in (to PUSH_ON); after anything else it arrives enlarged and eases out to 1.
+// Either way the scale keeps the direction the transition was moving in, so nothing reverses at the hand-off.
+const PUSH = { lensIn: 1, shape: 1, morph: 1, iris: 1, cut: 1 }, PUSH_ON = 1.03;
+const SETTLE = { through: 1.04, lensOut: 1.06, zoom: 1.05, bleed: 1.04, burn: 1.04, wipe: 1.03, page: 1.03, roll: 1.03, fade: 1.02, hatch: 1.03 };
 /**
  * motionOf(pl, t): how the plate's content is moving on screen at local time t, in px/s. Uses the hero when there is
  * one (camera included), otherwise the camera pan. Measured over one drawing (1/12 s).
@@ -804,9 +819,11 @@ function entryShift(pl, t) {
 function momentum(pl, t) {
   let s = 1;
   const nx = STORY.plates[pl.i + 1], lead = nx && nx.enter && nx.enter.momentum !== false && LEAD[nx.enter.type];
-  if (lead) s *= lerp(1, lead, E.in2(inv(pl.dur - 0.45, pl.dur, t)));
-  const tr = pl.enter, settle = tr && pl.i > 0 && tr.momentum !== false && SETTLE[tr.type];
-  if (settle) { const d = tr.dur || 0; s *= lerp(settle, 1, E.out3(inv(d, d + (tr.settle ?? 0.9), t))); }
+  // the lead is still accelerating at the cut and keeps going (half-way) into the transition, so the dive picks up its speed
+  if (lead) s *= lerp(1, lead, E.inOutSine(inv(pl.dur - 0.5, pl.dur + 0.5, t)));
+  const tr = pl.enter, on = tr && pl.i > 0 && tr.momentum !== false;
+  if (on && (PUSH[tr.type] || (tr.type === 'zoom' && tr.dir === 'in'))) { const d = tr.dur || 0; s *= lerp(1, PUSH_ON, E.inOutSine(inv(d * 0.5, d + (tr.settle ?? 1.2), t))); }
+  else if (on && SETTLE[tr.type]) { const d = tr.dur || 0; s *= lerp(SETTLE[tr.type], 1, E.inOutSine(inv(d * 0.4, d + (tr.settle ?? 0.9), t))); }
   return s;
 }
 
@@ -887,13 +904,14 @@ function sampleColor(X, which, x, y) {
 /**
  * Every transition is a pure function of p (0..1) and returns the share (0..1) of the frame owned by the new plate,
  * which the engine uses to blend vignettes. X = {drawOld, drawNew, drawOldX(o), drawNewX(o), focusOld, focusNew,
- * darkOld, darkNew, prev, pl, pt, t, tr, seed}. Zooms use zlerp (constant ratio per frame) and E.inOut5 (a snap).
+ * darkOld, darkNew, prev, pl, pt, t, tr, seed}. Transitions render on ones; zooms use zlerp (constant ratio per drawing);
+ * masks ease their edge, not their area. See references/motion.md, Speed limits.
  */
 const TRANS = {
   /** down the scale ladder into another world: the camera dives at the hero while a lens opens on it, the new world inside */
   lensIn(p, X) {
-    const { tr } = X, e = X.ez(p, E.inOut5), [cx, cy] = X.focusOld, [fx, fy] = X.focusNew, r = zlerp(16, coverR(cx, cy), e);
-    X.drawOldX({ xf: about(cx, cy, zlerp(1, tr.dive ?? 2.4, e)) });
+    const { tr } = X, e = X.ez(p, E.inOutSine), [cx, cy] = X.focusOld, [fx, fy] = X.focusNew, R = coverR(cx, cy), r = lerp(16, R, e);   // ease the ring's edge (what the eye follows), not its area: area easing pops the lens open
+    X.drawOldX({ xf: about(cx, cy, zlerp(1, tr.dive ?? 2, e)) });
     ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.clip();
     ctx.drawImage(bgTex(X.darkNew), 0, 0);
     X.drawNewX({ bg: false, xf: about(fx, fy, zlerp(tr.scaleFrom ?? 0.3, 1, e), lerp(cx, fx, e), lerp(cy, fy, e)) });
@@ -903,9 +921,9 @@ const TRANS = {
   },
   /** up the scale ladder: the old world shrinks into a lens that lands on the hero, while the new world pulls back into place */
   lensOut(p, X) {
-    const { tr } = X, e = X.ez(p, E.inOut5), [ox, oy] = X.focusOld, [nx, ny] = X.focusNew, R0 = coverR(ox, oy);
-    const cx = lerp(ox, nx, e), cy = lerp(oy, ny, e), r = zlerp(R0, 20, e);
-    X.drawNewX({ xf: about(nx, ny, zlerp(tr.dive ?? 2.4, 1, e)) });
+    const { tr } = X, e = X.ez(p, E.inOutSine), [ox, oy] = X.focusOld, [nx, ny] = X.focusNew, R0 = coverR(ox, oy);
+    const cx = lerp(ox, nx, e), cy = lerp(oy, ny, e), r = lerp(R0, 20, e);   // the edge eases in and out
+    X.drawNewX({ xf: about(nx, ny, zlerp(tr.dive ?? 2, 1, e)) });
     ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.clip();
     withAlpha(1 - E.in2(inv(0.8, 1, p)), () => { ctx.drawImage(bgTex(X.darkOld), 0, 0);   // the last dot of the old world fades instead of popping off
       X.drawOldX({ bg: false, hud: 1 - inv(0, 0.3, p), xf: about(ox, oy, zlerp(1, 0.12, e), cx, cy) }); });
@@ -917,7 +935,7 @@ const TRANS = {
   fade(p, X) { const e = X.ez(p, E.inOut3); X.drawOld(); withAlpha(e, X.drawNew); return e; },
   /** one step on the scale ladder in the same world (tr.dir 'out' | 'in', tr.k): old shrinks (or grows) away while the new scale grows in around the hero */
   zoom(p, X) {
-    const { tr } = X, e = X.ez(p, E.inOut5), k = tr.k ?? 8, out = (tr.dir || 'out') === 'out';
+    const { tr } = X, e = X.ez(p, E.inOutSine), k = tr.k ?? 4, out = (tr.dir || 'out') === 'out';
     const sOld = out ? zlerp(1, 1 / k, e) : zlerp(1, k, e), sNew = out ? zlerp(k, 1, e) : zlerp(1 / k, 1, e);
     const [ox, oy] = X.focusOld, [nx, ny] = X.focusNew, px = lerp(ox, nx, e), py = lerp(oy, ny, e), a = E.inOut3(inv(0.25, 0.75, p));
     // a plate shrunk below 1 would show its world's hard edges (a ground band ending mid-frame): draw it through a soft
@@ -925,7 +943,7 @@ const TRANS = {
     // (the masked pass keeps the reticle at the HUD's strength; only the header, dial and log are drawn unmasked after it)
     const plate = (draw, sc, hud, xf, R) => { if (sc >= 0.999) return draw({ bg: false, hud, xf });
       softReveal(() => draw({ bg: false, hud, chrome: false, xf }), px, py, sc * R * 1.1, sc * R * 0.45, 1); if (hud > 0) draw({ hudOnly: true, hud }); };
-    ctx.drawImage(bgTex(X.darkNew), 0, 0);
+    ctx.drawImage(bgTex(X.darkOld), 0, 0); if (X.darkNew !== X.darkOld) withAlpha(a, () => ctx.drawImage(bgTex(X.darkNew), 0, 0));   // the paper changes gradually
     withAlpha(1 - E.in2(inv(0.5, 0.95, p)), () => plate(X.drawOldX, sOld, 1 - inv(0, 0.3, p), about(ox, oy, sOld, px, py), coverR(ox, oy)));
     S.noReticle = p < 0.6;
     withAlpha(a, () => plate(X.drawNewX, sNew, inv(0.6, 1, p), about(nx, ny, sNew, px, py), coverR(nx, ny)));
@@ -961,7 +979,7 @@ const TRANS = {
   },
   /**
    * through (bridge): the camera dives into an object in the old plate (tr.from) until its colour fills the frame,
-   * the colour shifts, and the camera pulls back out of an object in the new plate (tr.to). from / to are
+   * the colour shifts, and the field shrinks back onto an object in the new plate (tr.to). from / to are
    * { at: [x, y], r } in scene coordinates, or functions (plate, t) returning one; defaults are the heroes with r 40.
    * The new object starts where the old one was and glides to its own place. Colours are sampled unless
    * tr.fromFill / tr.toFill are given.
@@ -972,19 +990,26 @@ const TRANS = {
     const A = anc(tr.from, X.prev, X.pt, X.focusOld), B = anc(tr.to, X.pl, X.t, X.focusNew), [ax, ay] = A.at, [bx, by] = B.at;
     const cA = tr.fromFill || sampleColor(X, 'old', ax, ay), cB = tr.toFill || sampleColor(X, 'new', bx, by);
     const col = mixColor(cA, cB, E.inOut3(inv(0.44, 0.56, p)));
-    if (p < 0.5) {
-      const q = p / 0.5, kA = coverR(ax, ay) / A.r * 1.1, sc = zlerp(1, kA, E.in3(q));
+    // A camera cannot fly 50x in a second without strobing, so the dive is short (tr.dive, default 2.2x) and the
+    // object's colour does the rest: its disc grows (edge eased) until it fills the frame, the colour turns, and the
+    // disc shrinks onto the new object while the new plate settles from tr.rise (1.6x) to 1.
+    const dive = tr.dive ?? 2.2, rise = tr.rise ?? 1.6;
+    if (p < 0.46) {
+      const q = p / 0.46, sc = zlerp(1, dive, E.inOutSine(q)), R = coverR(ax, ay) * 1.05, rad = lerp(A.r * sc, R, E.inOutSine(inv(0.12, 1, q)));
       X.drawOldX({ hud: 1 - inv(0, 0.4, q), xf: about(ax, ay, sc) });
-      withAlpha(E.inOut3(inv(0.05, 0.35, q)), () => { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(ax, ay, A.r * sc, 0, TAU); ctx.fill(); });   // the object becomes a field of its colour
-    } else {
-      const q = (p - 0.5) / 0.5, kB = coverR(bx, by) / B.r * 1.1, sc = zlerp(kB, 1, E.out3(q)), g = E.inOut3(q);
-      const px = lerp(ax, bx, g), py = lerp(ay, by, g);
-      ctx.fillStyle = col; ctx.fillRect(-20, -20, W + 40, H + 40);
+      withAlpha(E.inOutSine(inv(0, 0.4, q)), () => { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(ax, ay, rad, 0, TAU); ctx.fill(); });   // the object becomes a field of its colour
+    } else if (p < 0.54) { ctx.fillStyle = col; ctx.fillRect(-20, -20, W + 40, H + 40); }   // the colour turns (0.16 s at 2 s)
+    else {
+      const q = (p - 0.54) / 0.46, g = E.inOutSine(q), sc = zlerp(rise, 1, g), px = lerp(ax, bx, g), py = lerp(ay, by, g);
+      const R = coverR(px, py) + 10, rad = lerp(R, B.r, E.inOutSine(inv(-0.25, 0.8, q)));   // starts shrinking at speed: the flat field never holds long
       S.noReticle = q < 0.6;
       X.drawNewX({ hud: inv(0.6, 1, q), xf: about(bx, by, sc, px, py) });
       S.noReticle = false;
-      withAlpha(1 - E.inOut3(inv(0.6, 0.9, q)), () => { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(px, py, B.r * sc, 0, TAU); ctx.fill(); });   // the colour field shrinks into the new object, then gives way to it
+      withAlpha(1 - E.inOut3(inv(0.55, 0.95, q)), () => { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(px, py, rad, 0, TAU); ctx.fill(); });   // the field shrinks onto the new object, then gives way to it
     }
+    const fa = Math.sin(clamp(inv(0.3, 0.7, p)) * Math.PI);                 // a soft highlight drifts across the field so it never reads as a frozen frame
+    if (fa > 0.01) { const hx = lerp(ax, bx, p), hy = lerp(ay, by, p) - 60, g = ctx.createRadialGradient(hx, hy, 0, hx, hy, 700);
+      g.addColorStop(0, `rgba(255,240,230,${0.16 * fa})`); g.addColorStop(1, 'rgba(255,240,230,0)'); ctx.save(); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); ctx.restore(); }
     return E.inOut3(inv(0.44, 0.56, p));
   },
   /** ink wipe (tr.dir 'lr' | 'rl' | 'tb'): a curved inked front sweeps across; the new plate slides in slightly behind it */
@@ -1006,12 +1031,13 @@ const TRANS = {
   },
   /** ink drop: a drop falls onto the new hero (or tr.at) and splats; the blot, its splash chains and specks spread and pool together, revealing the new plate, with ink pooled at the edge */
   bleed(p, X) {
-    const [fx, fy] = X.tr.at || X.focusNew, w = 480, h = 270, fall = X.tr.fall ?? 0.14, dm = coverR(fx, fy);
+    const [fx, fy] = X.tr.at || X.focusNew, w = 480, h = 270, fall = X.tr.fall ?? 0.3, dm = coverR(fx, fy);
     const dropCol = X.tr.ink || (X.darkNew ? PAL.night : PAL.inkSoft);
     if (p < fall) {                                                    // the drop falls onto the spot
-      X.drawOld(); const q = E.in2(p / fall), s = X.tr.drop ?? 22, y = lerp(-80, fy - s, q);
-      pen([[fx, y - 150 * q - 20], [fx, y - 30]], { w: 2, color: dropCol, alpha: 0.35 * q, taper: 0.5, amp: 0.2 });
-      ink(teardrop(fx, y, s), { closed: true, w: 2, color: PAL.ink, fill: dropCol, amp: 0.3, seed: 5 });
+      X.drawOld(); const u0 = p / fall, q = E.in2(inv(0, 0.85, u0)), sq = inv(0.85, 1, u0), s = X.tr.drop ?? 22, y = lerp(-80, fy - s, q);   // falls, then squashes on impact
+      pen([[fx, y - 150 * q - 20], [fx, y - 30]], { w: 2, color: dropCol, alpha: 0.35 * q * (1 - sq), taper: 0.5, amp: 0.2 });
+      ctx.save(); ctx.translate(fx, fy); ctx.scale(1 + 0.5 * sq, 1 - 0.4 * sq); ctx.translate(-fx, -fy);
+      ink(teardrop(fx, y, s), { closed: true, w: 2, color: PAL.ink, fill: dropCol, amp: 0.3, seed: 5 }); ctx.restore();
       return 0;
     }
     const u = (p - fall) / (1 - fall), e = X.ez(u, E.inOutSine);
@@ -1083,10 +1109,11 @@ const TRANS = {
     let cx, cy, r;
     const hole = () => { ctx.save(); ctx.globalAlpha *= op; ctx.fillStyle = curtain; ctx.beginPath(); ctx.rect(-20, -20, W + 40, H + 40);
       if (r > r0 + 0.5) ctx.arc(cx, cy, r, 0, TAU, true); ctx.fill('evenodd'); ctx.restore(); };
-    if (p < 0.45) { const q = E.in3(p / 0.45); [cx, cy] = [ox, oy]; r = zlerp(coverR(cx, cy), r0, q); X.drawOldX({ hud: 1 - q, xf: about(cx, cy, 1 + 0.15 * q) }); hole(); }
-    else if (p < 0.55) { const u = E.inOut3((p - 0.45) / 0.1); cx = lerp(ox, nx, u); cy = lerp(oy, ny, u); r = r0;
+    // radius eases (the edge is what the eye follows); the closed dot travels to the new hero on a shallow arc
+    if (p < 0.42) { const q = E.inOutSine(p / 0.42); [cx, cy] = [ox, oy]; r = lerp(coverR(cx, cy), r0, q); X.drawOldX({ hud: 1 - q, xf: about(cx, cy, 1 + 0.15 * q) }); hole(); }
+    else if (p < 0.58) { const u = E.inOutSine((p - 0.42) / 0.16); cx = lerp(ox, nx, u); cy = lerp(oy, ny, u) - Math.sin(u * Math.PI) * 0.18 * Math.hypot(nx - ox, ny - oy); r = r0;
       X.drawOldX({ hud: 0, xf: about(ox, oy, 1.15) }); withAlpha(u, () => X.drawNewX({ hud: 0, xf: about(nx, ny, 1.15) })); hole(); }
-    else { const q = E.out3((p - 0.55) / 0.45); [cx, cy] = [nx, ny]; r = zlerp(r0, coverR(cx, cy), q); X.drawNewX({ hud: q, xf: about(cx, cy, 1.15 - 0.15 * q) }); hole(); }
+    else { const q = E.inOutSine((p - 0.58) / 0.42); [cx, cy] = [nx, ny]; r = lerp(r0, coverR(cx, cy), q); X.drawNewX({ hud: q, xf: about(cx, cy, 1.15 - 0.15 * q) }); hole(); }
     lensRing(cx, cy, r, 1 - inv(0.9, 1, p));
     if (r <= r0 + 0.5) { ctx.fillStyle = '#e9e7f5'; ctx.beginPath(); ctx.arc(cx, cy, r0 * 0.6, 0, TAU); ctx.fill(); }
     return E.inOut3(inv(0.4, 0.6, p));
@@ -1095,8 +1122,9 @@ const TRANS = {
    *  'right' = the left corner travels right); the page folds along a moving crease and slides off. Its back takes the look
    *  of the page being turned to (tr.back 'new' | 'old'), so the new world curls into view over the old one. */
   page(p, X) {
-    const e = X.ez(p, E.inOut3), fl = (X.tr.dir || 'left') === 'right', hx = x => fl ? W - x : x;
-    const P = [hx(W + 4), H + 4], Q = [hx(lerp(W + 4, -1.25 * W, e)), lerp(H + 4, 0.7 * H, Math.sin(e * Math.PI / 2))];
+    const e = X.ez(p, E.inOutSine), fl = (X.tr.dir || 'left') === 'right', hx = x => fl ? W - x : x;
+    // the crease is what the eye follows: ease its position across the frame (x = W..-0.1W), then place the corner from it
+    const cxr = lerp(W + 4, -0.12 * W, e), P = [hx(W + 4), H + 4], Q = [hx(2 * cxr - (W + 4)), lerp(H + 4, 0.7 * H, Math.sin(e * Math.PI / 2))];
     const dx = P[0] - Q[0], dy = P[1] - Q[1], len = Math.hypot(dx, dy);
     if (len < 2) { X.drawOld(); return 0; }
     const nx = dx / len, ny = dy / len, mx = (P[0] + Q[0]) / 2, my = (P[1] + Q[1]) / 2, md = mx * nx + my * ny;
@@ -1125,7 +1153,7 @@ const TRANS = {
   },
   /** roll (window blind / projector screen): the old page rolls up from the bottom edge (inked roll, shadow below), revealing the new page */
   roll(p, X) {
-    const e = X.ez(p, E.inOut3), R = X.tr.radius ?? 60, yc = lerp(H + 6, -R - 40, e), step = 2;
+    const e = X.ez(p, E.inOutSine), R = X.tr.radius ?? 60, yc = lerp(H + 6, -R - 40, e), step = 2;
     X.drawNew();
     if (yc < H) { const g = ctx.createLinearGradient(0, yc + R, 0, yc + R + 110); g.addColorStop(0, 'rgba(30,20,10,0.32)'); g.addColorStop(1, 'rgba(30,20,10,0)');
       ctx.fillStyle = g; ctx.fillRect(0, yc + R, W, 110); }                                   // shadow the roll casts on the new page
@@ -1146,10 +1174,10 @@ const TRANS = {
   },
   /** shape reveal (match cut): an object morphs into its counterpart while a window centred on it opens onto the new world */
   shape(p, X) {
-    const { tr } = X, e = X.ez(p, E.inOut5);
+    const { tr } = X, e = X.ez(p, E.inOutSine);
     const A = tr.from(X.prev, X.pt), B = tr.to(X.pl, X.t), M = morph(A, B, e), b = bounds(M), cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
     const ba = bounds(A), bb = bounds(B), ax = (ba.x0 + ba.x1) / 2, ay = (ba.y0 + ba.y1) / 2, bx = (bb.x0 + bb.x1) / 2, by = (bb.y0 + bb.y1) / 2;
-    const r0 = Math.max(6, Math.min(b.x1 - b.x0, b.y1 - b.y0) * 0.45), q = E.inOut3(inv(0.1, 0.92, p)), r = zlerp(r0, coverR(cx, cy), q);
+    const r0 = Math.max(6, Math.min(b.x1 - b.x0, b.y1 - b.y0) * 0.45), q = E.inOutSine(inv(0.1, 0.92, p)), r = lerp(r0, coverR(cx, cy), q);   // the window's edge eases open
     const fa = tr.fromFill || sampleColor(X, 'old', ax, ay), fb = tr.toFill || sampleColor(X, 'new', bx, by);
     S.morph = true;
     X.drawOldX({ hud: 1 - inv(0, 0.4, p), xf: about(ax, ay, zlerp(1, 1.6, e), cx, cy) });
@@ -1163,29 +1191,30 @@ const TRANS = {
   },
   /** dissolve through hatching: the new plate appears as pen strokes that thicken until they merge */
   hatch(p, X) {
-    const e = X.ez(p, E.inOut3), gap = 16, ang = -0.7, R = Math.hypot(W, H) / 2 + 40, r = mulberry(X.seed + 21);
+    const e = X.ez(p, E.inOutSine), gap = 16, ang = -0.7, R = Math.hypot(W, H) / 2 + 40, r = mulberry(X.seed + 21);
     X.drawOld();
     const L = layer(() => {
       X.drawNew(); ctx.globalCompositeOperation = 'destination-in';
-      ctx.translate(W / 2, H / 2); ctx.rotate(ang); ctx.beginPath();
-      for (let v = -R; v <= R; v += gap) { let u = -R + r() * 60; while (u < R) { const Ln = 50 + r() * 110, d = r() * 0.25, h = gap * 1.15 * E.inOut3(inv(d, d + 0.75, e)); if (h > 0.2) ctx.rect(u, v - h / 2, Ln, h); u += Ln + 6 + r() * 30; } }
-      ctx.fillStyle = '#000'; ctx.fill();
+      ctx.translate(W / 2, H / 2); ctx.rotate(ang); ctx.beginPath(); let n = 0;
+      for (let v = -R; v <= R; v += gap) { let u = -R + r() * 60; while (u < R) { const Ln = 50 + r() * 110, d = r() * 0.4, h = gap * 1.15 * E.inOutSine(inv(d, d + 0.6, e)); if (h > 0.2) { ctx.rect(u, v - h / 2, Ln, h); n++; } u += Ln + 6 + r() * 30; } }
+      // an empty path makes the browser skip the fill, which would leave the whole new plate showing: clear instead
+      if (n) { ctx.fillStyle = '#000'; ctx.fill(); } else { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W, H); }
     }, 1);
     ctx.drawImage(L, 0, 0);
     return e;
   },
 };
 /** header start delay per transition (measured from the reference: bare hold after a lens-in, none after a lens-out) */
-const HEADER_DELAY = { cut: () => 0.25, lensIn: d => d + 0.4, lensOut: () => 0.05, fade: d => d * 0.6, burn: d => d * 0.7, bleed: d => d * 0.7, wipe: d => d * 0.55,
-  iris: d => d * 0.5 + 0.3, zoom: d => d * 0.85, shape: d => d * 0.85, morph: d => d * 0.85, page: d => d * 0.6, roll: d => d * 0.6, through: d => d * 0.8, custom: d => d * 0.8, hatch: d => d * 0.6, pan: d => d * 0.8 };
-function headerDelay(pl) { const tr = pl.enter; if (!tr || pl.i === 0) return 0.1; return (HEADER_DELAY[tr.type] || HEADER_DELAY.cut)(tr.dur || 0.5); }
+/** the title waits until the move has landed (d + 0.35 s); the one exception is lensOut, which keeps the reference's instant title */
+const HEADER_DELAY = { cut: () => 0.25, lensOut: () => 0.05, fade: d => d * 0.6 + 0.2, pan: d => d + 0.25 };
+function headerDelay(pl) { const tr = pl.enter; if (!tr || pl.i === 0) return 0.1; return (HEADER_DELAY[tr.type] || (d => d + 0.35))(tr.dur || 0); }
 TRANS.morph = TRANS.shape;   // v2 name
 
 /* ---------- timeline ---------- */
 /** presets whose main easing enter.ease replaces (see renderFrame) */
 const EASED = { lensIn: 1, lensOut: 1, fade: 1, zoom: 1, pan: 1, wipe: 1, bleed: 1, burn: 1, page: 1, roll: 1, shape: 1, hatch: 1 };
 /** transition length when a plate's enter has no dur (seconds) */
-const DEFAULT_DUR = { custom: 1.6, through: 1.4, cut: 0, lensIn: 0.6, lensOut: 0.6, zoom: 0.8, pan: 0.8, wipe: 0.8, bleed: 1.5, burn: 1.4, iris: 0.9, shape: 1.1, morph: 1.1, hatch: 0.8, page: 1.2, roll: 1.0, fade: 0.8 };
+const DEFAULT_DUR = { custom: 1.6, through: 2.0, cut: 0, lensIn: 1.6, lensOut: 1.6, zoom: 1.6, pan: 0.8, wipe: 1.0, bleed: 1.6, burn: 1.4, iris: 1.6, shape: 1.4, morph: 1.4, hatch: 1.2, page: 1.6, roll: 1.3, fade: 1.0 };
 let STORY = null, TOTAL_T = 0, TOTAL_F = 0;
 function defineStory(story) {
   STORY = story; let t = 0;
@@ -1228,17 +1257,27 @@ function drawPlate(pl, t, o = {}) {
   }
   ctx.restore(); S.dark = darkWas;
 }
-/** renderFrame(f): animated on twos (each drawing held 2 frames; STORY.twos = false for ones), with gate weave (STORY.weave px) and film grain (STORY.grain 0..1) */
+/** true while frame f is inside a transition (or a plate's lead into one): those run on ones so scale and mask steps stay small */
+function onOnes(f) {
+  const T = f / FPS, P = STORY.plates, i = P.findIndex(p => T < p.start + p.dur); if (i < 0) return false;
+  const pl = P[i], t = T - pl.start, tr = pl.enter, nx = P[i + 1];
+  if (pl.ones && pl.ones(t)) return true;                                      // plate.ones(t): a fast camera move asks for ones
+  if (i > 0 && tr && tr.type !== 'cut' && t < tr.dur + 0.6) return true;      // the transition and its settle
+  return !!(nx && nx.enter && nx.enter.type !== 'cut' && t > pl.dur - 0.6);    // the lead into the next one
+}
+/** renderFrame(f): drawings on twos (STORY.twos = false for ones) except transitions, which run on ones; the line boil
+ *  always changes on twos. Gate weave (STORY.weave px) drifts slowly; film grain (STORY.grain 0..1) changes every drawing. */
 function renderFrame(f) {
-  const fq = STORY.twos === false ? f : f - (f % 2);
+  const fq = STORY.twos === false || onOnes(f) ? f : f - (f % 2);
   S.f = f; S.boil = Math.floor(f / 2); S.T = fq / FPS; S.trans = null;
   const T = S.T, P = STORY.plates;
   let i = P.findIndex(p => T < p.start + p.dur); if (i < 0) i = P.length - 1;
   const pl = P[i], t = T - pl.start, tr = pl.enter, vig = d => d ? TEX.vigNight : TEX.vigPaper;
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
   // gate weave: the whole drawing shifts a fraction of a pixel and turns a hair each drawing, like hand-shot animation
-  const wv = STORY.weave ?? 0.9, db = Math.floor(fq / 2);
-  if (wv) { ctx.translate(W / 2 + (hash3(db, 1, 7) - 0.5) * 2 * wv, H / 2 + (hash3(db, 2, 7) - 0.5) * 2 * wv); ctx.rotate((hash3(db, 3, 7) - 0.5) * 0.0012 * wv); ctx.scale(1.004, 1.004); ctx.translate(-W / 2, -H / 2); }
+  const wv = STORY.weave ?? 0.9, db = Math.floor(f / 2), TT = f / FPS;   // weave: a slow wander (under 1 Hz) plus a tiny per-drawing jitter, so text never buzzes
+  if (wv) { ctx.translate(W / 2 + (1.4 * vnoise(TT * 0.7, 1) + 0.25 * (hash3(db, 1, 7) - 0.5)) * wv, H / 2 + (1.4 * vnoise(TT * 0.6, 2) + 0.25 * (hash3(db, 2, 7) - 0.5)) * wv);
+    ctx.rotate(0.0006 * vnoise(TT * 0.5, 3) * wv); ctx.scale(1.004, 1.004); ctx.translate(-W / 2, -H / 2); }
   if (i > 0 && tr && tr.type !== 'cut' && t < tr.dur) {
     const prev = P[i - 1], pt = prev.dur + t, raw = t / tr.dur;
     // pacing: enter.curve maps clock -> progress (holds, per-segment easing). enter.ease REPLACES the main easing of the
@@ -1256,10 +1295,11 @@ function renderFrame(f) {
     ctx.save(); ctx.globalAlpha = 1 - share; ctx.drawImage(vig(prev.dark), 0, 0); ctx.globalAlpha = share; ctx.drawImage(vig(pl.dark), 0, 0); ctx.restore();
   } else {
     drawPlate(pl, t); ctx.drawImage(vig(pl.dark), 0, 0);
-    // anticipation: 0.2 s before a lens-in, a small dot in the next world's colour pops onto the hero
+    // anticipation: in the last 0.5 s before a lens-in a ring locks onto the hero (70 -> 16 px) and fills with the next world's colour
     const nx = P[i + 1];
-    if (nx && nx.enter && nx.enter.type === 'lensIn') { const a = E.outBack(inv(pl.dur - 0.22, pl.dur - 0.08, t)); if (a > 0) { const [hx, hy] = focusOf(pl, t);
-      ctx.save(); ctx.beginPath(); ctx.arc(hx, hy, 16 * a, 0, TAU); ctx.fillStyle = nx.dark ? PAL.night : PAL.paper; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = '#e9e7f5'; ctx.stroke(); ctx.restore(); } }
+    if (nx && nx.enter && nx.enter.type === 'lensIn') { const u = inv(pl.dur - 0.5, pl.dur, t); if (u > 0) { const [hx, hy] = focusOf(pl, t), rr = lerp(70, 16, E.inOutSine(u)), fa = E.inOutSine(inv(0.5, 1, u));
+      ctx.save(); ctx.globalAlpha = E.out3(inv(0, 0.3, u)); ctx.beginPath(); ctx.arc(hx, hy, rr, 0, TAU); ctx.lineWidth = 2.5; ctx.strokeStyle = '#e9e7f5'; ctx.stroke();
+      ctx.globalAlpha = fa; ctx.fillStyle = nx.dark ? PAL.night : PAL.paper; ctx.fill(); ctx.stroke(); ctx.restore(); } }
   }
   const gr = STORY.grain ?? 1;                                          // grain tile changes every drawing
   if (gr) { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = gr * (pl.dark ? 0.5 : 0.8); ctx.translate(-(hash3(db, 4, 9) * 256 | 0), -(hash3(db, 5, 9) * 256 | 0));

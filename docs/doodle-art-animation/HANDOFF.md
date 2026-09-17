@@ -73,7 +73,7 @@ Kosta watched the version 2 example and said the camera and transitions felt sta
   - a film-grain tile that changes on each drawing;
   - a slow 4% push-in on plates without their own camera;
   - momentum across cuts (`LEAD` and `SETTLE`).
-- Zooms now use `zlerp`, which changes scale by an equal ratio per drawing, and `E.inOut5`, so they snap.
+- Zooms use `zlerp`, which changes scale by an equal ratio per drawing. (They once used `E.inOut5` to snap; v0.11 replaced that with gentle easing, speed limits and transitions on ones.)
 - New helpers for living plates: `flow`, `wander`, `parallax`, `subpath`, `vnoise2`.
 - Rebuilt transitions:
   - the pan is now a whip pan with a visible join and speed lines;

@@ -33,7 +33,7 @@ A still frame reads as a slideshow, and a transition out of stillness reads as f
 
 ## Beats enter and leave
 
-Every stat, callout, card and myth has a start **and an end**. Wrap a component in `withAlpha(beat(t, t0, t1), () => …)`. `beat` eases in over 0.35 s and fades out over the last 0.3 s before `t1`; `t1 = null` means the beat stays.
+Every stat, callout, card and myth has a start **and an end**. Wrap a component in `withAlpha(beat(t, t0, t1), () => …)`. `beat` eases in over 0.35 s and fades out over the last 0.4 s before `t1`; `t1 = null` means the beat stays.
 
 - Text exits by fading, never by un-typing.
 - Drawn objects may exit with `eraseOut(poly, p)`, where a paper-coloured scribble rubs them out.
@@ -44,11 +44,11 @@ Every stat, callout, card and myth has a start **and an end**. Wrap a component 
 | Beat | Timing |
 |---|---|
 | Header after a **cut** | Title at +0.25 s, stage dial +0.25 s after that, journey log +0.35 s after the title |
-| Header after a **lensIn** | The new scene sits bare for 0.4 s after the lens finishes, then the title |
-| Header after a **lensOut** | The title starts immediately |
-| Anticipation before a lensIn | 0.2 s before the cut, a 16 px dot in the next world's colour pops onto the hero (automatic) |
-| The transition itself | A snap: about 2 drawings of lead-in, a 0.25–0.35 s burst, a short settle. Zooms use `E.inOut5` and `zlerp` (equal ratios per drawing). |
-| Scene content after a lens | Already on screen, or arriving within 0.1–0.6 s. Never leave the new world empty for a second. |
+| Header after any other transition | The new scene holds with only ambient motion until 0.35 s after the move lands (`dur + 0.35`), then the title; after a `pan`, `dur + 0.25` |
+| Header after a **lensOut** | The title starts immediately (the one exception, from the reference) |
+| Anticipation before a lensIn | In the last 0.5 s a ring locks onto the hero (70 → 16 px) and fills with the next world's colour (automatic) |
+| The transition itself | Never a snap. The lead-in starts 0.5 s before the cut and runs into the transition; the move itself follows the table's lengths and the speed limits below; the settle continues in the same direction. |
+| Scene content after a transition | Already on screen (it came in with the transition). Stats, callouts and cards start at `dur + 0.4` or later; a card frame that anchors the plate may open at `dur + 0.2`. |
 | Title type-on | Kicker at 30 chars/s; glyphs pop at 17 glyphs/s from +0.15 s; rule grows 0.35–1.1 s; subtitle from +0.7 s |
 | Count-up | 1.3 s, ease-out cubic |
 | Card | Outline, then fill, unfolding left to right over 0.4 s; its title types after it opens; content at 0.4–0.6 s |
@@ -59,7 +59,7 @@ Every stat, callout, card and myth has a start **and an end**. Wrap a component 
 | Ambient motion | Something always moves slowly: drifting particles, flow streaks, rain, rotating reticle dashes, the boil. |
 
 **Easing:**
-- `E.out3` for arrivals, `E.inOut3` for travel and transitions, `E.outBack` for pops.
+- `E.out3` for arrivals, `E.inOutSine` for transitions and camera moves (`E.inOut3` for quick travel), `E.outBack` for pops. Things leaving ease out gently; ease-in is for arrivals with weight.
 - `E.anticipate` for launches and exits, and `E.outElastic` for physical objects settling (never for text).
 - Nothing moves linearly except flow and scrolling.
 
@@ -72,7 +72,7 @@ Give a plate `cam: t => ({ x, y, s, dx, dy, rot })`. It moves the **scene only**
 | Breathing push-in | Default; any plate longer than 8 s | `s: 1 + 0.03–0.07 * E.inOutSine(t / dur)` |
 | Crane / reveal | Title cards, "here is the place" | `s: kf(t, [[0, 1.14], [dur, 1]])` with `dy: kf(t, [[0, -70], [dur, 0]])` |
 | Recap pull-out | Recap plates | Hard cut in close, then `s: kf(t, [[0, 1.6], [3, 1], [dur, 1.06]])`, keeping a slow drift after the pull |
-| Follow pan | The hero travels further than the frame | Draw the world wider than the frame, and set `dx: -clamp(heroX(t - 0.4) - 820, 0, WORLD - W)` (lags the hero by 0.4 s). Add layers with `parallax(cam, depth, fn)`: sky 0.1–0.2, far hills 0.5, ground 1. |
+| Follow pan | The hero travels further than the frame | Draw the world wider than the frame, and set `dx: -softClamp(heroX(t - 0.4) - 820, 0, WORLD - W, 260)` (lags the hero by 0.4 s; the soft limits ease the camera in and out instead of starting and stopping dead). Or use `follow()`, which averages the subject over its lag so jitter never reaches the camera. Add layers with `parallax(cam, depth, fn)`: sky 0.1–0.2, far hills 0.5, ground 1. |
 | Slow turn | Night plates, "inside" views | `rot: 0.04–0.08 * Math.sin(t * 0.35)` about the hero |
 | Fall / climb | Something falls or rises | Keep the hero near the centre and scroll the world past it (`ctx.translate(0, -700 * fall)` on layers), with `flow` streaks in the opposite direction |
 
@@ -81,25 +81,48 @@ Give a plate `cam: t => ({ x, y, s, dx, dy, rot })`. It moves the **scene only**
 
 ## Transitions
 
-Every transition is a pure function of progress `p`, animated on twos. Zooms interpolate scale geometrically with `zlerp`, so the speed never seems to stall or rush. Choose a transition by what the cut means. If `dur` is left out, each type gets the length in the table (`DEFAULT_DUR` in the engine).
+Every transition is a pure function of progress `p`. Transitions, and the half second on either side of them, render **on ones** (24 drawings a second) so scale and mask steps stay small; the line boil stays on twos. A plate can ask for ones during its own fast camera move with `ones: t => bool`. Zooms interpolate scale geometrically with `zlerp`, so the speed never seems to stall or rush. Masks (lens, window, iris) ease their **edge**, which is what the eye follows; easing their area instead makes them pop open in the first drawings.
+
+### Speed limits
+
+A transition must never snap or pop. Between two consecutive drawings:
+
+- scale changes by at most 5% (10% while motion-blurred);
+- a pan or scroll moves at most 40 px (250 px while motion-blurred, as `pan` is);
+- a mask edge (lens, window, iris, wipe front, crease) moves at most 90 px in its first and last three drawings, and 200 px at its peak;
+- nothing holds still and then jumps: no drawing changes more than 2.5× the drawing before it, except at a hard cut.
+
+A transition that cannot meet these at its ratio is redesigned (a smaller ratio, a colour or mask hand-off, blur), never sped up. `motion_check.py` measures them after a render: `spikes` marks `SNAP` where a non-cut transition changes too much per drawing (any drawing above 60, or two in a row above 45), `pops` lists drawings where a lot of the frame changes at once from near rest (something appeared instead of growing in), and `jerks` lists drawings that change far more than the one before. A SNAP at a non-cut seam fails review. Pops and jerks are leads, not verdicts: render every drawing around each one and look (a whip pan or a high-contrast sweep can trip them honestly; a camera that bobs, a colour that switches or a mask that jumps cannot). Before shortening a transition below its default, render it and check those lines.
+
+**Minimum lengths.** lensIn and lensOut 1.4 s (dive ≤ 2×), zoom 1.6 s (`k` ≤ 5), through 1.8 s, shape 1.3 s, iris 1.4 s, pan 0.8 s, wipe 0.8 s, bleed 1.5 s, burn 1.4 s, page 1.6 s, roll 1.3 s, fade 1.0 s.
+
+**Holds.** After any transition the new plate holds with ambient motion only: no header, stat, callout or card before `dur + 0.35`–`0.4` (a card frame that anchors the plate may open at `dur + 0.2`). One idea at a time: the eye lands, then reads.
+
+**Continuity across the cut.** The engine's momentum keeps one direction: the old plate's lead-in accelerates into the cut and runs half a second into the transition; after a push-in (lensIn, shape, iris, cut, zoom in) the new plate keeps easing in (to 1.03), and after anything else it arrives slightly enlarged and eases out to 1. The scale never reverses at the hand-off.
+
+**Cameras.** No camera starts or stops in fewer than 6 drawings (0.5 s), and none bobs back and forth: use `curve` with an easing, `softClamp` for limits (never a hard `clamp` on a camera), and `follow()` for tracking (it smooths the subject and its lead room over the last second, so a subject that moves in stops and starts still gets a gliding camera).
+
+**Rhythm.** Consecutive seams differ in verb (scale, travel, mood) and by at least 0.4 s in length. A film has at least one cut or pan. A push-in at one seam is not answered by a pull-out on the same subject at the next: hand off to travel (a pan, a follow) instead.
+
+Choose a transition by what the cut means. If `dur` is left out, each type gets the length in the table (`DEFAULT_DUR` in the engine).
 
 | Type | Use when | What happens | Dur | Sound |
 |---|---|---|---|---|
-| `lensIn` | Down the scale ladder into a **different world** (paper → night) | Anticipation dot, then the old scene dives 2.4× at the hero while a lens opens on it with the new world growing inside; 0.4 s bare hold before the title. Options: `dive`, `scaleFrom`. | 0.5–0.6 s | swell up |
-| `lensOut` | Up the scale ladder (night → paper) | The old world shrinks into a lens that travels to the new hero, while the new world pulls back from 2.4× into place. | 0.5–0.6 s | swell down |
-| `zoom` | One step on the scale ladder **within the same world** | Both plates pivot on the hero; the old scale shrinks (or grows) by `k` and fades while the new grows in; the HUD crossfades. A plate shrunk below full size is seen through a soft disc, so its world's edges never show. `dir` 'out' or 'in', `k` 6–10. | 0.7–0.9 s | glide |
-| `shape` (alias `morph`) | Match cut: **one object becomes another** | The object morphs from `from(prev, pt)` to `to(pl, t)` (closed outlines) while a circular window centred on it opens onto the new world. The outline's fill blends from the old object's colour to the new one's (sampled automatically, or set `fromFill` / `toFill`) and fades onto the real object at the end; `style(e)` can override fill and width. Plates skip their own copy while `S.morph` is true. | 1.1 s | bend + swell |
-| `pan` | Same scale, **somewhere else along the journey** (downstream, next room) | Whip pan along one long sheet: both plates slide (`dir` 'left', 'right', 'up', 'down'), motion-blurred at speed, a faint fold shadow at the join, speed lines at full speed. The corner labels travel with the sheet. | 0.8–1.0 s | whoosh |
-| `wipe` | A reveal with a direction | A curved inked front sweeps across (`dir` 'lr', 'rl', 'tb'), with spray ahead; the new plate slides in slightly behind it. | 0.6–0.8 s | whoosh |
-| `bleed` | Time passing, a change of mood, "meanwhile underground" | An ink drop falls onto the new hero (or `at: [x, y]`) and splats: a round blot, splash chains and specks spread and pool together, revealing the new plate, with ink pooled at the edge. Screen area is covered at an even rate. Options: `ink` (drop colour), `drop` (size), `fall` (share of the time spent falling), `rim`, `rimAlpha`. | 1.5 s | soft swell |
-| `burn` | Destruction, an ending, "the old idea goes up in smoke" | The old page chars from its hero (or `at`) outward: scorch, char, a flickering ember edge, then holes onto the new plate, with ash lifting off the front. Option: `rough`. | 1.3–1.6 s | crackle |
-| `iris` | A same-scale jump that needs a blink | A see-through ink curtain closes on the old hero to a dot; the dot travels to the new hero (the scenes crossfade dimly behind it) and the curtain opens there. Options: `color`, `opacity` (default 0.8). | 0.9 s | shutter |
-| `hatch` | Dreamy dissolve into a memory or a hypothetical | The new plate appears through pen strokes that thicken until they merge. | 0.7 s | hiss |
-| `page` | A chapter break: turning to the next part of the notebook | Page turn: a bottom corner lifts and is dragged across (`dir` 'left' moves the right corner leftward, the default; 'right' the reverse), the page folds along a moving crease and slides off. The back of the turning page takes the new page's look, so the new world curls into view (`back: 'old'` keeps the old page's look, with its print showing through). The old corner labels fade in place. | 1.2 s | flick |
-| `roll` | A clean reset: into the recap or the end card | The old page rolls up from the bottom edge like a window blind or projector screen (inked roll, shadow below), revealing the new page. The old corner labels fade in place. Option: `radius`. | 1.0 s | flick + thump |
+| `lensIn` | Down the scale ladder into a **different world** (paper → night) | A ring locks onto the hero, then the old scene dives 2× at it while a lens opens (edge eased) with the new world growing inside; a bare hold before the title. Options: `dive`, `scaleFrom`. | 1.6 s (1.4–2.0) | swell up |
+| `lensOut` | Up the scale ladder (night → paper) | The old world shrinks into a lens that travels to the new hero, while the new world pulls back from 2× into place. | 1.6 s (1.4–2.0) | swell down |
+| `zoom` | One step on the scale ladder **within the same world** | Both plates pivot on the hero; the old scale shrinks (or grows) by `k` and fades while the new grows in; the HUD crossfades. A plate shrunk below full size is seen through a soft disc, so its world's edges never show. `dir` 'out' or 'in', `k` 3–5 (default 4; more strobes at 24 drawings a second). | 1.6 s (1.6–2.0) | glide |
+| `shape` (alias `morph`) | Match cut: **one object becomes another** | The object morphs from `from(prev, pt)` to `to(pl, t)` (closed outlines) while a circular window centred on it opens onto the new world. The outline's fill blends from the old object's colour to the new one's (sampled automatically, or set `fromFill` / `toFill`) and fades onto the real object at the end; `style(e)` can override fill and width (blend colours with `mixColor`; a colour that switches at a threshold pops). Plates skip their own copy while `S.morph` is true. | 1.4 s (1.3–1.8) | bend + swell |
+| `pan` | Same scale, **somewhere else along the journey** (downstream, next room) | Whip pan along one long sheet: both plates slide (`dir` 'left', 'right', 'up', 'down'), motion-blurred at speed, a faint fold shadow at the join, speed lines at full speed. The corner labels travel with the sheet. | 0.8 s (0.8–1.2) | whoosh |
+| `wipe` | A reveal with a direction | A curved inked front sweeps across (`dir` 'lr', 'rl', 'tb'), with spray ahead; the new plate slides in slightly behind it. | 1.0 s | whoosh |
+| `bleed` | Time passing, a change of mood, "meanwhile underground" | An ink drop falls onto the new hero (or `at: [x, y]`), squashes on impact and splats: a round blot, splash chains and specks spread and pool together, revealing the new plate, with ink pooled at the edge. Screen area is covered at an even rate. Options: `ink` (drop colour), `drop` (size), `fall` (share of the time spent falling, default 0.3), `rim`, `rimAlpha`. | 1.6 s | soft swell |
+| `burn` | Destruction, an ending, "the old idea goes up in smoke" | The old page chars from its hero (or `at`) outward: scorch, char, a flickering ember edge, then holes onto the new plate, with ash lifting off the front. Option: `rough`. | 1.4 s | crackle |
+| `iris` | A same-scale jump that needs a blink | A see-through ink curtain closes on the old hero to a dot; the dot travels on a shallow arc to the new hero (the scenes crossfade dimly behind it) and the curtain opens there. Options: `color`, `opacity` (default 0.8). | 1.6 s | shutter |
+| `hatch` | Dreamy dissolve into a memory or a hypothetical | The new plate appears through pen strokes that thicken until they merge. | 1.2 s | hiss |
+| `page` | A chapter break: turning to the next part of the notebook | Page turn: a bottom corner lifts and is dragged across (`dir` 'left' moves the right corner leftward, the default; 'right' the reverse), the page folds along a crease that crosses the frame at an even, eased pace, and slides off. The back of the turning page takes the new page's look, so the new world curls into view (`back: 'old'` keeps the old page's look, with its print showing through). The old corner labels fade in place. | 1.6 s | flick |
+| `roll` | A clean reset: into the recap or the end card | The old page rolls up from the bottom edge like a window blind or projector screen (inked roll, shadow below), revealing the new page. The old corner labels fade in place. Option: `radius`. | 1.3 s | flick + thump |
 | `cut` | Same scale, new place, with a hard edit | Match cut: the new plate opens shifted so its hero sits where the old hero was (`match`, default 0.6 of the way), holds a beat, then eases home over `settle` s. The old plate leans in 3% beforehand; the header follows 0.25 s later. `match: 0` gives a plain hard cut. Any other transition can take `match` too. | 0 | riser + thump |
-| `through` | Going **into a surface**: a screen, a window, a pool of colour. Not for one object becoming another (that reads as a jarring zoom in and out; write a custom morph instead). | The camera dives into an object in the old plate until its colour fills the frame, the colour shifts, and the camera pulls back out of an object in the new plate, which starts where the old one was and glides home. `from` / `to`: `{ at: [x, y], r }` in scene coordinates, or `(plate, t) => …`; `fromFill` / `toFill` set the colours (set them when the anchor point sits on detail such as a spot or seam). | 1.4 s | glide up, glide down |
-| `fade` | The end card only | Crossfade. | 0.8 s | none |
+| `through` | Going **into a surface**: a screen, a window, a pool of colour. Not for one object becoming another (that reads as a jarring zoom in and out; write a custom morph instead). | The camera pushes a little into an object in the old plate (`dive`, 2.2×) while the object's colour spreads until it fills the frame; the colour shifts; then the field shrinks onto an object in the new plate as that plate settles from `rise` (1.6×) to 1. The new object starts where the old one was and glides home. `from` / `to`: `{ at: [x, y], r }` in scene coordinates, or `(plate, t) => …`; `fromFill` / `toFill` set the colours (set them when the anchor point sits on detail such as a spot or seam). | 2.0 s (1.8–2.4) | glide up, glide down |
+| `fade` | The end card only | Crossfade. | 1.0 s | none |
 
 ## Pacing a transition
 

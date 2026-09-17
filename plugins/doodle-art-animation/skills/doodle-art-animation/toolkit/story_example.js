@@ -4,15 +4,18 @@
 
    Seams (exit → entry, link, transition):
      0 → I    the drop lands in a pool of blood → a red blood cell beside NP·01 in a vein
-              link: going into a surface (the blood) and out of a red object inside it → `through`, eased, 1.6 s
+              link: going into a surface (the blood) and out of a red object inside it → `through`, 2.2 s
      I → II   NP·01, tracked along the vein → the same particle, huge, in plasma
-              link: scale (paper world → microscope world) → `lensIn`
-     II → III the coated particle → a dot in a capillary
-              link: scale back up → `lensOut`
+              link: scale (paper world → microscope world) → `lensIn`, 1.6 s
+     II → III the coated particle, carried off to the right by the plasma → a dot moving right along a capillary
+              link: travel, not scale: the flow carries the camera on (a switch-up; a pull-out here would mirror the
+              lens-in) → whip `pan` to the right, 1.2 s; plate III's own camera then pulls back to reveal the tumour
      III → IV NP·01 lodged in the tumour, camera pulled back → the particle up close, swelling with water
-              link: scale, but slower than seam I → II so the rhythm differs → `lensIn`, 0.9 s, inOutSine
+              link: scale, motivated by a slow creep and a pulsing reticle; slower than seam I → II → `lensIn`, 1.9 s
      IV → V   the eroded particle → the small particle of the end card
-              link: the same object becomes a symbol → `shape` morph, 1.3 s
+              link: the same object becomes a symbol → `shape` morph, 1.6 s
+
+   Rhythm: scale-dive 2.2 s · lens 1.6 s · whip 1.2 s · slow lens 1.9 s · morph 1.6 s. Nothing reads until a move lands.
 
    Values are rounded and illustrative; the end card says so. Checked: 1 mg of 150 nm PLGA spheres (density ≈ 1.3 g/cm³)
    is ≈ 4.3 × 10¹¹ particles; a red cell (≈ 7.5 µm) is 50× the particle; plasma holds ≈ 60–80 g of protein per litre. */
@@ -154,14 +157,14 @@ const camI = t => ({ x: W / 2, y: H / 2, s: 1.04, dx: -0.5 * (npI(t)[0] - 300), 
 const cellsI = (() => { const r = mulberry(101); return Array.from({ length: 44 }, (_, i) => ({ x0: r() * SPAN1, y: lerp(505, 815, r()), r: 30 + r() * 8, a0: r() * TAU, spin: 0.4 + r() * 0.9, seed: 200 + i })); })();
 const P1 = {
   dur: 10, dark: false,
-  enter: { type: 'through', dur: 1.6, momentum: false, from: { at: LAND, r: 30 }, to: (pl, t) => ({ at: rbcI(t), r: 32 }), fromFill: PAL.blood, toFill: PAL.blood },   // to r 32: inside the cell, so the colour field reads as its body
+  enter: { type: 'through', dur: 2.2, momentum: false, from: { at: LAND, r: 30 }, to: (pl, t) => ({ at: rbcI(t), r: 32 }), fromFill: PAL.blood, toFill: PAL.blood },   // to r 32: inside the cell, so the colour field reads as its body
   header: { num: 1, title: 'Into the Blood', sub: 'carried along at the pace of the heart' },
   stage: { n: 1, name: 'CIRCULATION', prevN: 0 },
   log: t => ({ title: 'JOURNEY LOG · NP·01', rows: [['ELAPSED', `T+ ${Math.floor(lerp(0, 9, t / 10))} s`], ['SITE', 'VEIN'], ['DIAMETER', '150 nm']], states: STATES, state: 0 }),
   cam: camI,
   hero: t => { const [x, y] = npI(t); return { x, y, label: 'NP·01', r: 36 }; },
   bed: heart(0.24, [220, 277.2, 329.6]),
-  cues: [[1.3, 'scratch', { chars: 29, cps: 40 }], [2.5, 'scratch', { chars: 34, cps: 40 }], [3.1, 'chime', { f: 660 }], [4.3, 'pop'], [4.65, 'scratch', { chars: 14 }], [6.0, 'pop'], [6.9, 'plink'], [7.25, 'plink'], [7.6, 'plink'], [7.95, 'plink']],
+  cues: [[2.6, 'scratch', { chars: 29, cps: 40 }], [3.8, 'scratch', { chars: 34, cps: 40 }], [4.2, 'chime', { f: 660 }], [4.3, 'pop'], [4.65, 'scratch', { chars: 14 }], [6.0, 'pop'], [6.9, 'plink'], [7.25, 'plink'], [7.6, 'plink'], [7.95, 'plink']],
   draw(t) {
     const v = y => 110 + 260 * (1 - ((y - 660) / 200) ** 2), x0 = -200, x1 = SPAN1;
     const tissue = shape.band(shape.ridge(x0, x1, 392, 8, 5), H + 20);
@@ -189,7 +192,7 @@ const P1 = {
     }
   },
   overlay(t) {
-    withAlpha(beat(t, 1.3, 6.7), () => stat(t - 1.3, { x: 610, y: 335, kicker: 'ONE MG OF 150 NM PLGA SPHERES', value: u => '≈ ' + countUp(435, u, 1.5) + ' billion', note: 'solid spheres, density ≈ 1.3 g/cm³' }));
+    withAlpha(beat(t, 2.6, 8.0), () => stat(t - 2.6, { x: 610, y: 335, kicker: 'ONE MG OF 150 NM PLGA SPHERES', value: u => '≈ ' + countUp(435, u, 1.5) + ' billion', note: 'solid spheres, density ≈ 1.3 g/cm³' }));
     const [ax, ay] = camPoint(camI(t), [rbcI(t)[0] + 20, rbcI(t)[1] - 30]);
     withAlpha(beat(t, 4.3, 10.0), () => callout(t - 4.3, { ax, ay, ex: 1180, ey: 300, x2: 1240, title: 'red blood cell', sub: '≈ 7.5 µm · 50× our particle (dot not to scale)' }));
     const cp = withCard(t, 6.0);
@@ -203,11 +206,11 @@ const withCard = (t, t0) => card(t - t0, { x: 490, y: 902, w: 1180, h: 142, titl
 
 /* ---------- PLATE II · the corona: a slow push and turn while the protein coat builds ---------- */
 const C2 = [960, 600], R2 = 200;
-const camII = t => ({ x: C2[0], y: C2[1], s: curve(t, [[0, 1], [10.5, 1.12, 'inOutSine']]), rot: 0.05 * E.inOutSine(clamp(t / 10.5)), dx: 300 * E.in2(inv(8.8, 10, t)) });   // at the end the flow carries it off to the right
+const camII = t => ({ x: C2[0], y: C2[1], s: curve(t, [[0, 1], [10.5, 1.12, 'inOutSine']]), rot: 0.05 * E.inOutSine(clamp(t / 10.5)), dx: 300 * E.in2(inv(8.8, 10, t)) });   // at the end the flow carries it off to the right, into the whip pan
 const protII = (() => { const r = mulberry(202); return Array.from({ length: 72 }, (_, i) => ({ a: i * 2.39996 + r() * 0.2, ta: 0.9 + 7.8 * (i / 72) ** 1.15, d0: 330 + r() * 260, r: 9 + r() * 7, kind: Math.floor(r() * 3), seed: 400 + i })); })();
 const edgeII = (a, extra, t) => camPoint(camII(t), [C2[0] + Math.cos(a) * (R2 + extra), C2[1] + Math.sin(a) * (R2 + extra)]);
 const P2 = {
-  dur: 10, dark: true, enter: { type: 'lensIn', dur: 0.6 },
+  dur: 10, dark: true, enter: { type: 'lensIn', dur: 1.6 },
   header: { num: 2, title: 'The Corona', sub: 'the blood dresses the particle in protein' },
   stage: { n: 2, name: 'CORONA', prevN: 1 },
   log: t => { const s = lerp(12, 300, E.inOut3(t / 10));
@@ -215,7 +218,7 @@ const P2 = {
   cam: camII,
   hero: () => ({ x: C2[0], y: C2[1], label: 'NP·01', r: 270 }),
   bed: darkBed([110, 164.8, 196]),
-  cues: [[0.12, 'pop'], [2.6, 'scratch', { chars: 34, cps: 40 }], [3.1, 'chime', { f: 523 }], [4.0, 'pop'], [5.3, 'pop'], [5.65, 'scratch', { chars: 20 }], ...Array.from({ length: 12 }, (_, i) => [1.0 + i * 0.62, 'plink'])],
+  cues: [[0.12, 'pop'], [3.3, 'scratch', { chars: 34, cps: 40 }], [3.8, 'chime', { f: 523 }], [4.0, 'pop'], [5.3, 'pop'], [5.65, 'scratch', { chars: 20 }], ...Array.from({ length: 12 }, (_, i) => [1.0 + i * 0.62, 'plink'])],
   draw(t) {
     const r = mulberry(210);                                                  // a dense plasma of proteins drifting past
     for (let i = 0; i < 90; i++) { const x0 = r() * (W + 400) - 200, y0 = 160 + r() * 860, sp = 30 + r() * 20, [wx, wy] = wander(i, t, 16, 0.6, 3);
@@ -234,7 +237,7 @@ const P2 = {
     }
   },
   overlay(t) {
-    withAlpha(beat(t, 0.6, 9.6), () => { const lt = t - 0.6;                  // backbone schematic, left
+    withAlpha(beat(t, 1.8, 9.6), () => { const lt = t - 1.8;                  // backbone schematic, left
       text(typed('PLGA  ·  50 : 50', lt, 30), 250, 430, { kind: 'mono', size: 18, ls: 5, align: 'center', color: '#b9b9d6' });
       const beads = Array.from({ length: 6 }, (_, i) => [130 + i * 48, 520 + (i % 2 ? 18 : -18) + 3 * Math.sin(t * 1.4 + i)]);
       ink(beads, { w: 2, color: '#b9b9d6', amp: 0, draw: E.out3(clamp(lt / 0.9)) });
@@ -244,7 +247,7 @@ const P2 = {
         if (i < 5) { ctx.beginPath(); ctx.arc((x + beads[i + 1][0]) / 2, (y + beads[i + 1][1]) / 2, 3.5 * s, 0, TAU); ctx.fillStyle = PAL.accent; ctx.fill(); } });
       text(typed('lactide  ·  glycolide', lt - 1.0, 30), 250, 580, { kind: 'mono', size: 15, align: 'center', color: PAL.nightMuted });
       text(typed('schematic · ester bonds hold it together', lt - 1.4, 30), 250, 616, { kind: 'display', size: 22, italic: true, align: 'center', color: '#9d9dbd' }); });
-    withAlpha(beat(t, 1.4, 7.0), () => stat(t - 1.4, { x: 1330, y: 580, kicker: 'PLASMA PROTEIN', value: u => '≈ ' + countUp(70, u, 1.2) + ' g per litre', note: 'a coat forms in under a minute', dark: true, size: 56 }));
+    withAlpha(beat(t, 2.1, 7.2), () => stat(t - 2.1, { x: 1330, y: 580, kicker: 'PLASMA PROTEIN', value: u => '≈ ' + countUp(70, u, 1.2) + ' g per litre', note: 'a coat forms in under a minute', dark: true, size: 56 }));
     const [sx, sy] = edgeII(0.5, 22, t);
     withAlpha(beat(t, 3.8, 9.9), () => callout(t - 3.8, { ax: sx, ay: sy, ex: 1270, ey: 800, x2: 1330, title: 'protein corona', sub: 'the body now sees the coat, not the particle', dark: true }));
     const [px, py] = edgeII(2.5, 32, t);
@@ -261,7 +264,7 @@ const PATH3 = [[700, 425], [1282, 425], [1282, 515], [1300, 600], [1330, 700], [
 const npIII = t => curve(t, [[0, PATH3[0]], [3.4, PATH3[1], 'out2'], [4.4, PATH3[2], 'inOutSine'], [5.3, PATH3[3], 'inOutSine'], [6.3, PATH3[4], 'inOutSine'], [7.2, PATH3[5], 'inOutSine']]);   // enters already moving
 const camIII = t => {
   if (t >= 8.2) return { x: PATH3[5][0], y: PATH3[5][1], s: 1 + 0.07 * E.inOutSine(inv(11.2, 12.8, t)), dx: 0, dy: 0 };   // wide, then a slow creep towards the lodged particle
-  const fol = follow(npIII, t, { s: 1.3, lead: 200, lag: 0.3, anchor: [W * 0.5, H * 0.55] }), clampCam = c => ({ ...c, dx: clamp(c.dx, -W * 0.3 * c.s, W * 0.35), dy: clamp(c.dy, -140, 140) });
+  const fol = follow(npIII, t, { s: 1.3, lead: 200, lag: 0.3, anchor: [W * 0.5, H * 0.55] }), clampCam = c => ({ ...c, dx: softClamp(c.dx, -W * 0.3 * c.s, W * 0.35, 200), dy: softClamp(c.dy, -140, 140, 120) });   // soft limits: no dead starts
   return mixCam(clampCam(fol), FULL, E.inOutSine(inv(5.6, 8.2, t))); };
 const tumorCells = (() => { const r = mulberry(303), out = [];
   for (let k = 0; k < 400 && out.length < 34; k++) { const x = lerp(1010, 1880, r()), y = lerp(585, 880, r()), rr = 34 + r() * 20;
@@ -269,14 +272,14 @@ const tumorCells = (() => { const r = mulberry(303), out = [];
     if (out.some(c => Math.hypot(c.x - x, c.y - y) < (c.r + rr) * 0.82)) continue;
     out.push({ x, y, r: rr, seed: 600 + k }); } return out; })();
 const P3 = {
-  dur: 12.8, dark: false, enter: { type: 'zoom', dir: 'out', k: 6, dur: 0.9, carry: 0.5 },   // carried out of the plasma, still moving right
+  dur: 12.8, dark: false, enter: { type: 'pan', dir: 'right', dur: 1.2 },   // the flow carries us on: the sheets keep sliding right, the way the particle was going
   header: { num: 3, title: 'Leaky Vessels', sub: 'it slips out where the walls are broken' },
   stage: { n: 3, name: 'EXTRAVASATION', prevN: 2 },
   log: t => ({ title: 'JOURNEY LOG · NP·01', rows: [['ELAPSED', `T+ ${Math.round(lerp(6, 24, E.inOut3(t / 12.8)))} h`], ['SITE', t < 4.4 ? 'CAPILLARY' : 'TUMOUR'], ['DIAMETER', '172 nm']], states: STATES, state: t < 6.2 ? 0 : 1 }),
   cam: camIII,
   hero: t => { const [x, y] = npIII(t); return { x, y, label: 'NP·01', r: 34 + 8 * inv(11.2, 12.8, t) * (0.5 + 0.5 * Math.sin(t * 7)) }; },   // the reticle pulses before the dive
   bed: heart(0.14, [196, 246.9, 293.7]),
-  cues: [[0.12, 'pop'], [1.2, 'pop'], [1.55, 'scratch', { chars: 15 }], [1.9, 'chime', { f: 587 }], [4.4, 'plink'], [5.2, 'pop'], [5.55, 'scratch', { chars: 10 }], [7.2, 'chime', { f: 784 }], [8.3, 'scratch', { chars: 23, cps: 30 }]],
+  cues: [[1.4, 'pop'], [1.75, 'scratch', { chars: 15 }], [2.1, 'chime', { f: 587 }], [4.4, 'plink'], [5.2, 'pop'], [5.55, 'scratch', { chars: 10 }], [7.2, 'chime', { f: 784 }], [8.3, 'scratch', { chars: 23, cps: 30 }]],
   draw(t) {
     const topW = shape.band(shape.ridge(-400, W + 400, 338, 3, 71), 360);
     flat(shape.rect(-400, 360, W + 800, 130), PAL.plasma);
@@ -318,9 +321,9 @@ const P3 = {
   },
   overlay(t) {
     const c = camIII(t), at = p => camPoint(c, p);
-    withAlpha(beat(t, 0.8, 6.7), () => stat(t - 0.8, { x: 720, y: 196, kicker: 'GAPS IN MANY TUMOUR VESSELS', value: u => typed('≈ 380–780 nm', u, 16), note: 'pore cut-off in most tumours tested (mice)', size: 56 }));
+    withAlpha(beat(t, 1.4, 7.3), () => stat(t - 1.4, { x: 720, y: 196, kicker: 'GAPS IN MANY TUMOUR VESSELS', value: u => typed('≈ 380–780 nm', u, 16), note: 'pore cut-off in most tumours tested (mice)', size: 56 }));
     const [jx, jy] = at([760, 505]);                                           // a junction the particle passes while the label is up
-    withAlpha(beat(t, 1.2, 6.2), () => callout(t - 1.2, { ax: jx, ay: jy, ex: 520, ey: 760, x2: 580, title: 'tight junctions', sub: 'healthy walls leave only tiny clefts' }));   // the label stays put; only its leader follows the camera
+    withAlpha(beat(t, 1.7, 6.7), () => callout(t - 1.7, { ax: jx, ay: jy, ex: 520, ey: 760, x2: 580, title: 'tight junctions', sub: 'healthy walls leave only tiny clefts' }));   // the label stays put; only its leader follows the camera
     const [gx, gy] = at([1282, 505]);
     withAlpha(beat(t, 5.2, 12.6), () => callout(t - 5.2, { ax: gx, ay: gy, ex: 1380, ey: 240, x2: 1430, title: 'EPR effect', sub: 'leaky walls, poor drainage · clearest in mice' }));
     withAlpha(beat(t, 8.3, 12.6), () => { const [lx, ly] = at([432, 1045]);   // once the wide view is back; below the cells
@@ -336,15 +339,15 @@ const R4 = t => 220 - 38 * E.inOut3(inv(1, 12, t));
 const camIV = t => ({ x: C4[0], y: C4[1], s: curve(t, [[0, 1.06], [12.5, 1.14, 'inOutSine']]), dx: 10 * Math.sin(t * 0.4) });
 const drugsIV = (() => { const r = mulberry(404); return Array.from({ length: 46 }, (_, i) => ({ a: r() * TAU, d0: Math.sqrt(r()) * 150, tr: 0.8 + 10.5 * (i / 46) ** 1.7, v: 45 + r() * 30 })); })();
 const P4 = {
-  dur: 12, dark: true, enter: { type: 'lensIn', dur: 1.1 },   // longer than seam I → II, so it reads slower
+  dur: 12, dark: true, enter: { type: 'lensIn', dur: 1.9 },   // longer than seam I → II, so it reads slower
   header: { num: 4, title: 'Slow Release', sub: 'water gets in, the drug gets out' },
   stage: { n: 4, name: 'RELEASE', prevN: 3 },
-  log: t => { const day = lerp(0, 28, inv(1.0, 11.5, t));   // the same clock as the release chart
+  log: t => { const day = lerp(0, 28, inv(2.4, 11.5, t));   // the same clock as the release chart
     return { title: 'JOURNEY LOG · NP·01', rows: [['DAY IN TUMOUR', `${Math.round(day)} of 28`], ['SITE', 'TUMOUR'], ['RELEASED', `${Math.round(rel(day))} %`]], states: STATES, state: 2 }; },
   cam: camIV,
   hero: t => ({ x: C4[0], y: C4[1], label: 'NP·01', r: R4(t) + 50 }),
   bed: (ac, out, t0, dur) => { darkBed([98, 146.8, 185])(ac, out, t0, dur); },
-  cues: [[0.12, 'pop'], [0.9, 'pop'], [2.2, 'pop'], [2.55, 'scratch', { chars: 16 }], [6.6, 'pop'], [6.95, 'scratch', { chars: 17 }], [11.6, 'chime', { f: 440 }], ...drugsIV.slice(0, 16).map(d => [d.tr + 0.2, 'plink'])],   // 0.12: a hit as the lens opens
+  cues: [[0.12, 'pop'], [2.1, 'pop'], [2.6, 'pop'], [2.95, 'scratch', { chars: 16 }], [6.6, 'pop'], [6.95, 'scratch', { chars: 17 }], [11.6, 'chime', { f: 440 }], ...drugsIV.slice(0, 16).map(d => [d.tr + 0.2, 'plink'])],   // 0.12: a hit as the lens opens
   draw(t) {
     const e = inv(1, 12, t), R = R4(t);
     const r = mulberry(410);
@@ -375,21 +378,21 @@ const P4 = {
   overlay(t) {
     const c = camIV(t), R = R4(t), at = a => camPoint(c, [C4[0] + Math.cos(a) * R, C4[1] + Math.sin(a) * R]);
     const [hx, hy] = at(-0.7);
-    withAlpha(beat(t, 2.2, 7.4), () => callout(t - 2.2, { ax: hx, ay: hy, ex: 930, ey: 290, x2: 990, title: 'ester hydrolysis', sub: 'water splits the polyester backbone', dark: true }));
+    withAlpha(beat(t, 2.6, 7.6), () => callout(t - 2.6, { ax: hx, ay: hy, ex: 930, ey: 290, x2: 990, title: 'ester hydrolysis', sub: 'water splits the polyester backbone', dark: true }));
     const [dx, dy] = at(0.95);
     withAlpha(beat(t, 6.6, 11.9), () => callout(t - 6.6, { ax: dx, ay: dy, ex: 870, ey: 895, x2: 930, title: 'drug diffuses out', sub: 'slowly, over days to weeks', dark: true }));
-    const cp = card(t - 0.9, { x: 1262, y: 380, w: 608, h: 560, dark: true, title: 'CUMULATIVE RELEASE', fig: 'FIG. 2' });
+    const cp = card(t - 2.1, { x: 1262, y: 380, w: 608, h: 560, dark: true, title: 'CUMULATIVE RELEASE', fig: 'FIG. 2' });
     if (cp > 0) {
-      const draw = inv(1.0, 11.5, t), day = lerp(0, 28, draw);
+      const draw = inv(2.4, 11.5, t), day = lerp(0, 28, draw);
       const pts = Array.from({ length: 113 }, (_, i) => [i / 4, rel(i / 4)]).filter(([d]) => d <= Math.max(day, 0.01));
-      const g = lineChart(t - 1.3, { x: 1340, y: 470, w: 480, h: 340, xr: [0, 28], yr: [0, 100], xticks: [0, 7, 14, 21, 28], yticks: [0, 25, 50, 75, 100], xlab: 'DAYS', ylab: '% OF DRUG RELEASED', dark: true,
+      const g = lineChart(t - 2.4, { x: 1340, y: 470, w: 480, h: 340, xr: [0, 28], yr: [0, 100], xticks: [0, 7, 14, 21, 28], yticks: [0, 25, 50, 75, 100], xlab: 'DAYS', ylab: '% OF DRUG RELEASED', dark: true,
         series: [{ pts: pts.length > 1 ? pts : [[0, 0], [0.01, 0]], color: PAL.accent, draw: 1, w: 3.4 }] });
       const [ex, ey] = [g.X(day), g.Y(rel(day))];
       if (draw > 0) { ctx.beginPath(); ctx.arc(ex, ey, 7, 0, TAU); ctx.fillStyle = PAL.nightInk; ctx.fill();
         text(`${Math.round(rel(day))}%`, ex + 12, ey - 12, { kind: 'mono', size: 16, weight: 600, color: PAL.nightInk }); }
       if (day > 2) text(typed('burst', (day - 2) / 3, 20), g.X(1.5), g.Y(30), { kind: 'display', size: 24, italic: true, color: PAL.gold });
       if (day > 13) text(typed('sustained', (day - 13) / 3, 20), g.X(15), g.Y(56), { kind: 'display', size: 24, italic: true, color: PAL.gold });
-      text(typed('illustrative profile · shape depends on Mw, LA:GA, size', t - 3, 40), 1286, 918, { kind: 'mono', size: 13, color: PAL.nightMuted });
+      text(typed('illustrative profile · shape depends on Mw, LA:GA, size', t - 3.6, 40), 1286, 918, { kind: 'mono', size: 13, color: PAL.nightMuted });
     }
   },
 };
@@ -397,13 +400,13 @@ const P4 = {
 /* ---------- END CARD: the eroded particle becomes the card's emblem ---------- */
 const P5 = {
   dur: 10.5, dark: true, counter: false,
-  enter: { type: 'shape', dur: 1.3,
+  enter: { type: 'shape', dur: 1.6,
     from: (pl, t) => { const c = camIV(t), [x, y] = camPoint(c, C4); return shape.blob(x, y, R4(t) * c.s, 45, 0.13, 64); },
     to: () => shape.circle(960, 380, 44, 64), fromFill: PAL.plga, toFill: PAL.plga },
   focus: () => [960, 380],
   cam: t => ({ x: 960, y: 380, s: 1 + 0.05 * E.inOutSine(clamp(t / 10.5)), dx: 14 * Math.sin(t * 0.6), dy: 8 * Math.sin(t * 0.45), rot: 0.02 * Math.sin(t * 0.3) }),   // a slow drift; the text in overlay stays put
   bed: (ac, out, t0, dur) => SFX.pad(ac, out, t0, { dur: dur - 0.5, notes: [130.8, 196, 246.9, 329.6], g: 0.02, dark: true }),
-  cues: [[0.12, 'pop'], [1.2, 'chime', { f: 392 }], [1.8, 'scratch', { chars: 29, cps: 20 }], [3.3, 'chime', { f: 587 }]],   // 0.12: a hit as the morph begins
+  cues: [[0.12, 'pop'], [1.2, 'chime', { f: 392 }], [2.0, 'scratch', { chars: 29, cps: 20 }], [3.5, 'chime', { f: 587 }]],   // 0.12: a hit as the morph begins
   draw(t) {
     const [cx, cy] = [960, 380], a = E.out3(inv(0.3, 1.4, t));
     const dust = mulberry(1300);                                              // drifting motes behind everything
@@ -424,10 +427,10 @@ const P5 = {
   },
   overlay(t) {
     const cx = 960, q = 'Every dose is a slow journey.', qo = { kind: 'display', size: 60, italic: true, color: PAL.nightInk, cps: 20 };
-    dropText(q, cx - measure(q, qo) / 2, 610, t - 1.8, qo);
+    dropText(q, cx - measure(q, qo) / 2, 610, t - 2.0, qo);
     const rl = E.out3(inv(3.3, 4.1, t)); if (rl > 0) ink([[cx - 320 * rl, 650], [cx + 320 * rl, 650]], { w: 1.2, color: PAL.peri, amp: 0, alpha: 0.7 });
     const col = `THE LONG RELEASE  ·  4 PLATES  ·  ${fmt(TOTAL_F)} FRAMES  ·  DRAWN IN CODE`, co = { kind: 'mono', size: 20, ls: 6, color: '#9fa0c8' };
-    text(typed(col, t - 2.8, 60), cx - measure(col, co) / 2, 700, co);
+    text(typed(col, t - 3.0, 60), cx - measure(col, co) / 2, 700, co);
     const src = 'NOTES  ·  VALUES ARE ROUNDED AND ILLUSTRATIVE  ·  EPR IS VARIABLE IN PATIENTS  ·  NOT A SPECIFIC FORMULATION', so = { kind: 'mono', size: 15, ls: 5, color: PAL.nightMuted };
     text(typed(src, t - 3.4, 60), cx - measure(src, so) / 2, 930, so);
     const refs = ['SOURCES  ·  PROTEIN CORONA: TENZER ET AL., NAT. NANOTECHNOL. 2013  ·  TUMOUR PORES: HOBBS ET AL., PNAS 1998',
