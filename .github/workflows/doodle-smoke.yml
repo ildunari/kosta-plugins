@@ -1,0 +1,93 @@
+name: Doodle toolkit smoke test
+
+# Builds every story*.js in the doodle-art-animation toolkit, renders 3 stills of each in headless
+# Chromium, and renders a short MP4 segment with audio. See docs/doodle-art-animation/DEVELOPING.md.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "plugins/doodle-art-animation/**"
+      - ".github/workflows/doodle-smoke.yml"
+  pull_request:
+    paths:
+      - "plugins/doodle-art-animation/**"
+      - ".github/workflows/doodle-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: doodle-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TOOLKIT: plugins/doodle-art-animation/skills/doodle-art-animation/toolkit
+      SMOKE_WORKERS: "2"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffmpeg -version | head -1
+
+      - name: Install numpy
+        run: python -m pip install --upgrade numpy
+
+      - name: Install Playwright and Chromium
+        # Installed outside the repo; smoke_test.py symlinks this node_modules next to its copied toolkit,
+        # which is where render.mjs looks for playwright first.
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir -p pw && cd pw
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund playwright@1
+          npx playwright install --with-deps chromium
+          npx playwright --version
+
+      - name: Run smoke test
+        run: >
+          python "$TOOLKIT/smoke_test.py"
+          --workers "$SMOKE_WORKERS"
+          --work "$RUNNER_TEMP/smoke"
+          --node-modules "$RUNNER_TEMP/pw/node_modules"
+
+      - name: Upload contact sheets
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: doodle-smoke-sheets
+          path: |
+            ${{ runner.temp }}/smoke/smoke_qa/sheet_*.jpg
+            ${{ runner.temp }}/smoke/smoke_qa/summary.json
+          retention-days: 7
+          if-no-files-found: warn
+
+      - name: Upload QA output (failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: doodle-smoke-failure
+          path: |
+            ${{ runner.temp }}/smoke/smoke_qa/
+            !${{ runner.temp }}/smoke/smoke_qa/**/*_frames/**
+          retention-days: 14
+          if-no-files-found: warn
