@@ -58,7 +58,7 @@ const p1At = t => along(PATH1, E.inOutSine(clamp(t / 7.5)));
 const S1 = [[0, 12], [1, 18], [2, 16], [3, 27], [4, 31], [5, 29], [6, 42], [7, 48], [8, 45], [9, 61], [10, 70]];
 const S2 = [[0, 30], [1, 28], [2, 33], [3, 30], [4, 36], [5, 34], [6, 38], [7, 37], [8, 41], [9, 40], [10, 44]];
 const C1 = {
-  dur: 7.5, dark: false, enter: { type: 'zoom', dur: 0.8, dir: 'in', k: 6 },
+  dur: 7.5, dark: false, enter: { type: 'zoom', dir: 'in', k: 6 },
   header: { num: 1, title: 'Tracking', sub: 'follow() with a card that must not move' }, stage: { n: 2, name: 'TRACK' },
   log: t => ({ title: `LOG · ${HERO}`, rows: [['DISTANCE', `${fmt(Math.round(lerp(0, 2400, t / 7.5)))} m`], ['SIGNAL', `${Math.round(lerp(12, 70, clamp(t / 6)))} %`]] }),
   cam: t => follow(p1At, t, { s: 1.1, lead: 200, anchor: [700, 620] }),
@@ -114,7 +114,7 @@ const C2 = {
 /* ---------- plate 3 · lens in (night): an inset lens and a dark card with a chart, while the camera turns ---------- */
 const C3c = [900, 560];
 const C3 = {
-  dur: 7, dark: true, enter: { type: 'lensIn', dur: 0.6 },
+  dur: 7, dark: true, enter: { type: 'lensIn' },
   header: { num: 3, title: 'In the Water', sub: 'an inset lens and a dark chart' }, stage: { n: 4, name: 'INSIDE' },
   cam: t => ({ x: C3c[0], y: C3c[1], s: 1 + 0.08 * E.inOutSine(t / 7), rot: 0.07 * Math.sin(t * 0.45) }),
   hero: t => { const [dx, dy] = wander(3, t, 10, 1.4); return { x: C3c[0] + dx, y: C3c[1] + dy, label: HERO, r: 56 }; },
@@ -208,7 +208,7 @@ function softRevealR(p) { return zlerp(20, coverR(960, 540) + 300, E.inOut3(inv(
 
 /* ---------- plate 7 · lens out to paper; an overlay lens is open when the iris closes ---------- */
 const C7 = {
-  dur: 6.5, dark: false, enter: { type: 'lensOut', dur: 0.6 },
+  dur: 6.5, dark: false, enter: { type: 'lensOut' },
   header: { num: 7, title: 'Back Up', sub: 'a lens that is open across the next seam' }, stage: { n: 8, name: 'SURFACE' },
   hero: t => ({ x: 1100, y: 600 + 6 * Math.sin(t * 2), label: HERO, r: 40 }),
   cam: t => ({ x: 1100, y: 600, s: 1.02 + 0.05 * E.inOutSine(t / 6.5) }),

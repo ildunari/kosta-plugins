@@ -22,15 +22,15 @@ function nightScene(t, k) {
     ink(shape.circle(x, y, 10 + r() * 8, 18), { closed: true, w: 1.6, color: PAL.nightInk, fill: PAL.navyFill, amp: 0.3, seed: i }); }
   if (!S.morph) ink(shape.circle(hx, hy, 40, 32), { closed: true, w: 2, color: PAL.nightInk, fill, seed: 9 + k });
 }
-const mk = (i, type, dark, extra = {}) => ({ dur: 2.4, dark, enter: { type, ...extra }, hero: heroAt(i), header: { num: i, title: `Scene ${i}`, sub: `came in by ${type}` },
+const mk = (i, type, dark, extra = {}) => ({ dur: i === 15 ? 6 : 5, dark, enter: { type, ...extra }, hero: heroAt(i), header: { num: i, title: `Scene ${i}`, sub: `came in by ${type}` },
   draw(t, pl) { dark ? nightScene(t, i) : paperScene(t, i, pl); } });
 const circAt = (k, r) => () => { const [x, y] = HEROS[k % HEROS.length]; return shape.circle(x, y, r, 48); };
 const P = [
-  { dur: 2.4, dark: false, hero: heroAt(0), header: { num: 0, title: 'Scene 0', sub: 'start' }, draw(t) { paperScene(t, 0); } },
-  mk(1, 'lensIn', true, { dur: 0.6 }), mk(2, 'lensOut', false, { dur: 0.6 }), mk(3, 'pan', false, { dur: 0.8, dir: 'left' }),
-  mk(4, 'wipe', false, { dur: 0.8 }), mk(5, 'bleed', true), mk(6, 'zoom', true, { dur: 0.8, dir: 'in', k: 6 }),
+  { dur: 3.6, dark: false, hero: heroAt(0), header: { num: 0, title: 'Scene 0', sub: 'start' }, draw(t) { paperScene(t, 0); } },
+  mk(1, 'lensIn', true), mk(2, 'lensOut', false), mk(3, 'pan', false, { dur: 0.8, dir: 'left' }),
+  mk(4, 'wipe', false), mk(5, 'bleed', true), mk(6, 'zoom', true, { dir: 'in', k: 6 }),
   mk(7, 'shape', false, { dur: 1.1, from: circAt(6, 40), to: () => STAR(...HEROS[0], 95) }), mk(8, 'iris', false),
-  mk(9, 'burn', false), mk(10, 'cut', false), mk(11, 'hatch', true, { dur: 0.8 }), mk(12, 'page', false), mk(13, 'roll', true), mk(14, 'page', false, { dir: 'right' }), mk(15, 'through', false, { from: { at: HEROS[0], r: 70 }, to: { at: HEROS[1], r: 70 } }),
+  mk(9, 'burn', false), mk(10, 'cut', false), mk(11, 'hatch', true), mk(12, 'page', false), mk(13, 'roll', true), mk(14, 'page', false, { dir: 'right' }), mk(15, 'through', false, { from: { at: HEROS[0], r: 70 }, to: { at: HEROS[1], r: 70 } }),
 ];
 defineStory({ title: 'Transition Reel', stages: 1, music: { tonic: 220 }, plates: P });
 boot();

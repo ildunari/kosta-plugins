@@ -101,9 +101,9 @@ CI: `.github/workflows/doodle-smoke.yml` runs it on ubuntu-latest for pushes to 
 ## Engine rules that must not break
 
 - `renderFrame(f)` is a pure function of `f`. No `Math.random`, `Date`, `performance.now`, or state carried between frames. Use `mulberry(seed)` and `hash3()`.
-- Animation is on twos: `S.boil = floor(f / 2)`, and `render.mjs` keeps frame pairs on the same worker.
-- Every `TRANS[type](p, X)` returns the share (0..1) of the frame owned by the new plate. A new transition also needs `HEADER_DELAY` and `TRANS_SFX` entries, and `LEAD`/`SETTLE` entries if it zooms. Test it in the reel.
-- `LEAD` and `SETTLE` values stay at or above 1. Scaling a plate below 1 exposes its edges.
+- Drawings are on twos except inside transitions (and 0.6 s either side), which `onOnes(f)` puts on ones; the line boil stays on twos (`S.boil = floor(f / 2)`), and `render.mjs` keeps frame pairs on the same worker. Never reuse a frame for its pair.
+- Every `TRANS[type](p, X)` returns the share (0..1) of the frame owned by the new plate. A new transition needs a `TRANS_SFX` entry, a `DEFAULT_DUR` that meets the speed limits in `references/motion.md`, and a `LEAD` plus a `PUSH` or `SETTLE` entry if it zooms (headers wait `dur + 0.35` unless `HEADER_DELAY` says otherwise). Masks ease their edge, not their area. Test it in the reel and run `motion_check.py` on the render: no `SNAP`, pop or jerk.
+- `LEAD`, `PUSH_ON` and `SETTLE` values stay at or above 1 (scaling a plate below 1 exposes its edges), and momentum keeps one direction through a cut: push-in types keep easing in, the rest ease out.
 - The HUD and hero reticle never scale with the camera or a transition.
 - Offscreen layer slots: transitions use slot 1 (bleed, hatch) and slot 2 (page). Stories should use slot 0 or 3 and up.
 - Stories never edit `engine.js`; they override `PAL` and add helpers. If the engine changes, re-run the example and the reel.

@@ -121,9 +121,9 @@ const P1 = {
   dur: 7.5, dark: false, enter: { type: 'pan', dur: 1.0, dir: 'left' },
   header: { num: 1, title: 'The Valley', sub: 'where the river collects the rain' }, stage: { n: 1, name: 'RUNOFF', prevN: 0 },
   log: t => ({ title: `JOURNEY LOG · ${HERO}`, rows: [['ELAPSED', `T+ ${Math.floor(lerp(0, 40, t / 7.5))} min`], ['ALTITUDE', `${fmt(Math.round(lerp(640, 120, t / 7.5)))} m`]], states: STATES, state: 1 }),
-  cam: t => ({ x: W / 2, y: H / 2, s: 1, dx: -clamp(riverAt(t - 0.4)[0] - 820, 0, WORLD - W) }),
+  cam: t => ({ x: W / 2, y: H / 2, s: 1, dx: -softClamp(riverAt(t - 0.4)[0] - 820, 0, WORLD - W, 260) }),   // soft limits: the camera eases into and out of the follow
   hero: t => { const [x, y] = riverAt(t); return { x, y, label: HERO, r: 30 }; },
-  cues: [[1.3, 'scratch', { chars: 30 }], [2.5, 'chime', { f: 660 }], [4.4, 'pop'], [4.6, 'scratch', { chars: 14 }]],
+  cues: [[1.3, 'scratch', { chars: 30 }], [2.6, 'chime', { f: 660 }], [3.6, 'pop'], [3.8, 'scratch', { chars: 14 }]],
   draw(t) {
     const c = P1.cam(t);
     parallax(c, 0.15, () => { lobedCloud(1480, 430, SMALL_CLOUD, { seed: 25 }); lobedCloud(2500, 400, SMALL_CLOUD, { seed: 26 }); sun(1340, 200, t); });
@@ -133,9 +133,9 @@ const P1 = {
     TREES.forEach(([x, s], i) => tree(x, groundY(x), s, 120 + i * 5, t));
   },
   overlay(t) {
-    withAlpha(beat(t, 1.1, 4.1), () => stat(t - 1.1, { x: 700, y: 330, kicker: 'RAIN ON THIS VALLEY, EACH YEAR', value: u => '≈ ' + countUp(1200, u, 1.3) + ' mm', note: '1,200 litres on every square metre' }));
+    withAlpha(beat(t, 1.3, 6.2), () => stat(t - 1.3, { x: 700, y: 330, kicker: 'RAIN ON THIS VALLEY, EACH YEAR', value: u => '≈ ' + countUp(1200, u, 1.3) + ' mm', note: '1,200 L on each square metre' }));
     const h = heroOf(P1, t);
-    withAlpha(beat(t, 4.4, 7.2), () => callout(t - 4.4, { ax: h.x, ay: h.y - 12, ex: h.x - 70, ey: 330, x2: h.x - 130, align: 'right', title: 'surface runoff', sub: 'what the ground cannot take flows downhill' }));
+    withAlpha(beat(t, 3.6, 7.45), () => callout(t - 3.6, { ax: h.x, ay: h.y - 12, ex: h.x - 70, ey: 470, x2: h.x - 130, align: 'right', title: 'surface runoff', sub: 'the rest flows downhill' }));
   },
 };
 /* ---------- plate II · inside the drop (lens in): molecules jiggle, bonds flicker, the camera turns slowly ---------- */
@@ -147,12 +147,12 @@ const molAt = (m, t) => {                                                     //
   const ux = (m.x - C2[0]) / RX, uy = (m.y - C2[1]) / RY, a = 0.16 * t * (1.3 - Math.hypot(ux, uy)), c = Math.cos(a), sn = Math.sin(a);
   const [dx, dy] = wander(m.i, t, 13, 2.2, 5); return [C2[0] + (ux * c - uy * sn) * RX + dx, C2[1] + (ux * sn + uy * c) * RY + dy]; };
 const P2 = {
-  dur: 6.5, dark: true, enter: { type: 'lensIn', dur: 0.55 },
+  dur: 7, dark: true, enter: { type: 'lensIn', dur: 1.6 },
   header: { num: 2, title: 'Inside the Drop', sub: 'a crowd of molecules holding hands' }, stage: { n: 2, name: 'LIQUID' },
   log: t => ({ title: `JOURNEY LOG · ${HERO}`, rows: [['ELAPSED', 'T+ 40 min'], ['SIZE', '≈ 0.3 nm']], states: STATES, state: 1 }),
   cam: t => ({ x: C2[0], y: C2[1], s: 1 + 0.08 * E.inOutSine(t / 6.5), rot: 0.08 * Math.sin(t * 0.45) }),
   hero: t => { const [dx, dy] = wander(99, t, 8, 1.6, 5); return { x: C2[0] + dx, y: C2[1] + dy, label: HERO, r: 64 }; },
-  cues: [[1.6, 'scratch', { chars: 15 }], [3.0, 'chime', { f: 440 }], [3.8, 'pop'], [4.0, 'scratch', { chars: 14 }], ...Array.from({ length: 6 }, (_, i) => [0.9 + i * 0.45, 'plink', { f: note(880, i) }])],
+  cues: [[2.0, 'scratch', { chars: 15 }], [3.3, 'chime', { f: 440 }], [3.0, 'pop'], [3.3, 'scratch', { chars: 14 }], ...Array.from({ length: 6 }, (_, i) => [0.9 + i * 0.45, 'plink', { f: note(880, i) }])],
   draw(t) {
     const pts = MOLS.map(m => molAt(m, t)), hx = P2.hero(t);
     for (let a = 0; a < pts.length; a++) for (let b = a + 1; b < pts.length; b++) {    // hydrogen bonds blink on and off
@@ -163,21 +163,21 @@ const P2 = {
     if (!S.morph) molecule(hx.x, hx.y, 40, 99, 0.3 * Math.sin(t * 1.7));
   },
   overlay(t) {
-    withAlpha(beat(t, 1.6, 5.0), () => stat(t - 1.6, { x: 1540, y: 420, kicker: 'IN ONE RAINDROP', value: u => '≈ ' + countUp(1.4, u, 1.3, 1) + ' × 10' + SUP('20'), note: 'molecules in a 2 mm drop', dark: true, size: 54 }));
+    withAlpha(beat(t, 2.0, 6.5), () => stat(t - 2.0, { x: 1540, y: 420, kicker: 'IN ONE RAINDROP', value: u => '≈ ' + countUp(1.4, u, 1.3, 1) + ' × 10' + SUP('20'), note: 'molecules in a 2 mm drop', dark: true, size: 54 }));
     const h = heroOf(P2, t);
-    withAlpha(beat(t, 3.8), () => callout(t - 3.8, { ax: h.x - 40, ay: h.y + 30, ex: 520, ey: 770, x2: 470, align: 'right', title: 'hydrogen bonds', sub: 'each held by up to four', dark: true }));
+    withAlpha(beat(t, 3.0), () => callout(t - 3.0, { ax: h.x - 40, ay: h.y + 30, ex: 520, ey: 770, x2: 470, align: 'right', title: 'hydrogen bonds', sub: 'each held by up to four', dark: true }));
   },
 };
 /* ---------- plate III · the cloud within (zoom out 8×): droplets drift on an updraft ---------- */
 const DROPS = (() => { const r = mulberry(51); return Array.from({ length: 260 }, (_, i) => { const a = r() * TAU, d = 60 + Math.sqrt(r()) * 620, z = r();
   return { x: C2[0] + Math.cos(a) * d * 1.2, y: C2[1] + Math.sin(a) * d * 0.7, r: 2 + z * 7, z, i }; }).sort((p, q) => p.z - q.z); })();   // z: far (0) to near (1)
 const P3 = {
-  dur: 6.5, dark: true, enter: { type: 'zoom', dur: 0.8, dir: 'out', k: 8 },
+  dur: 7, dark: true, enter: { type: 'zoom', dur: 1.7, dir: 'out', k: 5 },
   header: { num: 3, title: 'The Cloud Within', sub: 'a million of these make one raindrop' }, stage: { n: 3, name: 'CLOUD' },
   log: t => ({ title: `JOURNEY LOG · ${HERO}`, rows: [['ELAPSED', 'T+ 3 h'], ['SIZE', '≈ 20 µm']], states: STATES, state: 1 }),
   cam: t => ({ x: C2[0], y: C2[1], s: 1 + 0.07 * E.inOutSine(t / 6.5), dy: -12 * t, rot: 0.03 * Math.sin(t * 0.5) }),
   hero: t => ({ x: C2[0], y: C2[1] + 6 * Math.sin(t * 1.4), label: HERO, r: 30 }),
-  cues: [[1.3, 'scratch', { chars: 23 }], [2.4, 'chime', { f: 392 }], [2.9, 'pop'], [3.4, 'scratch', { chars: 30 }], [0, 'noise', { dur: 6.5, g: 0.03, f0: 500, f1: 900, q: 0.6, a: 1.5 }]],
+  cues: [[2.1, 'scratch', { chars: 23 }], [3.3, 'chime', { f: 392 }], [3.2, 'pop'], [3.7, 'scratch', { chars: 30 }], [0, 'noise', { dur: 7, g: 0.03, f0: 500, f1: 900, q: 0.6, a: 1.5 }]],
   draw(t) {
     for (let i = 0; i < 7; i++) flow([[300 + i * 230, 1040], [330 + i * 230 + 40 * Math.sin(i), 620], [300 + i * 230, 180]], t, { speed: 160, gap: 150, len: 60, color: PAL.nightMuted, w: 1.8, alpha: 0.6, seed: 30 + i });
     for (const d of DROPS) {                                                   // near droplets are bigger, brighter and rise faster (depth)
@@ -186,23 +186,23 @@ const P3 = {
     if (!S.morph) ink(shape.circle(C2[0], C2[1] + 6 * Math.sin(t * 1.4), 9, 20), { closed: true, w: 1.6, color: PAL.nightInk, fill: PAL.navyFill, amp: 0.2, seed: 7 });
   },
   overlay(t) {
-    stat(t - 1.3, { x: 1280, y: 420, kicker: 'A TYPICAL CLOUD DROPLET', value: u => '≈ ' + countUp(20, u, 1.2) + ' µm', note: 'about 70,000 molecules across', dark: true, size: 54 });
-    const k = card(t - 2.9, { x: 470, y: 890, w: 980, h: 150, dark: true, title: 'SIZE LADDER', fig: 'LOG SCALE' });
-    if (k > 0) logRuler(t - 3.4, { x: 510, y: 985, w: 900, min: 1e-10, max: 1e-2, dark: true,
+    stat(t - 2.1, { x: 1280, y: 420, kicker: 'A TYPICAL CLOUD DROPLET', value: u => '≈ ' + countUp(20, u, 1.2) + ' µm', note: 'about 70,000 molecules across', dark: true, size: 54 });
+    const k = card(t - 3.2, { x: 470, y: 890, w: 980, h: 150, dark: true, title: 'SIZE LADDER', fig: 'LOG SCALE' });
+    if (k > 0) logRuler(t - 3.7, { x: 510, y: 985, w: 900, min: 1e-10, max: 1e-2, dark: true,
       ticks: [[1e-9, '1 nm'], [1e-6, '1 µm'], [1e-3, '1 mm']],
       marks: [{ v: 2.8e-10, label: 'MOLECULE', t0: 0.5 }, { v: 2e-5, label: 'CLOUD DROPLET', color: PAL.accent, t0: 0.9 }, { v: 2e-3, label: 'RAINDROP', t0: 1.3 }] });
   },
 };
 /* ---------- plate IV · a raindrop (shape reveal): the drop wobbles while the world scrolls up past it ---------- */
 const P4 = {
-  dur: 7, dark: false,
-  enter: { type: 'shape', dur: 0.9, from: () => shape.circle(C2[0], C2[1], 9, 20), to: () => BUN(960, 400, 110),
-    style: e => ({ color: e > 0.5 ? PAL.ink : PAL.nightInk, fill: e > 0.5 ? PAL.drop : PAL.navyFill, w: lerp(1.6, 3.2, e) }) },
+  dur: 7.5, dark: false,
+  enter: { type: 'shape', dur: 1.6, from: () => shape.circle(C2[0], C2[1], 9, 20), to: () => BUN(960, 400, 110),
+    style: e => { const k = E.inOutSine(inv(0.3, 0.7, e)); return { color: mixColor(PAL.nightInk, PAL.ink, k), fill: mixColor(PAL.navyFill, PAL.drop, k), w: lerp(1.6, 3.2, e) }; } },   // blend, never switch: a switch pops
   header: { num: 4, title: 'A Raindrop', sub: 'not a teardrop: a bun with a flat belly' }, stage: { n: 4, name: 'FALL' },
   log: t => ({ title: `JOURNEY LOG · ${HERO}`, rows: [['ELAPSED', 'T+ 3 h 20 min'], ['ALTITUDE', `${fmt(Math.round(lerp(1200, 300, t / 7)))} m`]], states: STATES, state: 1 }),
   drift: false,
   hero: t => ({ x: 960, y: 400 + 8 * Math.sin(t * 2.2), label: HERO, r: 140 }),
-  cues: [[1.0, 'pop'], [1.2, 'scratch', { chars: 17 }], [2.8, 'pop'], [4.8, 'hiss', { dur: 0.9 }], [0, 'noise', { dur: 7, g: 0.05, f0: 900, q: 0.5, a: 1 }]],
+  cues: [[2.0, 'pop'], [2.2, 'scratch', { chars: 17 }], [2.8, 'pop'], [4.8, 'hiss', { dur: 0.9 }], [0, 'noise', { dur: 7, g: 0.05, f0: 900, q: 0.5, a: 1 }]],
   draw(t) {
     const fall = E.inOutSine(clamp(t / 7));
     ctx.save(); ctx.translate(0, -700 * fall);                                  // the sky slides up as we fall
@@ -216,11 +216,11 @@ const P4 = {
   },
   overlay(t) {
     const { y } = P4.hero(t);
-    withAlpha(beat(t, 1.0), () => callout(t - 1.0, { ax: 1050, ay: y + 25, ex: 1180, ey: 300, x2: 1240, title: 'flattened by drag', sub: 'air pushes up the belly; big drops flatten most' }));
+    withAlpha(beat(t, 2.0), () => callout(t - 2.0, { ax: 1050, ay: y + 25, ex: 1180, ey: 300, x2: 1240, title: 'flattened by drag', sub: 'air pushes up the belly; big drops flatten most' }));
     const m = TEAR(420, 380, 60), ea = eraseOut(m, inv(4.8, 5.8, t));           // the myth: drawn, crossed out, rubbed out
     withAlpha(beat(t, 2.8) * ea, () => { ink(m, { closed: true, w: 2.4, color: PAL.muted, fill: PAL.panel, amp: 0.8, seed: 8, draw: inv(2.8, 3.4, t), fillReveal: 'sweep' });
       pen([[350, 310], [490, 460]], { w: 4, color: PAL.accent, draw: inv(3.4, 3.7, t), taper: 0.2 }); pen([[490, 310], [350, 460]], { w: 4, color: PAL.accent, draw: inv(3.6, 3.9, t), taper: 0.2 });
-      text(typed('not a teardrop', t - 3.7, 30), 420, 510, { kind: 'sans', size: 24, weight: 600, align: 'center' }); });
+      text(typed('not a teardrop', t - 3.45, 30), 420, 510, { kind: 'sans', size: 24, weight: 600, align: 'center' }); });
   },
 };
 /* ---------- plate V · the whole route (ink bleed): a coast cross-section, every flow at once ---------- */
@@ -242,7 +242,7 @@ function snowcap(pts, yLine, seed) {                                           /
 }
 const routeU = t => E.inOut3(inv(1.8, 8.4, t));
 const P5 = {
-  dur: 10, dark: false, enter: { type: 'bleed', dur: 1.4 },
+  dur: 10, dark: false, enter: { type: 'bleed', dur: 1.6 },
   cam: t => ({ x: 640, y: 440, s: kf(t, [[0, 1.6], [3.0, 1.0], [10, 1.08]], E.inOut3), dx: kf(t, [[0, 60], [3.0, 0], [10, -150]], E.inOutSine) }),
   header: { num: 5, title: 'The Whole Route', sub: 'every plate, retraced' }, stage: { n: 5, name: 'RETURN' },
   log: t => { const u = routeU(t); return { title: `JOURNEY LOG · ${HERO}`, rows: [['ELAPSED', `T+ ${Math.max(1, Math.round(9 * u))} day${Math.round(9 * u) > 1 ? 's' : ''}`], ['PLACE', u < 0.12 ? 'CLOUD' : u < 0.3 ? 'SLOPE' : u < 0.68 ? 'RIVER' : u < 0.86 ? 'SEA' : 'AIR']],
@@ -274,7 +274,7 @@ const P5 = {
   },
   overlay(t) {
     const c = P5.cam(t), lab = (s, x, y, k, o = {}) => withAlpha(E.out3(inv(1.8 + k * 0.5, 2.4 + k * 0.5, t)), () => text(s, x, y, { kind: 'mono', size: 15, weight: 600, ls: 3, color: PAL.inkSoft, ...o }));
-    if (c.s < 1.02) { lab('EVAPORATION', 1745, 560, 0); lab('RAIN', 690, 470, 1); lab('RUNOFF', 1000, 720, 2, { color: '#1f3f48' }); lab('GROUNDWATER', 800, 852, 3, { color: '#e8f3f5' }); }
+    if (c.s < 1.02) { lab('EVAPORATION', 1745, 560, 0); lab('RAIN', 560, 470, 1); lab('RUNOFF', 1000, 720, 2, { color: '#1f3f48' }); lab('GROUNDWATER', 800, 852, 3, { color: '#e8f3f5' }); }
     withAlpha(beat(t, 3.2), () => stat(t - 3.2, { x: 820, y: 330, kicker: 'WATER VAPOUR STAYS ALOFT', value: u => '≈ ' + countUp(9, u, 1.2) + ' days', note: 'on average, before it rains out' }));
     const k = card(t - 5.6, { x: 470, y: 890, w: 980, h: 150, title: 'WHERE A YEAR OF VALLEY RAIN GOES', fig: 'ILLUSTRATIVE SPLIT' });
     if (k > 0) {
@@ -290,9 +290,9 @@ const P5 = {
 };
 /* ---------- end card (page roll): ripples spread from the drop ---------- */
 const END = {
-  dur: 5.5, dark: true, enter: { type: 'page', dur: 1.2 }, counter: false, focus: () => [960, 400],
+  dur: 10, dark: true, enter: { type: 'page', dur: 1.6 }, counter: false, focus: () => [960, 400],
   hero: t => ({ x: 960, y: 400, r: 70, tag: false, alpha: inv(0.3, 1, t) }),
-  cues: [[1.0, 'chime', { f: 392 }], [0.6, 'scratch', { chars: 34, cps: 22 }], [1.8, 'plink', { f: 880 }], [3.4, 'plink', { f: 660 }]],
+  cues: [[2.0, 'scratch', { chars: 34, cps: 22 }], [2.3, 'chime', { f: 392 }], [3.6, 'plink', { f: 880 }], [4.6, 'plink', { f: 660 }]],
   draw(t) {
     for (let k = 0; k < 4; k++) { const q = ((t - 1.0 + k * 0.45) % 1.8) / 1.8; if (t < 1.0 - k * 0.45 + 0.001 || q < 0) continue;   // ripples, one every 0.45 s
       ink(shape.ellipse(960, 400, 80 + q * 420, (80 + q * 420) * 0.42, 0, 64), { closed: true, w: 3 - 1.5 * q, color: '#b9bbef', alpha: 0.9 * (1 - q), amp: 0.5, seed: k }); }
@@ -301,12 +301,12 @@ const END = {
     for (let i = 0; i < 40; i++) { const a = i / 40 * TAU + t * (0.35 + (i % 3) * 0.12), [dx, dy] = wander(i, t, 16, 1.1), rr = 150 + 70 * Math.sin(i * 1.7);
       withAlpha(inv(0.4, 1.2, t) * 0.9, () => ink(shape.circle(960 + Math.cos(a) * rr + dx, 400 + Math.sin(a) * rr * 0.6 + dy, 3 + (i % 4), 10), { closed: true, w: 1.2, color: '#9fb4ff', fill: 'rgba(80,110,200,0.6)', amp: 0.2, seed: i })); }
     const q = 'Every drop is on its way somewhere.', qo = { kind: 'display', size: 56, italic: true, color: PAL.nightInk, cps: 22 };
-    dropText(q, 960 - measure(q, qo) / 2, 640, t - 0.6, qo);
-    const rl = E.out3(inv(2.2, 2.9, t)); if (rl > 0) pen([[960 - 300 * rl, 676], [960 + 300 * rl, 676]], { w: 1.4, color: PAL.peri, taper: 0.3 });
+    dropText(q, 960 - measure(q, qo) / 2, 640, t - 2.0, qo);
+    const rl = E.out3(inv(3.6, 4.3, t)); if (rl > 0) pen([[960 - 300 * rl, 676], [960 + 300 * rl, 676]], { w: 1.4, color: PAL.peri, taper: 0.3 });
     const col = `ONE DROP  ·  5 PLATES  ·  ${fmt(TOTAL_F)} FRAMES  ·  DRAWN IN CODE`, co = { kind: 'mono', size: 20, ls: 6, color: '#9fa0c8' };
-    text(typed(col, t - 2.4, 60), 960 - measure(col, co) / 2, 724, co);
+    text(typed(col, t - 3.6, 60), 960 - measure(col, co) / 2, 724, co);
     const src = 'NOTES  ·  ROUNDED VALUES  ·  THE VALLEY SPLIT IS ILLUSTRATIVE  ·  VAPOUR STAY: VAN DER ENT & TUINENBURG 2017', so = { kind: 'mono', size: 14, ls: 4, color: PAL.nightMuted };
-    text(typed(src, t - 3.2, 70), 960 - measure(src, so) / 2, 930, so);
+    text(typed(src, t - 4.4, 70), 960 - measure(src, so) / 2, 930, so);
   },
 };
 defineStory({ title: 'One Drop', stages: 5, music: { tonic: 220 }, plates: [T0, P1, P2, P3, P4, P5, END] });
