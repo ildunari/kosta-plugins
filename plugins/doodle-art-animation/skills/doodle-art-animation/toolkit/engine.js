@@ -732,9 +732,12 @@ function camOf(pl, t) {
 function follow(target, t, { s = 1, lead = 180, lag = 0.2, anchor = [W / 2, H / 2], turn = 0.4 } = {}) {
   // the anchor is the subject averaged over the last `lag` seconds (a smooth lag), so jitter never reaches the camera
   const avg = t0 => { let x = 0, y = 0; for (let k = 0; k < 5; k++) { const [a, b] = target(t0 - lag * (0.5 + k / 4)); x += a / 5; y += b / 5; } return [x, y]; };
-  const sc = typeof s === 'function' ? s(t) : s, [px, py] = avg(t), [qx, qy] = avg(t - turn);
-  const vx = px - qx, vy = py - qy, sp = Math.hypot(vx, vy), k = E.inOutSine(clamp(sp / turn / 260)) * lead;
-  const ax = anchor[0] - (sp ? vx / sp : 0) * k, ay = anchor[1] - (sp ? vy / sp : 0) * k;
+  // lead room follows the subject's heading averaged over the last second, so stop-and-go motion never makes the frame bob
+  const leadAt = t0 => { const [ux, uy] = target(t0), [wx, wy] = target(t0 - turn), vx = ux - wx, vy = uy - wy, sp = Math.hypot(vx, vy);
+    const k = E.inOutSine(clamp(sp / turn / 260)) * lead; return sp ? [vx / sp * k, vy / sp * k] : [0, 0]; };
+  let lx = 0, ly = 0; for (let k = 0; k < 7; k++) { const [a, b] = leadAt(t - lag - k / 6); lx += a / 7; ly += b / 7; }
+  const sc = typeof s === 'function' ? s(t) : s, [px, py] = avg(t);
+  const ax = anchor[0] - lx, ay = anchor[1] - ly;
   return { x: px, y: py, s: sc, dx: ax - px, dy: ay - py };
 }
 /** softClamp(x, lo, hi, k): clamp with rounded corners k px wide, so a camera limited by it eases to a stop instead of stopping dead */
@@ -1211,7 +1214,7 @@ TRANS.morph = TRANS.shape;   // v2 name
 /** presets whose main easing enter.ease replaces (see renderFrame) */
 const EASED = { lensIn: 1, lensOut: 1, fade: 1, zoom: 1, pan: 1, wipe: 1, bleed: 1, burn: 1, page: 1, roll: 1, shape: 1, hatch: 1 };
 /** transition length when a plate's enter has no dur (seconds) */
-const DEFAULT_DUR = { custom: 1.6, through: 2.0, cut: 0, lensIn: 1.6, lensOut: 1.6, zoom: 1.6, pan: 0.8, wipe: 1.0, bleed: 1.6, burn: 1.4, iris: 1.4, shape: 1.4, morph: 1.4, hatch: 1.2, page: 1.6, roll: 1.3, fade: 1.0 };
+const DEFAULT_DUR = { custom: 1.6, through: 2.0, cut: 0, lensIn: 1.6, lensOut: 1.6, zoom: 1.6, pan: 0.8, wipe: 1.0, bleed: 1.6, burn: 1.4, iris: 1.6, shape: 1.4, morph: 1.4, hatch: 1.2, page: 1.6, roll: 1.3, fade: 1.0 };
 let STORY = null, TOTAL_T = 0, TOTAL_F = 0;
 function defineStory(story) {
   STORY = story; let t = 0;

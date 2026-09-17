@@ -264,7 +264,7 @@ const PATH3 = [[700, 425], [1282, 425], [1282, 515], [1300, 600], [1330, 700], [
 const npIII = t => curve(t, [[0, PATH3[0]], [3.4, PATH3[1], 'out2'], [4.4, PATH3[2], 'inOutSine'], [5.3, PATH3[3], 'inOutSine'], [6.3, PATH3[4], 'inOutSine'], [7.2, PATH3[5], 'inOutSine']]);   // enters already moving
 const camIII = t => {
   if (t >= 8.2) return { x: PATH3[5][0], y: PATH3[5][1], s: 1 + 0.07 * E.inOutSine(inv(11.2, 12.8, t)), dx: 0, dy: 0 };   // wide, then a slow creep towards the lodged particle
-  const fol = follow(npIII, t, { s: 1.3, lead: 200, lag: 0.3, anchor: [W * 0.5, H * 0.55] }), clampCam = c => ({ ...c, dx: clamp(c.dx, -W * 0.3 * c.s, W * 0.35), dy: clamp(c.dy, -140, 140) });
+  const fol = follow(npIII, t, { s: 1.3, lead: 200, lag: 0.3, anchor: [W * 0.5, H * 0.55] }), clampCam = c => ({ ...c, dx: softClamp(c.dx, -W * 0.3 * c.s, W * 0.35, 200), dy: softClamp(c.dy, -140, 140, 120) });   // soft limits: no dead starts
   return mixCam(clampCam(fol), FULL, E.inOutSine(inv(5.6, 8.2, t))); };
 const tumorCells = (() => { const r = mulberry(303), out = [];
   for (let k = 0; k < 400 && out.length < 34; k++) { const x = lerp(1010, 1880, r()), y = lerp(585, 880, r()), rr = 34 + r() * 20;

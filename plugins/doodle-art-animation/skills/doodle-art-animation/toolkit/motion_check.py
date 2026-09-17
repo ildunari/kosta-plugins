@@ -3,7 +3,8 @@ Mean absolute change between frames at 192x108 grey, summed per drawing (2 frame
 Spikes: drawings that change more than 35 are listed. SNAP marks a run with any drawing above 60, or two in a row
 above 45, at a transition that is not a hard cut: it moves too fast; lengthen it or ease it more gently.
 Pops: a frame-wide mean misses a mask edge that jumps (a lens opening in one drawing), so each drawing is also cut into
-8x8 blocks; pops lists drawings whose 95th-percentile block change jumps above 60 and to 2.5x the drawing before. Jerks: drawings that change more than
+8x8 blocks; pops lists drawings where the share of blocks changing hard (> 40) jumps to 6% of the frame or more, and to
+over 3x the drawing before: something appeared at once instead of growing in. Jerks: drawings that change more than
 2.5x the drawing before (and more than 12); fine at a hard cut, a fault anywhere else. See references/motion.md, Speed limits."""
 import subprocess, sys, numpy as np
 path = sys.argv[1]; ss = sys.argv[2] if len(sys.argv) > 2 else '0'; dur = ['-t', sys.argv[3]] if len(sys.argv) > 3 else []
@@ -23,8 +24,8 @@ for t, v in spk:
     cur.append((t, v))
 if cur: runs.append(cur)
 print('spikes (> 35 per drawing):', '  '.join(f"{r[0][0]:.2f}s " + '/'.join(f'{v:.0f}' for _, v in r) + (' SNAP' if any(v > 60 for _, v in r) or any(a > 45 and b > 45 for (_, a), (_, b) in zip(r, r[1:])) else '') for r in runs) or 'none')
-loc = blk[0:n:2] + blk[1:n:2]; p95 = np.percentile(loc, 95, axis=1)
-pops = [f'{i * 2 / 24 + float(ss):.2f}s {p95[i - 1]:.0f}->{p95[i]:.0f}' for i in range(1, len(p95)) if p95[i] > 60 and p95[i] > 2.5 * max(p95[i - 1], 1)]
-print('pops (local change jumps > 2.5x, above 60):', '  '.join(pops) or 'none')
+sw = (np.maximum(blk[0:n:2], blk[1:n:2]) > 40).mean(axis=1) * 100   # % of the frame swept hard in each drawing
+pops = [f'{i * 2 / 24 + float(ss):.2f}s {sw[i - 1]:.0f}%->{sw[i]:.0f}%' for i in range(1, len(sw)) if sw[i] >= 6 and sw[i] > 3 * max(sw[i - 1], 1)]
+print('pops (swept area jumps from rest, % of frame):', '  '.join(pops) or 'none')
 jerks = [f'{i * 2 / 24 + float(ss):.2f}s {per[i - 1]:.0f}->{per[i]:.0f}' for i in range(1, len(per)) if per[i] > 12 and per[i] > 2.5 * max(per[i - 1], 1)]
 print('jerks (> 2.5x the drawing before; fine at hard cuts):', '  '.join(jerks) or 'none')
