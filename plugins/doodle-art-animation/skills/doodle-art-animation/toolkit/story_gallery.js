@@ -150,14 +150,14 @@ const SETTLE_A = {
     KIT.settle.hut(t, { x: 1130, y: 620, s: 0.45, kind: 'long', draw: DR(t, 1.3), seed: 65 });
     KIT.settle.tent(t, { x: 1330, y: 620, s: 0.6, draw: DR(t, 1.6), seed: 66 });
     KIT.settle.tent(t, { x: 1560, y: 620, s: 0.5, kind: 'yurt', draw: DR(t, 1.9), seed: 67 });
-    KIT.settle.tower(t, { x: 1790, y: 620, s: 0.45, draw: DR(t, 2.2), seed: 68 });
-    KIT.settle.tower(t, { x: 250, y: 1010, s: 0.5, kind: 'lighthouse', draw: DR(t, 2.5), seed: 69 });
-    KIT.settle.tower(t, { x: 480, y: 1010, s: 0.45, kind: 'watchtower', draw: DR(t, 2.8), seed: 70 });
-    KIT.settle.cart(t, { x: 760, y: 1000, s: 0.7, draw: DR(t, 3.1), seed: 71 });
-    KIT.settle.ship(t, { x: 1250, y: 960, s: 0.6, draw: DR(t, 3.4), seed: 72 });
-    KIT.settle.ship(t, { x: 1700, y: 1000, s: 0.5, kind: 'boat', draw: DR(t, 3.7), seed: 73 });
+    KIT.settle.tower(t, { x: 1700, y: 620, s: 0.45, draw: DR(t, 2.2), seed: 68 });
+    KIT.settle.tower(t, { x: 250, y: 975, s: 0.5, kind: 'lighthouse', draw: DR(t, 2.5), seed: 69 });
+    KIT.settle.tower(t, { x: 480, y: 975, s: 0.45, kind: 'watchtower', draw: DR(t, 2.8), seed: 70 });
+    KIT.settle.cart(t, { x: 760, y: 965, s: 0.7, draw: DR(t, 3.1), seed: 71 });
+    KIT.settle.ship(t, { x: 1250, y: 925, s: 0.6, draw: DR(t, 3.4), seed: 72 });
+    KIT.settle.ship(t, { x: 1620, y: 955, s: 0.5, kind: 'boat', draw: DR(t, 3.7), seed: 73 });
     [['settle.house  3 styles', 200, 664], ['settle.hut  round · long', 900, 664], ['settle.tent  camp · yurt', 1300, 664],
-      ['settle.tower  3 kinds', 170, 1050], ['settle.cart', 660, 1046], ['settle.ship  sail · boat', 1120, 1046]]
+      ['settle.tower  3 kinds', 170, 1015], ['settle.cart', 660, 1011], ['settle.ship  sail · boat', 1120, 1011]]
       .forEach(([s, x, y], k) => FIG(t, k, s, x, y));
   },
 };
