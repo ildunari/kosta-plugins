@@ -53,13 +53,13 @@ Read this when planning the film.
 
 ## Designing the seams
 
-A transition is part of the story, not a wipe laid over it. Design each one from both sides before choosing its type, and write it in the script's seam list (below the plate table):
+A transition is part of the story, not a wipe laid over it. Design each one from both sides before choosing its type, and write it in the script's seam list (below the plate table). The built-in types are starting points. For a seam that carries meaning, write the transition yourself (see "Writing your own transition" in `references/motion.md`): no preset knows that an eraser and a ladybug are both small, round and red.
 
 - **Exit:** the last thing the viewer looks at, where it is on screen, and which way it is moving.
 - **Entry:** the first thing the viewer should look at in the next plate, where it is, and which way it moves.
 - **Link:** what joins them. Pick the strongest one available:
-  - **colour or material** (a red eraser → a red ladybug shell): `through`;
-  - **outline** (a drop → a planet, a cell → a city block): `shape`;
+  - **an object becomes another** (a red eraser → a ladybug, a drop → a planet, a cell → a city block): a custom morph built with `morphPose` and `softReveal`, or the `shape` preset for simple outlines;
+  - **going into a surface** (a screen, a window, a pool of colour): `through`;
   - **position** (the subject stays put while the world changes): `cut` with `match`;
   - **motion** (something flies, flows or scrolls off one way): `pan` with `dir: 'auto'`, or any type with motion carry-over;
   - **scale** (inside it, or out of it): `lensIn`, `lensOut`, `zoom`;
@@ -70,7 +70,7 @@ Example (`toolkit/story_seams.js`, "Pencil to Ladybug"):
 
 | Seam | Exit | Entry | Link | Transition |
 |---|---|---|---|---|
-| I → II | pencil's red eraser, top centre, camera pushing in | ladybug's red shell, centre, walking | colour | `through` from the eraser (r 24) to the shell (r 44), fills set |
+| I → II | pencil's red eraser, top centre, camera easing in | ladybug's red shell, centre, walking | an object becomes another (size, shape, colour) | custom: the eraser pops off, rounds, turns and arcs onto the leaf as the shell; head, spots and legs grow in; the garden dissolves in around it |
 | II → III | ladybug flying off to the upper right | ladybug still flying right, slowing | motion | `pan`, `dir: 'auto'` |
 | III → IV | ladybug landed on a poppy, right of centre | pencil sketch of the ladybug, half drawn | position | `cut`, `match: 1` |
 | IV → V | the finished note | end card | chapter end | `page`, `dir: 'right'` |

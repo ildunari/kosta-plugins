@@ -10,7 +10,7 @@ Plate fields:
 |---|---|
 | `dur` | Plate length in seconds |
 | `dark` | `true` for the night world |
-| `enter` | `{ type, dur, momentum, settle, match, carry, …type options (dir, k, dive, scaleFrom, from, to, fromFill, toFill, style, at, ink, drop, fall, rim, rimAlpha, rough, color, opacity, back, radius) }` |
+| `enter` | `{ type, dur, draw (custom transition), momentum, settle, match, carry, sfx, …type options (dir, k, dive, scaleFrom, from, to, fromFill, toFill, style, at, ink, drop, fall, rim, rimAlpha, rough, color, opacity, back, radius) }` |
 | `header` | `{ num, title, sub }` |
 | `log` | `t => ({ title, rows: [[label, value]], states, state })` |
 | `stage` | `{ n, name, prevN }` |
@@ -56,7 +56,8 @@ Plate fields:
 **Advanced:**
 - `layer(fn, slot)` draws into an offscreen canvas (it swaps `ctx`, which is why `ctx` is a `let`).
 - `motionOf(plate, t)` (on-screen velocity of the hero or camera, px/s), `withCamera`, `camPoint`, `camOf`, `heroOf`, `parallax(cam, depth, fn)`, `momentum(plate, t)`, `coverR(x, y)`, `bgTex(dark)`, `about(px, py, s, tx, ty)`.
-- `TRANS[type](p, X)` adds a new transition. It returns the share of the frame the new plate owns, and should get matching `HEADER_DELAY` and `TRANS_SFX` entries.
+- Custom transitions: `enter: { type: 'custom', draw(p, X) }` (see `references/motion.md`), with `morphPose(A, B, u, poseA, poseB)`, `softReveal(fn, x, y, r, feather)`, `S.side` ('old' or 'new') and `S.trans` ({ type, p }).
+- `TRANS[type](p, X)` adds a new built-in transition. It returns the share of the frame the new plate owns, and should get matching `HEADER_DELAY` and `TRANS_SFX` entries.
 - `S.trans = { type, p }` lets plates react to their own transition.
 
 **Theme.** `Object.assign(PAL, { … })` at the top of the story adds subject colours. `FONT` and `FONT_LOADS` hold the three faces.

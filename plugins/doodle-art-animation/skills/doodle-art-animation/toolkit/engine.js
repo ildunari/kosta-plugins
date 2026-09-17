@@ -80,7 +80,7 @@ function vnoise(x, seed = 0) {                        // smooth 1-D value noise 
   const i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f);
   return lerp(hash3(i, seed), hash3(i + 1, seed), u) * 2 - 1;
 }
-const S = { f: 0, boil: 0, T: 0, morph: false, trans: null, noReticle: false };   // per-frame globals
+const S = { f: 0, boil: 0, T: 0, morph: false, trans: null, side: null, noReticle: false };   // per-frame globals
 /** jitter that re-rolls every 2 frames: the hand-drawn "boil" (animation on twos) */
 const boil = (seed, k, amp) => (hash3(seed, k, S.boil) - 0.5) * 2 * amp;
 
@@ -140,6 +140,16 @@ function morph(A, B, u, n = 72) {
   const a = resample(A, n), b0 = resample(B, n), b1 = b0.slice().reverse(); let best = null, bd = Infinity;
   for (const b of [b0, b1]) for (let k = 0; k < n; k++) { let d = 0; for (let i = 0; i < n; i += 3) { const q = b[(i + k) % n]; d += (a[i][0] - q[0]) ** 2 + (a[i][1] - q[1]) ** 2; } if (d < bd) { bd = d; best = [b, k]; } }
   const [b, k] = best; return a.map((p, i) => { const q = b[(i + k) % n]; return [lerp(p[0], q[0], u), lerp(p[1], q[1], u)]; });
+}
+/**
+ * morphPose(A, B, u, pa, pb): morph two outlines that each live in their own local frame (centred on 0, 0) while the
+ * frame itself travels: pa / pb = { x, y, rot, s }. Shape, position, turn and size all blend together, so one object
+ * turns into another without collapsing. Returns screen points. Use it to write object-to-object seams.
+ */
+function morphPose(A, B, u, pa, pb, n = 72) {
+  const M = morph(A.map(([x, y]) => [x * pa.s, y * pa.s]), B.map(([x, y]) => [x * pb.s, y * pb.s]), u, n);
+  const x = lerp(pa.x, pb.x, u), y = lerp(pa.y, pb.y, u), r = lerp(pa.rot || 0, pb.rot || 0, u), c = Math.cos(r), sn = Math.sin(r);
+  return M.map(([px, py]) => [x + px * c - py * sn, y + px * sn + py * c]);
 }
 /** gather(targets, t, {t0, dur, spread, seed}) -> [[x,y,u],...]: particles fly in from a scatter to form a shape */
 function gather(targets, t, { t0 = 0, dur = 1.2, spread = 400, seed = 9 } = {}) {
@@ -754,6 +764,17 @@ function frontAt(vals, u) {
   const sorted = vals.slice().sort(), n = sorted.length;
   return sorted[Math.min(n - 1, Math.max(0, Math.floor(clamp(u) * (n - 1))))];
 }
+/**
+ * softReveal(fn, cx, cy, r, feather, slot): draw fn() only inside a soft-edged circle, as a dissolve that spreads from
+ * one point. Uses offscreen layer `slot` (default 1).
+ */
+function softReveal(fn, cx, cy, r, feather = 260, slot = 1) {
+  if (r <= 0) return;
+  const L = layer(() => { fn(); ctx.globalCompositeOperation = 'destination-in';
+    const g = ctx.createRadialGradient(cx, cy, Math.max(0, r - feather), cx, cy, r + 1);
+    g.addColorStop(0, '#000'); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }, slot);
+  ctx.drawImage(L, 0, 0);
+}
 /** clipHalf(poly, f): the part of a convex polygon where f(point) <= 0 (f linear) */
 function clipHalf(poly, f) {
   const out = [];
@@ -1083,13 +1104,13 @@ const TRANS = {
 };
 /** header start delay per transition (measured from the reference: bare hold after a lens-in, none after a lens-out) */
 const HEADER_DELAY = { cut: () => 0.25, lensIn: d => d + 0.4, lensOut: () => 0.05, fade: d => d * 0.6, burn: d => d * 0.7, bleed: d => d * 0.7, wipe: d => d * 0.55,
-  iris: d => d * 0.5 + 0.3, zoom: d => d * 0.85, shape: d => d * 0.85, morph: d => d * 0.85, page: d => d * 0.6, roll: d => d * 0.6, through: d => d * 0.8, hatch: d => d * 0.6, pan: d => d * 0.8 };
+  iris: d => d * 0.5 + 0.3, zoom: d => d * 0.85, shape: d => d * 0.85, morph: d => d * 0.85, page: d => d * 0.6, roll: d => d * 0.6, through: d => d * 0.8, custom: d => d * 0.8, hatch: d => d * 0.6, pan: d => d * 0.8 };
 function headerDelay(pl) { const tr = pl.enter; if (!tr || pl.i === 0) return 0.1; return (HEADER_DELAY[tr.type] || HEADER_DELAY.cut)(tr.dur || 0.5); }
 TRANS.morph = TRANS.shape;   // v2 name
 
 /* ---------- timeline ---------- */
 /** transition length when a plate's enter has no dur (seconds) */
-const DEFAULT_DUR = { through: 1.4, cut: 0, lensIn: 0.6, lensOut: 0.6, zoom: 0.8, pan: 0.8, wipe: 0.8, bleed: 1.5, burn: 1.4, iris: 0.9, shape: 1.1, morph: 1.1, hatch: 0.8, page: 1.2, roll: 1.0, fade: 0.8 };
+const DEFAULT_DUR = { custom: 1.6, through: 1.4, cut: 0, lensIn: 0.6, lensOut: 0.6, zoom: 0.8, pan: 0.8, wipe: 0.8, bleed: 1.5, burn: 1.4, iris: 0.9, shape: 1.1, morph: 1.1, hatch: 0.8, page: 1.2, roll: 1.0, fade: 0.8 };
 let STORY = null, TOTAL_T = 0, TOTAL_F = 0;
 function defineStory(story) {
   STORY = story; let t = 0;
@@ -1140,9 +1161,11 @@ function renderFrame(f) {
   if (wv) { ctx.translate(W / 2 + (hash3(db, 1, 7) - 0.5) * 2 * wv, H / 2 + (hash3(db, 2, 7) - 0.5) * 2 * wv); ctx.rotate((hash3(db, 3, 7) - 0.5) * 0.0012 * wv); ctx.scale(1.004, 1.004); ctx.translate(-W / 2, -H / 2); }
   if (i > 0 && tr && tr.type !== 'cut' && t < tr.dur) {
     const prev = P[i - 1], pt = prev.dur + t, p = t / tr.dur; S.trans = { type: tr.type, p };
-    const X = { drawOld: () => drawPlate(prev, pt), drawNew: () => drawPlate(pl, t), drawOldX: o => drawPlate(prev, pt, o), drawNewX: o => drawPlate(pl, t, o),
+    const side = (sd, fn) => { const k = S.side; S.side = sd; try { fn(); } finally { S.side = k; } };   // plates can ask S.side which role they are playing
+    const X = { drawOld: () => side('old', () => drawPlate(prev, pt)), drawNew: () => side('new', () => drawPlate(pl, t)),
+      drawOldX: o => side('old', () => drawPlate(prev, pt, o)), drawNewX: o => side('new', () => drawPlate(pl, t, o)),
       focusOld: focusOf(prev, pt), focusNew: focusOf(pl, t), darkOld: prev.dark, darkNew: pl.dark, prev, pl, pt, t, tr, seed: i * 7 + 1 };
-    const share = (TRANS[tr.type] || TRANS.fade)(p, X);
+    const share = (tr.draw || TRANS[tr.type] || TRANS.fade)(p, X);        // enter.draw: a transition written by the story itself
     ctx.save(); ctx.globalAlpha = 1 - share; ctx.drawImage(vig(prev.dark), 0, 0); ctx.globalAlpha = share; ctx.drawImage(vig(pl.dark), 0, 0); ctx.restore();
   } else {
     drawPlate(pl, t); ctx.drawImage(vig(pl.dark), 0, 0);
@@ -1219,6 +1242,7 @@ const SFX = {
   },
 };
 const TRANS_SFX = {
+  custom: (ac, o, t, d, tr) => tr.sfx ? tr.sfx(ac, o, t, d) : SFX.swell(ac, o, t, { dur: d, up: true }),
   through: (ac, o, t, d) => { SFX.glide(ac, o, t, { dur: d / 2, up: true }); SFX.glide(ac, o, t + d / 2, { dur: d / 2 }); },
   lensIn: (ac, o, t, d) => SFX.swell(ac, o, t - 0.05, { dur: d + 0.2, up: true }), lensOut: (ac, o, t, d) => SFX.swell(ac, o, t - 0.05, { dur: d + 0.2, up: false }),
   cut: (ac, o, t) => SFX.thump(ac, o, t), fade: () => {}, burn: (ac, o, t, d) => SFX.crackle(ac, o, t, { dur: d }),

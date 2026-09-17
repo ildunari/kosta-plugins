@@ -1,6 +1,7 @@
 /* =====================  STORY: Pencil to Ladybug  ·  seam design example  ===================== */
 /* Every cut is designed from both sides. The plate script's seam column:
-     I → II   through  : the camera dives into the pencil's red eraser and comes out of a ladybug's red shell
+     I → II   custom   : the pencil's red eraser rounds off, turns and becomes the ladybug's red shell; the garden
+                         dissolves in around it and the head, spots and legs grow as the shape arrives
      II → III pan      : the ladybug flies off to the right, so the whip pan continues rightward (dir 'auto')
      III → IV cut      : the ladybug lands on a poppy; a match cut puts the pencil sketch of it in the same spot
      IV → V   page     : chapter end, turning to the right                                                          */
@@ -13,7 +14,8 @@ function notebook(t) {                                                         /
   pen([[250, -20], [250, H + 20]], { w: 1.6, color: 'rgba(210,90,80,0.45)', amp: 0.4, seed: 299, taper: 0 });
 }
 /** pencil lying along angle `ang` from its tip (tx, ty); returns the eraser centre */
-function pencil(tx, ty, ang, len = 560) {
+const ERASER = (len = 560) => [[len - 28, -24], [len - 8, -24], ...shape.arc(len - 8, 0, 24, -Math.PI / 2, Math.PI / 2, 12), [len - 28, 24]];
+function pencil(tx, ty, ang, len = 560, eraser = true) {
   ctx.save(); ctx.translate(tx, ty); ctx.rotate(ang);
   const body = [[70, -24], [len - 60, -24], [len - 60, 24], [70, 24]];
   ctx.save(); ctx.translate(14, 18); ctx.globalAlpha *= 0.18; flat(body, '#2a1d10'); ctx.restore();             // shadow on the page
@@ -24,28 +26,31 @@ function pencil(tx, ty, ang, len = 560) {
   pen([[72, -8], [len - 62, -8]], { w: 1.2, color: PAL.pencilDark, seed: 405 }); pen([[72, 8], [len - 62, 8]], { w: 1.2, color: PAL.pencilDark, seed: 406 });
   ink(shape.rect(len - 60, -24, 32, 48), { closed: true, w: 2.2, fill: PAL.ferrule, seed: 407 });
   for (let k = 0; k < 3; k++) pen([[len - 54 + k * 9, -23], [len - 54 + k * 9, 23]], { w: 1, color: '#6d6a64', seed: 408 + k });
-  const er = [[len - 28, -24], [len - 8, -24], ...shape.arc(len - 8, 0, 24, -Math.PI / 2, Math.PI / 2, 12), [len - 28, 24]];
-  ink(er, { closed: true, w: 2.4, fill: PAL.eraser, seed: 412 }); shade(er, { color: '#8e2e28', seed: 413, alpha: 0.5 });
+  const er = ERASER(len);
+  if (eraser) { ink(er, { closed: true, w: 2.4, fill: PAL.eraser, seed: 412 }); shade(er, { color: '#8e2e28', seed: 413, alpha: 0.5 }); }
   ctx.restore();
   return [tx + Math.cos(ang) * (len - 12), ty + Math.sin(ang) * (len - 12)];
 }
 const SPOTS = [[22, 0, 7], [-18, -15, 7], [-18, 15, 7], [2, -20, 6], [2, 20, 6], [-34, -4, 5], [-34, 4, 5]];
 /** ladybug at (x, y), heading hd (0 = facing right); o.open 0..1 lifts the wing cases, o.walk animates legs */
-function ladybug(x, y, t, { s = 1, hd = 0, open = 0, walk = 0, seed = 0 } = {}) {
+const BUG_SHELL = shape.ellipse(0, 0, 36, 32.4, 0, 48);                     // body outline, centred (drawn at local x -6)
+function ladybug(x, y, t, { s = 1, hd = 0, open = 0, walk = 0, shell = true, grow = 1 } = {}) {
+  const g = E.outBack(clamp(grow));
   ctx.save(); ctx.translate(x, y); ctx.rotate(hd); ctx.scale(s, s);
   for (let k = 0; k < 3; k++) for (const sd of [-1, 1]) { const ph = Math.sin(S.boil * 1.3 + k * 2 + (sd > 0 ? Math.PI : 0)) * 6 * walk;
-    pen([[-12 + k * 16, sd * 22], [-18 + k * 18 + ph, sd * 42], [-24 + k * 20 + ph, sd * 50]], { w: 2.2, color: PAL.ink, seed: 500 + k * 2 + sd, taper: 0.3 }); }
+    const q = clamp(grow * 1.6 - 0.6 - k * 0.1); if (q > 0) pen([[-12 + k * 16, sd * 22], [-18 + k * 18 + ph, sd * 42], [-24 + k * 20 + ph, sd * 50]], { w: 2.2, color: PAL.ink, seed: 500 + k * 2 + sd, taper: 0.3, draw: q }); }
   if (open > 0) { const fl = Math.sin(S.boil * 2.2) * 0.35;                 // hind wings beating
     for (const sd of [-1, 1]) { ctx.save(); ctx.translate(-4, sd * 6); ctx.rotate(sd * (0.55 + fl) * open);
       ink(shape.ellipse(-38, sd * 18, 46, 16, 0, 28), { closed: true, w: 1.4, color: '#5c6a80', fill: 'rgba(225,235,248,0.6)', amp: 0.4, seed: 510 + sd }); ctx.restore(); } }
   const half = sd => [[26, 0], ...shape.arc(-6, 0, 36, 0, sd * Math.PI, 18).map(([px, py]) => [px, py * 0.9])];   // one wing case
-  for (const sd of [-1, 1]) { ctx.save(); ctx.translate(22, sd * 2); ctx.rotate(-sd * 0.7 * open); ctx.translate(-22, -sd * 2);
+  if (shell) for (const sd of [-1, 1]) { ctx.save(); ctx.translate(22, sd * 2); ctx.rotate(-sd * 0.7 * open); ctx.translate(-22, -sd * 2);
     const h = half(sd); ink(h, { closed: true, w: 2.4, fill: PAL.bug, seed: 520 + sd }); shade(h, { color: PAL.bugDark, seed: 522 + sd, alpha: 0.45 });
     for (const [sx, sy, r] of SPOTS) if (sy * sd >= 0 && (sy !== 0 || sd > 0)) ink(shape.circle(sx, sy, r, 14), { closed: true, w: 1, fill: PAL.ink, amp: 0.3, seed: 530 + sx });
     ctx.restore(); }
-  ink(shape.circle(38, 0, 16, 20), { closed: true, w: 2, fill: PAL.ink, seed: 540 });
-  for (const sd of [-1, 1]) { ink(shape.circle(45, sd * 7, 3, 8), { closed: true, w: 0.6, fill: '#f4efe2', amp: 0.2, seed: 541 + sd });
-    pen([[50, sd * 6], [62, sd * 14], [70, sd * 14]], { w: 1.6, color: PAL.ink, seed: 543 + sd, taper: 0.4 }); }
+  if (!shell && grow < 1) SPOTS.forEach(([sx, sy, r], i) => { const q = E.outBack(clamp(grow * 1.8 - 0.4 - i * 0.06)); if (q > 0) ink(shape.circle(sx, sy, r * q, 14), { closed: true, w: 1, fill: PAL.ink, amp: 0.3, seed: 530 + sx }); });
+  if (g > 0) { ink(shape.circle(38 - 14 * (1 - g), 0, 16 * g, 20), { closed: true, w: 2, fill: PAL.ink, seed: 540 });
+    for (const sd of [-1, 1]) { ink(shape.circle(45 - 14 * (1 - g), sd * 7 * g, 3 * g, 8), { closed: true, w: 0.6, fill: '#f4efe2', amp: 0.2, seed: 541 + sd });
+      pen([[50, sd * 6], [62, sd * 14], [70, sd * 14]], { w: 1.6, color: PAL.ink, seed: 543 + sd, taper: 0.4, draw: clamp(grow * 2 - 1) }); } }
   ctx.restore();
 }
 function leaf(cx, cy, len, ang, seed, t) {
@@ -87,18 +92,38 @@ const eraserAt = t => { const [x, y] = tipAt(t), a = angAt(t); return [x + Math.
 const P1 = {
   dur: 6, dark: false, drift: false,
   header: { num: 1, title: 'The Pencil', sub: 'a line being written' }, stage: { n: 1, name: 'WRITING', prevN: 0 },
-  cam: t => { const [ex, ey] = eraserAt(t); return { x: ex, y: ey, s: kf(t, [[0, 1], [4.4, 1.03], [6, 1.5]], E.in2) }; },
+  cam: t => { const [ex, ey] = eraserAt(t); return { x: ex, y: ey, s: kf(t, [[0, 1], [4.4, 1.03], [6, 1.22]], E.inOutSine) }; },
   hero: t => { const [x, y] = eraserAt(t); return { x, y }; },
   cues: [[0.6, 'scratch', { chars: 60 }], [4.4, 'pop']],
   draw(t) {
     notebook(t);
     pen(SCRIPT, { w: 2.6, color: PAL.graphite, draw: E.inOutSine(inv(0.6, 4.2, t)), taper: 0.05, seed: 420 });
-    const [tx, ty] = tipAt(t); pencil(tx, ty, angAt(t));
+    const [tx, ty] = tipAt(t); pencil(tx, ty, angAt(t), 560, !(S.trans && S.trans.type === 'custom' && S.side === 'old'));
   },
   overlay(t) {
     withAlpha(beat(t, 1.4, 4.0), () => text(typed('field note, 9 a.m.', t - 1.4, 20), 380, 560, { kind: 'mono', size: 22, ls: 4, color: PAL.inkSoft }));
   },
 };
+/* ---------- seam I → II: the eraser becomes the ladybug ---------- */
+function eraserToBug(p, X) {
+  const camA = P1.cam(X.pt), [tx, ty] = tipAt(X.pt), a = angAt(X.pt), [ex, ey] = camPoint(camA, [tx + Math.cos(a) * 552, ty + Math.sin(a) * 552]);
+  const camN = camB(X.t), hd = hdB(X.t), [bx, by] = bugB(X.t), sN = 1.25 * (camN.s || 1);
+  const [cx, cy] = camPoint(camN, [bx - 6 * 1.25 * Math.cos(hd), by - 6 * 1.25 * Math.sin(hd)]);
+  const u = E.inOut3(inv(0.05, 0.8, p)), lift = Math.sin(Math.PI * u) * 70;                  // the shape travels on a gentle arc
+  const pa = { x: ex, y: ey, rot: a, s: camA.s }, pb = { x: cx, y: cy, rot: hd, s: sN };
+  const px = lerp(pa.x, pb.x, u), py = lerp(pa.y, pb.y, u) - lift, rot = lerp(pa.rot, pb.rot, u), sc = lerp(pa.s, pb.s, u);
+  X.drawOldX({ hud: 1 - inv(0, 0.35, p) });
+  softReveal(() => X.drawNewX({ hud: inv(0.6, 1, p) }), px, py, lerp(0, coverR(px, py) + 300, E.inOutSine(inv(0.15, 0.95, p))), 320);
+  const M = morphPose(ERASER().map(([x, y]) => [x - 552, y]), BUG_SHELL, u, pa, pb);
+  const Ml = M.map(([x, y]) => [x, y - lift]),                                             // lifted onto the arc
+    fade = 1 - inv(0.86, 1, p);
+  withAlpha(fade, () => { ink(Ml, { closed: true, w: 2.4, fill: mixColor(PAL.eraser, PAL.bug, u), amp: 0.6, seed: 900 });
+    shade(Ml, { color: PAL.bugDark, seed: 901, alpha: 0.45 * u });
+    if (u > 0.5) { ctx.save(); ctx.translate(px, py); ctx.rotate(rot); ctx.scale(sc, sc); pen([[-36, 0], [30, 0]], { w: 2, color: PAL.ink, draw: inv(0.5, 0.8, u), seed: 902 }); ctx.restore(); } });
+  const gx = px + 6 * sc * Math.cos(rot), gy = py + 6 * sc * Math.sin(rot);             // head, spots and legs grow in the bug's own frame
+  withAlpha(fade, () => ladybug(gx, gy, X.t, { s: sc, hd: rot, shell: false, grow: inv(0.45, 0.95, p), walk: 1 }));
+  return E.inOutSine(inv(0.2, 0.9, p));
+}
 /* ---------- plate II · the garden: out of the red, a ladybug on a leaf; it walks, opens up, and flies off right ---------- */
 const bugB = t => t < 3.2 ? [lerp(905, 1000, E.inOutSine(inv(0, 2.8, t))), 560 + 4 * Math.sin(t * 2)]
   : kf(t, [[3.2, [1000, 560]], [4.4, [1180, 480]], [5.4, [1420, 390]], [6.6, [1800, 300]]], E.in2);
@@ -106,7 +131,7 @@ const hdB = t => { if (t < 3.3) return -0.12; const [x0, y0] = bugB(t - 0.1), [x
 const camB = t => ({ x: W / 2, y: H / 2, s: 1.04, dx: -0.55 * clamp(bugB(t)[0] - 1150, 0, 800), dy: 0.3 * clamp(480 - bugB(t)[1], 0, 300) });
 const P2 = {
   dur: 6.5, dark: false,
-  enter: { type: 'through', from: (pl, t) => ({ at: eraserAt(t), r: 24 }), to: (pl, t) => ({ at: bugB(t), r: 44 }), fromFill: PAL.eraser, toFill: PAL.bug },
+  enter: { type: 'custom', dur: 1.8, draw: eraserToBug, carry: false, momentum: false },
   header: { num: 2, title: 'The Garden', sub: 'a ladybug on a leaf' }, stage: { n: 2, name: 'GARDEN', prevN: 1 },
   cam: camB,
   hero: t => { const [x, y] = bugB(t); return { x, y, label: 'LADYBUG·01', r: 58 }; },
@@ -118,7 +143,8 @@ const P2 = {
     leaf(1000, 600, 620, -0.18, 650, t);
     leaf(1650, 690, 380, 0.35, 660, t);
     const open = E.outBack(inv(2.8, 3.3, t));
-    ladybug(...bugB(t), t, { s: 1.25, hd: hdB(t), open, walk: t < 2.8 ? 1 : 0 });
+    const tr = S.trans && S.trans.type === 'custom' && S.side === 'new' ? S.trans.p : 1;       // during the morph the seam draws the bug
+    withAlpha(inv(0.86, 1, tr), () => ladybug(...bugB(t), t, { s: 1.25, hd: hdB(t), open, walk: t < 2.8 ? 1 : 0 }));
   },
   overlay(t) {
     const h = heroOf(P2, t);
