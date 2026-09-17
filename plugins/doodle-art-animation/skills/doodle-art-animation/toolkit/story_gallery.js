@@ -140,5 +140,44 @@ const LIFE = {
   },
 };
 
-defineStory({ title: 'Component Gallery', stages: 8, music: { tonic: 220 }, plates: [EARTH, TECH, AI, SPACE, LAB, STUDIO, NATURE, LIFE] });
+const SETTLE_A = {
+  dur: DUR, cam: FLOAT(9), enter: { type: 'wipe', dur: 0.8 }, header: header(9, 'Settle kit · shelter', 'house, hut, tent, tower, cart, ship'),
+  draw(t) {
+    KIT.settle.house(t, { x: 300, y: 620, s: 0.78, style: 'cottage', draw: DR(t, 0), seed: 61 });
+    KIT.settle.house(t, { x: 520, y: 620, s: 0.6, style: 'townhouse', draw: DR(t, 0.3), seed: 62 });
+    KIT.settle.house(t, { x: 720, y: 620, s: 0.52, style: 'farmhouse', draw: DR(t, 0.6), seed: 63 });
+    KIT.settle.hut(t, { x: 940, y: 620, s: 0.7, draw: DR(t, 1), seed: 64 });
+    KIT.settle.hut(t, { x: 1130, y: 620, s: 0.45, kind: 'long', draw: DR(t, 1.3), seed: 65 });
+    KIT.settle.tent(t, { x: 1330, y: 620, s: 0.6, draw: DR(t, 1.6), seed: 66 });
+    KIT.settle.tent(t, { x: 1560, y: 620, s: 0.5, kind: 'yurt', draw: DR(t, 1.9), seed: 67 });
+    KIT.settle.tower(t, { x: 1790, y: 620, s: 0.45, draw: DR(t, 2.2), seed: 68 });
+    KIT.settle.tower(t, { x: 250, y: 1010, s: 0.5, kind: 'lighthouse', draw: DR(t, 2.5), seed: 69 });
+    KIT.settle.tower(t, { x: 480, y: 1010, s: 0.45, kind: 'watchtower', draw: DR(t, 2.8), seed: 70 });
+    KIT.settle.cart(t, { x: 760, y: 1000, s: 0.7, draw: DR(t, 3.1), seed: 71 });
+    KIT.settle.ship(t, { x: 1250, y: 960, s: 0.6, draw: DR(t, 3.4), seed: 72 });
+    KIT.settle.ship(t, { x: 1700, y: 1000, s: 0.5, kind: 'boat', draw: DR(t, 3.7), seed: 73 });
+    [['settle.house  3 styles', 200, 664], ['settle.hut  round · long', 900, 664], ['settle.tent  camp · yurt', 1300, 664],
+      ['settle.tower  3 kinds', 170, 1050], ['settle.cart', 660, 1046], ['settle.ship  sail · boat', 1120, 1046]]
+      .forEach(([s, x, y], k) => FIG(t, k, s, x, y));
+  },
+};
+
+const SETTLE_B = {
+  dur: DUR, cam: FLOAT(10), enter: { type: 'zoom', dur: 0.9 }, header: header(10, 'Settle kit · land and routes', 'village, skyline, road, bridge, fields, market, map, ruins'),
+  draw(t) {
+    KIT.settle.skyline(t, { x: 560, y: 400, w: 780, h: 250, era: 'old', draw: DR(t, 0), seed: 81 });
+    KIT.settle.bridge(t, { x: 1400, y: 270, w: 430, h: 180, draw: DR(t, 1), seed: 82 });
+    KIT.settle.village(t, { x: 60, y: 660, w: 470, h: 170, n: 5, draw: DR(t, 2), seed: 83 });
+    KIT.settle.ruins(t, { x: 610, y: 660, w: 540, h: 190, draw: DR(t, 3), seed: 84 });
+    KIT.settle.map(t, { x: 1330, y: 500, w: 510, h: 320, title: 'THE COAST ROAD', draw: DR(t, 4), seed: 85 });
+    KIT.settle.fields(t, { x: 60, y: 1010, w: 540, h: 240, cols: 4, rows: 3, draw: DR(t, 5), seed: 86 });
+    KIT.settle.market(t, { x: 640, y: 1010, w: 560, n: 2, draw: DR(t, 6), seed: 87 });
+    KIT.settle.road(t, { x: 1250, y: 930, path: [[0, 0], [200, 52], [420, -26], [610, 40]], width: 34, draw: DR(t, 7), seed: 88 });
+    [['settle.skyline  old', 560, 438], ['settle.bridge  arch', 1400, 486], ['settle.village', 60, 700], ['settle.ruins', 610, 700],
+      ['settle.map', 1330, 856], ['settle.fields', 60, 1044], ['settle.market', 640, 734], ['settle.road', 1250, 1040]]
+      .forEach(([s, x, y], k) => FIG(t, k, s, x, y));
+  },
+};
+
+defineStory({ title: 'Component Gallery', stages: 10, music: { tonic: 220 }, plates: [EARTH, TECH, AI, SPACE, LAB, STUDIO, NATURE, LIFE, SETTLE_A, SETTLE_B] });
 boot();
