@@ -2,7 +2,7 @@
 name: doodle-qa
 description: Run every quality check on a doodle-art-animation film working folder (build, contact sheet, strips, seam sheets, text, motion and audio checks, then the film-reviewer and seam-reviewer agents) and summarise what to fix.
 disable-model-invocation: true
-argument-hint: "[working folder] [story file]"
+argument-hint: "[story file] [working folder]"
 ---
 
 # Doodle QA
@@ -11,11 +11,11 @@ Check a film before the final render, or check a render before delivery. Don't e
 
 ## 1. Find the folder and the files
 
-- Arguments given: `$ARGUMENTS` (optional: first the working folder, then the story file).
-- The working folder is the first argument, otherwise the current directory. `cd` into it and confirm with `pwd`.
-- The story is the second argument, otherwise `story.js`. If that doesn't exist, list the `story*.js` files and ask which one.
+- Arguments given: `$ARGUMENTS` (both optional, in the same order as `/doodle-art-animation:doodle-render`: first the story file, then the working folder).
+- The working folder is the second argument, otherwise the current directory. `cd` into it and confirm with `pwd`.
+- The story is the first argument, otherwise `story.js`. If that doesn't exist, list the `story*.js` files and ask which one.
 - The film HTML is `film.html` unless the folder already has another HTML built from this story (check its `<title>` against the story's `title`). The MP4 is the newest `*.mp4` in the folder, if any.
-- The toolkit lives at `${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation/toolkit`. If that path was not filled in, use `${CLAUDE_SKILL_DIR}/../doodle-art-animation/toolkit`. Copy any of `build.py shell.html engine.js render.mjs motion_check.py audio_check.py text_check.mjs` that are missing from the folder. Never overwrite a file that is already there. If the folder's `engine.js` differs from the toolkit's (`cmp`), say so in the summary; don't replace it, because the story may depend on it.
+- The toolkit lives at `${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation/toolkit`. If that path was not filled in, use `${CLAUDE_SKILL_DIR}/../doodle-art-animation/toolkit`. Copy in anything the folder is missing, never overwriting existing files: `cp -Rn "<toolkit>/." . || true` (macOS `cp -n` can exit non-zero when files already exist; that is fine). If the folder's `engine.js` differs from the toolkit's (`cmp`), say so in the summary; don't replace it, because the story may depend on it.
 
 ## 2. Run the checks
 
@@ -41,7 +41,7 @@ Stop and report if the build fails or any `PAGE ERROR` appears. Open the contact
 
 ## 3. Run the reviewers
 
-Start both agents in parallel with the Agent tool: `doodle-art-animation:film-reviewer` and `doodle-art-animation:seam-reviewer`. Give each the absolute working folder, the HTML name, the story file and the MP4 (if any). Tell them that `qa/` already holds the contact sheet, strips, seam sheets and `text_check.json` from this run, so they should reuse those and render only the extra stills they need.
+Start both agents in parallel with the Agent tool: `doodle-art-animation:film-reviewer` and `doodle-art-animation:seam-reviewer`. Give each the absolute working folder, the HTML name, the story file and the MP4 (if any). Tell them that `qa/` already holds the contact sheet (`qa/contact_sheet.jpg`), strips, seam sheets and `qa/text_check.json` from this run (and the `text_check`, `motion_check` and `audio_check` output, pasted into the prompt), so they should reuse those and render only the extra stills they need.
 
 ## 4. Summarise
 

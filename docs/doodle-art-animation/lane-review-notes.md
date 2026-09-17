@@ -15,6 +15,36 @@ Branch `doodle-film-review`. This lane adds a whole-film reviewer, two check scr
 
 `text_check.mjs` depends on engine names: `text`, `setFont`, `ctx`, `cvs`, `S.trans`, `STORY.plates`, `renderFrame`, `plateHeader`, `stageDial`, `journeyLog`, `frameCounter`, `reticle` and `window.__story`. If another lane renames any of these, update the script. It also relies on `text()` being a top-level function declaration in a classic `<script>` (true in `shell.html` today).
 
+## Review fixes (second commit)
+
+- `text_check.mjs`:
+  - The result line counts SCALE groups, not records, and leaves out the engine lean-in groups, which it reports as "engine notes". A film with only those notes now reads CLEAN.
+  - A line still typing when its plate ends (a hard cut) or when the film ends is flagged CUT OFF.
+  - Plates are named by their header ("plate II "Inside the Drop"", "opening", "end card").
+  - A line still in place in the first 0.3 s of a transition keeps counting as on screen.
+  - `--step` is validated.
+  - End-card text under 16 px goes to INFO instead of READ.
+  - Short numeric readouts (6 characters or fewer with a digit, such as axis ticks) are not reading-checked.
+
+Retest, without new renders:
+- `text_check`:
+  - One Drop reads `read 7, edge 0, overlap 1, scale 0; engine notes 2, info 5`.
+  - A copy edited so the title subtitle hits the plate end and an end-card line hits the film end mid-typing flags both CUT OFF.
+  - `story_seams` still flags the aphid note.
+  - The Long Release (`lr.html`, another lane's build) runs cleanly.
+  - `--step` with no value, or with 0, exits 2 with a message.
+- `audio_check`:
+  - `lr.mp4` passes.
+  - The clipped file fails with 576 runs of 6+ samples.
+  - A synthetic WAV with 4- and 5-sample full-scale runs warns and exits 0.
+  - The no-audio, dual-mono and short files still exit 1.
+- `cp -Rn toolkit/. .` exits 1 on macOS when a file exists, keeps that file, and copies the rest.
+- `audio_check.py`: the docstring matches the level bands and mentions the 0.5 s leading-silence warning. Clipping now fails on runs of 6 or more full-scale samples; runs of 3–5 warn (AAC decode overshoot near 0 dBFS).
+- `film-reviewer.md`: reuses a contact sheet, strips and `text_check` output that the caller already has, and explains the transition-frame rule and the INFO lines.
+- `doodle-qa` and `doodle-render`:
+  - Both copy the whole toolkit without overwriting: `cp -Rn "<toolkit>/." . || true`. This keeps working if another lane adds `toolkit/kits/`.
+  - Both take the story file as the first argument. The second is the working folder for `doodle-qa` and the output name for `doodle-render`.
+
 ## Lines to add to the main `skills/doodle-art-animation/SKILL.md`
 
 In the toolkit table, after the `toolkit/motion_check.py` row:
@@ -47,6 +77,8 @@ Replace step 7 with:
 ```
 7. **Render**: `/doodle-art-animation:doodle-render`, or by hand `node render.mjs film.html film.mp4 --workers 6 --bitrate 3800k` (a one-minute film lands near 20–30 MB), then `motion_check.py` and `audio_check.py`.
 ```
+
+(If the main skill's setup line becomes `cp -R "${CLAUDE_SKILL_DIR}"/toolkit/. .`, the new scripts are copied with it.)
 
 In the QA checklist, replace the **Reading** and **File** bullets with:
 

@@ -2,12 +2,14 @@
 usage: python3 audio_check.py film.mp4 [--starts 3.2,8.0,...] [--profile]
 
 Measures the audio track with ffmpeg and numpy and prints PASS / WARN / FAIL lines.
-  level     RMS mean (what `ffmpeg -af volumedetect` calls mean_volume), target -21..-18 dB (warn outside -23..-16)
+  level     RMS mean (what `ffmpeg -af volumedetect` calls mean_volume), target -21..-18 dB
+            (warns outside -21.5..-17.5; outside -23..-16 it also says to adjust gains)
   peak      sample peak, target about -3 dB (warn above -1 or below -6)
   loudness  EBU R128 integrated loudness and true peak (reported; warn if true peak > 0 dBTP)
-  clipping  runs of 3+ samples at full scale                        -> FAIL
+  clipping  runs of 6+ samples at full scale -> FAIL; runs of 3-5 -> WARN (decoding AAC near 0 dBFS
+            can overshoot into a few full-scale samples without real clipping in the WAV)
   stereo    side/mid ratio; one channel, or channels the same (side/mid < -35 dB) -> FAIL, below -20 dB warns "nearly mono"
-  silence   stretches of 1.5 s or more below -50 dBFS                 -> WARN
+  silence   stretches of 1.5 s or more below -50 dBFS, or 0.5 s or more at the very start -> WARN
   duration  audio vs video length, difference over 0.2 s             -> FAIL
   cues      with --starts (transition times in seconds): the nearest sound onset to each; none within 0.25 s warns
 Exit code 1 only on hard failures (no audio, mono, clipping, duration mismatch). --profile prints dB per second."""
@@ -64,15 +66,18 @@ if lufs is not None:
     line('WARN' if (tp or -99) > 0 else 'PASS', 'loudness', f'{lufs:.1f} LUFS integrated, range {lra} LU, true peak {tp} dBTP'
          + (' - true peak above 0 dBTP' if (tp or -99) > 0 else ''))
 
-# clipping: 3+ consecutive samples at full scale
+# clipping: consecutive samples at full scale. 6+ is real clipping; 3-5 can be AAC decode overshoot near 0 dBFS.
 full = np.abs(x) >= 0.999
-runs = 0
+long_runs = short_runs = 0
 for c in range(ch):
     e = np.diff(np.r_[0, full[:, c].astype(np.int8), 0])
-    runs += int(np.sum(np.flatnonzero(e == -1) - np.flatnonzero(e == 1) >= 3))
+    n = np.flatnonzero(e == -1) - np.flatnonzero(e == 1)
+    long_runs += int(np.sum(n >= 6)); short_runs += int(np.sum((n >= 3) & (n < 6)))
 nfull = int(full.sum())
-if runs:
-    line('FAIL', 'clipping', f'{runs} clipped runs ({nfull} samples at full scale)')
+if long_runs:
+    line('FAIL', 'clipping', f'{long_runs} clipped runs of 6+ samples ({nfull} samples at full scale)')
+elif short_runs:
+    line('WARN', 'clipping', f'{short_runs} short full-scale runs (3-5 samples): likely AAC overshoot near 0 dBFS, lower the peak')
 else:
     line('PASS', 'clipping', f'none ({nfull} isolated full-scale samples)')
 

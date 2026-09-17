@@ -12,24 +12,32 @@ You review a whole hand-inked explainer film made with the doodle-art-animation 
 
 The caller gives you a working folder containing `render.mjs`, `motion_check.py`, the built film HTML, and `story.js` (or another story file), plus the MP4 if one has been rendered. If the HTML or the story is missing, say so and stop. If no MP4 exists, skip the MP4 checks, say so in the report, and score motion and sound as "not measured".
 
-The newer check scripts may be missing from a folder that was set up with an older toolkit. Copy any that are missing, and never overwrite files that are already there:
+The newer check scripts may be missing from a folder that was set up with an older toolkit. Copy the toolkit in without overwriting anything that is already there (macOS `cp -n` can exit non-zero when files exist, which is fine):
 
 ```
 cd <working folder>
-for f in audio_check.py text_check.mjs; do [ -f "$f" ] || cp "${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation/toolkit/$f" .; done
+cp -Rn "${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation/toolkit/." . || true
 ```
 
 `text_check.mjs` and `render.mjs` find Playwright in the folder's `node_modules`, or else in the global npm root, so run them from the working folder.
 
 ## Steps
 
-Put all output in `qa_review/` so you don't overwrite the author's `qa/` folder.
+Put all output in `qa_review/` so you don't overwrite the author's `qa/` folder. If the caller says the contact sheet, strips or `text_check` output already exist from this run (for example in `qa/`, from `/doodle-art-animation:doodle-qa`), use those and skip rendering them again; render only what is missing.
 
 1. **Read the story.** List each plate with its start time, length, dark or paper, header, what is drawn, every beat (`beat(t, t0, t1)`) with its text, and every `cues` entry. Find the plate script and the sources (story comments, a script file in the folder, or the end card). Note every number that appears on screen.
 2. **Render the evidence** from the working folder:
-   - `node render.mjs <film>.html --sheet 1 --dir qa_review`: one frame per second in `qa_review/contact_sheet.jpg`.
-   - `node render.mjs <film>.html --strips --dir qa_review`: a 12-frame strip at 8 fps around each plate start.
-   - `node text_check.mjs <film>.html --json qa_review/text_check.json`: measures every line of text as it plays. It prints `READ` (a line up for less than `readTime`, or cut off while still typing), `EDGE` (off the frame), `OVERLAP` (text boxes touching), `SCALE` (HUD, reticle tag or overlay text changing size), and the transition times. Any `PAGE ERROR` line means the film is broken: report it first.
+   - Unless supplied: `node render.mjs <film>.html --sheet 1 --dir qa_review`, one frame per second in `qa_review/contact_sheet.jpg`.
+   - Unless supplied: `node render.mjs <film>.html --strips --dir qa_review`, a 12-frame strip at 8 fps around each plate start.
+   - Unless supplied: `node text_check.mjs <film>.html --json qa_review/text_check.json`. It measures every line of text as it plays and prints:
+     - `READ`: a line up for less than `readTime`, or cut off while still typing;
+     - `EDGE`: text off the frame;
+     - `OVERLAP`: text boxes touching;
+     - `SCALE`: HUD, reticle tag or overlay text changing size;
+     - `INFO`: end-card small print and scene labels, which are not issues;
+     - the transition times.
+
+     Any `PAGE ERROR` line means the film is broken: report it first. `text_check` skips transition frames, except that a line still in place during the first 0.3 s of a transition keeps counting. A line that stays visible through a long `bleed` or `fade` can therefore look a little shorter than it feels; check those against the strips before calling them short.
    - For every `READ`, `EDGE` or `OVERLAP` line, and for any second on the contact sheet that looks crowded or empty, render stills around it: `node render.mjs <film>.html --stills <list> --dir qa_review/stills`. Build the list without a trailing comma (on macOS, `seq -s, a 6 b | sed 's/,$//'`, where frames = seconds × 24). Crop or tile with ffmpeg when that makes text easier to read.
 3. **Measure the MP4**, if there is one:
    - `python3 motion_check.py <film>.mp4`: target median at least 1.5 per drawing and under 5% still drawings. Read the per-second profile too.
@@ -42,9 +50,9 @@ Put all output in `qa_review/` so you don't overwrite the author's `qa/` folder.
 
 - **Collisions.** `OVERLAP` lines, plus what the script cannot see: text over art, callout leaders crossing other text or cards, a bottom card hitting the frame counter or the stage dial, the STATE row overrunning, two ideas fighting for one region (the top centre is for the stat, one side for callouts, the bottom for a card).
 - **Edges.** `EDGE` lines, plus art that should bleed but stops short of the frame, or callouts and notes touching the edge. A long note at x 1330 runs off the right edge: measure it or flip the callout.
-- **Reading time.** The engine's rule is `readTime(s) = chars / 12 + 0.8` seconds, counted from when the line starts typing until it starts to fade. `text_check` measures it. For each short line, give the fix in story terms: move `t1` later in `beat(t, t0, t1)`, start the beat earlier, shorten the text, or give the plate more `dur`. A line that fades while still typing (`CUT OFF`) is always a fail: in `stat`, the note starts typing 1.2 s after the kicker and the beat starts fading 0.3 s before `t1`, so `t1 - t0` must be at least 1.5 + readTime(note) seconds. In `callout`, the sub starts 0.7 s in, so `t1 - t0` must be at least 1.0 + readTime(sub).
+- **Reading time.** End-card small print under 16 px (sources, notes) is listed as `INFO`; it only needs to be legible when paused, so don't score it. The engine's rule is `readTime(s) = chars / 12 + 0.8` seconds, counted from when the line starts typing until it starts to fade. `text_check` measures it. For each short line, give the fix in story terms: move `t1` later in `beat(t, t0, t1)`, start the beat earlier, shorten the text, or give the plate more `dur`. A line that fades while still typing (`CUT OFF`) is always a fail: in `stat`, the note starts typing 1.2 s after the kicker and the beat starts fading 0.3 s before `t1`, so `t1 - t0` must be at least 1.5 + readTime(note) seconds. In `callout`, the sub starts 0.7 s in, so `t1 - t0` must be at least 1.0 + readTime(sub).
 - **Dead or empty stretches.** In the `motion_check` per-second profile, any run of 2 or more seconds below about 1.2 that is not the opening title (the title plate is allowed a calm first second) needs more life. Ignore the spikes at transitions. Name the plate and what could move there (drifting particles, weather, flowing lines, a camera move, ripples on an end card). Night plates need dense crowds (100+ small bodies) or depth layers to register. On the contact sheet, flag large empty regions that aren't doing a job, and any second where the new plate is still bare after a transition.
-- **Furniture that scales.** The HUD (plate header, stage dial, journey log, frame counter) and the hero reticle must never change size with the camera. `SCALE` lines for `hud` or `reticle` text are a fail. `SCALE` lines for `overlay` text marked "during the lean-in/settle" come from the engine's lean-in before zoomy cuts; report them as one engine note, not as a story fault. `INFO` lines are labels drawn inside the scene; they are fine if they belong to the scene, and should move to `overlay(t)` if they are meant to stay still.
+- **Furniture that scales.** The HUD (plate header, stage dial, journey log, frame counter) and the hero reticle must never change size with the camera. `SCALE` lines for `hud` or `reticle` text are a fail. `SCALE` lines marked "engine note" come from the engine's lean-in before zoomy cuts. They are not counted as issues in the `text_check` result line; report them as one engine note, not as a story fault. `INFO` lines are labels drawn inside the scene; they are fine if they belong to the scene, and should move to `overlay(t)` if they are meant to stay still.
 - **Facts and numbers.** Every number on screen must match the plate script and a listed source, with real units, `≈` for estimates, and "illustrative" on schematic curves and splits. Check every comparison with arithmetic (1,200 mm of rain is 1,200 litres on each square metre). Check that count-ups land on the stated value, and that the end card lists the sources. Say plainly when you could not verify a number against a source.
 - **Scenery variety.** On the contact sheet, each paper plate should look like its own place: different ground, trees, far mountains, water, sky elements. The recap needs its own composition, not a repeat of an earlier plate. The art should fit the film's topic, not reuse the example film's valley.
 - **Sound.** From `audio_check`: mean level -21 to -18 dB, peak about -3 dB (the example measures -20.2 and -5.8), no clipping, real stereo, no silent stretch, audio as long as the video. From `--starts`: each transition should have a sound onset within about 0.25 s. `bleed`, `fade` and `hatch` have slow swells, so a warning there is normal; a missing onset on a `cut`, `pan`, `lensIn` or `zoom` is not. From the story's `cues`: a `scratch` under each typed note or callout, a `chime` when a count-up lands, a `pop` when a callout or card appears, and no cue firing where nothing happens on screen. Compare cue times with the beat times you listed in step 1.

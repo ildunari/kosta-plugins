@@ -12,9 +12,9 @@ Make the shareable MP4 of a film in the current working folder and check it befo
 ## 1. Set up
 
 - Run from the film's working folder (`pwd` to confirm). Never render inside the plugin folder.
-- Arguments given: `$ARGUMENTS` (optional: first the story file, then the output MP4 name).
+- Arguments given: `$ARGUMENTS` (both optional: first the story file, as in `/doodle-art-animation:doodle-qa`, then the output MP4 name).
 - The story is the first argument, otherwise `story.js`. The output is the second argument, otherwise `film.mp4`; the HTML takes the same name with `.html`.
-- The toolkit lives at `${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation/toolkit`. If that path was not filled in, use `${CLAUDE_SKILL_DIR}/../doodle-art-animation/toolkit`. Copy any of `build.py shell.html engine.js render.mjs motion_check.py audio_check.py` that are missing from the folder. Never overwrite a file that is already there.
+- The toolkit lives at `${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation/toolkit`. If that path was not filled in, use `${CLAUDE_SKILL_DIR}/../doodle-art-animation/toolkit`. Copy in anything the folder is missing, never overwriting existing files: `cp -Rn "<toolkit>/." . || true` (macOS `cp -n` can exit non-zero when files already exist; that is fine).
 - Pick the worker count from the CPU count: `n=$(sysctl -n hw.ncpu 2>/dev/null || nproc)`, then workers = n - 2, at least 2 and at most 8. Use fewer if the user says the machine is busy.
 
 ## 2. Render

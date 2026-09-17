@@ -2,11 +2,14 @@
 // usage: node text_check.mjs film.html [--step 2] [--json text_check.json]
 // It wraps the engine's text() in the page (engine.js and the story are untouched), steps through the film one
 // drawing at a time, and follows every line of text as it types on, holds and fades. It reports:
-//   READ     lines that were not fully on screen for readTime(s) = chars / 12 + 0.8 s, or that fade before they finish typing
+//   READ     lines that were not fully on screen for readTime(s) = chars / 12 + 0.8 s, or that fade or get cut before they
+//            finish typing (end-card small print under 16 px is listed as INFO; short numbers of 6 characters or fewer are skipped)
 //   EDGE     text whose box leaves the 1920x1080 frame
 //   OVERLAP  two lines whose boxes overlap (HUD vs HUD is skipped), with the time range
-//   SCALE    HUD, tag or overlay text whose size changes outside transitions (scene labels that scale are listed as INFO)
-// Reading time is checked for overlay and scene text and the plate title/subtitle; plate numbers are indexes (0 = first plate).
+//   SCALE    HUD, tag or overlay text whose size changes (changes during the engine's lean-in/settle around a transition are
+//            engine notes and don't count as issues; scene labels that scale are listed as INFO)
+// Reading time is checked for overlay and scene text and the plate title/subtitle. Transition frames are skipped, except
+// that a line still in place in the first 0.3 s of a transition (a bleed or fade) keeps counting as on screen.
 // Text drawn into offscreen layers and single characters are skipped. Boxes are the text itself, not the art behind
 // it, so still look at the frames for text over art or cards.
 import { createRequire } from 'module';
@@ -19,8 +22,11 @@ catch { ({ chromium } = require(path.join(execFileSync('npm', ['root', '-g']).to
 
 const args = process.argv.slice(2);
 if (!args[0] || args[0].startsWith('--')) { console.log('usage: node text_check.mjs film.html [--step 2] [--json out.json]'); process.exit(2); }
-const opt = (k, d) => { const i = args.indexOf('--' + k); return i < 0 ? d : args[i + 1]; };
-const file = path.resolve(args[0]), step = +opt('step', 2), jsonOut = opt('json', null);
+const opt = (k, d) => { const i = args.indexOf('--' + k); if (i < 0) return d; const v = args[i + 1];
+  if (v === undefined || v.startsWith('--')) { console.error(`text_check: --${k} needs a value`); process.exit(2); } return v; };
+const file = path.resolve(args[0]), step = Number(opt('step', 2)), jsonOut = opt('json', null);
+if (!Number.isInteger(step) || step < 1) { console.error('text_check: --step must be a whole number of frames, 1 or more'); process.exit(2); }
+if (!fs.existsSync(file)) { console.error(`text_check: ${file} not found`); process.exit(2); }
 
 const browser = await chromium.launch({ args: ['--font-render-hinting=none'] });
 const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
@@ -50,19 +56,24 @@ const info = await page.evaluate(() => {
     return w;
   };
   window.__tcFrame = f => { window.__tc = []; renderFrame(f); main.getImageData(0, 0, 1, 1); return { T: S.T, plate: STORY.plates.findIndex(p => S.T < p.start + p.dur), recs: window.__tc }; };
-  return { ...window.__story, plates: STORY.plates.map(p => ({ start: p.start, dur: p.dur, title: p.header ? p.header.title : '' })) };
+  return { ...window.__story, plates: STORY.plates.map((p, i, all) => ({ start: p.start, dur: p.dur,
+    name: p.header ? `plate ${p.header.num != null ? ROMAN(p.header.num) : i + 1} "${p.header.title}"` : i === 0 ? 'opening' : i === all.length - 1 ? 'end card' : `plate ${i + 1} of ${all.length}` })) };
 });
 console.log(`${info.title}: ${info.frames} frames, sampling every ${step}`);
 console.log('transitions at (s):', info.starts.slice(1).map(x => x.t.toFixed(2)).join(','));
 
 const readTime = s => s.length / 12 + 0.8, dt = step / info.fps, digits = /\d/;
 const tracks = [], frames = [];
+let lastT = 0;
 const related = (a, b) => a.startsWith(b) || b.startsWith(a);
 for (let f = 0; f < info.frames; f += step) {
   const { T, plate, recs } = await page.evaluate(f => window.__tcFrame(f), f);
   const used = new Set();
   for (const r of recs) {
-    if (r.tr) continue;                       // text inside a transition is judged on the seam sheets, not here
+    // Inside a transition, text only extends a line that is still in place (a bleed or fade), for up to 0.3 s.
+    // Everything else inside transitions is judged on the seam sheets, not here.
+    const grace = r.tr && T - info.plates[plate].start <= 0.3 + 1e-6;
+    if (r.tr && !grace) continue;
     let best = null, bd = 1e9;
     for (const k of tracks) {
       if (used.has(k.id) || k.role !== r.role || k.font !== r.font || T - k.last > 3 * dt + 1e-6) continue;
@@ -70,6 +81,7 @@ for (let f = 0; f < info.frames; f += step) {
       const ok = related(k.cur, r.s) || (digits.test(k.cur) && digits.test(r.s) && d < 6);
       if (ok && d < lim && d < bd) { best = k; bd = d; }
     }
+    if (grace) { if (best && r.s === best.cur && r.a >= 0.9 * best.maxA) { used.add(best.id); r.id = best.id; best.last = T; if (r.s.length >= best.final.length) best.lastFull = T; } continue; }
     if (!best) { best = { id: tracks.length, role: r.role, font: r.font, first: T, full: T, lastFull: null, last: T, cur: r.s, final: r.s, plate, scales: [], edge: [], value: false, maxA: 0 }; tracks.push(best); }
     used.add(best.id); r.id = best.id;
     if (!related(best.cur, r.s)) best.value = true;
@@ -82,18 +94,24 @@ for (let f = 0; f < info.frames; f += step) {
     if (r.a >= 0.5 && (x0 < -2 || y0 < -2 || x1 > info.width + 2 || y1 > info.height + 2)) best.edge.push(T);
   }
   frames.push({ T, recs: recs.filter(r => r.a >= 0.4 && !r.tr) });
+  lastT = T;
 }
 await browser.close();
 
 const fmt = t => t.toFixed(2);
-const label = k => `"${k.final.length > 60 ? k.final.slice(0, 57) + '...' : k.final}" (${k.role}, plate ${k.plate})`;   // plate = index, 0 = first plate
-const out = { read: [], edge: [], overlap: [], scale: [], scaleInfo: [] };
+const label = k => `"${k.final.length > 60 ? k.final.slice(0, 57) + '...' : k.final}" (${k.role}, ${info.plates[k.plate].name})`;
+const out = { read: [], readInfo: [], edge: [], overlap: [], scale: [], scaleInfo: [] };
 for (const k of tracks) {
   if (/^EXP \d/.test(k.final)) continue;
   const up = (k.lastFull ?? k.first) - k.first + dt, need = readTime(k.final);
   const reads = k.role === 'overlay' || k.role === 'scene' || (k.role === 'hud' && k.font.startsWith('display'));   // HUD rows and tags are furniture
-  const cut = !k.value && k.full >= k.last - 1e-6 && k.last - k.first > 3 * dt && k.lastFull !== null && k.lastFull < k.full;   // still growing as it faded
-  if (reads && !k.value && k.final.length >= 3 && (cut || up + 1e-6 < need)) out.read.push({ text: k.final, role: k.role, plate: k.plate, from: k.first, up, need, cut });
+  // cut off: still typing on its last drawing, and it either faded or ended with the plate (a hard cut) or the film
+  const pl = info.plates[k.plate], atEdge = k.last >= pl.start + pl.dur - 1.5 * dt || k.last >= lastT - 1e-6;
+  const cut = !k.value && k.full >= k.last - 1e-6 && ((k.last - k.first > dt && k.lastFull !== null && k.lastFull < k.full) || atEdge);
+  const readout = k.final.length <= 6 && digits.test(k.final);   // short ticking numbers (axis values, percentages) are read at a glance
+  const size = +k.font.split(' ')[1], small = k.plate === info.plates.length - 1 && size < 16;   // end-card small print (sources, notes)
+  if (reads && !k.value && !readout && k.final.length >= 3 && (cut || up + 1e-6 < need))
+    (small ? out.readInfo : out.read).push({ text: k.final, role: k.role, plate: k.plate, from: k.first, up, need, cut });
   if (k.edge.length) out.edge.push({ text: k.final, role: k.role, plate: k.plate, from: k.edge[0], to: k.edge[k.edge.length - 1] });
   if (k.scales.length > 2) {
     const sc = k.scales.map(q => q[1]), v = Math.max(...sc) / Math.min(...sc) - 1, med = [...sc].sort((a, b) => a - b)[sc.length >> 1];
@@ -113,11 +131,14 @@ for (const { T, recs } of frames) for (let i = 0; i < recs.length; i++) for (let
   e.to = T; pairs.set(key, e);
 }
 for (const e of pairs.values()) out.overlap.push({ a: e.a.final, b: e.b.final, roles: [e.a.role, e.b.role], plate: e.a.plate, from: e.from, to: e.to });
+for (const r of out.overlap) r.plateName = info.plates[r.plate].name;
 
 console.log(`\n${tracks.length} text lines followed across ${frames.length} drawings`);
-for (const r of out.read) console.log(`READ    ${fmt(r.from)} s  ${r.cut ? 'CUT OFF while still typing (it fades before the last characters appear)' : `fully up ${fmt(r.up)} s, needs ${fmt(r.need)} s`}  ${label({ final: r.text, role: r.role, plate: r.plate })}`);
+const readMsg = r => r.cut ? 'CUT OFF while still typing (it fades, or the plate or film ends, before the last characters appear)' : `fully up ${fmt(r.up)} s, needs ${fmt(r.need)} s`;
+for (const r of out.read) console.log(`READ    ${fmt(r.from)} s  ${readMsg(r)}  ${label({ final: r.text, role: r.role, plate: r.plate })}`);
+for (const r of out.readInfo) console.log(`INFO    ${fmt(r.from)} s  end-card small print ${readMsg(r)}  ${label({ final: r.text, role: r.role, plate: r.plate })}`);
 for (const r of out.edge) console.log(`EDGE    ${fmt(r.from)}-${fmt(r.to)} s  ${label({ final: r.text, role: r.role, plate: r.plate })}`);
-for (const r of out.overlap) console.log(`OVERLAP ${fmt(r.from)}-${fmt(r.to)} s  "${r.a.slice(0, 40)}" (${r.roles[0]}) x "${r.b.slice(0, 40)}" (${r.roles[1]})`);
+for (const r of out.overlap) console.log(`OVERLAP ${fmt(r.from)}-${fmt(r.to)} s  "${r.a.slice(0, 40)}" (${r.roles[0]}) x "${r.b.slice(0, 40)}" (${r.roles[1]}), ${r.plateName}`);
 const groups = new Map();
 for (const r of out.scale) {
   const pl = info.plates[r.plate], end = pl.start + pl.dur;
@@ -126,8 +147,11 @@ for (const r of out.scale) {
   g.texts.push(r.text); g.change = Math.max(g.change, r.change); groups.set(key, g);
 }
 for (const g of groups.values()) console.log(`SCALE   ${fmt(g.from)}-${fmt(g.to)} s  ${g.role} text changes size ${(g.change * 100).toFixed(1)}%`
-  + (g.lean ? ' during the lean-in/settle around a transition' : ' outside transitions') + `  (plate ${g.plate}, ${g.texts.length} lines: "${g.texts.slice(0, 3).join('", "')}"${g.texts.length > 3 ? ', ...' : ''})`);
+  + (g.lean ? ' during the engine lean-in/settle around a transition (engine note)' : ' outside transitions') + `  (${info.plates[g.plate].name}, ${g.texts.length} lines: "${g.texts.slice(0, 3).join('", "')}"${g.texts.length > 3 ? ', ...' : ''})`);
 for (const r of out.scaleInfo) console.log(`INFO    scene label scales with the camera ${(r.change * 100).toFixed(1)}%  ${label({ final: r.text, role: r.role, plate: r.plate })}`);
-const n = out.read.length + out.edge.length + out.overlap.length + out.scale.length;
-console.log(`result: ${n ? 'ISSUES' : 'CLEAN'} (read ${out.read.length}, edge ${out.edge.length}, overlap ${out.overlap.length}, scale ${out.scale.length})`);
-if (jsonOut) fs.writeFileSync(path.resolve(jsonOut), JSON.stringify({ plates: info.plates, ...out }, null, 1));
+const scaleIssues = [...groups.values()].filter(g => !g.lean).length, leanNotes = groups.size - scaleIssues;
+const n = out.read.length + out.edge.length + out.overlap.length + scaleIssues;
+console.log(`result: ${n ? 'ISSUES' : 'CLEAN'} (read ${out.read.length}, edge ${out.edge.length}, overlap ${out.overlap.length}, scale ${scaleIssues}; `
+  + `engine notes ${leanNotes}, info ${out.readInfo.length + out.scaleInfo.length})`);
+if (jsonOut) fs.writeFileSync(path.resolve(jsonOut), JSON.stringify({ plates: info.plates, ...out, scaleGroups: [...groups.values()] }, null, 1));
+process.exit(0);
