@@ -1498,6 +1498,64 @@ async function boot() {
   window.__renderFrame = f => { renderFrame(f); return true; };
   window.__frameData = (f, type = 'image/jpeg', q = 0.94) => { renderFrame(f); return cvs.toDataURL(type, q).split(',')[1]; };
   window.__audioWav = async () => b64(wavBytes(await renderAudio()));
+  /* ---- speed_check probes: read-only, for toolkit/speed_check.mjs (references/motion.md, "Speed limits") ----
+   * __camProbe(i, t): plate i's own composed camera at its local time t — camOf(pl,t) folded with momentum()
+   *   and entryShift() (the lean into/out of a cut), i.e. exactly what drawPlate composes for that plate on
+   *   its own, with no transition xf. { s: scale, dx, dy: px pan }. Sample across a plate's life for camera
+   *   jumps, and just before/after a cut for a stall (film-grammar.md F8).
+   * __seamProbe(i, u): the transition ENTERING plate i, at u = 0..1 of its own clock (same `raw` as
+   *   renderFrame). Returns { type, p (eased progress), raw, ...} where the extra fields are the same
+   *   scale/mask/pan quantities TRANS[type] computes for its own xf (read off the preset's own formulas with
+   *   the engine's own E/zlerp/lerp/coverR — not a second implementation of the transition). This is the
+   *   tunable part of a seam (dur, ease, k, dive, ...); a plate's own camera is __camProbe's job, not this
+   *   one's, so the two are never multiplied together here. null before plate i, or when it has no enter. */
+  window.__camProbe = (i, t) => {
+    const pl = STORY.plates[i]; if (!pl) return null;
+    const cam = camOf(pl, t) || { s: 1, dx: 0, dy: 0 }, ms = entryShift(pl, t), mo = momentum(pl, t) * (ms ? ms.s : 1);
+    return { s: (cam.s ?? 1) * mo, dx: (cam.dx || 0) + (ms ? ms.dx : 0), dy: (cam.dy || 0) + (ms ? ms.dy : 0) };
+  };
+  window.__seamProbe = (i, u) => {
+    const P = STORY.plates, pl = P[i]; if (!pl || i === 0) return null;
+    const prev = P[i - 1], tr = pl.enter; if (!tr) return null;
+    const dur = tr.dur || 0, raw = clamp(u), t = raw * dur, pt = prev.dur + t;
+    const own = !!(tr.ease && EASED[tr.type]);
+    const p = clamp(tr.curve ? curve(raw, tr.curve) : tr.ease && !own ? easeOf(tr.ease)(raw) : raw);
+    const ez = (v, def) => own ? easeOf(tr.ease)(v) : def(v);
+    const [ox, oy] = focusOf(prev, pt), [nx, ny] = focusOf(pl, t);
+    const out = { type: tr.type, p, raw };
+    switch (tr.type) {
+      case 'lensIn': { const e = ez(p, E.arrive); out.scaleOld = zlerp(1, tr.dive ?? 2, e); out.maskR = lerp(16, coverR(ox, oy), e); break; }
+      case 'lensOut': { const e = ez(p, E.arrive); out.scaleNew = zlerp(tr.dive ?? 2, 1, e); out.maskR = lerp(coverR(ox, oy), 20, e); break; }
+      case 'zoom': { const e = ez(p, E.arriveSoft), k = tr.k ?? 3.5, isOut = (tr.dir || 'out') === 'out';
+        out.scaleOld = isOut ? zlerp(1, 1 / k, e) : zlerp(1, k, e); out.scaleNew = isOut ? zlerp(k, 1, e) : zlerp(1 / k, 1, e); break; }
+      case 'shape': case 'morph': { const e = ez(p, E.arrive); out.scaleOld = zlerp(1, 1.6, e); out.scaleNew = zlerp(0.7, 1, e);
+        out.maskR = lerp(6, coverR((ox + nx) / 2, (oy + ny) / 2), E.arrive(inv(0.05, 0.9, p))); break; }
+      case 'iris': { let r; if (p < 0.46) r = lerp(coverR(ox, oy), 7, E.shaped(0.65, 2, 2)(p / 0.46));
+        else if (p < 0.54) r = 7; else r = lerp(7, coverR(nx, ny), E.shaped(0.35, 2, 3)((p - 0.54) / 0.46));
+        out.maskR = r; break; }
+      case 'through': { const dive = tr.dive ?? 1.6, rise = tr.rise ?? 1.4;
+        if (p < 0.46) out.scaleOld = zlerp(1, dive, E.in2(p / 0.46));
+        else if (p < 0.49) out.scaleOld = dive;
+        else out.scaleNew = zlerp(rise, 1, E.shaped(0.25, 2, 3)((p - 0.49) / 0.51)); break; }
+      case 'pan': { let dir = tr.dir || 'auto';
+        if (dir === 'auto') { const [vx, vy] = travelOf(prev, prev.dur - 1e-3);
+          dir = Math.hypot(vx, vy) < 40 ? 'left' : Math.abs(vx) >= Math.abs(vy) ? (vx > 0 ? 'left' : 'right') : (vy > 0 ? 'up' : 'down'); }
+        const vert = dir === 'up' || dir === 'down', sg = (dir === 'left' || dir === 'up') ? -1 : 1, span = vert ? H : W;
+        const [mvx, mvy] = motionOf(prev, prev.dur - 1e-3), mv = vert ? mvy : mvx;
+        const v0 = Math.sign(mv) === sg ? clamp(Math.abs(mv) * (dur || 0.8) / span, 0, 1.2) : 0;
+        out.panOff = sg * span * ez(p, E.whip(v0)); break; }
+      case 'wipe': { const e = ez(p, E.ramp(0.25, 0.35)), dir = tr.dir || 'lr', span = dir === 'tb' ? H : W;
+        out.frontPos = lerp(-180, span + 180, dir === 'rl' ? 1 - e : e); break; }
+      case 'bleed': { const fall = tr.fall ?? 0.22;
+        if (p < fall) out.dropY = lerp(-80, ny - (tr.drop ?? 22), E.in2(inv(0, 0.85, p / fall)));
+        else out.splatE = ez((p - fall) / (1 - fall), E.shaped(0.15, 1.6, 3)) ** 2; break; }
+      case 'burn': out.burnE = ez(p, E.depart); break;
+      case 'page': out.creaseX = lerp(W + 4, -0.02 * W, ez(p, E.shaped(0.5, 1.8, 2.5))); break;
+      case 'roll': out.rollY = lerp(H + 6, -((tr.radius ?? 60) + 40), ez(p, E.shaped(0.25, 2, 3))); break;
+      default: break;   // cut, hatch, fade: no scale/mask beyond p itself (exempt from speed limits, or plain crossfade)
+    }
+    return out;
+  };
   window.__ready = true;
   if (RENDER) { renderFrame(+(QS.get('f') || 0)); return; }
   player();
