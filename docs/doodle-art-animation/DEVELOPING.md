@@ -18,12 +18,16 @@ When a film looks wrong, first decide which layer caused it. If it happens in ev
 plugins/doodle-art-animation/       the plugin
   .claude-plugin/plugin.json
   agents/seam-reviewer.md           scores every seam against the film-grammar rubric
+  agents/film-reviewer.md           reviews the whole film: text, reading time, life, facts, variety, sound
+  skills/doodle-qa/                 /doodle-art-animation:doodle-qa, runs every check and both reviewers
+  skills/doodle-render/             /doodle-art-animation:doodle-render, final MP4 plus checks
   skills/doodle-art-animation/
     SKILL.md                        workflow and the most important rules (keep it under ~500 lines)
     FEEDBACK.md                     lessons log (feedback-loop convention)
     references/                     style, motion, writing, film-grammar, sound, api, render
     toolkit/                        engine.js, shell.html, build.py, render.mjs,
-                                    motion_check.py, story_example.js, story_seams.js, story_reel.js
+                                    motion_check.py, audio_check.py, text_check.mjs,
+                                    story_example.js, story_seams.js, story_reel.js
 docs/doodle-art-animation/          not shipped with the plugin
   DEVELOPING.md                     this file
   HANDOFF.md                        history, measurements, known weaknesses (paths in it refer to the original handoff zip)
@@ -51,6 +55,8 @@ node render.mjs film.html --seams                   # qa/seam_NN_type.jpg, both 
 node render.mjs reel.html --strips --dir qa_reel    # all 14 transition types
 node render.mjs film.html film.mp4 --workers 6      # full render
 python3 motion_check.py film.mp4                    # target: median >= 1.5, still < 5%
+python3 audio_check.py film.mp4                     # level, peak, clipping, stereo, silence, length
+node text_check.mjs film.html                       # reading time, text off frame, overlaps, text that scales
 ```
 
 Look at the images yourself before calling anything done. Baseline for the example: median 1.57, still 1% (see `HANDOFF.md`).
