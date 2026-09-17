@@ -341,7 +341,7 @@ const P4 = {
   cam: camIV,
   hero: t => ({ x: C4[0], y: C4[1], label: 'NP·01', r: R4(t) + 50 }),
   bed: (ac, out, t0, dur) => { darkBed([98, 146.8, 185])(ac, out, t0, dur); },
-  cues: [[2.6, 'pop'], [6.4, 'pop'], [11.6, 'chime', { f: 440 }], ...drugsIV.slice(0, 16).map(d => [d.tr + 0.2, 'plink'])],
+  cues: [[0.12, 'pop'], [2.6, 'pop'], [6.4, 'pop'], [11.6, 'chime', { f: 440 }], ...drugsIV.slice(0, 16).map(d => [d.tr + 0.2, 'plink'])],   // 0.12: a hit as the lens opens
   draw(t) {
     const e = inv(1, 12, t), R = R4(t);
     const r = mulberry(410);
@@ -394,7 +394,7 @@ const P5 = {
   focus: () => [960, 380],
   cam: t => ({ x: 960, y: 380, s: 1 + 0.05 * E.inOutSine(clamp(t / 9.5)), dx: 14 * Math.sin(t * 0.6), dy: 8 * Math.sin(t * 0.45), rot: 0.02 * Math.sin(t * 0.3) }),   // a slow drift; the text in overlay stays put
   bed: (ac, out, t0, dur) => SFX.pad(ac, out, t0, { dur: dur - 0.5, notes: [130.8, 196, 246.9, 329.6], g: 0.02, dark: true }),
-  cues: [[1.2, 'chime', { f: 392 }], [3.3, 'chime', { f: 587 }]],
+  cues: [[0.12, 'pop'], [1.2, 'chime', { f: 392 }], [3.3, 'chime', { f: 587 }]],   // 0.12: a hit as the morph begins
   draw(t) {
     const [cx, cy] = [960, 380], a = E.out3(inv(0.3, 1.4, t));
     const dust = mulberry(1300);                                              // drifting motes behind everything
