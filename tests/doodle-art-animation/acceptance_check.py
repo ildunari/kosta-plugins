@@ -134,8 +134,11 @@ if want('L8'):
     m = re.search(r'BRUSHES[^\n]*\n([\s\S]*?)(?=\n/\* ={5,})', ENGINE)
     check('L8', 'brush section found (a "BRUSHES" banner)', bool(m))
     if m:
-        bad = [w for w in ['Math.random', 'Date.now', 'new Date', 'performance.now'] if w in m.group(1)]
-        check('L8', 'brush section has no Math.random / Date / performance.now', not bad, ', '.join(bad))
+        # the __brushProbe hook is a test hook, not drawing code: it may read the clock to time a sample
+        drawing = re.sub(r'window\.__brushProbe[\s\S]*', '', m.group(1))
+        drawing = re.sub(r'(?m)^\s*(//|\*|/\*).*$', '', drawing)   # comments are prose, not drawing code
+        bad = [w for w in ['Math.random', 'Date.now', 'new Date', 'performance.now'] if w in drawing]
+        check('L8', 'brush drawing code has no Math.random / Date / performance.now', not bad, ', '.join(bad))
     check('L8', 'engine exposes window.__brushProbe', '__brushProbe' in ENGINE)
     miss = [s for s in STROKES + ['brush.stroke', 'brush.wash', 'brush.hatch', 'brush.field'] if s not in API]
     check('L8', 'api.md documents every brush name', not miss, 'missing ' + ', '.join(miss))

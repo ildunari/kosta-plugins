@@ -909,12 +909,11 @@ const brush = (() => {
     throw new Error(`__brushProbe: unknown kind "${kind}"`);
   }
   if (typeof window !== 'undefined') {
-    // wall-clock time is used only to report how long the sample took; it never reaches a drawing
-    const clock = globalThis.performance;
+    // performance.now() here only reports how long the sample took; it never reaches a drawing
     window.__brushProbe = (kind, boilV = 0) => {
       const c = newCanvas(480, 220), g = c.getContext('2d'), was = ctx, wasBoil = S.boil, wasDark = S.dark;
       let ms = 0; ctx = g; S.boil = boilV; S.dark = false;
-      try { const t0 = clock.now(); sample(kind); ms = clock.now() - t0; }
+      try { const t0 = performance.now(); sample(kind); ms = performance.now() - t0; }
       finally { ctx = was; S.boil = wasBoil; S.dark = wasDark; }
       const d = g.getImageData(0, 0, c.width, c.height).data; let h = 2166136261;
       for (let i = 0; i < d.length; i++) h = Math.imul(h ^ d[i], 16777619);
