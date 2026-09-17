@@ -27,6 +27,9 @@ If you build something other films could reuse (a server rack, a tree, a galaxy,
 | `toolkit/shell.html`, `toolkit/build.py` | `python3 build.py story.js film.html` inlines the engine and the story into one self-contained HTML file. |
 | `toolkit/render.mjs` | Frame capture, stills, contact sheets, transition strips, MP4 muxing. |
 | `toolkit/motion_check.py` | Measures how alive a render is. |
+| `toolkit/audio_check.py` | Checks the sound: level, peak, clipping, stereo, silence, length, cue timing. |
+| `toolkit/text_check.mjs` | Measures on-screen text: reading time, text off the frame, overlaps, text that scales. |
+| `toolkit/smoke_test.py` | Automated check: builds your own `story*.js` (the bundled examples when there are none), renders 3 stills of each and a short MP4 segment, and fails on page errors, font failures, blank frames, a missing, mono or silent audio track, or no motion. |
 | `toolkit/story_example.js` | The main worked example, "The Long Release" (55.5 s): one PLGA nanoparticle from syringe to drug release, in a title, 4 plates and an end card. Read it for **structure**: plate objects, beats that enter and leave, text in `overlay()`, motivated cameras (a tracking shot, a slow push and turn, a follow that pulls back to the full diagram), and a designed seam list at the top of the file. Don't reuse its scenery for an unrelated topic. |
 | `toolkit/story_one_drop.js` | A second example, "One Drop" (49 s, the water cycle): scenery recipes (far mountains, trees, birds, a coast cross-section), dense night plates, a size-ladder card. |
 | `toolkit/story_seams.js` | "Pencil to Ladybug" (29 s): a short example of designed seams (a custom eraser-to-ladybug morph, an auto-direction `pan`, a match `cut`, a `page` turn). Read it with "Designing the seams" in `references/writing.md`. |
@@ -57,16 +60,18 @@ Read `FEEDBACK.md` in this skill's folder before every use and apply its lessons
 1. **Get the substance first.** Research the topic, or read the user's data or source. Every number on screen needs a source; write the sources down now, because they go on the end card.
 2. **Pick the hero and the journey.** Something small that travels through the whole story, with an ID tag like `H₂O·01`, `NP·01`, `γ·01`, `PKT·01` (see `references/writing.md`).
 3. **Write the plate script** in the table format from `references/writing.md`, with camera, transition and exit columns, then **design every seam** (exit, entry, link) in the seam list and let the link pick the transition. For films longer than about a minute, show the script to the user before building.
-4. **Set up a working folder** (not inside this skill): `cp "${CLAUDE_SKILL_DIR}"/toolkit/* .` then write a new `story.js` that follows the structure of `story_example.js`, with art built for this topic. Copy a helper from the example only when it genuinely fits. If that variable is not filled in, the `toolkit` folder sits next to this SKILL.md.
+4. **Set up a working folder** (not inside this skill): `cp -R "${CLAUDE_SKILL_DIR}"/toolkit/. .` then write a new `story.js` that follows the structure of `story_example.js`, with art built for this topic. Copy a helper from the example only when it genuinely fits. If that variable is not filled in, the `toolkit` folder sits next to this SKILL.md.
 5. **Build plate by plate.** After each plate run `python3 build.py story.js film.html` and `node render.mjs film.html --stills <frames>`, then look at the stills: beats, collisions, empty regions.
 6. **QA the motion, not just the stills.**
    - `node render.mjs film.html --sheet 1` writes one frame per second to `qa/contact_sheet.jpg`.
    - `node render.mjs film.html --strips` writes a 12-frame, 8 fps strip around every plate start.
    - `node render.mjs film.html --seams` shows both sides of every transition and their overlay. Check that exit and entry line up and that motion keeps its direction.
-   - Before the final render, run the plugin's `seam-reviewer` agent on the working folder (or apply the rubric in `references/film-grammar.md` yourself) and fix every seam it fails.
+   - `node text_check.mjs film.html` measures every line of text as it plays: lines up for less than `readTime` or cut off while typing, text off the frame, overlapping text, and HUD or overlay text that changes size.
+   - `python3 smoke_test.py --work qa_smoke` builds and renders your story (3 stills, plus a 3.5 s MP4 segment with audio) and exits non-zero on any page error, font failure, blank frame or silent audio (exit 2 means a setup problem). Run it after any engine or story change; it does not replace looking at the frames.
+   - Before the final render, run the plugin's `film-reviewer` and `seam-reviewer` agents on the working folder (or `/doodle-art-animation:doodle-qa`, which runs every check and both agents), and fix everything they fail. Without the agents, apply the rubric in `references/film-grammar.md` yourself.
    - Open every strip and work through the QA checklist below.
-   - After the first full render, run `python3 motion_check.py film.mp4` and compare with the targets.
-7. **Render**: `node render.mjs film.html film.mp4 --workers 6`, adding `--bitrate 3800k` for a shareable file (a one-minute film lands near 25–30 MB).
+   - After the first full render, run `python3 motion_check.py film.mp4` and compare with the targets, and `python3 audio_check.py film.mp4 --starts <transition times>` (targets in `references/sound.md`).
+7. **Render**: `/doodle-art-animation:doodle-render`, or by hand `node render.mjs film.html film.mp4 --workers 6 --bitrate 3800k` (a one-minute film lands near 20–30 MB), then `motion_check.py` and `audio_check.py`.
 8. **Deliver** the MP4 and the HTML. The HTML is also a player: space plays and pauses, the arrow keys move 2 s, `[` and `]` jump between plates, and there is a scrubber.
 
 If you change or add a transition, test it in the reel first: `python3 build.py story_reel.js reel.html`, then `node render.mjs reel.html --strips`.
@@ -113,7 +118,7 @@ Look at the actual frames, not your code.
   - the page turn shows the back of the page with a crease shadow, and the roll has inked edges and a shadow;
   - pans show a single join and speed lines, not two frozen frames.
 - **Seams** (`--seams`): the exit and entry objects line up in the overlay, motion keeps its direction across the cut, and nothing pops in or vanishes at the join. Then watch each seam at full speed: if it feels like a camera trick rather than one continuous thing, redesign it.
-- **Collisions.**
+- **Collisions** (plus any `text_check` `OVERLAP` and `EDGE` lines; they cover text boxes only, so look at the frames for text over art).
   - Callout text over art, or touching a card.
   - Callouts running off the frame edge: flip them.
   - The STATE row overrunning (the engine wraps it only when it must).
@@ -121,7 +126,7 @@ Look at the actual frames, not your code.
   - A bottom card hitting the frame counter.
 - **Motion.** `python3 motion_check.py film.mp4` meets the targets. Its per-second profile has no flat stretches, and no transition spikes out of a near-zero second.
 - **Momentum.** In the strips, the old scene visibly leans in before each zoomy cut, and the new scene is still easing when the title starts.
-- **Reading.** Every line stays up for `readTime`, and no beat is replaced before it can be read.
+- **Reading.** `node text_check.mjs film.html` shows no `READ` lines: every line stays up for `readTime` from when it starts typing until it starts to fade, and no line fades while still typing. In a `stat`, the note starts 1.2 s in, so the beat needs at least 1.5 s + `readTime(note)`; in a `callout`, the sub starts 0.7 s in, so it needs 1.0 s + `readTime(sub)`. Keep a moving callout's label fixed and let only its leader track the camera.
 - **Facts.** Every on-screen number matches the plate script and its source. Check every comparison with arithmetic before it goes on screen: 1,200 mm of rain is 1,200 litres on each square metre, which is several bathtubs, not one.
 - **Edges.** Stat notes, callout subs and card labels stay inside the frame. Measure long notes; a stat at x 1330 with a 45-character note ran off the right edge.
-- **File.** `ffprobe` shows the frame count equal to `__story.frames`, the audio level is in range, and the audio is really stereo.
+- **File.** `ffprobe` shows the frame count equal to `__story.frames`, and `python3 audio_check.py film.mp4` passes (level, peak, no clipping, real stereo, audio as long as the video).

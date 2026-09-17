@@ -10,3 +10,5 @@ qa_*/
 film.html
 reel.html
 node_modules/
+
+__pycache__/
