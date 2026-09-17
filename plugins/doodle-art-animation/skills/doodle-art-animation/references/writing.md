@@ -64,6 +64,7 @@ A transition is part of the story, not a wipe laid over it. Design each one from
   - **motion** (something flies, flows or scrolls off one way): `pan` with `dir: 'auto'`, or any type with motion carry-over;
   - **scale** (inside it, or out of it): `lensIn`, `lensOut`, `zoom`;
   - **mood or time** (later, elsewhere, gone): `bleed`, `burn`, `hatch`, `iris`, `page`, `roll`.
+- **Don't mirror.** After a push in, leave by a different, motivated move: track the subject, pan where it points, rise, or hand the camera to something moving (`references/film-grammar.md`, the switch-up rule).
 - **Compose both ends to meet.** Place the entry object where the exit object will be when the cut lands, keep camera motion going the same way across the cut, and give the exit a reason (the pencil lifts, the ladybug takes off). If no link exists, change the plates until one does, or say so in the script and use a plain `cut`.
 
 Example (`toolkit/story_seams.js`, "Pencil to Ladybug"):

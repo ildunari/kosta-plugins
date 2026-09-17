@@ -16,7 +16,7 @@ Plate fields:
 | `stage` | `{ n, name, prevN }` |
 | `hero` | `t => ({ x, y, label, r, tag, alpha })` |
 | `focus` | `t => [x, y]` in screen coordinates, for plates without a hero |
-| `cam` | `t => ({ x, y, s, dx, dy, rot })` |
+| `cam` | `t => ({ x, y, s, dx, dy, rot })`, or `t => follow(target, t, { s, lead, lag, anchor })` to track a moving subject |
 | `drift` | Override the automatic push-in (a fraction, or `false`) |
 | `draw(t)` | The scene |
 | `overlay(t)` | Art that ignores the camera |
@@ -56,7 +56,7 @@ Plate fields:
 
 **Advanced:**
 - `layer(fn, slot)` draws into an offscreen canvas (it swaps `ctx`, which is why `ctx` is a `let`).
-- `motionOf(plate, t)` (on-screen velocity of the hero or camera, px/s), `withCamera`, `camPoint`, `camOf`, `heroOf`, `parallax(cam, depth, fn)`, `momentum(plate, t)`, `coverR(x, y)`, `bgTex(dark)`, `about(px, py, s, tx, ty)`.
+- `motionOf(plate, t)` (on-screen velocity of the hero or camera, px/s), `travelOf(plate, t)` (which way the camera is effectively travelling), `follow(target, t, opts)` (tracking camera with lead room), `withCamera`, `camPoint`, `camOf`, `heroOf`, `parallax(cam, depth, fn)`, `momentum(plate, t)`, `coverR(x, y)`, `bgTex(dark)`, `about(px, py, s, tx, ty)`.
 - Custom transitions: `enter: { type: 'custom', draw(p, X) }` (see `references/motion.md`), with `morphPose(A, B, u, poseA, poseB)`, `softReveal(fn, x, y, r, feather)`, `S.side` ('old' or 'new') and `S.trans` ({ type, p }).
 - `TRANS[type](p, X)` adds a new built-in transition. It returns the share of the frame the new plate owns, and should get matching `HEADER_DELAY` and `TRANS_SFX` entries.
 - `S.trans = { type, p }` lets plates react to their own transition.

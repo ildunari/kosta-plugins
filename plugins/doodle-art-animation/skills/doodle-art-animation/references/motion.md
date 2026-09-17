@@ -121,7 +121,8 @@ The built-in types are presets. When a seam matters, write it in the story: give
   - `morphPose(A, B, u, poseA, poseB)`: morph two outlines drawn in their own local frames while position, rotation and size blend too, so one object turns into another without collapsing.
   - `softReveal(fn, x, y, r, feather)`: draw the new plate inside a soft circle growing from a point, a dissolve centred on the action.
   - `morph`, `mixColor`, `about`, `camPoint`, `layer`, `clipHalf`, `withAlpha`, and any drawing helper from your story (grow the new object's details in with its own drawing function).
-- **Hand-off:** at the end, the object you animated must match what the new plate draws (same place, turn, size and colour). Fade your version out over the last 10–15% while the plate's own copy fades in.
+- **Hand-off:** at the end, the object you animated must match what the new plate draws (same place, turn, size and colour). Fade your version out over the last 10–15% while the plate's own copy fades in. For camera moves, end the transition on the plate's own opening camera (a close-up, if the plate starts close) and let the plate's camera carry on, instead of resetting to zoom 1.
+- **Tracking:** `follow(target, t, { s, lead, lag })` returns a camera that travels with a moving subject and leaves lead room ahead of it; give `s` a `curve` to pull back while travelling.
 - **Other options:** `carry: false` and `momentum: false` when your transition places things exactly; `sfx: (ac, out, t, dur) => …` for its sound.
 - **Examples:** `toolkit/story_seams.js` has two designs for the same seam. `eraserToBug` morphs the eraser into the ladybug; `eraserToBugMacro` sinks into the red eraser until red fills the screen, lets black spots bloom, then pulls back slowly to the ladybug, holds, and pulls back again to the garden, with every phase paced by a `curve`. Set `SEAM` at the top of the file to switch.
 - **Judge it moving.** Render the seam as a clip and watch it at full speed. A transition can line up perfectly frame by frame and still feel forced; ask whether it reads as one continuous thing.
@@ -137,7 +138,7 @@ The built-in types are presets. When a seam matters, write it in the story: give
   - Better still, design the seam first (`references/writing.md`, "Designing the seams") and let the link choose the type.
 - Use 4–6 types per film, and never the same one three times in a row.
 - **Motion carries across the seam.** When the old plate's hero (or camera pan) is still moving at the cut, the new plate enters travelling the same way and eases to rest (`enter.carry`, seconds, default 0.35; `false` turns it off). It is off for `pan`, `page`, `roll` and `fade`.
-- **Pans follow the action.** `pan` with no `dir` (or `dir: 'auto'`) follows a moving hero (the world slides the opposite way) or continues a camera pan; it falls back to `'left'` when nothing is moving.
+- **Pans follow the action.** `pan` with no `dir` (or `dir: 'auto'`) keeps the camera travelling the way it was, whether it was chasing a moving hero or panning on its own; it falls back to `'left'` when nothing is moving.
 - **Momentum** is automatic (`LEAD` and `SETTLE` in the engine). Set `enter.momentum: false` to turn it off, or `enter.settle` (seconds) to change the settle length. Momentum scales only upward, because scenes bleed past the frame edges only when enlarged.
 - The engine plays a 0.35 s riser before every transition except `fade`, and ducks the music bed under it.
 - **Inset lens** (`insetLens()`) is not a transition. It is a magnifier bubble tied to an object by two tangent lines, showing a close-up. The close-up stays at full size while the circle opens around it.

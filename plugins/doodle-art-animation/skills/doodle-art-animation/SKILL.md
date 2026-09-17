@@ -35,9 +35,10 @@ If you build something other films could reuse (a server rack, a tree, a galaxy,
 | `references/writing.md` | Explainer voice, how to adapt any subject or dataset, the plate script format. |
 | `references/sound.md` | The synthesized sound design and cue names. |
 | `references/api.md` | Every function and plate field a story can use. |
+| `references/film-grammar.md` | Editing and animation grammar for seams and camera moves (eye trace, screen direction, lead room, motivated camera, the switch-up rule, the twelve principles) and the seam review rubric. |
 | `references/render.md` | How rendering works, options and speed. |
 
-Read `references/style.md`, `references/motion.md` and `references/writing.md` before writing the plate script. Open `references/api.md` while building, and `references/sound.md` when adding cues.
+Read `references/style.md`, `references/motion.md`, `references/writing.md` and `references/film-grammar.md` before writing the plate script. Open `references/api.md` while building, and `references/sound.md` when adding cues.
 
 ## Feedback Loop
 
@@ -61,6 +62,7 @@ Read `FEEDBACK.md` in this skill's folder before every use and apply its lessons
    - `node render.mjs film.html --sheet 1` writes one frame per second to `qa/contact_sheet.jpg`.
    - `node render.mjs film.html --strips` writes a 12-frame, 8 fps strip around every plate start.
    - `node render.mjs film.html --seams` shows both sides of every transition and their overlay. Check that exit and entry line up and that motion keeps its direction.
+   - Before the final render, run the plugin's `seam-reviewer` agent on the working folder (or apply the rubric in `references/film-grammar.md` yourself) and fix every seam it fails.
    - Open every strip and work through the QA checklist below.
    - After the first full render, run `python3 motion_check.py film.mp4` and compare with the targets.
 7. **Render**: `node render.mjs film.html film.mp4 --workers 6`, adding `--bitrate 3800k` for a shareable file (a one-minute film lands near 25–30 MB).

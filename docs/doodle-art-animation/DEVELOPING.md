@@ -17,10 +17,11 @@ When a film looks wrong, first decide which layer caused it. If it happens in ev
 ```
 plugins/doodle-art-animation/       the plugin
   .claude-plugin/plugin.json
+  agents/seam-reviewer.md           scores every seam against the film-grammar rubric
   skills/doodle-art-animation/
     SKILL.md                        workflow and the most important rules (keep it under ~500 lines)
     FEEDBACK.md                     lessons log (feedback-loop convention)
-    references/                     style, motion, writing, sound, api, render
+    references/                     style, motion, writing, film-grammar, sound, api, render
     toolkit/                        engine.js, shell.html, build.py, render.mjs,
                                     motion_check.py, story_example.js, story_seams.js, story_reel.js
 docs/doodle-art-animation/          not shipped with the plugin

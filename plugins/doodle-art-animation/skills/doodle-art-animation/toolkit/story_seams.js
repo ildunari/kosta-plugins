@@ -4,7 +4,8 @@
                          'morph': the eraser pops off, rounds, turns and becomes the ladybug's shell as the garden
                                   dissolves in around it; head, spots and legs grow as it lands.
                          'macro': the camera sinks into the red eraser until red fills the screen, black spots bloom,
-                                  and the camera slowly backs out to reveal the ladybug, holds, then the garden.
+                                  the ladybug draws itself as the camera eases back to a close-up, and when it takes off the
+                                  camera travels with it, pulling back to reveal the garden (a switch-up, not a mirror).
      II → III pan      : the ladybug flies off to the right, so the whip pan continues rightward (dir 'auto')
      III → IV cut      : the ladybug lands on a poppy; a match cut puts the pencil sketch of it in the same spot
      IV → V   page     : chapter end, turning to the right                                                          */
@@ -80,8 +81,8 @@ function poppy(x, y, s, t, seed, headY = null) {
   ink(shape.circle(hx, hy, 12 * s, 14), { closed: true, w: 1.6, fill: '#2a2226', seed: seed + 30 });
   return [hx, hy];
 }
-function ground(y0, seed, t) {
-  const r = shape.ridge(-40, W + 40, y0, 26, seed);
+function ground(y0, seed, t, x0 = -40, x1 = W + 40) {
+  const r = shape.ridge(x0, x1, y0, 26, seed);
   const g = shape.band(r, H + 40); flat(g, '#b9c48a'); hatch(g, { color: '#5d7040', alpha: 0.3, gap: 7, len: 10, angle: 0.5, seed: seed + 1 });
   pen(r, { w: 3, seed: seed + 2 }); grass(r, { every: 22, h: 22, seed: seed + 3, sway: 5 });
 }
@@ -111,7 +112,7 @@ const SEAM = 'morph';                                                          /
 /* ---------- seam I → II (macro): into the red, spots appear, back out to the ladybug, then the garden ---------- */
 function eraserToBugMacro(p, X) {
   const camA = P1.cam(X.pt), [tx, ty] = tipAt(X.pt), a = angAt(X.pt), [ex, ey] = camPoint(camA, [tx + Math.cos(a) * 552, ty + Math.sin(a) * 552]);
-  const camN = camB(X.t), hd = hdB(X.t), [bx, by] = bugB(X.t), [cx, cy] = camPoint(camN, [bx - 7.5 * Math.cos(hd), by - 7.5 * Math.sin(hd)]);
+  const camN = camP2(X.t), hd = hdB(X.t), [bx, by] = bugB(X.t), [cx, cy] = camPoint(camN, [bx - 7.5 * Math.cos(hd), by - 7.5 * Math.sin(hd)]);
   const rA = 24 * camA.s, rB = 40 * 1.25 * (camN.s || 1);
   if (p < 0.32) {                                                            // sink into the eraser
     const q = p / 0.32, KA = coverR(ex, ey) / rA * 1.15, sc = curve(q, [[0, 1], [1, KA, 'in3']], { geo: true });
@@ -120,8 +121,9 @@ function eraserToBugMacro(p, X) {
     return 0;
   }
   const KB = coverR(cx, cy) / rB * 1.25;                                     // the shell fills the screen at this zoom
-  // pacing: a slow drift while the spots bloom, a long gentle pull back to the ladybug, a hold, then out to the garden
-  const sc = curve(p, [[0.32, KB], [0.44, KB * 0.8, 'lin'], [0.76, 2.6, 'inOutSine'], [0.84, 2.6], [1, 1, 'inOut3']], { geo: true });
+  // pacing: a slow drift while the spots bloom, then a smooth ease back until the whole ladybug fits; the seam ends on
+  // plate II's own close-up camera, which takes over from here (no straight zoom out)
+  const sc = curve(p, [[0.32, KB], [0.44, KB * 0.8, 'lin'], [0.9, 1, 'inOutSine'], [1, 1]], { geo: true });
   ctx.fillStyle = PAL.bug; ctx.fillRect(-20, -20, W + 40, H + 40);
   S.noReticle = p < 0.9;
   X.drawNewX({ hud: inv(0.9, 1, p), xf: about(cx, cy, sc) });
@@ -152,27 +154,35 @@ function eraserToBug(p, X) {
 /* ---------- plate II · the garden: out of the red, a ladybug on a leaf; it walks, opens up, and flies off right ---------- */
 const BUG_DELAY = SEAM === 'macro' ? 1.8 : 0;                                 // a longer seam pushes plate II's action back
 const bugB = tt => { const t = tt - BUG_DELAY; return t < 3.2 ? [lerp(905, 1000, E.inOutSine(inv(0, 2.8, t))), 560 + 4 * Math.sin(t * 2)]
+  : SEAM === 'macro' ? kf(t, [[3.2, [1000, 560]], [4.2, [1170, 500]], [5.2, [1520, 430]], [6.6, [2350, 340]], [7.6, [2900, 300]]], E.in2)   // a longer flight the camera travels with
   : kf(t, [[3.2, [1000, 560]], [4.4, [1180, 480]], [5.4, [1420, 390]], [6.6, [1800, 300]]], E.in2); };
 const hdB = t => { if (t - BUG_DELAY < 3.3) return -0.12; const [x0, y0] = bugB(t - 0.1), [x1, y1] = bugB(t); return Math.atan2(y1 - y0, x1 - x0); };
 const camB = t => ({ x: W / 2, y: H / 2, s: 1.04, dx: -0.55 * clamp(bugB(t)[0] - 1150, 0, 800), dy: 0.3 * clamp(480 - bugB(t)[1], 0, 300) });
+// macro: the seam ends close on the ladybug and hands the camera to a tracking shot; when it takes off the camera pulls
+// back while travelling with it (lead room ahead of it), instead of mirroring the push-in with a straight zoom out
+const camMacro = t => follow(bugB, t, { s: u => curve(u, [[0, 2.4], [BUG_DELAY + 3.0, 2.3], [BUG_DELAY + 6.2, 1.1, 'inOutSine']], { geo: true }), lead: 240, lag: 0.3 });
+const camP2 = t => SEAM === 'macro' ? camMacro(t) : camB(t);
 const P2 = {
   dur: 6.5 + BUG_DELAY, dark: false,
   enter: SEAM === 'macro' ? { type: 'custom', dur: 3.4, draw: eraserToBugMacro, carry: false, momentum: false }
     : { type: 'custom', dur: 1.8, draw: eraserToBug, carry: false, momentum: false },
   header: { num: 2, title: 'The Garden', sub: 'a ladybug on a leaf' }, stage: { n: 2, name: 'GARDEN', prevN: 1 },
-  cam: camB,
+  cam: camP2,
   hero: t => { const [x, y] = bugB(t); return { x, y, label: 'LADYBUG·01', r: 58 }; },
   cues: [[3.2 + BUG_DELAY, 'pop'], [3.3 + BUG_DELAY, 'scratch', { chars: 8 }]],
   draw(t) {
-    const c = camB(t);
-    parallax(c, 0.2, () => { lobedCloud(820, 240, [[0, 70], [-90, 50], [90, 56]], { seed: 601 }); lobedCloud(1500, 200, [[0, 60], [-70, 44], [74, 48]], { seed: 602 }); });
-    parallax(c, 0.6, () => { ground(760, 610, t); [[180, 0.9], [420, 1.1], [1500, 1.0], [1760, 1.2], [2100, 0.9]].forEach(([x, s], i) => daisy(x, 800, s, t, 620 + i * 7)); });
+    const c = camP2(t), wide = SEAM === 'macro';
+    parallax(c, 0.2, () => { lobedCloud(820, 240, [[0, 70], [-90, 50], [90, 56]], { seed: 601 }); lobedCloud(1500, 200, [[0, 60], [-70, 44], [74, 48]], { seed: 602 });
+      if (wide) { lobedCloud(2300, 260, [[0, 64], [-80, 46], [80, 50]], { seed: 603 }); lobedCloud(3000, 190, [[0, 56], [-66, 40], [70, 44]], { seed: 604 }); } });
+    parallax(c, 0.6, () => { ground(760, 610, t, -600, wide ? 4200 : W + 40);
+      [[180, 0.9], [420, 1.1], [1500, 1.0], [1760, 1.2], [2100, 0.9], ...(wide ? [[2500, 1.1], [2750, 0.8], [3100, 1.2], [3500, 1.0]] : [])].forEach(([x, s], i) => daisy(x, 800, s, t, 620 + i * 7)); });
     leaf(1000, 600, 620, -0.18, 650, t);
     leaf(1650, 690, 380, 0.35, 660, t);
+    if (wide) { leaf(2350, 720, 460, -0.3, 670, t); leaf(3050, 660, 520, 0.2, 680, t); }
     const open = E.outBack(inv(2.8 + BUG_DELAY, 3.3 + BUG_DELAY, t));
     const tr = S.trans && S.trans.type === 'custom' && S.side === 'new' ? S.trans.p : 1;       // role in the seam I → II
     const bug = o => ladybug(...bugB(t), t, { s: 1.25, hd: hdB(t), open, walk: t - BUG_DELAY < 2.8 ? 1 : 0, ...o });
-    if (SEAM === 'macro') bug({ spots: inv(0.36, 0.5, tr), detail: inv(0.55, 0.8, tr) });     // spots bloom, shading returns as we back out
+    if (SEAM === 'macro') bug({ spots: inv(0.36, 0.5, tr), detail: inv(0.55, 0.8, tr), grow: inv(0.45, 0.85, tr) });   // spots bloom, then the head and legs draw on as we ease back
     else withAlpha(inv(0.86, 1, tr), () => bug());
   },
   overlay(t) {

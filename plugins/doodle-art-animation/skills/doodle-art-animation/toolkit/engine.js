@@ -702,6 +702,18 @@ function camOf(pl, t) {
   const d = pl.drift ?? STORY.drift ?? 0.04; if (!d) return null;
   return { x: W / 2, y: H * 0.55, s: 1 + d * E.inOutSine(clamp(t / pl.dur)) };
 }
+/**
+ * follow(target, t, { s, lead, lag, anchor, turn }): a tracking camera. It keeps a moving subject (target: t => [x, y],
+ * scene coordinates) near `anchor` on screen with lead room: space opens up in the direction the subject is heading,
+ * growing with its speed. The camera trails by `lag` seconds, so the subject leads the frame. s: zoom, a number or
+ * t => number. Returns a cam for plate.cam.
+ */
+function follow(target, t, { s = 1, lead = 180, lag = 0.2, anchor = [W / 2, H / 2], turn = 0.4 } = {}) {
+  const sc = typeof s === 'function' ? s(t) : s, [px, py] = target(t - lag), [qx, qy] = target(t - lag - turn);
+  const vx = px - qx, vy = py - qy, sp = Math.hypot(vx, vy), k = E.inOutSine(clamp(sp / turn / 260)) * lead;
+  const ax = anchor[0] - (sp ? vx / sp : 0) * k, ay = anchor[1] - (sp ? vy / sp : 0) * k;
+  return { x: px, y: py, s: sc, dx: ax - px, dy: ay - py };
+}
 /** parallax(cam, depth, fn): inside draw(), makes fn's layer pan at `depth` times the camera's pan (0 = pinned sky, 1 = ground) */
 function parallax(cam, depth, fn) { if (!cam) return fn(); ctx.save(); ctx.translate(-(cam.dx || 0) * (1 - depth), -(cam.dy || 0) * (1 - depth)); fn(); ctx.restore(); }
 /** a plate's hero on screen: from plate.hero(t) (scene coords, camera applied) or plate.focus(t) (screen coords) */
@@ -732,6 +744,13 @@ function motionOf(pl, t) {
  * (enter.carry: seconds for that motion to die away, default 0.35; false turns it off), so movement flows through
  * the transition instead of stopping at it. On by default except for pan, page and roll, which move the sheet themselves.
  */
+/** travelOf(plate, t): which way the camera is effectively travelling (px/s): chasing a moving hero, or panning */
+function travelOf(pl, t) {
+  const dt = 1 / 12, t0 = Math.max(0, t - dt), c0 = camOf(pl, t0) || {}, c1 = camOf(pl, t) || {};
+  const cx = ((c1.dx || 0) - (c0.dx || 0)) / (t - t0 || dt), cy = ((c1.dy || 0) - (c0.dy || 0)) / (t - t0 || dt);
+  const [hx, hy] = pl.hero ? motionOf(pl, t) : [0, 0];
+  return [hx - cx, hy - cy];
+}
 const NO_CARRY = { pan: 1, page: 1, roll: 1, fade: 1 };
 function carryShift(pl, t) {
   const tr = pl.enter; if (!tr || !pl.i) return null;
@@ -890,9 +909,9 @@ const TRANS = {
   /** whip pan along one long sheet (tr.dir 'left' | 'right' | 'up' | 'down'): both plates slide, speed lines at full speed */
   pan(p, X) {
     let dir = X.tr.dir || 'auto';
-    if (dir === 'auto') {   // keep going: follow a moving hero (the world slides the other way), or continue a camera pan
-      let [vx, vy] = motionOf(X.prev, X.prev.dur - 1e-3); if (X.prev.hero) { vx = -vx; vy = -vy; }
-      dir = Math.hypot(vx, vy) < 40 ? 'left' : Math.abs(vx) >= Math.abs(vy) ? (vx < 0 ? 'left' : 'right') : (vy < 0 ? 'up' : 'down'); }
+    if (dir === 'auto') {   // keep the camera travelling the way it was: sheets slide opposite to the camera
+      const [vx, vy] = travelOf(X.prev, X.prev.dur - 1e-3);
+      dir = Math.hypot(vx, vy) < 40 ? 'left' : Math.abs(vx) >= Math.abs(vy) ? (vx > 0 ? 'left' : 'right') : (vy > 0 ? 'up' : 'down'); }
     const vert = dir === 'up' || dir === 'down', sg = dir === 'left' || dir === 'up' ? -1 : 1, span = vert ? H : W;
     const Lo = layer(() => X.drawOldX({ all: true }), 1), Ln = layer(() => X.drawNewX({ all: true }), 2);
     const offAt = q => sg * span * E.inOut3(clamp(q)), sh = 0.5 / (12 * (X.tr.dur || 0.8));   // half-drawing shutter
