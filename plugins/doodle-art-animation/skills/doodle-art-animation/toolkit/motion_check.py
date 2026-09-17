@@ -1,7 +1,8 @@
 """motion_check.py — how alive is a film?  usage: python3 motion_check.py film.mp4 [start_s] [dur_s]
 Mean absolute change between frames at 192x108 grey, summed per drawing (2 frames). Targets: median >= 1.5, still < 5%.
-Spikes: drawings that change more than 35 are listed. SNAP marks a run with any drawing above 60, or two in a row
-above 45, at a transition that is not a hard cut: it moves too fast; lengthen it or ease it more gently.
+Spikes: drawings that change more than 35 are listed. SNAP marks a run with any drawing above 75, or two in a row
+above 55, at a transition that is not a hard cut: it moves too fast; soften its peak (a smaller ratio, a gentler curve).
+Calibration: well-shaped arrivals (a lens snapping open over bright paper) peak at 50-63; the jarring v0.10 zooms were 90-137.
 Pops: a frame-wide mean misses a mask edge that jumps (a lens opening in one drawing), so each drawing is also cut into
 8x8 blocks; pops lists drawings where the share of blocks changing hard (> 40) jumps to 6% of the frame or more, and to
 over 3x the drawing before: something appeared at once instead of growing in. Jerks: drawings that change more than
@@ -23,7 +24,7 @@ for t, v in spk:
     if cur and t - cur[-1][0] > 0.09: runs.append(cur); cur = []
     cur.append((t, v))
 if cur: runs.append(cur)
-print('spikes (> 35 per drawing):', '  '.join(f"{r[0][0]:.2f}s " + '/'.join(f'{v:.0f}' for _, v in r) + (' SNAP' if any(v > 60 for _, v in r) or any(a > 45 and b > 45 for (_, a), (_, b) in zip(r, r[1:])) else '') for r in runs) or 'none')
+print('spikes (> 35 per drawing):', '  '.join(f"{r[0][0]:.2f}s " + '/'.join(f'{v:.0f}' for _, v in r) + (' SNAP' if any(v > 75 for _, v in r) or any(a > 55 and b > 55 for (_, a), (_, b) in zip(r, r[1:])) else '') for r in runs) or 'none')
 sw = (np.maximum(blk[0:n:2], blk[1:n:2]) > 40).mean(axis=1) * 100   # % of the frame swept hard in each drawing
 pops = [f'{i * 2 / 24 + float(ss):.2f}s {sw[i - 1]:.0f}%->{sw[i]:.0f}%' for i in range(1, len(sw)) if sw[i] >= 6 and sw[i] > 3 * max(sw[i - 1], 1)]
 print('pops (swept area jumps from rest, % of frame):', '  '.join(pops) or 'none')
