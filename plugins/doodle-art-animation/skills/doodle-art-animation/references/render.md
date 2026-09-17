@@ -11,7 +11,7 @@
 - **Range sheets:** `node render.mjs film.html --sheet-range A-B [--fps 6] [--dir qa]` renders frames from `A` to `B` seconds at `--fps` drawings a second (default 6) and tiles them into one grid, `qa/range_A-B.jpg` (6 per row, 480 px tiles, via the same `tile` helper `--sheet` uses). Add `--crop x,y,w,h` (pixels, in the film's 1920×1080 frame) to also write a detail sheet of the same frames, cropped first and scaled up to the same 480 px tiles — `qa/range_A-B_crop.jpg` — for close-ups a plain range sheet is too small to judge (a hand, a small mask edge, hatching). `--sheet-range` is its own early exit, like `--stills`/`--sheet`/`--seams`/`--strips`: it never falls through to a full-film render, with or without an `out.mp4` on the command line.
 - **Speed** depends mostly on CPU cores, because headless Chromium draws the canvas on the CPU.
   - On a machine with plenty of cores, 6 workers averaged about 60–70 ms per frame, so a 4.5-minute film takes about 7–8 minutes.
-  - On a 2-core machine, the 49 s One Drop film (`story_one_drop.js`) averaged about 140 ms per frame with 4 workers (about 7 minutes).
+  - On a 2-core machine, the 55 s One Drop film (`story_one_drop.js`) averaged about 140 ms per frame with 4 workers (about 7 minutes).
   - The heaviest plates are wide panning worlds: drawing a 3,400 px landscape every frame cost about 330 ms per frame on 2 cores, against about 170 ms for a normal plate. Heavy `hatch()`, `pebbles()` and `stipple()` over large areas are the main costs, so keep `gap` at 5 px or more there.
 - **Timing your own code:** Chromium queues canvas drawing until something reads the canvas. A loop that calls `renderFrame()` without reading back stalls for several seconds every couple of dozen frames. When timing, read one pixel after each frame (`ctx.getImageData(0, 0, 1, 1)`). `render.mjs` reads every frame, so real renders don't stall.
 - **Alternative:** a HyperFrames (HeyGen) composition could drive the same canvas through a custom frame adapter (`seekFrame(f)` → `renderFrame(f)`). The plain harness below is the one that has been tested.
@@ -22,7 +22,7 @@ Measured on this MacBook Pro (10 cores, 32 GB) with a 2 min 41 s film (the examp
 
 | Step | Result |
 |---|---|
-| Frames | 172 s, 44 ms/frame (the 49 s example: 38–42 ms/frame) |
+| Frames | 172 s, 44 ms/frame (the 55 s One Drop example: 38–42 ms/frame) |
 | Audio (`__audioWav`) | 22 s, of which the offline render is 19.6 s and WAV + base64 0.3 s; 29.7 MB WAV (≈ 11 MB per minute). No clipping, loudness steady at about −20 dB from start to end. |
 | Memory | Chromium with 3 pages: 1.3–1.6 GB, flat for the whole render (no growth). ffmpeg afterwards: up to 1.6 GB. |
 | Disk | 3.6 GB of JPEG frames (≈ 1.3 GB per minute; `--png` is several times more). |

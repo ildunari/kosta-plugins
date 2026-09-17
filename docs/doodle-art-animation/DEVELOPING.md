@@ -74,7 +74,7 @@ Look at the images yourself before calling anything done. Baselines on engine v0
 
 ## Automated smoke test
 
-`toolkit/smoke_test.py` runs the mechanical part of the checks above. It works on every `story*.js` next to it. In a film folder that also holds your own story, it tests only your stories and skips the bundled examples (`story_example.js`, `story_one_drop.js`, `story_seams.js`, `story_reel.js`, `story_gallery.js`, `story_components.js`), unless `--stories` names them.
+`toolkit/smoke_test.py` runs the mechanical part of the checks above. It works on every `story*.js` next to it. In a film folder that also holds your own story, it tests only your stories and skips the bundled examples (`story_example.js`, `story_one_drop.js`, `story_seams.js`, `story_reel.js`, `story_gallery.js`, `story_components.js`, `story_brushes.js`), unless `--stories` names them.
 
 For each story it does three things:
 - **Builds it.**

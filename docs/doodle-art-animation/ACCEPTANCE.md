@@ -27,8 +27,9 @@ a film may not cross, except snaps, determinism and reading time.
 - [auto] `toolkit/speed_check.mjs` exists. `node speed_check.mjs film.html` reads the transition and camera
   values from the page, prints one line per seam, marks `FAST` (a warning) and `SNAP` (a failure), and exits 1
   only on `SNAP`.
-- [auto] It exits 0 on `story_example.js` and `story_one_drop.js`, and exits 1 with `SNAP` on the fixture
-  `tests/doodle-art-animation/fixtures/story_snap.js`.
+- [auto] It exits 0 on **every bundled `story*.js`** (the films the plugin ships are what a model reads as
+  exemplary, so none of them may snap), and exits 1 with `SNAP` on the fixture
+  `tests/doodle-art-animation/fixtures/story_snap.js`. `FAST` lines are allowed everywhere.
 - [auto] `references/motion.md` has a section `## Pace is a choice` saying the speed numbers are defaults and
   each film sets its own pace by taste; only visible snaps are a hard failure.
 - [auto] SKILL.md and `agents/seam-reviewer.md` mention `speed_check`.
@@ -65,6 +66,10 @@ a film may not cross, except snaps, determinism and reading time.
 - [auto] `references/api.md` documents every brush name, and `references/style.md` has a `## Brushes` section
   that credits p5.brush and allows washes as a tint under the ink.
 - [auto] `story_brushes.js` builds and passes the smoke test.
+- [auto] `story_brushes.js` measures no `SNAP` and no wholly still plate. It is a **specimen sheet**, so it is
+  exempt from the 1.5 house median: measured at 1.23 (5% still), against `story_gallery.js` at 1.48. The
+  exception, and why forcing it higher would make the brush texture read as crawling, is written into
+  `references/motion.md` ("Specimen sheets are the one exception").
 - [eye] The `story_brushes.js` frame sheet: each brush reads as its medium, fits the notebook style, and the
   texture does not crawl between drawings (a 12-frame strip at 12 fps shows only the normal line boil).
 

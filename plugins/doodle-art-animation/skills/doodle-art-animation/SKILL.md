@@ -30,12 +30,12 @@ Before drawing a common object, check `references/components.md`: the kits alrea
 | `toolkit/text_check.mjs` | Measures on-screen text: reading time, text off the frame, overlaps, text that scales. |
 | `toolkit/smoke_test.py` | Automated check: builds your own `story*.js` (the bundled examples when there are none), renders 3 stills of each and a short MP4 segment, and fails on page errors, font failures, blank frames, a missing, mono or silent audio track, or no motion. |
 | `toolkit/story_example.js` | The main worked example, "The Long Release" (62 s): one PLGA nanoparticle from syringe to drug release, in a title, 4 plates and an end card. Read it for **structure**: plate objects, beats that enter and leave, text in `overlay()`, motivated cameras (a tracking shot, a slow push and turn, a follow that pulls back to the full diagram), and a designed seam list at the top of the file. Don't reuse its scenery for an unrelated topic. |
-| `toolkit/story_one_drop.js` | A second example, "One Drop" (49 s, the water cycle): scenery recipes (far mountains, trees, birds, a coast cross-section), dense night plates, a size-ladder card. |
-| `toolkit/story_seams.js` | "Pencil to Ladybug" (29 s): a short example of designed seams (a custom eraser-to-ladybug morph, an auto-direction `pan`, a match `cut`, a `page` turn). Read it with "Designing the seams" in `references/writing.md`. |
+| `toolkit/story_one_drop.js` | A second example, "One Drop" (55 s, the water cycle): scenery recipes (far mountains, trees, birds, a coast cross-section), dense night plates, a size-ladder card. |
+| `toolkit/story_seams.js` | "Pencil to Ladybug" (25 s): a short example of designed seams (a custom eraser-to-ladybug morph, an auto-direction `pan`, a match `cut`, a `page` turn). Read it with "Designing the seams" in `references/writing.md`. |
 | `toolkit/story_brushes.js` | Brush demo: every brush type, washes on paper and night, textured hatching and flow fields. |
 | `toolkit/story_reel.js` | Test reel with all 14 transition types back to back. |
 | `toolkit/kits/` | Component kits: ready-made, on-style building blocks (`KIT.earth`, `KIT.life`, `KIT.settle`, `KIT.tech`, `KIT.ai`, `KIT.space`, `KIT.lab`, `KIT.studio`). `build.py` inlines the ones a story uses. Catalogue in `references/components.md`. |
-| `toolkit/story_gallery.js` | "Component Gallery": every kit component drawing on and idling, one plate per kit. The visual test for the kits. |
+| `toolkit/story_gallery.js` | "Component Gallery": every kit component drawing on and idling, ten plates across the eight kits (`earth` and `settle` take two each). The visual test for the kits. |
 | `toolkit/story_components.js` | Component test reel: stats, callouts, cards, charts, rulers, inset lenses and gather on moving cameras and across transitions. |
 | `references/components.md` | Every kit component: its call, options, look, motion and good uses, plus how to add new ones. |
 | `references/style.md` | Worlds, palette, type, line and texture recipes, composition, HUD positions. |

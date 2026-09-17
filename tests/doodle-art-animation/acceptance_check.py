@@ -267,7 +267,10 @@ if a.full:
         sc = os.path.join(work, 'speed_check.mjs')
         if not os.path.isfile(sc): skip('L3', 'speed_check runs', 'speed_check.mjs missing')
         else:
-            for story in ['story_example.js', 'story_one_drop.js']:
+            # every bundled story, not just the two examples: a shipped film that snaps is read as exemplary
+            bundled = sorted(os.path.basename(p) for p in glob.glob(os.path.join(TK, 'story*.js')))
+            check('L3', 'bundled stories found to speed-check', len(bundled) >= 7, f'found {bundled}')
+            for story in bundled:
                 h = build(story)
                 rc, out = run(['node', 'speed_check.mjs', h], cwd=work) if h else (9, 'build failed')
                 check('L3', f'speed_check passes {story}', rc == 0 and 'SNAP' not in out, out[-300:])
@@ -331,6 +334,13 @@ if a.full:
             check('L2', 'no SNAP in the whole film', bool(measured) and 'SNAP' not in out,
                   (f'motion_check did not measure the film (rc={rc2}): {out[-200:]}' if not measured
                    else str([l for l in out.splitlines() if 'spikes' in l][:1])))
+        else:
+            # without a render or the plate start times these three checks cannot run:
+            # fail them loudly rather than let L1 and L2's medians vanish from the report
+            why = f'render rc={rc}, {len(starts)} plate starts from the page probe'
+            check('L2', 'title plate median >= 1.2', False, why)
+            check('L1', 'end card median >= 1.2', False, why)
+            check('L2', 'no SNAP in the whole film', False, why)
         rc, out = run(['node', 'text_check.mjs', ex], cwd=work)
         check('L2', 'text_check CLEAN on story_example', rc == 0 and 'CLEAN' in out, out[-300:])
 

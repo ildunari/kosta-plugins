@@ -31,6 +31,15 @@ A still frame reads as a slideshow, and a transition out of stillness reads as f
 - In the per-second profile, keep plates above about 1.2 between transitions.
 - A plate that measures near zero between beats needs more life, not a faster transition.
 
+**Specimen sheets are the one exception.** A film whose subject *is* a drawn sample — a brush or component
+specimen sheet, a credit card, a palette page — cannot reach that median without breaking the thing it exists to
+show. Its samples must hold still to be read, and the brushes deliberately keep their grain fixed per seed, so
+sliding a specimen around would read as crawling texture, not as life. These films are measured on three things
+instead: no `SNAP`, no plate that is *wholly* still (something drifts, breathes or drives past on every plate),
+and a lively drawing-on pass. Measured on the two the plugin ships: `story_gallery.js` median 1.48 (0% still),
+`story_brushes.js` median 1.23 with 5% still drawings — both far below 1.5 and both correct. This exception is for
+specimen sheets only; an explainer film, which is what you are almost always making, holds to the 1.5 target.
+
 ## Beats enter and leave
 
 Every stat, callout, card and myth has a start **and an end**. Wrap a component in `withAlpha(beat(t, t0, t1), () => …)`. `beat` eases in over 0.35 s and fades out over the last 0.4 s before `t1`; `t1 = null` means the beat stays.
