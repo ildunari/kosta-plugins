@@ -10,7 +10,7 @@ Plate fields:
 |---|---|
 | `dur` | Plate length in seconds |
 | `dark` | `true` for the night world |
-| `enter` | `{ type, dur, momentum, settle, …type options (dir, k, dive, scaleFrom, from, to, style, rim, radius) }` |
+| `enter` | `{ type, dur, momentum, settle, match, …type options (dir, k, dive, scaleFrom, from, to, fromFill, toFill, style, at, ink, drop, fall, rim, rimAlpha, rough, color, opacity, back, radius) }` |
 | `header` | `{ num, title, sub }` |
 | `log` | `t => ({ title, rows: [[label, value]], states, state })` |
 | `stage` | `{ n, name, prevN }` |

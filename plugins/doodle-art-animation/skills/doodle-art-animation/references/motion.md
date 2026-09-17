@@ -22,10 +22,13 @@ A still frame reads as a slideshow, and a transition out of stillness reads as f
 - Camera moves, in the "Camera" table below.
 - Flickering links: bonds or signals whose alpha follows `vnoise(t)`.
 - On night plates, much more motion: jiggle amplitude 10–15 px at speed 1.5–2.5, because small light shapes on dark carry less visible motion.
+- **Dense beats sparse on night plates.** A crowd of 100+ small bodies packed into a patch, swirling slowly as a group, reads as a liquid and measures lively. Forty scattered bodies measured close to still. For clouds of particles, use two or three depth layers: near ones bigger, brighter and faster.
+- **End cards and holds move too:** ripples spreading from the hero, orbiting specks, a slowly turning dashed ring.
 
 **Targets.** `motion_check.py` measures the mean absolute change between drawings at 192×108.
 - Aim for a median of at least 1.5 per drawing, and fewer than 5% of drawings below 0.5.
-- The reference measures a median of 2.0 with 2% still drawings over the whole film (2.3 and 0% over its first two minutes). Its quietest stretches still sit around 0.7–1.0 per second.
+- The reference measures a median of 2.0 with 2% still drawings over the whole film (2.3 and 0% over its first two minutes). Its quietest seconds sit around 0.7–1.0.
+- In the per-second profile, keep plates above about 1.2 between transitions.
 - A plate that measures near zero between beats needs more life, not a faster transition.
 
 ## Beats enter and leave
@@ -78,21 +81,23 @@ Give a plate `cam: t => ({ x, y, s, dx, dy, rot })`. It moves the **scene only**
 
 ## Transitions
 
-Every transition is a pure function of progress `p`, animated on twos. Zooms interpolate scale geometrically with `zlerp`, so the speed never seems to stall or rush. Choose a transition by what the cut means:
+Every transition is a pure function of progress `p`, animated on twos. Zooms interpolate scale geometrically with `zlerp`, so the speed never seems to stall or rush. Choose a transition by what the cut means. If `dur` is left out, each type gets the length in the table (`DEFAULT_DUR` in the engine).
 
 | Type | Use when | What happens | Dur | Sound |
 |---|---|---|---|---|
 | `lensIn` | Down the scale ladder into a **different world** (paper → night) | Anticipation dot, then the old scene dives 2.4× at the hero while a lens opens on it with the new world growing inside; 0.4 s bare hold before the title. Options: `dive`, `scaleFrom`. | 0.5–0.6 s | swell up |
 | `lensOut` | Up the scale ladder (night → paper) | The old world shrinks into a lens that travels to the new hero, while the new world pulls back from 2.4× into place. | 0.5–0.6 s | swell down |
 | `zoom` | One step on the scale ladder **within the same world** | Both plates pivot on the hero; the old scale shrinks (or grows) by `k` and fades while the new grows in; the HUD crossfades. `dir` 'out' or 'in', `k` 6–10. | 0.7–0.9 s | glide |
-| `shape` (alias `morph`) | Match cut: **one object becomes another** | The object morphs from `from(prev, pt)` to `to(pl, t)` (closed outlines) while a circular window centred on it opens onto the new world. `style(e)` blends colour, fill and width. Plates skip their own copy while `S.morph` is true. | 0.8–1.0 s | bend + swell |
-| `pan` | Same scale, **somewhere else along the journey** (downstream, next room) | Whip pan along one long sheet: both plates slide (`dir` 'left', 'right', 'up', 'down'), a soft gutter shadow at the join, speed lines at full speed. | 0.9–1.1 s | whoosh |
+| `shape` (alias `morph`) | Match cut: **one object becomes another** | The object morphs from `from(prev, pt)` to `to(pl, t)` (closed outlines) while a circular window centred on it opens onto the new world. The outline's fill blends from the old object's colour to the new one's (sampled automatically, or set `fromFill` / `toFill`) and fades onto the real object at the end; `style(e)` can override fill and width. Plates skip their own copy while `S.morph` is true. | 1.1 s | bend + swell |
+| `pan` | Same scale, **somewhere else along the journey** (downstream, next room) | Whip pan along one long sheet: both plates slide (`dir` 'left', 'right', 'up', 'down'), motion-blurred at speed, a faint fold shadow at the join, speed lines at full speed. The corner labels travel with the sheet. | 0.8–1.0 s | whoosh |
 | `wipe` | A reveal with a direction | A curved inked front sweeps across (`dir` 'lr', 'rl', 'tb'), with spray ahead; the new plate slides in slightly behind it. | 0.6–0.8 s | whoosh |
-| `bleed` (`burn` = scorched rim) | Time passing, a change of mood, "meanwhile underground" | The new plate soaks outward from its hero through an organic noise front with a dark wet rim (`rim: [r, g, b]`, `rimAlpha`). | 0.8–1.0 s | soft swell / crackle |
-| `iris` | A same-scale jump that needs a blink | A lens closes on the old hero to a dot, then opens from a dot on the new hero. | 0.6 s | shutter |
+| `bleed` | Time passing, a change of mood, "meanwhile underground" | An ink drop falls onto the new hero (or `at: [x, y]`) and splats: a round blot, splash chains and specks spread and pool together, revealing the new plate, with ink pooled at the edge. Screen area is covered at an even rate. Options: `ink` (drop colour), `drop` (size), `fall` (share of the time spent falling), `rim`, `rimAlpha`. | 1.5 s | soft swell |
+| `burn` | Destruction, an ending, "the old idea goes up in smoke" | The old page chars from its hero (or `at`) outward: scorch, char, a flickering ember edge, then holes onto the new plate, with ash lifting off the front. Option: `rough`. | 1.3–1.6 s | crackle |
+| `iris` | A same-scale jump that needs a blink | A see-through ink curtain closes on the old hero to a dot; the dot travels to the new hero (the scenes crossfade dimly behind it) and the curtain opens there. Options: `color`, `opacity` (default 0.8). | 0.9 s | shutter |
 | `hatch` | Dreamy dissolve into a memory or a hypothetical | The new plate appears through pen strokes that thicken until they merge. | 0.7 s | hiss |
-| `page` | A chapter break: into the recap or the end card | The old page rolls up from the bottom like a scroll (inked roll, shadow below), revealing the new page. Option: `radius`. | 0.9–1.0 s | flick + thump |
-| `cut` | Same scale, new place, with a hard edit | Hard cut; the old plate leans in 3% beforehand and the new one settles from 5%; the header follows 0.25 s later. | 0 | riser + thump |
+| `page` | A chapter break: turning to the next part of the notebook | Page turn: a bottom corner lifts and is dragged across (`dir` 'left' moves the right corner leftward, the default; 'right' the reverse), the page folds along a moving crease and slides off. The back of the turning page takes the new page's look, so the new world curls into view (`back: 'old'` keeps the old page's look, with its print showing through). The old corner labels fade in place. | 1.2 s | flick |
+| `roll` | A clean reset: into the recap or the end card | The old page rolls up from the bottom edge like a window blind or projector screen (inked roll, shadow below), revealing the new page. The old corner labels fade in place. Option: `radius`. | 1.0 s | flick + thump |
+| `cut` | Same scale, new place, with a hard edit | Match cut: the new plate opens shifted so its hero sits where the old hero was (`match`, default 0.6 of the way), holds a beat, then eases home over `settle` s. The old plate leans in 3% beforehand; the header follows 0.25 s later. `match: 0` gives a plain hard cut. Any other transition can take `match` too. | 0 | riser + thump |
 | `fade` | The end card only | Crossfade. | 0.8 s | none |
 
 **Rules:**

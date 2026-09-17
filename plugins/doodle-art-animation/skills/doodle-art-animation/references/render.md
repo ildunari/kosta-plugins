@@ -5,7 +5,9 @@
   - Audio comes from `window.__audioWav()`.
   - ffmpeg joins them at `-crf 16`, or at `--bitrate` if you pass one.
 - **Options:** `--png` for lossless frames, and `--from/--to` to re-render a range.
-- **Speed:** in-page drawing takes about 15–26 ms per frame. JPEG encoding and page-to-script transfer take the rest.
-  - With 6 workers at 1080p, expect about 60–70 ms per frame, so a 4.5-minute film takes about 7–8 minutes.
-  - Heavy `hatch()`, `pebbles()` and `stipple()` over the full frame are the main drawing costs, so keep `gap` at 5 px or more on large areas.
+- **Speed** depends mostly on CPU cores, because headless Chromium draws the canvas on the CPU.
+  - On a machine with plenty of cores, 6 workers averaged about 60–70 ms per frame, so a 4.5-minute film takes about 7–8 minutes.
+  - On a 2-core machine, the 49 s example averaged about 140 ms per frame with 4 workers (about 7 minutes).
+  - The heaviest plates are wide panning worlds: drawing a 3,400 px landscape every frame cost about 330 ms per frame on 2 cores, against about 170 ms for a normal plate. Heavy `hatch()`, `pebbles()` and `stipple()` over large areas are the main costs, so keep `gap` at 5 px or more there.
+- **Timing your own code:** Chromium queues canvas drawing until something reads the canvas. A loop that calls `renderFrame()` without reading back stalls for several seconds every couple of dozen frames. When timing, read one pixel after each frame (`ctx.getImageData(0, 0, 1, 1)`). `render.mjs` reads every frame, so real renders don't stall.
 - **Alternative:** a HyperFrames (HeyGen) composition could drive the same canvas through a custom frame adapter (`seekFrame(f)` → `renderFrame(f)`). The plain harness below is the one that has been tested.

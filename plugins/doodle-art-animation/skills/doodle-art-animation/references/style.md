@@ -48,6 +48,7 @@ Use real subscripts and superscripts (`H₂O`, `km³`, `10²⁰`) with the `SUB(
 - **The boil:** every wobble re-rolls every 2 frames (animation "on twos"), so still lines feel alive. The reference's counter shows it: `EXP` is always `F / 2`.
 - **Shading is pen strokes, never gradients.** Put **two textures minimum** on any fill wider than 200 px, and make at least one of them denser on the shadow side.
 - **Weight shows depth:** far objects get `w` 2 at alpha 0.7; near objects get `w` 3.5 and shading.
+- **Vary the scenery.** Don't reuse one landscape on every paper plate. Change the ground (valley, mountains, open sea, cutaway), add trees, a far mountain range or a flock of birds, and give the recap its own composition.
 
 | Material | Recipe |
 |---|---|
@@ -60,6 +61,10 @@ Use real subscripts and superscripts (`H₂O`, `km³`, `10²⁰`) with the `SUB(
 | Sun | Flat, plus `crosshatch`, plus 16–20 tapered `pen` rays of alternating length. |
 | Solid body (cell, drop, organ) | Flat, `shade()` away from an upper-left light, and a short white highlight arc at the upper left. |
 | Night body | Flat navy, `speckle`, a highlight arc, and a scattered pink/cyan ring. |
+| Far mountains | Jagged polygon, flat grey, `shade()` with light from the upper left, a white snowcap with a zig-zag lower edge, `pen` outline. Keep peaks below any stat that sits above them. Use parallax depth about 0.3. |
+| Tree | Tapered `pen` trunk, `shape.blob` canopy (irregularity about 0.28) filled leaf green, `shade()` in dark green, canopy swaying 2–3 px. |
+| Birds | 4–5 small `pen` "v" shapes crossing the sky at about 40 px/s, wings flapping. Cheap motion for any paper sky. |
+| Coast cross-section | Clip the land layers to a coastline polygon, fill the sea on the other side, and run the mountain's rock down under the valley. |
 
 ## Composition rules
 

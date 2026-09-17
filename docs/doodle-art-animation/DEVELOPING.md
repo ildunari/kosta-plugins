@@ -2,6 +2,16 @@
 
 The `kosta-plugins` repo holds the **doodle-art-animation** plugin: a skill that makes hand-inked, notebook-style explainer films drawn entirely in canvas code, plus the toolkit it copies into each film's working folder. The full history, measurements and open problems are in `docs/doodle-art-animation/HANDOFF.md`. Read it before changing the engine or the skill.
 
+## Design principle
+
+The plugin owns the **style and feel**, and the model owns the **content**.
+
+- **Engine (fixed, tested in the reel):** ink, paper, type, HUD, camera, transitions, sound, rendering. Fix problems here in code, not with more instructions.
+- **Story (written per film by the model):** topic, scenery, objects, layout, pacing. Films can be about any subject, so the engine should supply broad, reusable building blocks (scenery and object components across nature, tech, science, space, art and so on) plus the primitives to draw anything else.
+- The instructions should push the model to invent art for its topic and never to copy the example's look. Reusable pieces a model builds during a film are candidates to fold back into the engine.
+
+When a film looks wrong, first decide which layer caused it. If it happens in every film or in the transition reel, it's the engine.
+
 ## Layout
 
 ```
@@ -36,7 +46,7 @@ python3 build.py story.js film.html && python3 build.py story_reel.js reel.html
 node render.mjs film.html --stills 150,480,700      # quick look
 node render.mjs film.html --sheet 1                 # qa/contact_sheet.jpg
 node render.mjs film.html --strips                  # qa/strip_NN_type.jpg, one per transition
-node render.mjs reel.html --strips --dir qa_reel    # all 12 transitions
+node render.mjs reel.html --strips --dir qa_reel    # all 13 transitions
 node render.mjs film.html film.mp4 --workers 6      # full render
 python3 motion_check.py film.mp4                    # target: median >= 1.5, still < 5%
 ```
