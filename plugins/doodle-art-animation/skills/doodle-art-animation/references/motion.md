@@ -105,10 +105,10 @@ Every transition is a pure function of progress `p`, animated on twos. Zooms int
 
 Every transition's pace is yours to set. `dur` sets its length, and one of these reshapes its timing:
 
-- **`ease`:** one easing for the whole transition, e.g. `ease: 'inOutSine'` (slow in and out), `'outBounce'` (lands with bounces), `'inBack'` (pulls back before going), `'outExpo'` (fast start, long settle).
+- **`ease`:** the easing for the whole transition, e.g. `ease: 'inOutSine'` (slow in and out), `'outBounce'` (lands with bounces), `'inBack'` (pulls back before going), `'outExpo'` (fast start, long settle). On presets with one main easing (lensIn, lensOut, zoom, pan, wipe, bleed, burn, page, roll, shape, hatch, fade) it **replaces** that easing; on iris, through and custom transitions it reshapes the clock. Presets already ease, so leave `ease` out unless you want a different feel; often a longer `dur` is the better fix for a transition that feels rushed.
 - **`curve`:** keyframes from clock to progress, with holds and a different easing per segment. `[[0, 0], [0.3, 0.45, 'out3'], [0.6, 0.55, 'lin'], [1, 1, 'inOut3']]` rushes to the middle, lingers there, then finishes smoothly. Repeat a value to hold it.
 - **Easings (`E`):** `lin`, `in2`, `in3`, `in5`, `out2`, `out3`, `out5`, `inOut2`, `inOut3`, `inOut5`, `inSine`, `outSine`, `inOutSine`, `inExpo`, `outExpo`, `inOutExpo`, `inBack`, `outBack`, `outBack2`, `inOutBack`, `anticipate`, `outElastic`, `outBounce`, `hold`, and `E.spring(k)` for a settle with k overshoots.
-- **Limits:** built-in transitions clamp progress to 0..1, so overshooting easings flatten at the ends there. Inside a custom transition, `S.trans.raw` is the unshaped clock, and `curve(t, keys, { geo: true })` shapes any value you like: zoom scales (geometric, so zooms never rush), positions, colours, alphas.
+- **Limits:** `curve` always reshapes the clock, on top of the preset's own easing, so give presets a `curve` that is mostly linear with holds, or use `ease` instead. Built-in transitions clamp progress to 0..1, so overshooting easings flatten at the ends there. Inside a custom transition, `S.trans.raw` is the unshaped clock, and `curve(t, keys, { geo: true })` shapes any value you like: zoom scales (geometric, so zooms never rush), positions, colours, alphas.
 - **Pace the plates around it.** A long or slow seam eats into the next plate's opening, so delay that plate's own action and beats by about the extra time.
 
 ## Writing your own transition
@@ -137,7 +137,7 @@ The built-in types are presets. When a seam matters, write it in the story: give
   - one object becoming another, a custom morph (or `shape` for simple outlines); going into a surface, `through`.
   - Better still, design the seam first (`references/writing.md`, "Designing the seams") and let the link choose the type.
 - Use 4–6 types per film, and never the same one three times in a row.
-- **Motion carries across the seam.** When the old plate's hero (or camera pan) is still moving at the cut, the new plate enters travelling the same way and eases to rest (`enter.carry`, seconds, default 0.35; `false` turns it off). It is off for `pan`, `page`, `roll` and `fade`.
+- **Motion carries across the seam.** When the old plate's hero (or camera pan) is still moving at the cut, the new plate enters travelling the same way and eases to rest (`enter.carry`, seconds, default 0.35; `false` turns it off). It is off for `pan`, `page`, `roll`, `fade`, `through` and `shape`.
 - **Pans follow the action.** `pan` with no `dir` (or `dir: 'auto'`) keeps the camera travelling the way it was, whether it was chasing a moving hero or panning on its own; it falls back to `'left'` when nothing is moving.
 - **Momentum** is automatic (`LEAD` and `SETTLE` in the engine). Set `enter.momentum: false` to turn it off, or `enter.settle` (seconds) to change the settle length. Momentum scales only upward, because scenes bleed past the frame edges only when enlarged.
 - The engine plays a 0.35 s riser before every transition except `fade`, and ducks the music bed under it.

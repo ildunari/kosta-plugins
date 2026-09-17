@@ -763,7 +763,7 @@ function motionOf(pl, t) {
 /**
  * Motion carry-over. The new plate enters still travelling the way the old plate's content was moving at the cut
  * (enter.carry: seconds for that motion to die away, default 0.35; false turns it off), so movement flows through
- * the transition instead of stopping at it. On by default except for pan, page and roll, which move the sheet themselves.
+ * the transition instead of stopping at it. On by default except for pan, page, roll and fade (which move the sheet themselves) and through and shape (which place objects exactly).
  */
 /** travelOf(plate, t): which way the camera is effectively travelling (px/s): chasing a moving hero, or panning */
 function travelOf(pl, t) {
@@ -772,7 +772,7 @@ function travelOf(pl, t) {
   const [hx, hy] = pl.hero ? motionOf(pl, t) : [0, 0];
   return [hx - cx, hy - cy];
 }
-const NO_CARRY = { pan: 1, page: 1, roll: 1, fade: 1 };
+const NO_CARRY = { pan: 1, page: 1, roll: 1, fade: 1, through: 1, shape: 1 };   // through and shape place their objects exactly
 function carryShift(pl, t) {
   const tr = pl.enter; if (!tr || !pl.i) return null;
   const tau = tr.carry ?? (NO_CARRY[tr.type] ? 0 : 0.35); if (!tau) return null;
@@ -892,7 +892,7 @@ function sampleColor(X, which, x, y) {
 const TRANS = {
   /** down the scale ladder into another world: the camera dives at the hero while a lens opens on it, the new world inside */
   lensIn(p, X) {
-    const { tr } = X, e = E.inOut5(p), [cx, cy] = X.focusOld, [fx, fy] = X.focusNew, r = zlerp(16, coverR(cx, cy), e);
+    const { tr } = X, e = X.ez(p, E.inOut5), [cx, cy] = X.focusOld, [fx, fy] = X.focusNew, r = zlerp(16, coverR(cx, cy), e);
     X.drawOldX({ xf: about(cx, cy, zlerp(1, tr.dive ?? 2.4, e)) });
     ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.clip();
     ctx.drawImage(bgTex(X.darkNew), 0, 0);
@@ -903,7 +903,7 @@ const TRANS = {
   },
   /** up the scale ladder: the old world shrinks into a lens that lands on the hero, while the new world pulls back into place */
   lensOut(p, X) {
-    const { tr } = X, e = E.inOut5(p), [ox, oy] = X.focusOld, [nx, ny] = X.focusNew, R0 = coverR(ox, oy);
+    const { tr } = X, e = X.ez(p, E.inOut5), [ox, oy] = X.focusOld, [nx, ny] = X.focusNew, R0 = coverR(ox, oy);
     const cx = lerp(ox, nx, e), cy = lerp(oy, ny, e), r = zlerp(R0, 20, e);
     X.drawNewX({ xf: about(nx, ny, zlerp(tr.dive ?? 2.4, 1, e)) });
     ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.clip();
@@ -914,10 +914,10 @@ const TRANS = {
     return clamp(1 - (r / R0) ** 2);
   },
   /** plain crossfade: only into the end card */
-  fade(p, X) { const e = E.inOut3(p); X.drawOld(); withAlpha(e, X.drawNew); return e; },
+  fade(p, X) { const e = X.ez(p, E.inOut3); X.drawOld(); withAlpha(e, X.drawNew); return e; },
   /** one step on the scale ladder in the same world (tr.dir 'out' | 'in', tr.k): old shrinks (or grows) away while the new scale grows in around the hero */
   zoom(p, X) {
-    const { tr } = X, e = E.inOut5(p), k = tr.k ?? 8, out = (tr.dir || 'out') === 'out';
+    const { tr } = X, e = X.ez(p, E.inOut5), k = tr.k ?? 8, out = (tr.dir || 'out') === 'out';
     const sOld = out ? zlerp(1, 1 / k, e) : zlerp(1, k, e), sNew = out ? zlerp(k, 1, e) : zlerp(1 / k, 1, e);
     const [ox, oy] = X.focusOld, [nx, ny] = X.focusNew, px = lerp(ox, nx, e), py = lerp(oy, ny, e), a = E.inOut3(inv(0.25, 0.75, p));
     // a plate shrunk below 1 would show its world's hard edges (a ground band ending mid-frame): draw it through a soft
@@ -940,7 +940,7 @@ const TRANS = {
       dir = Math.hypot(vx, vy) < 40 ? 'left' : Math.abs(vx) >= Math.abs(vy) ? (vx > 0 ? 'left' : 'right') : (vy > 0 ? 'up' : 'down'); }
     const vert = dir === 'up' || dir === 'down', sg = dir === 'left' || dir === 'up' ? -1 : 1, span = vert ? H : W;
     const Lo = layer(() => X.drawOldX({ all: true }), 1), Ln = layer(() => X.drawNewX({ all: true }), 2);
-    const offAt = q => sg * span * E.inOut3(clamp(q)), sh = 0.5 / (12 * (X.tr.dur || 0.8));   // half-drawing shutter
+    const offAt = q => sg * span * X.ez(clamp(q), E.inOut3), sh = 0.5 / (12 * (X.tr.dur || 0.8));   // half-drawing shutter
     const n = Math.round(clamp(Math.abs(offAt(p + sh / 2) - offAt(p - sh / 2)) / 5, 1, 48));
     for (let j = 0; j < n; j++) {                                 // running average of n exposures = motion blur
       const off = offAt(p + (n > 1 ? j / (n - 1) - 0.5 : 0) * sh), [ox, oy] = vert ? [0, off] : [off, 0], [nx, ny] = vert ? [0, off - sg * span] : [off - sg * span, 0];
@@ -989,7 +989,7 @@ const TRANS = {
   },
   /** ink wipe (tr.dir 'lr' | 'rl' | 'tb'): a curved inked front sweeps across; the new plate slides in slightly behind it */
   wipe(p, X) {
-    const e = E.inOut3(p), dir = X.tr.dir || 'lr', vert = dir === 'tb', span = vert ? H : W, f = lerp(-180, span + 180, dir === 'rl' ? 1 - e : e);
+    const e = X.ez(p, E.inOut3), dir = X.tr.dir || 'lr', vert = dir === 'tb', span = vert ? H : W, f = lerp(-180, span + 180, dir === 'rl' ? 1 - e : e);
     const edge = smooth(shape.ridge(-20, (vert ? W : H) + 20, 0, 70, X.seed + 3, 0.004, 40), 2).map(([u, d]) => vert ? [u, f + d] : [f + d, u]);
     const poly = dir === 'rl' ? [[W + 10, -10], ...edge, [W + 10, H + 10]] : vert ? [[-10, -30], ...edge, [W + 10, -30]] : [[-30, -10], ...edge, [-30, H + 10]];
     const slide = (1 - e) * 90 * (dir === 'rl' ? 1 : -1);
@@ -1014,7 +1014,7 @@ const TRANS = {
       ink(teardrop(fx, y, s), { closed: true, w: 2, color: PAL.ink, fill: dropCol, amp: 0.3, seed: 5 });
       return 0;
     }
-    const u = (p - fall) / (1 - fall), e = E.inOutSine(u);
+    const u = (p - fall) / (1 - fall), e = X.ez(u, E.inOutSine);
     // the splat: a main blot plus satellite droplets and short splash chains; blobs merge where they touch
     const R = mulberry(X.seed + 31), drops = [[fx, fy, 1, 0]];
     for (let k = 0; k < 7; k++) { const a = R() * TAU, D = 150 + R() * 230;       // splash chains: droplets shrinking outward
@@ -1045,7 +1045,7 @@ const TRANS = {
   },
   /** burn: the old page chars from a spot (tr.at, default the old hero) outward: scorch, char, a glowing ember edge, then a hole onto the new plate; ash lifts off the front */
   burn(p, X) {
-    const e = E.inOutSine(p), [fx, fy] = X.tr.at || X.focusOld, w = 480, h = 270, nf = noiseField(X.seed + 5, w, h, 0.4), dm = coverR(fx, fy);
+    const e = X.ez(p, E.inOutSine), [fx, fy] = X.tr.at || X.focusOld, w = 480, h = 270, nf = noiseField(X.seed + 5, w, h, 0.4), dm = coverR(fx, fy);
     const charW = 0.05, scorchW = 0.13, emberW = 0.012, nw = X.tr.rough ?? 0.22;
     const m = maskCanvas('m', w, h), om = maskCanvas('r', w, h), gm = maskCanvas('g', w, h), md = m.img.data, od = om.img.data, gd = gm.img.data;
     const vAt = (px, py) => Math.hypot(px - fx, py - fy) / dm * 0.9 + nf[clamp(Math.floor(py / H * h), 0, h - 1) * w + clamp(Math.floor(px / W * w), 0, w - 1)] * nw;
@@ -1095,7 +1095,7 @@ const TRANS = {
    *  'right' = the left corner travels right); the page folds along a moving crease and slides off. Its back takes the look
    *  of the page being turned to (tr.back 'new' | 'old'), so the new world curls into view over the old one. */
   page(p, X) {
-    const e = E.inOut3(p), fl = (X.tr.dir || 'left') === 'right', hx = x => fl ? W - x : x;
+    const e = X.ez(p, E.inOut3), fl = (X.tr.dir || 'left') === 'right', hx = x => fl ? W - x : x;
     const P = [hx(W + 4), H + 4], Q = [hx(lerp(W + 4, -1.25 * W, e)), lerp(H + 4, 0.7 * H, Math.sin(e * Math.PI / 2))];
     const dx = P[0] - Q[0], dy = P[1] - Q[1], len = Math.hypot(dx, dy);
     if (len < 2) { X.drawOld(); return 0; }
@@ -1125,7 +1125,7 @@ const TRANS = {
   },
   /** roll (window blind / projector screen): the old page rolls up from the bottom edge (inked roll, shadow below), revealing the new page */
   roll(p, X) {
-    const e = E.inOut3(p), R = X.tr.radius ?? 60, yc = lerp(H + 6, -R - 40, e), step = 2;
+    const e = X.ez(p, E.inOut3), R = X.tr.radius ?? 60, yc = lerp(H + 6, -R - 40, e), step = 2;
     X.drawNew();
     if (yc < H) { const g = ctx.createLinearGradient(0, yc + R, 0, yc + R + 110); g.addColorStop(0, 'rgba(30,20,10,0.32)'); g.addColorStop(1, 'rgba(30,20,10,0)');
       ctx.fillStyle = g; ctx.fillRect(0, yc + R, W, 110); }                                   // shadow the roll casts on the new page
@@ -1146,7 +1146,7 @@ const TRANS = {
   },
   /** shape reveal (match cut): an object morphs into its counterpart while a window centred on it opens onto the new world */
   shape(p, X) {
-    const { tr } = X, e = E.inOut5(p);
+    const { tr } = X, e = X.ez(p, E.inOut5);
     const A = tr.from(X.prev, X.pt), B = tr.to(X.pl, X.t), M = morph(A, B, e), b = bounds(M), cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
     const ba = bounds(A), bb = bounds(B), ax = (ba.x0 + ba.x1) / 2, ay = (ba.y0 + ba.y1) / 2, bx = (bb.x0 + bb.x1) / 2, by = (bb.y0 + bb.y1) / 2;
     const r0 = Math.max(6, Math.min(b.x1 - b.x0, b.y1 - b.y0) * 0.45), q = E.inOut3(inv(0.1, 0.92, p)), r = zlerp(r0, coverR(cx, cy), q);
@@ -1163,7 +1163,7 @@ const TRANS = {
   },
   /** dissolve through hatching: the new plate appears as pen strokes that thicken until they merge */
   hatch(p, X) {
-    const e = E.inOut3(p), gap = 16, ang = -0.7, R = Math.hypot(W, H) / 2 + 40, r = mulberry(X.seed + 21);
+    const e = X.ez(p, E.inOut3), gap = 16, ang = -0.7, R = Math.hypot(W, H) / 2 + 40, r = mulberry(X.seed + 21);
     X.drawOld();
     const L = layer(() => {
       X.drawNew(); ctx.globalCompositeOperation = 'destination-in';
@@ -1182,6 +1182,8 @@ function headerDelay(pl) { const tr = pl.enter; if (!tr || pl.i === 0) return 0.
 TRANS.morph = TRANS.shape;   // v2 name
 
 /* ---------- timeline ---------- */
+/** presets whose main easing enter.ease replaces (see renderFrame) */
+const EASED = { lensIn: 1, lensOut: 1, fade: 1, zoom: 1, pan: 1, wipe: 1, bleed: 1, burn: 1, page: 1, roll: 1, shape: 1, hatch: 1 };
 /** transition length when a plate's enter has no dur (seconds) */
 const DEFAULT_DUR = { custom: 1.6, through: 1.4, cut: 0, lensIn: 0.6, lensOut: 0.6, zoom: 0.8, pan: 0.8, wipe: 0.8, bleed: 1.5, burn: 1.4, iris: 0.9, shape: 1.1, morph: 1.1, hatch: 0.8, page: 1.2, roll: 1.0, fade: 0.8 };
 let STORY = null, TOTAL_T = 0, TOTAL_F = 0;
@@ -1239,13 +1241,17 @@ function renderFrame(f) {
   if (wv) { ctx.translate(W / 2 + (hash3(db, 1, 7) - 0.5) * 2 * wv, H / 2 + (hash3(db, 2, 7) - 0.5) * 2 * wv); ctx.rotate((hash3(db, 3, 7) - 0.5) * 0.0012 * wv); ctx.scale(1.004, 1.004); ctx.translate(-W / 2, -H / 2); }
   if (i > 0 && tr && tr.type !== 'cut' && t < tr.dur) {
     const prev = P[i - 1], pt = prev.dur + t, raw = t / tr.dur;
-    // pacing: enter.ease reshapes the whole transition, enter.curve maps clock -> progress with holds and per-segment easing
-    const p = clamp(tr.curve ? curve(raw, tr.curve) : tr.ease ? easeOf(tr.ease)(raw) : raw);   // presets clamp overshoot; custom draws can read S.trans.raw
+    // pacing: enter.curve maps clock -> progress (holds, per-segment easing). enter.ease REPLACES the main easing of the
+    // presets that have one (EASED); for the rest (iris, through, custom) it reshapes the clock instead. Never both,
+    // so a transition is never eased twice (that left dead starts and two-drawing snaps).
+    const own = !!(tr.ease && EASED[tr.type]);
+    const p = clamp(tr.curve ? curve(raw, tr.curve) : tr.ease && !own ? easeOf(tr.ease)(raw) : raw);   // presets clamp overshoot; custom draws can read S.trans.raw
     S.trans = { type: tr.type, p, raw };
     const side = (sd, fn) => { const k = S.side; S.side = sd; try { fn(); } finally { S.side = k; } };   // plates can ask S.side which role they are playing
     const X = { drawOld: () => side('old', () => drawPlate(prev, pt)), drawNew: () => side('new', () => drawPlate(pl, t)),
       drawOldX: o => side('old', () => drawPlate(prev, pt, o)), drawNewX: o => side('new', () => drawPlate(pl, t, o)),
-      focusOld: focusOf(prev, pt), focusNew: focusOf(pl, t), darkOld: prev.dark, darkNew: pl.dark, prev, pl, pt, t, tr, seed: i * 7 + 1 };
+      focusOld: focusOf(prev, pt), focusNew: focusOf(pl, t), darkOld: prev.dark, darkNew: pl.dark, prev, pl, pt, t, tr, seed: i * 7 + 1,
+      ez: (v, def) => own ? easeOf(tr.ease)(v) : def(v) };   // a preset's main easing, unless enter.ease replaces it
     const share = (tr.draw || TRANS[tr.type] || TRANS.fade)(p, X);        // enter.draw: a transition written by the story itself
     ctx.save(); ctx.globalAlpha = 1 - share; ctx.drawImage(vig(prev.dark), 0, 0); ctx.globalAlpha = share; ctx.drawImage(vig(pl.dark), 0, 0); ctx.restore();
   } else {
