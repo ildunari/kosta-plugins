@@ -26,7 +26,7 @@ const EARTH = {
 };
 
 const TECH = {
-  dur: DUR, cam: FLOAT(2), enter: { type: 'wipe', dur: 0.8 }, header: header(2, 'Tech kit', 'terminal, code, browser, rack, circuit, cursor'),
+  dur: DUR, cam: FLOAT(2), enter: { type: 'wipe', dur: 1.0 }, header: header(2, 'Tech kit', 'terminal, code, browser, rack, circuit, cursor'),
   draw(t) {
     KIT.tech.browser(t, { x: 70, y: 290, w: 620, h: 560, draw: DR(t, 0), seed: 11 });
     KIT.tech.terminal(t, { x: 760, y: 70, w: 520, h: 320, draw: DR(t, 1), seed: 12, t0: 1.2,
@@ -68,7 +68,7 @@ const SPACE = {
 };
 
 const LAB = {
-  dur: DUR, cam: FLOAT(5), enter: { type: 'wipe', dur: 0.8, dir: 'rl' }, header: header(5, 'Lab kit', 'flask, cell, molecule, microscope, pipette'),
+  dur: DUR, cam: FLOAT(5), enter: { type: 'wipe', dur: 1.0, dir: 'rl' }, header: header(5, 'Lab kit', 'flask, cell, molecule, microscope, pipette'),
   draw(t) {
     KIT.lab.cell(t, { x: 350, y: 470, r: 160, draw: DR(t, 0), seed: 41 });
     KIT.lab.molecule(t, { x: 960, y: 420, preset: 'ethanol', unit: 78, spin: 0.9, draw: DR(t, 1), seed: 42 });
@@ -98,7 +98,7 @@ const STUDIO = {
 };
 
 const NATURE = {
-  dur: DUR, cam: FLOAT(7), enter: { type: 'wipe', dur: 0.8 }, header: header(7, 'Earth kit, wilder', 'river, volcano, cave, dunes, iceberg, flowers'),
+  dur: DUR, cam: FLOAT(7), enter: { type: 'wipe', dur: 1.0 }, header: header(7, 'Earth kit, wilder', 'river, volcano, cave, dunes, iceberg, flowers'),
   draw(t) {
     KIT.earth.river(t, { x: 70, y: 270, w: 600, h: 290, from: [0.75, 0], to: [0.3, 1], width: [16, 120], draw: DR(t, 0), seed: 61 });
     KIT.earth.volcano(t, { x: 1010, y: 520, w: 540, h: 270, plume: 0.55, draw: DR(t, 1), seed: 62 });
@@ -141,7 +141,7 @@ const LIFE = {
 };
 
 const SETTLE_A = {
-  dur: DUR, cam: FLOAT(9), enter: { type: 'wipe', dur: 0.8 }, header: header(9, 'Settle kit · shelter', 'house, hut, tent, tower, cart, ship'),
+  dur: DUR, cam: FLOAT(9), enter: { type: 'wipe', dur: 1.0 }, header: header(9, 'Settle kit · shelter', 'house, hut, tent, tower, cart, ship'),
   draw(t) {
     KIT.settle.house(t, { x: 300, y: 620, s: 0.78, style: 'cottage', draw: DR(t, 0), seed: 61 });
     KIT.settle.house(t, { x: 520, y: 620, s: 0.6, style: 'townhouse', draw: DR(t, 0.3), seed: 62 });
@@ -163,7 +163,7 @@ const SETTLE_A = {
 };
 
 const SETTLE_B = {
-  dur: DUR, cam: FLOAT(10), enter: { type: 'zoom', dur: 0.9 }, header: header(10, 'Settle kit · land and routes', 'village, skyline, road, bridge, fields, market, map, ruins'),
+  dur: DUR, cam: FLOAT(10), enter: { type: 'zoom', dur: 1.5 }, header: header(10, 'Settle kit · land and routes', 'village, skyline, road, bridge, fields, market, map, ruins'),
   draw(t) {
     KIT.settle.skyline(t, { x: 560, y: 400, w: 780, h: 250, era: 'old', draw: DR(t, 0), seed: 81 });
     KIT.settle.bridge(t, { x: 1400, y: 270, w: 430, h: 180, draw: DR(t, 1), seed: 82 });

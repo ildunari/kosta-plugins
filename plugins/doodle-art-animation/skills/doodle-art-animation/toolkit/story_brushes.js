@@ -40,17 +40,19 @@ const header = (num, title, sub) => ({ num, title, sub });
 const TBLOB = shape.blob(960, 470, 330, 12, 0.34, 56).map(([x, y]) => [x, 470 + (y - 470) * 0.52]);
 const P0 = {
   dur: 3.8, counter: false,
-  cam: t => ({ x: 960, y: 470, s: curve(t, [[0, 1.045], [2.2, 1.0, 'out3'], [3.8, 1.035, 'inOutSine']]), dx: 14 * Math.sin(t * 0.8) + 6 * t, dy: 7 * Math.sin(t) - 3 * t }),
+  // the pull-out and the push-in overlap (1.4 s .. 2.2 s) so the scale never rests at a turning point
+  cam: t => ({ x: 960, y: 470, s: 1.045 - 0.045 * E.out3(clamp(t / 2.2)) + 0.032 * E.inOutSine(clamp((t - 1.4) / 2.4)),
+    dx: 22 * Math.sin(t * 0.9) + 9 * t, dy: 11 * Math.sin(t * 1.15) - 4 * t }),
   cues: [[0.3, 'noise', { dur: 1.2, g: 0.05, f0: 500, f1: 1600 }], [0.7, 'scratch', { chars: 14, cps: 14 }], [1.6, 'scratch', { chars: 30 }]],
   bed: (ac, out, t0, dur) => SFX.pad(ac, out, t0, { dur, notes: [261.6, 329.6, 392], g: 0.015 }),
   draw(t) {
-    breathe(TBLOB, t, 0, { seed: 21, color: PAL.wet, bleed: 0.45, draw: E.out3(inv(0.1, 1.6, t)), from: [700, 470] }, 0.05, 1.5);
-    wash(shape.blob(1500 + 6 * Math.sin(t), 250, 80, 22, 0.3, 30), { seed: 22, color: PAL.sun, bleed: 0.5, draw: E.out3(inv(0.6, 1.8, t)) });
+    breathe(TBLOB, t, 0, { seed: 21, color: PAL.wet, bleed: 0.45, draw: E.out3(inv(0.1, 1.6, t)), from: [700, 470] }, 0.075, 1.7);
+    wash(shape.blob(1500 + 26 * Math.sin(t * 0.75), 250 + 14 * Math.sin(t * 1.05), 80, 22, 0.3, 30), { seed: 22, color: PAL.sun, bleed: 0.5, draw: E.out3(inv(0.6, 1.8, t)) });
     brush.stroke(SWOOSH(640, 560, 640, 10, 0.4), { type: 'charcoal', seed: 23, draw: DR(t, 0, 1.2, 0, 0.9), w: 11 });
-    for (let i = 0; i < 90; i++) { const r = mulberry(900 + i), x = (r() * W + t * (60 + r() * 90)) % W, y = r() * H + 26 * Math.sin(t * 1.6 + i);
-      ctx.fillStyle = 'rgba(70,60,50,0.3)'; ctx.fillRect(x, y, 4, 4); }                  // graphite dust drifting over the page
-    for (let i = 0; i < 3; i++) { const y = 700 + i * 34, x0 = 760 + i * 30;
-      brush.stroke([[x0 + 4 * Math.sin(t * 2 + i), y], [x0 + 400 - i * 60, y + 4 * Math.sin(t * 1.4 + i)]], { type: ['pencil-2b', 'marker', 'spray'][i], seed: 24 + i,
+    for (let i = 0; i < 170; i++) { const r = mulberry(900 + i), x = (r() * W + t * (55 + r() * 150)) % W, y = r() * H + 38 * Math.sin(t * (1.3 + 0.5 * (i % 3)) + i), sz = 3 + (i % 3);
+      ctx.fillStyle = `rgba(70,60,50,${0.2 + 0.07 * (i % 3)})`; ctx.fillRect(x, y, sz, sz); }   // graphite dust drifting over the page, at mixed speeds
+    for (let i = 0; i < 3; i++) { const y = 700 + i * 34 + 7 * Math.sin(t * 1.25 + i * 1.7), x0 = 760 + i * 30;
+      brush.stroke([[x0 + 11 * Math.sin(t * 1.6 + i), y], [x0 + 400 - i * 60, y + 11 * Math.sin(t * 1.15 + i)]], { type: ['pencil-2b', 'marker', 'spray'][i], seed: 24 + i,
         color: [undefined, PAL.accent, PAL.sea][i], w: [5, 12, 20][i], draw: DR(t, i, 1.7, 0.2, 0.7) }); }
   },
   overlay(t) {
@@ -156,7 +158,9 @@ const SUNW = shape.blob(1600, 250, 80, 54, 0.2, 30);
 const cloudAt = (i, t) => shape.blob(300 + i * 560 + t * (30 + i * 9), 170 + i * 40, 110 - i * 15, 60 + i, 0.3, 30).map(([x, y], j) => [x, 170 + i * 40 + (y - 170 - i * 40) * 0.45]);
 const P3 = {
   dur: DUR + 0.4, cam: t => ({ x: W / 2, y: H / 2, s: 1.02 + 0.05 * E.inOutSine(clamp(t / 5)), dx: 22 * Math.sin(t * 0.5) - 11 * t, dy: 8 * Math.sin(t * 0.8) + 4 * t }),
-  enter: { type: 'bleed', dur: 1.3 },
+  // fall 0.38 (not the default 0.22): at this shorter 1.3 s the drop otherwise covers 465 px in one step and
+  // snaps (speed_check ceiling 324 px near a seam's ends). Keep the quicker seam, soften its peak.
+  enter: { type: 'bleed', dur: 1.3, fall: 0.38 },
   focus: () => [1240, 820],
   header: header(3, 'Watercolour washes', 'tints under the ink'), stage: { n: 3, name: 'WASHES', prevN: 2 },
   cues: [[0.3, 'noise', { dur: 2.5, g: 0.04, f0: 300, f1: 900, type: 'lowpass' }], [3.4, 'chime', { f: 523 }]],
