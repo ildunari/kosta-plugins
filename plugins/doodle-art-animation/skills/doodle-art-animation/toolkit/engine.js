@@ -678,7 +678,7 @@ const focusOf = (pl, t) => { const h = heroOf(pl, t); return [h.x, h.y]; };
  * so the camera never stops dead at a cut. enter.momentum = false turns it off for one plate.
  */
 const LEAD = { lensIn: 1.14, zoom: 1.08, shape: 1.12, iris: 1.06, bleed: 1.03, burn: 1.03, cut: 1.03 };   // always >= 1: scenes only bleed past the edges when enlarged
-const SETTLE = { lensIn: 1.12, lensOut: 1.08, zoom: 1.06, shape: 1.08, iris: 1.06, bleed: 1.05, burn: 1.05, cut: 1.05, wipe: 1.03, page: 1.04, fade: 1.02, hatch: 1.03 };
+const SETTLE = { lensIn: 1.12, lensOut: 1.08, zoom: 1.06, shape: 1.08, iris: 1.06, bleed: 1.05, burn: 1.05, cut: 1.05, wipe: 1.03, page: 1.04, roll: 1.04, fade: 1.02, hatch: 1.03 };
 /**
  * Match cut. After a `cut` (or any enter with match: 0..1) the new plate starts shifted so its hero sits where the
  * old hero was (by the match fraction, 0.6 for cuts), holds a beat, then eases home over enter.settle s. It zooms
@@ -724,6 +724,16 @@ function frontAt(vals, u) {
   const sorted = vals.slice().sort(), n = sorted.length;
   return sorted[Math.min(n - 1, Math.max(0, Math.floor(clamp(u) * (n - 1))))];
 }
+/** clipHalf(poly, f): the part of a convex polygon where f(point) <= 0 (f linear) */
+function clipHalf(poly, f) {
+  const out = [];
+  for (let i = 0; i < poly.length; i++) { const a = poly[i], b = poly[(i + 1) % poly.length], fa = f(a), fb = f(b);
+    if (fa <= 0) out.push(a);
+    if ((fa < 0 && fb > 0) || (fa > 0 && fb < 0)) { const u = fa / (fa - fb); out.push([lerp(a[0], b[0], u), lerp(a[1], b[1], u)]); } }
+  return out;
+}
+/** a falling ink drop, tip up */
+const teardrop = (cx, cy, s, n = 36) => Array.from({ length: n }, (_, i) => { const a = i / n * TAU; return [cx + s * Math.sin(a) * Math.sin(a / 2) * 1.1, cy - s * 1.35 * Math.cos(a)]; });
 const NOISE = {};
 function noiseField(seed, w, h, sc = 1) {
   const k = seed + ':' + w + ':' + sc; if (NOISE[k]) return NOISE[k];
@@ -838,24 +848,43 @@ const TRANS = {
     }
     return e;
   },
-  /** ink bleed: the new plate soaks outward from its hero through an organic noise front with a dark wet rim (tr.rim colour) */
+  /** ink drop: a drop falls onto the new hero (or tr.at) and splats; the blot, its splash chains and specks spread and pool together, revealing the new plate, with ink pooled at the edge */
   bleed(p, X) {
-    const e = E.inOutSine(p), [fx, fy] = X.tr.at || X.focusNew, w = 480, h = 270, nf = noiseField(X.seed, w, h, 0.32), dm = coverR(fx, fy);
-    const soft = 0.02, band = 0.035, nw = X.tr.rough ?? 0.16, vals = new Float32Array(w * h);
-    for (let y = 0, i = 0; y < h; y++) for (let x = 0; x < w; x++, i++) vals[i] = Math.hypot((x + 0.5) / w * W - fx, (y + 0.5) / h * H - fy) / dm * 0.9 + nf[i] * nw;
-    const th = frontAt(vals, e) + (soft + 0.005) * e;                 // the stained AREA grows with e
-    const m = maskCanvas('m', w, h), rm = maskCanvas('r', w, h), md = m.img.data, rd = rm.img.data;
-    const rc = X.tr.rim || (X.darkNew ? [30, 34, 80] : [92, 70, 48]);
-    for (let y = 0, i = 0; y < h; y++) for (let x = 0; x < w; x++, i++) {
-      const b = th - vals[i], j = i * 4;
-      md[j + 3] = 255 * clamp(b / soft);
-      rd[j] = rc[0]; rd[j + 1] = rc[1]; rd[j + 2] = rc[2]; rd[j + 3] = b > 0 && b < band ? 255 * (1 - b / band) ** 2 : 0;   // pigment pools at the front
+    const [fx, fy] = X.tr.at || X.focusNew, w = 480, h = 270, fall = X.tr.fall ?? 0.14, dm = coverR(fx, fy);
+    const dropCol = X.tr.ink || (X.darkNew ? PAL.night : PAL.inkSoft);
+    if (p < fall) {                                                    // the drop falls onto the spot
+      X.drawOld(); const q = E.in2(p / fall), s = X.tr.drop ?? 22, y = lerp(-80, fy - s, q);
+      pen([[fx, y - 150 * q - 20], [fx, y - 30]], { w: 2, color: dropCol, alpha: 0.35 * q, taper: 0.5, amp: 0.2 });
+      ink(teardrop(fx, y, s), { closed: true, w: 2, color: PAL.ink, fill: dropCol, amp: 0.3, seed: 5 });
+      return 0;
     }
+    const u = (p - fall) / (1 - fall), e = E.inOutSine(u);
+    // the splat: a main blot plus satellite droplets and short splash chains; blobs merge where they touch
+    const R = mulberry(X.seed + 31), drops = [[fx, fy, 1, 0]];
+    for (let k = 0; k < 7; k++) { const a = R() * TAU, D = 150 + R() * 230;       // splash chains: droplets shrinking outward
+      for (let j = 0; j < 3; j++) { const d = D * (0.55 + 0.25 * j) + R() * 20, ww = (0.11 - 0.028 * j) * (0.7 + 0.6 * R());
+        drops.push([fx + Math.cos(a + (R() - 0.5) * 0.15) * d, fy + Math.sin(a + (R() - 0.5) * 0.15) * d, ww, 0.015 + 0.01 * j + R() * 0.02]); } }
+    for (let k = 0; k < 10; k++) { const a = R() * TAU, d = 90 + R() * 300;       // loose specks
+      drops.push([fx + Math.cos(a) * d, fy + Math.sin(a) * d, 0.03 + 0.05 * R(), 0.01 + R() * 0.05]); }
+    const nf = noiseField(X.seed, w, h, 0.18), kS = 0.018, soft = 0.012, band = 0.03, vals = new Float32Array(w * h);
+    for (let y = 0, i = 0; y < h; y++) for (let x = 0; x < w; x++, i++) {
+      const px = (x + 0.5) / w * W, py = (y + 0.5) / h * H; let acc = 0;
+      for (let d = 0; d < drops.length; d++) { const [cx, cy, ww, o] = drops[d];
+        const f = o + Math.hypot(px - cx, py - cy) / (dm * ww) + (d === 0 ? nf[i] * 0.05 : 0);
+        acc += Math.exp(-f / kS); }                                    // smooth minimum: blobs pool together
+      vals[i] = -kS * Math.log(acc + 1e-30);
+    }
+    const th = frontAt(vals, e) + (soft + 0.005) * e;
+    const m = maskCanvas('m', w, h), rm = maskCanvas('r', w, h), md = m.img.data, rd = rm.img.data;
+    const rc = X.tr.rim || (X.darkNew ? [16, 14, 44] : [70, 52, 40]);
+    for (let i = 0; i < w * h; i++) { const b = th - vals[i], j = i * 4;
+      md[j + 3] = 255 * clamp(b / soft);
+      rd[j] = rc[0]; rd[j + 1] = rc[1]; rd[j + 2] = rc[2]; rd[j + 3] = b > 0 && b < band ? 255 * (1 - b / band) ** 1.5 : 0; }   // ink pools at the edge
     m.g.putImageData(m.img, 0, 0); rm.g.putImageData(rm.img, 0, 0);
     X.drawOld();
-    const L = layer(() => { X.drawNew(); ctx.globalCompositeOperation = 'destination-in'; ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.filter = 'blur(2.5px)'; ctx.drawImage(m.c, 0, 0, W, H); }, 1);
+    const L = layer(() => { X.drawNew(); ctx.globalCompositeOperation = 'destination-in'; ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.filter = 'blur(1.5px)'; ctx.drawImage(m.c, 0, 0, W, H); }, 1);
     ctx.drawImage(L, 0, 0);
-    ctx.save(); ctx.filter = 'blur(3px)'; ctx.globalAlpha = (X.tr.rimAlpha ?? 0.45) * (1 - inv(0.8, 1, p)); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(rm.c, 0, 0, W, H); ctx.restore();
+    ctx.save(); ctx.filter = 'blur(1.5px)'; ctx.globalAlpha = (X.tr.rimAlpha ?? 0.7) * (1 - inv(0.8, 1, p)); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(rm.c, 0, 0, W, H); ctx.restore();
     return e;
   },
   /** burn: the old page chars from a spot (tr.at, default the old hero) outward: scorch, char, a glowing ember edge, then a hole onto the new plate; ash lifts off the front */
@@ -894,20 +923,49 @@ const TRANS = {
   },
   /** iris / blink: a lens closes on the old hero to a dot, then opens from a dot on the new hero */
   iris(p, X) {
-    const curtain = X.tr.color || (X.darkOld || X.darkNew ? '#07061a' : PAL.ink), [ox, oy] = X.focusOld, [nx, ny] = X.focusNew, r0 = 7;
-    ctx.fillStyle = curtain; ctx.fillRect(-20, -20, W + 40, H + 40);
+    const curtain = X.tr.color || (X.darkOld || X.darkNew ? '#07061a' : PAL.ink), op = X.tr.opacity ?? 0.8, [ox, oy] = X.focusOld, [nx, ny] = X.focusNew, r0 = 7;
     let cx, cy, r;
-    if (p < 0.45) { const q = E.in3(p / 0.45); [cx, cy] = [ox, oy]; r = zlerp(coverR(cx, cy), r0, q);
-      ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.clip(); X.drawOldX({ hud: 1 - q, xf: about(cx, cy, 1 + 0.15 * q) }); ctx.restore(); }
-    else if (p < 0.55) { const u = E.inOut3((p - 0.45) / 0.1); cx = lerp(ox, nx, u); cy = lerp(oy, ny, u); r = r0; }
-    else { const q = E.out3((p - 0.55) / 0.45); [cx, cy] = [nx, ny]; r = zlerp(r0, coverR(cx, cy), q);
-      ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.clip(); X.drawNewX({ hud: q, xf: about(cx, cy, 1.15 - 0.15 * q) }); ctx.restore(); }
+    const hole = () => { ctx.save(); ctx.globalAlpha *= op; ctx.fillStyle = curtain; ctx.beginPath(); ctx.rect(-20, -20, W + 40, H + 40);
+      if (r > r0 + 0.5) ctx.arc(cx, cy, r, 0, TAU, true); ctx.fill('evenodd'); ctx.restore(); };
+    if (p < 0.45) { const q = E.in3(p / 0.45); [cx, cy] = [ox, oy]; r = zlerp(coverR(cx, cy), r0, q); X.drawOldX({ hud: 1 - q, xf: about(cx, cy, 1 + 0.15 * q) }); hole(); }
+    else if (p < 0.55) { const u = E.inOut3((p - 0.45) / 0.1); cx = lerp(ox, nx, u); cy = lerp(oy, ny, u); r = r0;
+      X.drawOldX({ hud: 0, xf: about(ox, oy, 1.15) }); withAlpha(u, () => X.drawNewX({ hud: 0, xf: about(nx, ny, 1.15) })); hole(); }
+    else { const q = E.out3((p - 0.55) / 0.45); [cx, cy] = [nx, ny]; r = zlerp(r0, coverR(cx, cy), q); X.drawNewX({ hud: q, xf: about(cx, cy, 1.15 - 0.15 * q) }); hole(); }
     lensRing(cx, cy, r, 1 - inv(0.9, 1, p));
     if (r <= r0 + 0.5) { ctx.fillStyle = '#e9e7f5'; ctx.beginPath(); ctx.arc(cx, cy, r0 * 0.6, 0, TAU); ctx.fill(); }
     return E.inOut3(inv(0.4, 0.6, p));
   },
-  /** page roll: the old page rolls up from the bottom edge like a scroll (inked roll, shadow below), revealing the new page */
+  /** page turn: the bottom-right corner of the old page is lifted and dragged across; the page folds along a moving line,
+   *  showing its back with curl shading, and slides off to the left to reveal the new page underneath */
   page(p, X) {
+    const e = E.inOut3(p), P = [W + 4, H + 4], Q = [lerp(W + 4, -1.25 * W, e), lerp(H + 4, 0.7 * H, Math.sin(e * Math.PI / 2))];
+    const dx = P[0] - Q[0], dy = P[1] - Q[1], len = Math.hypot(dx, dy);
+    if (len < 2) { X.drawOld(); return 0; }
+    const nx = dx / len, ny = dy / len, mx = (P[0] + Q[0]) / 2, my = (P[1] + Q[1]) / 2, md = mx * nx + my * ny;
+    const side = ([x, y]) => x * nx + y * ny - md, refl = ([x, y]) => { const d = 2 * side([x, y]); return [x - d * nx, y - d * ny]; };
+    const rect = [[-4, -4], [W + 4, -4], [W + 4, H + 4], [-4, H + 4]], keep = clipHalf(rect, side), lifted = clipHalf(rect, q => -side(q));
+    const L = layer(() => X.drawOldX({ hud: 0 }), 2);
+    X.drawNew();
+    if (lifted.length > 2) { ctx.save(); trace(lifted, true); ctx.clip();          // shadow the lifted page casts on the new one
+      const g = ctx.createLinearGradient(mx, my, mx + nx * 160, my + ny * 160); g.addColorStop(0, 'rgba(30,20,10,0.35)'); g.addColorStop(1, 'rgba(30,20,10,0)');
+      ctx.fillStyle = g; ctx.fillRect(-10, -10, W + 20, H + 20); ctx.restore(); }
+    if (keep.length > 2) { ctx.save(); trace(keep, true); ctx.clip(); ctx.drawImage(L, 0, 0); ctx.restore(); }
+    const flap = lifted.map(refl);
+    if (flap.length > 2) {
+      ctx.save(); ctx.filter = 'blur(14px)'; ctx.globalAlpha = 0.28; ctx.translate(-10 * nx, -10 * ny + 6); flat(flap, '#1e140c'); ctx.restore();   // soft drop shadow
+      ctx.save(); trace(flap, true); ctx.clip();
+      ctx.drawImage(bgTex(X.darkOld), 0, 0); ctx.fillStyle = X.darkOld ? 'rgba(60,60,110,0.35)' : 'rgba(255,252,240,0.45)'; ctx.fillRect(0, 0, W, H);
+      ctx.save(); ctx.globalAlpha = 0.09; ctx.transform(1 - 2 * nx * nx, -2 * nx * ny, -2 * nx * ny, 1 - 2 * ny * ny, 2 * md * nx, 2 * md * ny); ctx.drawImage(L, 0, 0); ctx.restore();   // print showing through
+      const g = ctx.createLinearGradient(mx, my, mx - nx * 300, my - ny * 300);   // the curl: dark in the crease, a highlight, then soft shade
+      g.addColorStop(0, 'rgba(30,20,10,0.38)'); g.addColorStop(0.12, 'rgba(30,20,10,0.08)'); g.addColorStop(0.35, 'rgba(255,255,255,0.18)'); g.addColorStop(1, 'rgba(30,20,10,0.10)');
+      ctx.fillStyle = g; ctx.fillRect(-10, -10, W + 20, H + 20); ctx.restore();
+      ink(flap, { closed: true, w: 2.2, color: X.darkOld ? PAL.nightInk : PAL.ink, amp: 0.5, seed: 61, alpha: 0.85 });
+    }
+    X.drawOldX({ hudOnly: true, hud: 1 - inv(0, 0.3, p) });
+    return e;
+  },
+  /** roll (window blind / projector screen): the old page rolls up from the bottom edge (inked roll, shadow below), revealing the new page */
+  roll(p, X) {
     const e = E.inOut3(p), R = X.tr.radius ?? 60, yc = lerp(H + 6, -R - 40, e), step = 2;
     X.drawNew();
     if (yc < H) { const g = ctx.createLinearGradient(0, yc + R, 0, yc + R + 110); g.addColorStop(0, 'rgba(30,20,10,0.32)'); g.addColorStop(1, 'rgba(30,20,10,0)');
@@ -960,13 +1018,13 @@ const TRANS = {
 };
 /** header start delay per transition (measured from the reference: bare hold after a lens-in, none after a lens-out) */
 const HEADER_DELAY = { cut: () => 0.25, lensIn: d => d + 0.4, lensOut: () => 0.05, fade: d => d * 0.6, burn: d => d * 0.7, bleed: d => d * 0.7, wipe: d => d * 0.55,
-  iris: d => d * 0.5 + 0.3, zoom: d => d * 0.85, shape: d => d * 0.85, morph: d => d * 0.85, page: d => d * 0.6, hatch: d => d * 0.6, pan: d => d * 0.8 };
+  iris: d => d * 0.5 + 0.3, zoom: d => d * 0.85, shape: d => d * 0.85, morph: d => d * 0.85, page: d => d * 0.6, roll: d => d * 0.6, hatch: d => d * 0.6, pan: d => d * 0.8 };
 function headerDelay(pl) { const tr = pl.enter; if (!tr || pl.i === 0) return 0.1; return (HEADER_DELAY[tr.type] || HEADER_DELAY.cut)(tr.dur || 0.5); }
 TRANS.morph = TRANS.shape;   // v2 name
 
 /* ---------- timeline ---------- */
 /** transition length when a plate's enter has no dur (seconds) */
-const DEFAULT_DUR = { cut: 0, lensIn: 0.6, lensOut: 0.6, zoom: 0.8, pan: 0.8, wipe: 0.8, bleed: 1.3, burn: 1.4, iris: 0.8, shape: 1.0, morph: 1.0, hatch: 0.8, page: 1.0, fade: 0.8 };
+const DEFAULT_DUR = { cut: 0, lensIn: 0.6, lensOut: 0.6, zoom: 0.8, pan: 0.8, wipe: 0.8, bleed: 1.5, burn: 1.4, iris: 0.9, shape: 1.1, morph: 1.1, hatch: 0.8, page: 1.2, roll: 1.0, fade: 0.8 };
 let STORY = null, TOTAL_T = 0, TOTAL_F = 0;
 function defineStory(story) {
   STORY = story; let t = 0;
@@ -1100,7 +1158,7 @@ const TRANS_SFX = {
   cut: (ac, o, t) => SFX.thump(ac, o, t), fade: () => {}, burn: (ac, o, t, d) => SFX.crackle(ac, o, t, { dur: d }),
   wipe: (ac, o, t, d, tr) => SFX.whoosh(ac, o, t, { dur: d, dir: tr.dir }), iris: (ac, o, t, d) => SFX.shutter(ac, o, t, { dur: d }),
   zoom: (ac, o, t, d, tr) => SFX.glide(ac, o, t, { dur: d, up: tr.dir === 'in' }), hatch: (ac, o, t, d) => SFX.hiss(ac, o, t, { dur: d }),
-  page: (ac, o, t, d) => SFX.flick(ac, o, t, { dur: d }), morph: (ac, o, t, d) => SFX.bend(ac, o, t, { dur: d }),
+  page: (ac, o, t, d) => SFX.flick(ac, o, t, { dur: d }), roll: (ac, o, t, d) => SFX.flick(ac, o, t, { dur: d }), morph: (ac, o, t, d) => SFX.bend(ac, o, t, { dur: d }),
   shape: (ac, o, t, d) => { SFX.bend(ac, o, t, { dur: d }); SFX.swell(ac, o, t, { dur: d, up: true }); },
   bleed: (ac, o, t, d) => { SFX.noise(ac, o, t, { dur: d + 0.3, g: 0.07, f0: 250, f1: 1400, q: 0.7, a: d * 0.5 }); SFX.tone(ac, o, t + d * 0.3, { f: 110, f2: 70, dur: 0.5, g: 0.06 }); },
   pan: (ac, o, t, d, tr) => SFX.whoosh(ac, o, t, { dur: d, dir: tr.dir === 'right' ? 'rl' : 'lr', g: 0.12 }),

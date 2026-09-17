@@ -28,7 +28,7 @@ If you build something other films could reuse (a server rack, a tree, a galaxy,
 | `toolkit/render.mjs` | Frame capture, stills, contact sheets, transition strips, MP4 muxing. |
 | `toolkit/motion_check.py` | Measures how alive a render is. |
 | `toolkit/story_example.js` | Worked example "One Drop" (44.5 s, 7 plates). Read it for **structure** (plate objects, beats, camera moves, transitions, the end card). Don't reuse its scenery for an unrelated topic. |
-| `toolkit/story_reel.js` | Test reel with all 12 transition types back to back. |
+| `toolkit/story_reel.js` | Test reel with all 13 transition types back to back. |
 | `references/style.md` | Worlds, palette, type, line and texture recipes, composition, HUD positions. |
 | `references/motion.md` | Keeping every drawing alive, beats, timings, camera moves, the transition table and rules. |
 | `references/writing.md` | Explainer voice, how to adapt any subject or dataset, the plate script format. |
@@ -74,7 +74,7 @@ Each has its details in the references.
 
 - **Every drawing moves.** The engine adds twos, gate weave, grain, line boil, a slow push-in and momentum across cuts. Each plate must also keep at least two of its own motions going (flow, drifting particles, weather, a moving hero, a camera move, flickering links), with much more on night plates. Target: `motion_check.py` median of at least 1.5 per drawing and fewer than 5% of drawings below 0.5 (the reference measures a median of 2.0 with 2% still drawings over the whole film). A plate that sits near zero needs more life, not a faster transition.
 - **Beats enter and leave.** Wrap stats, callouts and cards in `withAlpha(beat(t, t0, t1), …)`. Text fades out; it never un-types. Give every line `readTime(s)` on screen.
-- **Pick transitions by meaning:** `lensIn`/`lensOut` between worlds, `zoom` within a world, `shape` when an object persists across the cut, `pan` along the journey, `bleed` for time passing, `page` for chapter breaks, `fade` only into the end card. Use 4–6 types per film, never the same one three times in a row.
+- **Pick transitions by meaning:** `lensIn`/`lensOut` between worlds, `zoom` within a world, `shape` when an object persists across the cut, `pan` along the journey, `bleed` (an ink drop) for time passing, `burn` for an ending, `page` (a page turn) for chapter breaks, `roll` for a clean reset, `fade` only into the end card. Use 4–6 types per film, never the same one three times in a row.
 - **Scenes bleed to all four edges**, with the horizon at 48–52% and a sky element on every paper plate. One idea per region: top-centre stat, one side for callouts, bottom card.
 - **Pen for subjects, ink for measurement**, shading made of pen strokes (never gradients), and at least two textures on any fill wider than 200 px.
 - **The HUD and the hero reticle never scale with the camera.** Text that must stay still goes in `overlay(t)`.
@@ -104,7 +104,7 @@ Look at the actual frames, not your code.
   - no vignette has the wrong darkness;
   - morph outlines don't twist;
   - the bleed front looks organic, not blocky;
-  - the page roll has inked edges and a shadow;
+  - the page turn shows the back of the page with a crease shadow, and the roll has inked edges and a shadow;
   - pans show a single join and speed lines, not two frozen frames.
 - **Collisions.**
   - Callout text over art, or touching a card.

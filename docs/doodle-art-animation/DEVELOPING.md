@@ -46,7 +46,7 @@ python3 build.py story.js film.html && python3 build.py story_reel.js reel.html
 node render.mjs film.html --stills 150,480,700      # quick look
 node render.mjs film.html --sheet 1                 # qa/contact_sheet.jpg
 node render.mjs film.html --strips                  # qa/strip_NN_type.jpg, one per transition
-node render.mjs reel.html --strips --dir qa_reel    # all 12 transitions
+node render.mjs reel.html --strips --dir qa_reel    # all 13 transitions
 node render.mjs film.html film.mp4 --workers 6      # full render
 python3 motion_check.py film.mp4                    # target: median >= 1.5, still < 5%
 ```
