@@ -57,22 +57,33 @@ Look at the images yourself before calling anything done. Baseline for the examp
 
 ## Automated smoke test
 
-`toolkit/smoke_test.py` runs the mechanical part of the checks above. For every `story*.js` next to it, it builds the story, loads it once in headless Chromium (no page errors, sane `window.__story`), and renders 3 stills at 20%, 50% and 80% of the film with `render.mjs --stills`. It fails on a non-zero exit, any `PAGE ERROR:`, a blank still, or three identical stills. It then renders a 3.5 s MP4 segment across the first transition of `story_example.js`, and checks the frame count, the duration, a stereo audio track that is not silent, and `motion_check.py` against loose thresholds (median >= 0.5, still <= 50%). It never builds in the plugin folder; everything goes into `--work`, which defaults to a new temp dir.
+`toolkit/smoke_test.py` runs the mechanical part of the checks above. It works on every `story*.js` next to it. In a film folder that also holds your own story, it tests only your stories and skips the bundled examples (`story_example.js`, `story_one_drop.js`, `story_seams.js`, `story_reel.js`, `story_gallery.js`, `story_components.js`), unless `--stories` names them.
+
+For each story it does three things:
+- **Builds it.**
+- **Loads it once in headless Chromium.** The load must reach `window.__ready` with a sane `window.__story`. The fonts must have loaded: `window.__fontWarning` is unset and `document.fonts.check('500 64px Fraunces')` is true. It also renders 3 frames through `__frameData` and waits 1.5 s, so errors thrown after boot are seen.
+- **Renders 3 stills** at 20%, 50% and 80% of the film with `render.mjs --stills`. It fails on a non-zero exit, any `PAGE ERROR:`, a blank still (grey std-dev below 2) or three identical stills.
+
+It then renders a 3.5 s MP4 segment across the first transition of your own story (`story.js` first), or of `story_example.js` when run from the repo. That segment must have the right frame count and duration, and a stereo audio track that is not silent (max above -60 dB, mean above -50 dB). It must also pass `motion_check.py` with loose thresholds (median >= 0.5, still <= 50%).
+
+It never builds in the plugin folder; everything goes into `--work`. Without `--work` it uses a temp folder, which it deletes after a clean pass (unless `--keep`) and keeps, with the path printed, after a failure.
 
 ```
 # from the repo (Playwright installed somewhere; point at its node_modules)
 python3 plugins/doodle-art-animation/skills/doodle-art-animation/toolkit/smoke_test.py \
     --work /tmp/doodle-smoke --node-modules /path/to/node_modules --workers 3
 
-# inside a film folder (the toolkit was copied there; ./node_modules is picked up)
+# inside a film folder (the toolkit was copied there; ./node_modules is picked up); tests your story.js
 python3 smoke_test.py --work qa_smoke
 ```
 
 - `--workers N` (or `SMOKE_WORKERS`) sets how many stories are checked at once and the `render.mjs --workers` for the MP4. The default is 3; CI uses 2.
 - `--stories a.js,b.js`, `--skip x.js`, `--video-story`, `--video-seconds` and `--no-video` narrow the run.
 - The output goes to `<work>/smoke_qa/`: `sheet_<story>.jpg` (the 3 stills side by side), the full stills per story, `segment_<story>.mp4`, and `summary.json`.
-- Exit codes: 0 means everything passed, 1 means a check failed (the summary names each story), and 2 means a tool or file is missing.
-- It needs network access for Google Fonts. On an M-series Mac the whole run takes about 50–90 s.
+- Exit codes: 0 means everything passed, 1 means a check failed (the summary names each story), and 2 means a setup problem: a missing tool, Playwright not found, or an unknown `--stories` or `--video-story` file.
+- It needs network access for Google Fonts. On a slow network, font requests can fail and show up as console errors or a font failure. If the story itself looks fine, re-run before you start debugging.
+- On an M-series Mac the three bundled stories plus the segment take about 45–90 s, and a single film-folder story takes about 30 s.
+- A command that times out is killed together with its Chromium children.
 
 It proves the stories build, boot and render without errors. It does not replace looking at the sheets, strips and seams yourself.
 
