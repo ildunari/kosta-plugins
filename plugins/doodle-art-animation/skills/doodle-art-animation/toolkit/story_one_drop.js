@@ -206,7 +206,7 @@ const P4 = {
   draw(t) {
     const fall = E.inOutSine(clamp(t / 7));
     ctx.save(); ctx.translate(0, -700 * fall);                                  // the sky slides up as we fall
-    lobedCloud(560, 180, CLOUD, { seed: 21, alpha: 0.9 }); lobedCloud(1500, 420, SMALL_CLOUD, { seed: 27 });
+    lobedCloud(560, 180, CLOUD, { seed: 21, alpha: 0.9 });   // (a second, small cloud here scrolled through the journey log and the callout)
     ctx.restore();
     landscape(t, { detail: 0, dy: lerp(640, -60, fall) });
     for (let i = 0; i < 9; i++) flow([[860 + i * 25, 1000], [860 + i * 25, -40]], t + i * 0.13, { speed: 900, gap: 360, len: 70, color: PAL.peri, w: 2, alpha: 0.7 });   // air rushing up
