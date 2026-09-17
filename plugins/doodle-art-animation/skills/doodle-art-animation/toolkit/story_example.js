@@ -74,20 +74,20 @@ function protein(x, y, r, kind, seed, alpha = 1) {
   ink(shape.arc(x, y, r * 0.45, seed, seed + 2.2, 8), { w: 1.4, color: 'rgba(20,20,50,0.7)', amp: 0.2 });
   ctx.restore();
 }
-function fluid(t, y0, front, colA, colB, seed = 1) {
+function fluid(t, y0, front, colA, colB, seed = 1, { lift = () => 0, drift = t * 30 } = {}) {   // lift(x): the surface rises by that much; drift: px the streaks have travelled
   const sx = Math.min(front, W + 200);
   const surf = [];
   for (let x = -20; x <= sx; x += 14) {
     const crest = front < W + 150 ? 105 * Math.max(0, 1 - (front - x) / 420) ** 2.2 : 0;
-    surf.push([x, y0 + 4 * Math.sin(x * 0.012 + t * 2) - crest]);
+    surf.push([x, y0 + 4 * Math.sin(x * 0.012 + t * 2) - crest - lift(x)]);
   }
   if (front < W + 150) surf.push([front + 34, y0 - 96], [front + 44, y0 - 70], [front + 18, y0 - 58], [front + 30, y0 + 10], [front + 70, H + 20]);
   const poly = [...surf, [Math.min(front + 70, W + 200), H + 20], [-20, H + 20]];
   ink(poly, { closed: true, w: 3, fill: colA, amp: 1, seed });
   hatch(poly, { color: colB, alpha: 0.7, angle: 0.02, gap: 6, len: 14, w: 1.5, seed: seed + 3, keep: (x, y) => 0.2 + 0.7 * clamp((y - y0) / 260) });
   hatch(poly, { color: '#5e1c1c', alpha: 0.5, angle: 0.5, gap: 5, len: 8, w: 1.1, seed: seed + 4, keep: (x, y) => 0.8 * clamp((y - y0 - 120) / 200) });
-  for (let k = 0; k < 16; k++) { const wy = y0 + 40 + (k % 4) * 60 + k * 3, wx = ((k * 263 + t * 30) % (W + 300)) - 150;
-    if (wx < front) ink([[wx, wy], [wx + 40, wy - 6], [wx + 90, wy + 2], [wx + 140, wy - 3]], { w: 2.2, color: '#f2c1b4', amp: 0.6, seed: 30 + k, alpha: 0.8 }); }
+  for (let k = 0; k < 26; k++) { const wy = y0 + 34 + (k % 5) * 50 + k * 2, wx = ((k * 211 + drift * (0.8 + (k % 3) * 0.2)) % (W + 300)) - 150, sw = 5 * Math.sin(t * 2.4 + k);
+    if (wx < front) ink([[wx, wy], [wx + 40, wy - 6 + sw], [wx + 90, wy + 2 - sw], [wx + 140, wy - 3]], { w: 2.2, color: '#f2c1b4', amp: 0.6, seed: 30 + k, alpha: 0.8 }); }
   hatch(poly, { color: '#f6d9c8', alpha: 0.5, angle: -0.02, gap: 13, len: 10, w: 1.4, seed: seed + 5, keep: (x, y) => 0.35 * (1 - clamp((y - y0) / 260)) });
   if (front < W + 150) { const r = mulberry(seed + 9); for (let i = 0; i < 14; i++) { const a = r() * 1.6 - 1.2, d = 20 + r() * 50;
     ctx.beginPath(); ctx.arc(front + 40 + Math.cos(a) * d, y0 - 100 + Math.sin(a) * d * 0.6, 1.5 + r() * 3, 0, TAU); ctx.fillStyle = PAL.ink; ctx.fill(); } }
@@ -100,6 +100,18 @@ const FULL = { x: W / 2, y: H / 2, s: 1, dx: 0, dy: 0 };
 
 /* ---------- PLATE 0 · title card: the syringe, a drop, the blood ---------- */
 const TIP = [780, 262], LAND = [780, 804];
+/** px travelled by something whose speed eases from 0 to 1 px/s over [t0, t1] and then holds (a flow that starts up) */
+const spinUp = (t, t0, t1) => { if (t <= t0) return 0; const D = t1 - t0; if (t >= t1) return D / 2 + t - t1;
+  const u = (t - t0) / D; return D * (u / 2 - Math.sin(Math.PI * u) / (2 * Math.PI)); };
+const pulse0 = t => 11 * E.out3(inv(1.7, 2.7, t));                          // the heart's pulse reaches the pool as the drop falls
+const lift0 = t => { const A = pulse0(t); return A ? x => A * Math.max(0, Math.sin(TAU * (x / 560 - t / 0.9))) ** 3 : () => 0; };   // bumps travel right, only ever raising the surface
+const flow0 = t => 26 * t + 110 * spinUp(t, 1.7, 3.3);                      // the blood gets moving as the pool fills
+const cells0 = (() => { const r = mulberry(1210); return Array.from({ length: 44 }, (_, i) => { const near = i % 5 < 2;   // two depths: far cells small and slow, near ones big and fast
+  return { x0: r() * (W + 260), y: near ? 905 + r() * 150 : 850 + r() * 200, r: near ? 21 + r() * 5 : 11 + r() * 4, v: (near ? 1.35 : 0.75) * (0.85 + r() * 0.3), a0: r() * TAU, spin: 0.5 + r() * 0.8, seed: 1200 + i, near }; })
+  .sort((a, b) => a.near - b.near); })();
+const splash0 = Array.from({ length: 9 }, (_, i) => ({ vx: (i - 4) * 38 + 14 * hash3(i, 5), vy: -(230 + 150 * hash3(i, 6)), r: 4 + 3 * hash3(i, 7) }));
+const syringe0 = t => { const e = E.out3(inv(2.6, 3.2, t)), wd = 150 * E.depart(inv(2.75, 4.7, t)) + 14 * Math.max(0, t - 2.75);   // after the drop falls the hand eases the syringe back
+  return { wd, dx: e * 4 * vnoise(t * 1.1, 5), dy: e * 4 * vnoise(t * 1.3, 6), rot: 0.42 - 0.05 * E.inOut2(inv(2.75, 4.9, t)) + e * 0.006 * vnoise(t * 0.9, 9) }; };
 const P0 = {
   dur: 6.5, dark: false,
   // a small settle while the title writes, then a push towards the landing ripple that motivates the dive
@@ -108,13 +120,23 @@ const P0 = {
   cues: [[0.25, 'noise', { dur: 1.6, g: 0.07, f0: 400, f1: 1800, q: 0.8 }], [0.5, 'scratch', { chars: 25, cps: 34 }], [1.0, 'scratch', { chars: 16, cps: 13 }], [2.5, 'scratch', { chars: 31, cps: 26 }], [2.55, 'plink'], [2.6, 'chime', { f: 523 }], [4.6, 'tick']],
   bed: (ac, out, t0, dur) => SFX.pad(ac, out, t0, { dur, notes: [261.6, 329.6, 392], g: 0.016 }),
   draw(t) {
-    fluid(t, 800, lerp(-300, W + 400, E.inOut3(inv(0.25, 1.6, t))), PAL.blood, PAL.bloodDeep, 3);
-    for (let i = 0; i < 20; i++) { const x = ((i * 157 + t * (40 + (i % 5) * 9)) % (W + 200)) - 100, y = 860 + (i % 4) * 55;   // cells drift in the pool
-      if (t > 1.4) rbc(x, y + 6 * Math.sin(t + i), 16 + (i % 3) * 3, i + t * 0.6, 1200 + i, 0.9 * inv(1.4, 2.2, t)); }
-    // syringe (local frame: needle tip at origin, pointing +x)
-    ctx.save(); ctx.translate(TIP[0], TIP[1]); ctx.rotate(0.42);
+    const lift = lift0(t), fl = flow0(t);
+    fluid(t, 800, lerp(-300, W + 400, E.inOut3(inv(0.25, 1.6, t))), PAL.blood, PAL.bloodDeep, 3, { lift, drift: fl });
+    if (t > 1.4) for (const [i, c] of cells0.entries()) {                   // cells ride the flow: far ones first, near ones over them
+      const x = ((c.x0 + c.v * fl) % (W + 260)) - 130, y = c.y + (c.near ? 7 : 4) * Math.sin(t * 1.3 + i) - lift(x) * 0.4;
+      rbc(x, y, c.r, c.a0 + t * c.spin * (1 + fl / 400), c.seed, (c.near ? 0.95 : 0.7) * inv(1.4, 2.2, t)); }
+    const sp = inv(2.55, 4.6, t);                                              // the suspension spreads on the surface and drifts off with the flow
+    if (sp > 0 && sp < 1) for (let k = 0; k < 6; k++) { const L = 30 + 90 * E.out3(sp), a = (k - 2.5) * 0.5, sx = LAND[0] + (fl - flow0(2.55)) * 0.35 * (k / 5);
+      ink([[sx + Math.sin(a) * 18, LAND[1] + 8 + k * 7], [sx + Math.sin(a) * 18 + L * 0.5, LAND[1] + 4 + k * 7 + 6 * Math.sin(t * 3 + k)], [sx + Math.sin(a) * 18 + L, LAND[1] + 9 + k * 7]],
+        { w: 2.4, color: PAL.sus, amp: 0.5, seed: 1300 + k, alpha: 0.9 * (1 - sp) }); }
+    // syringe (local frame: needle tip at origin, pointing +x); the hand holds it, then withdraws it along its axis
+    const sy = syringe0(t);
+    ctx.save(); ctx.translate(TIP[0] + sy.dx, TIP[1] + sy.dy); ctx.rotate(sy.rot); ctx.translate(-sy.wd, 0);
     const d = E.out3(inv(0.05, 0.9, t));
-    if (d >= 1) { flat(shape.rect(-560, -30, 358, 60), PAL.sus, 0.9); hatch(shape.rect(-560, -30, 358, 60), { color: PAL.peri, alpha: 0.4, gap: 6, len: 8, angle: 0.7, seed: 8 }); }
+    if (d >= 1) { flat(shape.rect(-560, -30, 358, 60), PAL.sus, 0.9); hatch(shape.rect(-560, -30, 358, 60), { color: PAL.peri, alpha: 0.4, gap: 6, len: 8, angle: 0.7, seed: 8 });
+      const push = E.inOut3(inv(0.9, 1.9, t)) * 30;                            // the suspension: particles swirl in the barrel and crowd towards the needle
+      for (let i = 0; i < 26; i++) { const [wx, wy] = wander(i, t, 9, 1.1, 1400), x = lerp(-530, -216, hash3(i, 1)) + wx + push * (1 - hash3(i, 1)), y = lerp(-20, 20, hash3(i, 2)) + wy * 0.7;
+        ctx.beginPath(); ctx.arc(Math.max(-540 + push, Math.min(-212, x)), Math.max(-24, Math.min(24, y)), 3.2, 0, TAU); ctx.fillStyle = PAL.plga; ctx.fill(); } }
     ink(shape.rect(-640, -36, 440, 72), { closed: true, w: 3, amp: 1, seed: 11, draw: d });
     ink([[-200, -14], [-176, -8], [-176, 8], [-200, 14]], { w: 3, seed: 12, draw: d });
     ink([[-176, 0], [0, 0]], { w: 2.4, seed: 13, draw: d });
@@ -130,7 +152,11 @@ const P0 = {
       ink(shape.circle(TIP[0], y, r, 24), { closed: true, w: 2.4, fill: PAL.sus, amp: 0.3 });
     }
     if (t > 2.55) { const u = t - 2.55;                                         // ripples keep spreading (the end of the plate still moves)
-      for (let k = 0; k < 5; k++) { const q = clamp((u * 0.9 - k * 0.3) % 1.6); if (u * 0.9 - k * 0.3 > 0 && q < 1) ink(shape.ellipse(LAND[0], LAND[1], 20 + q * 140, 5 + q * 26, 0, 40), { closed: true, w: 2, color: '#f3d2c4', amp: 0.4, alpha: 1 - q }); } }
+      for (let k = 0; k < 5; k++) { const q = clamp((u * 0.9 - k * 0.3) % 1.6); if (u * 0.9 - k * 0.3 > 0 && q < 1) ink(shape.ellipse(LAND[0], LAND[1], 20 + q * 140, 5 + q * 26, 0, 40), { closed: true, w: 2, color: '#f3d2c4', amp: 0.4, alpha: 1 - q }); }
+      for (const s of splash0) { const y = LAND[1] - 6 + s.vy * u + 700 * u * u; if (y > LAND[1] + 4) continue;   // the drop throws up a crown of blood that falls back in
+        const vy = s.vy + 1400 * u, st = clamp(Math.hypot(s.vx, vy) / 300, 0.6, 1.8);                        // stretched along its flight, round at the top of its arc
+        ctx.save(); ctx.translate(LAND[0] + s.vx * u, y); ctx.rotate(Math.atan2(vy, s.vx));
+        ink(shape.ellipse(0, 0, s.r * st, s.r / Math.sqrt(st), 0, 16), { closed: true, w: 1.6, fill: PAL.blood, amp: 0.2 }); ctx.restore(); } }
     const rl = E.out3(inv(1.4, 2.3, t));
     if (rl > 0) { const x = TIP[0] - 70; ink([[x, 330], [x, lerp(330, 780, rl)]], { w: 1.4, color: PAL.peri, amp: 0 });
       for (let y = 330; y <= lerp(330, 780, rl); y += 22) ink([[x - (y % 110 ? 7 : 13), y], [x, y]], { w: 1.2, color: PAL.peri, amp: 0 }); }
@@ -398,7 +424,16 @@ const P4 = {
   },
 };
 
-/* ---------- END CARD: the eroded particle becomes the card's emblem ---------- */
+/* ---------- END CARD: the eroded particle becomes the card's emblem, closes its journey and lets go ---------- */
+// Beat: a marker runs once round the emblem through the four plates (I–IV) and closes the loop (2.0–5.6); the particle
+// then lets its last drug go in a burst and falls apart (5.7–8.6), and the drug it carried stays in orbit to the end.
+const LOOP5 = [2.0, 5.6], LOOPR = 150, loopE = E.shaped(0.42, 2, 2.4), loop5 = t => loopE(inv(LOOP5[0], LOOP5[1], t));
+const pass5 = [0, 1, 2, 3].map(k => { let a = LOOP5[0], b = LOOP5[1]; for (let i = 0; i < 30; i++) { const m = (a + b) / 2; if (loop5(m) < k / 4) a = m; else b = m; } return b; });
+const BURST5 = 5.72;
+const orbit5 = Array.from({ length: 24 }, (_, i) => ({ inner: i < 10, a0: i / (i < 10 ? 10 : 14) * TAU + (i < 10 ? 0 : 0.2), w: i < 10 ? 0.5 : -0.33 }));
+const burst5 = Array.from({ length: 22 }, (_, i) => ({ a: i / 22 * TAU + 0.3 * hash3(i, 21), D: 300 + 220 * hash3(i, 22), dt: 0.25 * hash3(i, 23), w: (i % 2 ? 1 : -1) * (0.13 + 0.08 * hash3(i, 24)) }));
+const frag5 = Array.from({ length: 10 }, (_, i) => ({ a: i / 10 * TAU + 0.4 * hash3(i, 31), tb: 6.0 + i * 0.17 + 0.1 * hash3(i, 32), r: 6 + 4 * hash3(i, 33), spin: (hash3(i, 34) - 0.5) * 4 }));
+const R5 = t => 44 * (1 + 0.04 * Math.sin(t * 1.6)) * (1 - 0.8 * E.in2(inv(5.8, 8.1, t)));
 const P5 = {
   dur: 10.5, dark: true, counter: false,
   enter: { type: 'shape', dur: 1.6,
@@ -407,13 +442,16 @@ const P5 = {
   focus: () => [960, 380],
   cam: t => ({ x: 960, y: 380, s: 1 + 0.05 * E.inOutSine(clamp(t / 10.5)), dx: 14 * Math.sin(t * 0.6), dy: 8 * Math.sin(t * 0.45), rot: 0.02 * Math.sin(t * 0.3) }),   // a slow drift; the text in overlay stays put
   bed: (ac, out, t0, dur) => SFX.pad(ac, out, t0, { dur: dur - 0.5, notes: [130.8, 196, 246.9, 329.6], g: 0.02, dark: true }),
-  cues: [[0.12, 'pop'], [1.2, 'chime', { f: 392 }], [1.5, 'scratch', { chars: 29, cps: 20 }], [3.0, 'chime', { f: 587 }]],   // 0.12: a hit as the morph begins
+  cues: [[0.12, 'pop'], [1.2, 'chime', { f: 392 }], [1.5, 'scratch', { chars: 29, cps: 20 }], [3.0, 'chime', { f: 587 }],   // 0.12: a hit as the morph begins
+    ...pass5.slice(1).map((p, k) => [p, 'plink', { f: 1200 + k * 200 }]), [LOOP5[1], 'chime', { f: 784 }], [BURST5, 'pop'], [BURST5 + 0.1, 'noise', { dur: 0.9, g: 0.03, f0: 2400, f1: 600, q: 0.7 }]],
   draw(t) {
-    const [cx, cy] = [960, 380], a = E.out3(inv(0.3, 1.4, t));
-    const dust = mulberry(1300);                                              // drifting motes behind everything
+    const [cx, cy] = [960, 380], a = E.out3(inv(0.3, 1.4, t)), u = loop5(t);
+    const dust = mulberry(1300);                                              // drifting motes behind everything: far, then near
     for (let i = 0; i < 70; i++) { const x0 = dust() * (W + 200) - 100, y0 = dust() * H, sp = 34 + dust() * 44, [wx, wy] = wander(i, t, 14, 0.7, 13);
       ctx.beginPath(); ctx.arc(((x0 + sp * t) % (W + 200)) - 100 + wx, y0 + wy, 1.2 + dust() * 1.8, 0, TAU); ctx.fillStyle = 'rgba(160,165,230,0.45)'; ctx.fill(); }
-    for (let k = 0; k < 5; k++) { const q = ((t * 0.3 + k / 5) % 1); ink(shape.circle(cx, cy, 90 + q * 320, 72), { closed: true, w: 1.4, color: PAL.peri, amp: 0.3, seed: k, alpha: 0.55 * (1 - q) * a }); }   // ripples keep spreading
+    for (let i = 0; i < 64; i++) { const x0 = dust() * (W + 300) - 150, y0 = dust() * H, sp = 85 + dust() * 60, [wx, wy] = wander(i, t, 12, 1.6, 17);
+      ctx.beginPath(); ctx.arc(((x0 + sp * t) % (W + 300)) - 150 + wx, y0 + wy, 3.5 + dust() * 2.5, 0, TAU); ctx.fillStyle = 'rgba(190,195,245,0.6)'; ctx.fill(); }
+    for (let k = 0; k < 6; k++) { const q = ((t * 0.3 + k / 6) % 1); ink(shape.circle(cx, cy, 90 + q * 320, 72), { closed: true, w: 1.8, color: PAL.peri, amp: 0.3, seed: k, alpha: 0.6 * (1 - q) ** 1.5 * a }); }   // ripples keep spreading
     ink([[cx - 260 * a, cy], [cx + 260 * a, cy]], { w: 1, color: PAL.peri, amp: 0, alpha: 0.3 });
     ink([[cx, cy - 170 * a], [cx, cy + 170 * a]], { w: 1, color: PAL.peri, amp: 0, alpha: 0.3 });
     ink(shape.circle(cx, cy, 86), { closed: true, w: 2.4, color: PAL.nightInk, amp: 0.6, draw: E.out3(inv(0.4, 1.2, t)) });
@@ -421,17 +459,39 @@ const P5 = {
     for (let i = 0; i < 48; i++) { const q = inv(0.6 + i * 0.012, 0.8 + i * 0.012, t); if (!q) continue; const an = i / 48 * TAU - Math.PI / 2;
       ink([[cx + Math.cos(an) * 98, cy + Math.sin(an) * 98], [cx + Math.cos(an) * (i % 4 ? 106 : 114), cy + Math.sin(an) * (i % 4 ? 106 : 114)]], { w: 1.4, color: i % 12 ? PAL.peri : PAL.accent, amp: 0, alpha: q }); }
     ctx.restore();
-    for (let i = 0; i < 14; i++) { const an = i / 14 * TAU + t * (i % 2 ? 0.5 : -0.35), rr = i % 2 ? 150 : 190, [wx, wy] = wander(i, t, 8, 0.9); hex(cx + Math.cos(an) * rr + wx, cy + Math.sin(an) * rr * 0.7 + wy, 7, PAL.drug, 0.8 * a); }   // drug molecules orbit both ways
+    // the journey loop: a faint route, then the marker runs it clockwise from the top, lighting the four plates
+    ink(shape.circle(cx, cy, LOOPR, 96), { closed: true, w: 1.4, color: PAL.peri, amp: 0, dash: [6, 10], alpha: 0.5 * E.out3(inv(1.4, 2.0, t)) });
+    const am = -Math.PI / 2 + TAU * u, done = inv(LOOP5[1], LOOP5[1] + 0.9, t);
+    if (u > 0.002) ink(shape.arc(cx, cy, LOOPR, -Math.PI / 2, am, Math.max(4, Math.round(96 * u))), { w: 3 + 2.5 * Math.sin(Math.PI * done), color: PAL.accent, amp: 0.3, seed: 1500 });
+    if (done > 0 && done < 1) ink(shape.circle(cx, cy, LOOPR + 70 * E.out3(done), 96), { closed: true, w: 2.4, color: PAL.accent, amp: 0.3, alpha: 0.8 * (1 - done) });   // the loop closes: one ring lets go (stays above the quote)
+    pass5.forEach((tp, k) => { const an = -Math.PI / 2 + k * Math.PI / 2, x = cx + Math.cos(an) * LOOPR, y = cy + Math.sin(an) * LOOPR, g = inv(tp, tp + 0.5, t), o = E.out3(inv(1.4, 2.0, t));
+      ink(shape.circle(x, y, 6, 16), { closed: true, w: 1.6, color: g > 0 ? PAL.accent : PAL.peri, fill: g > 0 ? PAL.accent : PAL.night, amp: 0, alpha: o });
+      if (g > 0 && g < 1) ink(shape.circle(x, y, 6 + 22 * E.out3(g), 24), { closed: true, w: 1.6, color: PAL.accent, amp: 0, alpha: 1 - g });
+      const nx = cx + Math.cos(an) * 131, ny = cy + Math.sin(an) * 131, s = E.outBack(g);
+      if (s > 0) { ctx.save(); ctx.translate(nx, ny); ctx.scale(s, s); text(ROMAN(k + 1), 0, 0, { kind: 'mono', size: 15, weight: 600, align: 'center', base: 'middle', color: PAL.nightInk, alpha: clamp(g * 3) }); ctx.restore(); } });
+    if (u > 0 && t < LOOP5[1] + 0.3) { const mx = cx + Math.cos(am) * LOOPR, my = cy + Math.sin(am) * LOOPR, fade = 1 - inv(LOOP5[1], LOOP5[1] + 0.3, t);
+      for (let j = 1; j <= 5; j++) { const aj = am - j * 0.05 * Math.min(1, u * 8); ctx.beginPath(); ctx.arc(cx + Math.cos(aj) * LOOPR, cy + Math.sin(aj) * LOOPR, 6 - j * 0.8, 0, TAU); ctx.fillStyle = `rgba(216,100,58,${(0.5 - j * 0.08) * fade})`; ctx.fill(); }
+      ink(shape.circle(mx, my, 8, 16), { closed: true, w: 1.6, color: '#f6e7dc', fill: PAL.accent, amp: 0, alpha: fade }); }
+    for (const [i, o] of orbit5.entries()) { const an = o.a0 + t * o.w, [rx, ry] = o.inner ? [200, 170] : [262, 205], [wx, wy] = wander(i, t, 3, 0.9);   // drug molecules orbit both ways
+      hex(cx + Math.cos(an) * rx + wx, cy + Math.sin(an) * ry + wy, 7, PAL.drug, 0.8 * a); }
+    for (const b of burst5) { const q = inv(BURST5 + b.dt, BURST5 + b.dt + 1.8, t); if (q <= 0) continue;   // the last of the drug bursts out and joins a wide, slow halo
+      const d = lerp(R5(BURST5), b.D, E.out3(q)), an = b.a + b.w * Math.max(0, t - BURST5 - b.dt);
+      hex(cx + Math.cos(an) * d, cy + Math.sin(an) * d * lerp(0.9, 0.4, E.out3(q)), lerp(4, 7, E.out3(q)), PAL.drug, 0.85 * clamp(q * 6)); }
+    for (const f of frag5) { const q = inv(f.tb, f.tb + 1.9, t); if (q <= 0 || q >= 1) continue;   // the spent polymer breaks into pieces that drift off and dissolve
+      const d = R5(f.tb) + 70 * E.out3(q), x = cx + Math.cos(f.a) * d, y = cy + Math.sin(f.a) * d, rr = f.r * (1 - 0.7 * q);
+      ctx.save(); ctx.translate(x, y); ctx.rotate(f.spin * q); ctx.globalAlpha *= 1 - E.in2(q);
+      ink(shape.blob(0, 0, rr, 1600 + f.tb * 10 | 0, 0.4, 16), { closed: true, w: 1.4, color: PAL.plgaLine, fill: PAL.plga, amp: 0.3 }); ctx.restore(); }
     const arrive = S.morph && S.trans ? inv(0.8, 1, S.trans.p) : 1;          // fades in as the morph outline fades out
-    withAlpha(arrive, () => particle(cx, cy, 44 * (1 + 0.04 * Math.sin(t * 1.6)), t, { drugs: 10, detail: 1 }));   // it breathes
-    reticle(cx, cy, t, { r: 62, dark: true, tag: false, alpha: inv(1.4, 2, t) });
+    const erode = inv(5.7, 7.2, t);
+    withAlpha(arrive * (1 - E.inOut2(inv(7.4, 8.6, t))), () => particle(cx, cy, R5(t), t, { drugs: t < BURST5 ? 10 : 0, detail: 1, irr: lerp(0.02, 0.2, erode), pits: Math.floor(8 * erode) }));   // it breathes, then erodes
+    reticle(cx, cy, t, { r: 62, dark: true, tag: false, alpha: inv(1.4, 2, t) * (1 - E.inOut2(inv(7.9, 8.9, t))) });
   },
   overlay(t) {
     const cx = 960, q = 'Every dose is a slow journey.', qo = { kind: 'display', size: 60, italic: true, color: PAL.nightInk, cps: 20 };
-    dropText(q, cx - measure(q, qo) / 2, 610, t - 1.5, qo);
-    const rl = E.out3(inv(2.8, 3.6, t)); if (rl > 0) ink([[cx - 320 * rl, 650], [cx + 320 * rl, 650]], { w: 1.2, color: PAL.peri, amp: 0, alpha: 0.7 });
+    dropText(q, cx - measure(q, qo) / 2, 650, t - 1.5, qo);
+    const rl = E.out3(inv(2.8, 3.6, t)); if (rl > 0) ink([[cx - 320 * rl, 690], [cx + 320 * rl, 690]], { w: 1.2, color: PAL.peri, amp: 0, alpha: 0.7 });
     const col = `THE LONG RELEASE  ·  4 PLATES  ·  ${fmt(TOTAL_F)} FRAMES  ·  DRAWN IN CODE`, co = { kind: 'mono', size: 20, ls: 6, color: '#9fa0c8' };
-    text(typed(col, t - 2.5, 60), cx - measure(col, co) / 2, 700, co);
+    text(typed(col, t - 2.5, 60), cx - measure(col, co) / 2, 740, co);
     const src = 'NOTES  ·  VALUES ARE ROUNDED AND ILLUSTRATIVE  ·  EPR IS VARIABLE IN PATIENTS  ·  NOT A SPECIFIC FORMULATION', so = { kind: 'mono', size: 15, ls: 5, color: PAL.nightMuted };
     text(typed(src, t - 2.9, 60), cx - measure(src, so) / 2, 930, so);
     const refs = ['SOURCES  ·  PROTEIN CORONA: TENZER ET AL., NAT. NANOTECHNOL. 2013  ·  TUMOUR PORES: HOBBS ET AL., PNAS 1998',
