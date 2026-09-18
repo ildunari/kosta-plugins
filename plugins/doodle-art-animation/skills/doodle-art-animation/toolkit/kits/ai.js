@@ -183,10 +183,9 @@ KIT.ai = (() => {
           const cx = Math.min(w - 180, right - off + 14), cand = G.cand[ci];
           flat(shape.rect(cx - 8, 2, 3, 36), ic, Math.floor(t * 4) % 2 ? 0.2 : 0.9);
           withAlpha(E.out3(clamp(cf * 4)) * (1 - inv(0.8, 1, cf)), () => {
-            backing(cx + 6, 96, cx + 176, 186, { dark, pad: 8, feather: 10, seed: seed + 5 });   // the odds panel sits on a halo over busy backdrops
             ink([[cx - 6, 44], [cx + 10, 104]], { w: K.lw(o, 1.2), color: PAL.peri, amp: 0.3, alpha: 0.7 });
             cand.forEach((s, j) => { const p = j === 0 ? 0.55 + 0.25 * hash3(ci, 3, seed) : (0.3 - j * 0.1) * (0.6 + 0.4 * hash3(ci, j, Math.floor(t * 6))), y = 118 + j * 30;
-              text(s.replace(/^ /, '·'), cx + 16, y + 7, { kind: 'mono', size: 22, color: j ? K.labelOf(dark) : ic, weight: j ? 400 : 600 });
+              haloText(s.replace(/^ /, '·'), cx + 16, y + 7, { kind: 'mono', size: 22, dark, color: j ? K.labelOf(dark) : ic, weight: j ? 400 : 600 });
               flat(shape.rect(cx + 92, y - 5, 80 * p * E.out3(clamp(cf * 3)), 10), j ? PAL.peri : PAL.aiHot, j ? 0.6 : 1); });
           });
         }

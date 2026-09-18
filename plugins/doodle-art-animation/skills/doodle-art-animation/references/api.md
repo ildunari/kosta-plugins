@@ -12,8 +12,8 @@ Plate fields:
 | `dark` | `true` for the night world |
 | `enter` | `{ type, dur, ease, curve, draw (custom transition), momentum, settle, match, carry, sfx, …type options (dir, k, dive, scaleFrom, from, to, fromFill, toFill, style, at, ink, drop, fall, rim, rimAlpha, rough, color, opacity, back, radius) }` |
 | `silent` (on `defineStory`) | `true` renders a silent audio track of the right length and turns off the automatic risers, transition sounds and pen scratches, which play even with no cues. Check it with `audio_check.py --silent`. |
-| `header` | `{ num, title, sub, backing }` (`backing: false` drops the paper halo behind title and subtitle) — the kicker above the title is always `PLATE <roman num>`; there is no field for other kicker text. A film's own kicker (`A FIELD STUDY IN 3 PLATES`) belongs to the title card, drawn in that plate's own `draw` |
-| `log` | `t => ({ title, rows: [[label, value]], states, state, backing })`; `backing` is `true` (default, a paper halo), `'card'` or `false` |
+| `header` | `{ num, title, sub, backing }` (`backing: false` drops the glyph halo round title and subtitle; `'card'` puts them on a torn scrap) — the kicker above the title is always `PLATE <roman num>`; there is no field for other kicker text. A film's own kicker (`A FIELD STUDY IN 3 PLATES`) belongs to the title card, drawn in that plate's own `draw` |
+| `log` | `t => ({ title, rows: [[label, value]], states, state, backing })`; `backing` is `true` (default, a glyph halo round every line), `'card'` (a torn scrap behind the block) or `false` |
 | `stage` | `{ n, name, prevN }` |
 | `hero` | `t => ({ x, y, label, r, tag, alpha })` |
 | `focus` | `t => [x, y]` in screen coordinates, for plates without a hero |
@@ -49,7 +49,8 @@ Plate fields:
 - `text(s, x, y, { kind: 'display'|'sans'|'mono', size, weight, italic, color, align, ls, alpha, role })`.
   - `role` says which legibility floor the line must meet on screen (`references/style.md`, "Text size and legibility"): `'fact'` 28 px, `'label'` 22 px (the default when omitted), `'hud'` 18 px, `'decor'` exempt. Drawing ignores it; `legibility_check.mjs` reads it. Every engine component passes its own.
 - `screenText(s, x, y, opts)`: `text()` counter-scaled about its anchor, so the line keeps `size` px on screen under any camera zoom while its anchor still moves with the scene. Use it for scene labels in `draw()`; `KIT.caption(t, s, x, y, { screen: true })` does the same for captions.
-- `backing(x0, y0, x1, y1, { dark, style, pad, feather, alpha, seed })`: something readable to write on, made of the plate's own paper. `style: 'halo'` (default) is a soft-edged patch of paper or night-paper texture, invisible over empty paper; `'card'` is a torn scrap with a pencil edge and a shadow. Draw it before the text (and before any leader lines). `textBox(s, x, y, opts)` gives a line's box and `unionBox([...])` joins several, for sizing it on the full strings before they type on.
+- `haloText(s, x, y, opts)`: `text()` with a glyph halo: the glyphs are first stroked in the plate's paper colour (`dark` picks night paper) with a round-joined line `haloWidth` em wide (default 0.25), at `haloAlpha` (0.92), so line art clears only in a thin band around each letter. `halo: false` skips it; `haloColor` overrides the colour. It is what the components use by default.
+- `backing(x0, y0, x1, y1, { dark, style, pad, feather, alpha, seed })`: a real card to write on, made of the plate's own paper. `style: 'card'` (default) is a torn scrap with a pencil edge and a shadow; `'patch'` is a soft-edged patch of the texture, which erases the drawing under it, so use it only over areas that are already empty-looking. Draw it before the text (and before any leader lines). `textBox(s, x, y, opts)` gives a line's box and `unionBox([...])` joins several, for sizing it on the full strings before they type on.
 - Text colour: `labelOf(dark)` for secondary text (`PAL.label` / `PAL.nightLabel`; `mutedOf` is for lines), `legible(color, dark)` to darken a coloured label on paper (or lighten it at night) until it reads at 6:1, `inkOn(bg)` for ink or pale paper on a coloured surface.
 - `typed(s, t, cps)`.
 - `dropText(s, x, y, t, opts)`: left-aligned only; for centred text, start at `cx - measure(s) / 2`.
@@ -60,7 +61,7 @@ Plate fields:
 **Components:**
 - `stat`, `callout`, `reticle`, `card` (returns 0 until open), `logRuler`, `lineChart` (returns `{ X, Y, ends }`), `insetLens`.
 - Their text meets the role floors by default: callout title 32 px and sub 28 px (`fact`); stat kicker 22 px (`label`), value and 28 px note (`fact`); card title, chart ticks and axis labels, series labels, ruler ticks and marks, lens labels 22 px (`label`); Journey Log, stage dial and hero tag 18–21 px (`hud`); `FIG.` labels, the `PLATE` kicker and the frame counter `decor`.
-- `callout` and `stat` take `backing`: `true` (default, a paper halo behind the words), `'card'` or `false`. `dark` defaults to the plate's own world.
+- `callout` and `stat` take `backing`: `true` (default, a glyph halo round each line), `'card'` (a torn scrap behind the block) or `false`. `dark` defaults to the plate's own world.
 - Bigger type needs room: a card holding a two-row `logRuler` needs about 180 px of height (marks sit 28 and 60 px above the rule, tick labels 34 px below); a `lineChart` needs about 40 px left of its axis, 70 px below it and 30 px above it.
 - `callout` turns its leader around at the elbow (and slides its text in) when the text would leave the frame; the hero tag does the same near the right edge.
 - `callout`'s `align` is which side of the elbow the text sits on, and it does not follow the leader's direction: route `x2` to the **left** of the anchor and you must pass `align: 'right'`, or the text reads back across its own leader. Only the frame-edge turnaround flips it for you.

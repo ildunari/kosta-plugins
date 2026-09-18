@@ -273,8 +273,8 @@ const P5 = {
     journeyPath(ROUTE, { draw: routeU(t), waypoints: [{ u: 0.02, label: 'II · III', dx: -70 }, { u: 0.14, label: 'IV', dx: -34 }, { u: 0.42, label: 'I' }, { u: 0.8, label: 'V', dy: 30 }] });
   },
   overlay(t) {
-    const c = P5.cam(t), lab = (s, x, y, k, o = {}) => withAlpha(E.out3(inv(1.8 + k * 0.5, 2.4 + k * 0.5, t)), () => { const lo = { kind: 'mono', size: 22, weight: 600, ls: 2, color: PAL.inkSoft, ...o }, b = textBox(s, x, y, lo);
-      backing(b[0], b[1], b[2], b[3], { pad: 8, feather: 10, seed: 180 + k }); text(s, x, y, lo); });   // labels written over rain and flow sit on a paper halo
+    const c = P5.cam(t), lab = (s, x, y, k, o = {}) => withAlpha(E.out3(inv(1.8 + k * 0.5, 2.4 + k * 0.5, t)), () => { const lo = { kind: 'mono', size: 22, weight: 600, ls: 2, color: PAL.inkSoft, ...o }, b = null;
+      haloText(s, x, y, lo); });   // labels written over rain and flow get a glyph halo
     if (c.s < 1.02) { lab('EVAPORATION', 1700, 560, 0); lab('RAIN', 560, 470, 1); lab('RUNOFF', 1000, 720, 2, { color: '#1f3f48' }); lab('GROUNDWATER', 800, 852, 3); }
     withAlpha(beat(t, 3.2), () => stat(t - 3.2, { x: 820, y: 330, kicker: 'WATER VAPOUR STAYS ALOFT', value: u => '≈ ' + countUp(9, u, 1.2) + ' days', note: 'on average, before it rains out' }));
     const k = card(t - 5.6, { x: 470, y: 876, w: 980, h: 166, title: 'WHERE A YEAR OF VALLEY RAIN GOES', fig: 'ILLUSTRATIVE SPLIT' });

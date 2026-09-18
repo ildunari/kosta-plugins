@@ -70,10 +70,10 @@ globalThis.KIT = KIT;
   KIT.labelOf = dark => dark ? PAL.nightLabel : PAL.label;
   /**
    * caption(t, s, x, y, o): a mono caption that types on (part names, scene labels). Role 'label', 22 px by default.
-   * o.screen: true keeps it 22 px on screen under any camera (screenText). o.backing: true puts it on a paper halo.
+   * o.screen: true keeps it 22 px on screen under any camera (screenText). o.backing: true gives it a glyph halo.
    * o.role: 'decor' for a FIG. number or a marking that nobody needs to read.
    */
-  KIT.caption = (t, s, x, y, o = {}) => { const lo = { kind: 'mono', size: 22, ls: 1, role: 'label', color: KIT.labelOf(o.dark), ...o };
-    if (o.backing && t > 0) { const b = textBox(s, x, y, lo); backing(b[0], b[1], b[2], b[3], { dark: o.dark, pad: 8, feather: 10, seed: 7, alpha: clamp(t * 6) }); }   // o.backing: a paper halo, for captions over busy art
-    return (o.screen ? screenText : text)(typed(s, t, 40), x, y, lo); };
+  KIT.caption = (t, s, x, y, o = {}) => { const lo = { kind: 'mono', size: 22, ls: 1, role: 'label', color: KIT.labelOf(o.dark), dark: o.dark, halo: !!o.backing, ...o };
+    const draw = o.screen ? screenText : o.backing ? haloText : text;   // o.backing: a glyph halo, for captions over busy art
+    return draw(typed(s, t, 40), x, y, lo); };
 })();

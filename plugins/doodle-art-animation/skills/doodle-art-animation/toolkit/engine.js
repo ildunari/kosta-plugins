@@ -400,16 +400,14 @@ function fluxArrow(path, o = {}) {
 }
 /** journeyPath(path, opts): the hero's route as a dotted line with roman-numeral waypoints (recap plates) */
 /** journeyPath(path, {draw, waypoints: [{u, label, dx, dy}], color, dark, w}): a dashed route drawn on, with waypoint rings.
- *  Waypoint labels are role 'label', 22 px, in a darkened (legible) route colour on a small paper halo. */
+ *  Waypoint labels are role 'label', 22 px, in a darkened (legible) route colour with a glyph halo. */
 function journeyPath(path, o = {}) {
   const { draw = 1, waypoints = [], color = PAL.accent, dark = S.dark, w = 2.2 } = o; if (draw <= 0) return;
   ink(partial(path, draw), { w, color, amp: 0.4, dash: [2, 9], seed: 12 });
   waypoints.forEach(({ u, label, dx = 14, dy = -14 }, i) => { if (u > draw) return;
     const [x, y] = along(path, u), a = E.outBack(clamp((draw - u) * 10));
     withAlpha(a, () => { ink(shape.circle(x, y, 9 * a, 18), { closed: true, w: 2, color, fill: dark ? PAL.night : PAL.paper, amp: 0.3, seed: 40 + i });
-      const LO = { kind: 'mono', size: 22, weight: 600, role: 'label' }, b = textBox(label, x + dx, y + dy, LO);
-      backing(b[0], b[1], b[2], b[3], { dark, seed: 41 + i, pad: 7, feather: 8 });
-      text(label, x + dx, y + dy, { ...LO, color: legible(color, dark) }); }); });
+      haloText(label, x + dx, y + dy, { kind: 'mono', size: 22, weight: 600, role: 'label', dark, color: legible(color, dark) }); }); });
 }
 /** textOnPath(s, path, u0, opts): glyphs laid along a polyline (rivers, layers, flows). Default 22 px (role 'label'). */
 function textOnPath(s, path, u0, o = {}) {
@@ -1044,13 +1042,13 @@ function dropText(s, x, y, t, o = {}) {
   const full = Math.min(s.length, Math.floor(k));
   // each glyph pops on its own 0.25 s clock, so several are mid-pop at once (a single-glyph pop is shorter than a drawing)
   const pop = 0.25 * cps, settled = Math.max(0, Math.min(s.length, Math.floor(k - pop)));
-  const w = text(s.slice(0, settled), x, y, o);
+  const tx = o.halo ? haloText : text, w = tx(s.slice(0, settled), x, y, o);   // o.halo: glyph halo (plate header)
   for (let g = settled; g < Math.min(s.length, Math.ceil(k)); g++) {
     const p = clamp((k - g) / pop), sc = lerp(1.45, 1, E.outBack(p));
     const gw = measure(s[g], o), gx = x + measure(s.slice(0, g + 1), o) - gw;   // keeps the kerning pair
     const ax = gx + gw / 2, ay = y - (o.size || 24) * 0.35;
     ctx.save(); ctx.translate(ax, ay); ctx.scale(sc, sc); ctx.translate(-ax, -ay);
-    text(s[g], gx, y, { ...o, alpha: (o.alpha ?? 1) * clamp(p * 2) }); ctx.restore();
+    tx(s[g], gx, y, { ...o, alpha: (o.alpha ?? 1) * clamp(p * 2) }); ctx.restore();
   }
   return settled === s.length ? w : measure(s.slice(0, full), o);
 }
@@ -1064,16 +1062,17 @@ function tornEdge(x, y, w, h, seed = 1, amp = 3) {
   return pts;
 }
 /**
- * backing(x0, y0, x1, y1, o): something readable to write on, drawn under a block of text, made of the plate's own
- * paper (paper texture on paper plates, night texture on night plates), so it looks like part of the notebook.
- *   style 'halo' (default): a soft-edged patch of that texture, like an eraser pass. Over empty paper it is invisible;
- *     over line art it fades the lines out behind the words.
- *   style 'card': a torn scrap of the same paper, a faint pencil edge and a drop shadow, for blocks of rows.
- * o: { dark = S.dark, pad = 16, feather = 18, alpha = 1, seed = 1, style = 'halo' }. Box is in the caller's units.
+ * backing(x0, y0, x1, y1, o): a real card to write on, made of the plate's own paper (paper texture on paper plates,
+ * night texture on night plates). The components' default is not this but a glyph halo (haloText); use a card when a
+ * block of text genuinely needs one.
+ *   style 'card' (default): a torn scrap of the same paper, a faint pencil edge and a drop shadow.
+ *   style 'patch': a soft-edged patch of the texture. It erases the drawing under it in a soft box, so it is never a
+ *     default; keep it for empty-looking areas such as night sky.
+ * o: { dark = S.dark, pad = 16, feather = 18, alpha = 1, seed = 1, style = 'card' }. Box is in the caller's units.
  */
 const BACK = {};
 function backing(x0, y0, x1, y1, o = {}) {
-  const { dark = S.dark, pad = 16, feather = 18, alpha = 1, seed = 1, style = 'halo' } = o;
+  const { dark = S.dark, pad = 16, feather = 18, alpha = 1, seed = 1, style = 'card' } = o;
   if (alpha <= 0 || !TEX.paper || x1 <= x0) return;
   const X0 = x0 - pad, Y0 = y0 - pad, w = x1 - x0 + 2 * pad, h = y1 - y0 + 2 * pad, tex = dark ? TEX.night : TEX.paper;
   // the texture is sampled where the plate's own paper lies (S.base: the frame drawPlate drew the paper in), so a halo
@@ -1088,7 +1087,7 @@ function backing(x0, y0, x1, y1, o = {}) {
     ink(e, { closed: true, w: 1.1, color: dark ? 'rgba(170,170,230,0.40)' : 'rgba(42,34,38,0.42)', amp: 0.35, seed });
     ctx.restore(); return;
   }
-  // halo: the torn shape's blurred SHADOW only (the shape itself is drawn far off-canvas), so the edge is soft on both
+  // patch: the torn shape's blurred SHADOW only (the shape itself is drawn far off-canvas), so the edge is soft on both
   // sides of the outline; the core, `pad` inside it, is solid. Built in base-frame pixels, then drawn back in local units.
   const m = Math.ceil(feather * 1.6), cw = Math.ceil(w * k + 2 * m), ch = Math.ceil(h * k + 2 * m);
   if (!BACK.c || BACK.c.width < cw || BACK.c.height < ch) { const c = document.createElement('canvas'); c.width = Math.max(cw, BACK.c ? BACK.c.width : 0); c.height = Math.max(ch, BACK.c ? BACK.c.height : 0); BACK.c = c; }
@@ -1104,6 +1103,23 @@ function backing(x0, y0, x1, y1, o = {}) {
 function textBox(s, x, y, o = {}) {
   const size = o.size || 24, w = measure(s, o), al = o.align || 'left', x0 = al === 'left' ? x : al === 'right' ? x - w : x - w / 2;
   return [x0, y - size * 0.8, x0 + w, y + size * 0.25];
+}
+/**
+ * haloText(s, x, y, o): text() with a glyph halo, the cartographer's knockout: the same glyphs are first stroked in the
+ * plate's paper colour (night paper on night plates) with a round-joined line about 0.25 em wide, so line art clears only
+ * in a thin band around each letter and the drawing behind stays whole. o.halo: false skips it; o.haloWidth (em),
+ * o.haloAlpha (default 0.92) and o.haloColor tune it. The stroke is drawn straight on ctx, not through text(), so the
+ * legibility checks see it as part of what the text sits on.
+ */
+function haloText(s, x, y, o = {}) {
+  if (s && o.halo !== false && (o.alpha ?? 1) > 0) {
+    const { kind = 'sans', size = 24, weight = 400, italic = false, align = 'left', ls = 0, alpha = 1, base = 'alphabetic', dark = S.dark } = o;
+    ctx.save(); setFont(kind, size, weight, italic); ctx.letterSpacing = ls + 'px'; ctx.textAlign = align; ctx.textBaseline = base;
+    ctx.globalAlpha *= alpha * (o.haloAlpha ?? 0.92); ctx.strokeStyle = o.haloColor || (dark ? PAL.night : PAL.paper);
+    ctx.lineWidth = size * (o.haloWidth ?? 0.25); ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.miterLimit = 2;
+    ctx.strokeText(s, x, y); ctx.restore();
+  }
+  return text(s, x, y, o);
 }
 const unionBox = bs => bs.filter(Boolean).reduce((a, b) => a ? [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])] : b, null);
 /**
@@ -1135,21 +1151,22 @@ const SUP = s => s.replace(/[0-9]/g, d => '⁰¹²³⁴⁵⁶⁷⁸⁹'[d]);
 /* ---------- HUD: the recurring plate furniture ---------- */
 const inkOf = dark => dark ? PAL.nightInk : PAL.ink;
 const mutedOf = dark => dark ? PAL.nightMuted : PAL.muted;
-/** plate header: kicker (decor), title (label), subtitle (fact). header.backing (default true): a paper halo behind
- *  title and subtitle, invisible over empty paper, so art that strays into the header band never sits under the words. */
+/** plate header: kicker (decor), title (label), subtitle (fact). header.backing (default true): a glyph halo round the
+ *  title and subtitle, so art that strays into the header band never runs through the letters; 'card' or false. */
 function plateHeader(t, { num, title, sub, dark, backing: bk = true }) {
   const ic = inkOf(dark), TO = { kind: 'display', size: 64, weight: 500, role: 'label' }, SO = { kind: 'display', size: 30, italic: true, role: 'fact' };
-  if (bk) { const b = unionBox([textBox(title, 88, 158, TO), sub && textBox(sub, 90, 221, SO)]); backing(b[0], b[1], b[2], b[3], { dark, alpha: clamp(t * 3), seed: 3, pad: 12 }); }
+  if (bk === 'card') { const b = unionBox([textBox(title, 88, 158, TO), sub && textBox(sub, 90, 221, SO)]); backing(b[0], b[1], b[2], b[3], { dark, alpha: clamp(t * 3), seed: 3, pad: 12 }); }
+  const hl = { dark, halo: bk === true };
   text(typed(`PLATE  ${ROMAN(num)}`, t, 30), 90, 95, { kind: 'mono', size: 18, ls: 6, color: mutedOf(dark), role: 'decor' });
-  dropText(title, 88, 158, t - 0.15, { ...TO, color: ic, cps: 17 });
+  dropText(title, 88, 158, t - 0.15, { ...TO, ...hl, color: ic, cps: 17 });
   const tw = measure(title, TO), rp = E.out3(inv(0.35, 1.1, t));
   if (rp > 0) ink([[90, 180], [90 + (tw + 6) * rp, 180]], { w: 1.6, color: PAL.peri, amp: 0, alpha: 0.85 });
-  if (sub) text(typed(sub, t - 0.7, 30), 90, 221, { ...SO, color: dark ? '#b9b9d6' : PAL.inkSoft });
+  if (sub) haloText(typed(sub, t - 0.7, 30), 90, 221, { ...SO, ...hl, color: dark ? '#b9b9d6' : PAL.inkSoft });
 }
 /**
  * journey log: {title, rows: [[label, value]], states: [...], state: i, backing}. HUD role: labels 18 px, values 21 px.
  * The block widens to the left when a row needs it, and the STATE options wrap onto their own lines only when they must.
- * backing (default true): a halo of the plate's paper behind the block (or 'card' for a torn scrap), so the log never
+ * backing (default true): a glyph halo round every line (or 'card' for a torn scrap behind the block), so the log never
  * sits directly on line art; false turns it off.
  */
 const LOG = { x1: 1868, y: 114, row: 34, title: { kind: 'mono', size: 18, ls: 3, role: 'hud' }, lab: { kind: 'mono', size: 18, ls: 1, role: 'hud' },
@@ -1164,17 +1181,18 @@ function journeyLog(t, log, dark) {
   if (log.states && !wrap) lines.push(log.states.map((_, i) => i));
   else if (wrap) { let cur = [], w = 0; stW.forEach((sw, i) => { if (cur.length && w + sw - 4 > x1 - x0) { lines.push(cur); cur = []; w = 0; } cur.push(i); w += sw; }); lines.push(cur); }
   const ySt = y0 + log.rows.length * R, yEnd = log.states ? ySt + (wrap ? lines.length : 0) * 30 : ySt - R;
-  if (log.backing !== false) backing(x0, 52, x1, yEnd + 8, { dark, style: log.backing === 'card' ? 'card' : 'halo', alpha: clamp(t * 3), seed: 5, pad: 16 });
-  text(typed(log.title, t, 40), x1, 70, { ...LOG.title, align: 'right', color: dark ? '#b9b9d6' : PAL.inkSoft });
+  if (log.backing === 'card') backing(x0, 52, x1, yEnd + 8, { dark, alpha: clamp(t * 3), seed: 5, pad: 16 });
+  const hl = { dark, halo: (log.backing ?? true) === true }, text = haloText;   // every line below gets the glyph halo
+  text(typed(log.title, t, 40), x1, 70, { ...LOG.title, ...hl, align: 'right', color: dark ? '#b9b9d6' : PAL.inkSoft });
   ink([[x0, 84], [lerp(x0, x1, E.out3(inv(0.1, 0.6, t))), 84]], { w: 1.4, color: PAL.peri, amp: 0, alpha: 0.8 });
   log.rows.forEach(([lab, val], i) => { const y = y0 + i * R, al = inv(0.2 + i * 0.08, 0.5 + i * 0.08, t);
-    text(lab, x0, y, { ...LOG.lab, color: lc, alpha: al }); text(val, x1, y, { ...LOG.val, align: 'right', color: ic, alpha: al }); });
+    text(lab, x0, y, { ...LOG.lab, ...hl, color: lc, alpha: al }); text(val, x1, y, { ...LOG.val, ...hl, align: 'right', color: ic, alpha: al }); });
   if (log.states) {
     const al = inv(0.5, 0.8, t);
-    text('STATE', x0, ySt, { ...LOG.lab, color: lc, alpha: al });
+    text('STATE', x0, ySt, { ...LOG.lab, ...hl, color: lc, alpha: al });
     lines.forEach((ln, li) => { const ys = wrap ? ySt + (li + 1) * 30 : ySt; let x = x1;
       for (let k = ln.length - 1; k >= 0; k--) { const i = ln[k], on = i === log.state, s = log.states[i];
-        const w = text(s, x, ys, { ...LOG.st, weight: on ? 600 : 400, align: 'right', color: on ? ic : legible(PAL.peri, dark), alpha: al });
+        const w = text(s, x, ys, { ...LOG.st, ...hl, weight: on ? 600 : 400, align: 'right', color: on ? ic : legible(PAL.peri, dark), alpha: al });
         ctx.save(); ctx.globalAlpha *= al; ctx.beginPath(); ctx.arc(x - w - 10, ys - 6, 4.6, 0, TAU);
         if (on) { ctx.fillStyle = PAL.accent; ctx.fill(); } else { ctx.strokeStyle = PAL.peri; ctx.lineWidth = 1.3; ctx.stroke(); } ctx.restore(); x -= w + 34; } });
   }
@@ -1205,9 +1223,9 @@ function frameCounter(f, dark) {
 /**
  * callout(t, {ax, ay, ex, ey, x2, title, sub, dark, align, size, backing}): anchor dot -> elbow -> horizontal leader, then
  * a bold title and a quieter sub. Both are role 'fact': title 32 px, sub max(28, 0.875 x size). t is local (0 = starts
- * drawing). Wrap in withAlpha(beat(...)) to make it leave. backing (default true): a paper halo behind the words (see
- * backing()); invisible over empty paper, it only shows where the words cross line art. false turns it off; 'card'
- * gives a torn scrap instead.
+ * drawing). Wrap in withAlpha(beat(...)) to make it leave. backing (default true): a glyph halo round the words
+ * (haloText), which clears line art only in a thin band around each letter. false turns it off; 'card' puts the words
+ * on a torn scrap of paper instead.
  */
 function callout(t, o) {
   if (t <= 0) return;
@@ -1224,29 +1242,31 @@ function callout(t, o) {
   let tx = al === 'left' ? xe + 12 : xe - 12;
   tx = al === 'left' ? Math.min(tx, W - M - tw) : Math.max(tx, M + tw);
   const ty = ey + 10, sy = ty + Math.round(size * 0.6 + SO.size * 0.85);
-  if (bk) { const b = unionBox([textBox(title, tx, ty, { ...TO, align: al }), sub && textBox(sub, tx, sy, { ...SO, align: al })]);
-    backing(b[0], b[1], b[2], b[3], { dark, style: bk === 'card' ? 'card' : 'halo', alpha: clamp((t - 0.3) * 4), seed: 11, pad: 12 }); }
+  if (bk === 'card') { const b = unionBox([textBox(title, tx, ty, { ...TO, align: al }), sub && textBox(sub, tx, sy, { ...SO, align: al })]);
+    backing(b[0], b[1], b[2], b[3], { dark, alpha: clamp((t - 0.3) * 4), seed: 11, pad: 12 }); }
+  const hl = { dark, halo: bk === true };
   ctx.save(); ctx.beginPath(); ctx.arc(ax, ay, 5.5 * E.outBack(clamp(t * 6)), 0, TAU); ctx.fillStyle = ic; ctx.fill(); ctx.restore();
   pen([[ax, ay], [ex, ey], [xe, ey]], { w: 2.6, color: ic, amp: 0.5, seed: 7, draw: lp, taper: 0.04, minW: 0.6 });
-  text(typed(title, t - 0.35, 30), tx, ty, { ...TO, color: ic, align: al });
-  if (sub) text(typed(sub, t - 0.7, 45), tx, sy, { ...SO, color: labelOf(dark), align: al });
+  haloText(typed(title, t - 0.35, 30), tx, ty, { ...TO, ...hl, color: ic, align: al });
+  if (sub) haloText(typed(sub, t - 0.7, 45), tx, sy, { ...SO, ...hl, color: labelOf(dark), align: al });
 }
 /**
  * big stat: kicker (mono caps, role 'label', 22 px) + large display number (role 'fact', tight tracking) + italic note
- * (role 'fact', 28 px). backing (default true): a paper halo behind the block, sized on the full strings.
+ * (role 'fact', 28 px). backing (default true): a glyph halo round each line; 'card' puts the block on a torn scrap.
  */
 function stat(t, { x, y, kicker, value, note, dark = S.dark, size = 62, align = 'left', backing: bk = true }) {
   if (t <= 0) return;
   const KO = { kind: 'mono', size: 22, ls: 4, role: 'label', align }, VO = { kind: 'display', size, weight: 500, align, ls: size >= 56 ? -1 : 0, role: 'fact' },
     NO = { kind: 'display', size: 28, italic: true, role: 'fact', align }, ky = y - size * 0.95, ny = y + 40;
   const v = typeof value === 'function' ? value(t - 0.5) : value;   // the count starts once the number is fully in
-  if (bk) { const vf = typeof value === 'function' ? value(1e4) : value, b = unionBox([kicker && textBox(kicker, x + 3, ky, KO), textBox(String(vf), x, y, VO), note && textBox(note, x + 3, ny, NO)]);
-    backing(b[0], b[1], b[2], b[3], { dark, style: bk === 'card' ? 'card' : 'halo', alpha: clamp(t * 4), seed: 13, pad: 14 }); }
-  if (kicker) text(typed(kicker, t, 40), x + 3, ky, { ...KO, color: dark ? '#b9b9d6' : PAL.inkSoft });
-  if (t >= 0.3) text(v, x, y, { ...VO, color: inkOf(dark) });   // the number lands at full ink, like a typed glyph (a fade would show the first count half-transparent)
-  if (note) text(typed(note, t - 1.2, 40), x + 3, ny, { ...NO, color: dark ? '#b3b3d2' : PAL.inkSoft });
+  if (bk === 'card') { const vf = typeof value === 'function' ? value(1e4) : value, b = unionBox([kicker && textBox(kicker, x + 3, ky, KO), textBox(String(vf), x, y, VO), note && textBox(note, x + 3, ny, NO)]);
+    backing(b[0], b[1], b[2], b[3], { dark, alpha: clamp(t * 4), seed: 13, pad: 14 }); }
+  const hl = { dark, halo: bk === true }, text = haloText;
+  if (kicker) text(typed(kicker, t, 40), x + 3, ky, { ...KO, ...hl, color: dark ? '#b9b9d6' : PAL.inkSoft });
+  if (t >= 0.3) text(v, x, y, { ...VO, ...hl, color: inkOf(dark) });   // the number lands at full ink, like a typed glyph (a fade would show the first count half-transparent)
+  if (note) text(typed(note, t - 1.2, 40), x + 3, ny, { ...NO, ...hl, color: dark ? '#b3b3d2' : PAL.inkSoft });
 }
-/** tracker reticle + ID tag (role 'hud', 18 px, on a small paper halo). Prefer the plate's `hero` property, which the engine draws as furniture. */
+/** tracker reticle + ID tag (role 'hud', 18 px, with a glyph halo). Prefer the plate's `hero` property, which the engine draws as furniture. */
 function reticle(x, y, t, { label, r = 40, dark, alpha = 1, tag = true }) {
   if (alpha <= 0 || S.noReticle) return;
   ctx.save(); ctx.globalAlpha *= alpha;
@@ -1256,8 +1276,6 @@ function reticle(x, y, t, { label, r = 40, dark, alpha = 1, tag = true }) {
     const sg = m.e + (x + r * 0.72 + 22 + lw) * Math.hypot(m.a, m.b) > W - 30 ? -1 : 1;   // near the right edge the tag points left
     const lx = x + sg * r * 0.72, ly = y - r * 0.72, tx = lx + sg * 22, ty = ly - 22;
     tg = { LO, lw, sg, lx, ly, tx, ty };
-    const b = textBox(label, tx + sg * 4, ty - 8, { ...LO, align: sg > 0 ? 'left' : 'right' });
-    backing(b[0], b[1], b[2], b[3], { dark, alpha: 1, seed: 17, pad: 9, feather: 8 });
   }
   ink(shape.circle(x, y, r * (1 + 0.04 * Math.sin(t * 4))), { closed: true, w: 1.4, color: PAL.peri, amp: 0 });
   ctx.save(); ctx.translate(x, y); ctx.rotate(t * 0.9);
@@ -1268,7 +1286,7 @@ function reticle(x, y, t, { label, r = 40, dark, alpha = 1, tag = true }) {
   ctx.restore();
   if (tg) { const { LO, lw, sg, lx, ly, tx, ty } = tg;
     ink([[lx, ly], [tx, ty], [tx + sg * lw, ty]], { w: 1.4, color: PAL.peri, amp: 0 });
-    text(label, tx + sg * 4, ty - 8, { ...LO, color: inkOf(dark), align: sg > 0 ? 'left' : 'right' }); }
+    haloText(label, tx + sg * 4, ty - 8, { ...LO, dark, color: inkOf(dark), align: sg > 0 ? 'left' : 'right' }); }
   ctx.restore();
 }
 /** card that unfolds left to right (translucent, double outline); returns content progress, 0 until open.
@@ -1330,7 +1348,7 @@ function lineChart(t, { x, y, w, h, xr, yr, xticks, yticks, xlab, ylab, series, 
 /**
  * insetLens(t, {cx, cy, r, sx, sy, draw, dark, label}): a magnifier bubble tied to a source point by two tangent lines.
  * The close-up stays at full size while the circle opens around it. draw(t) paints in local coords centred on (0,0).
- * label: role 'label', 22 px, under the lens on a small paper halo.
+ * label: role 'label', 22 px, under the lens, with a glyph halo.
  */
 function insetLens(t, { cx, cy, r, sx, sy, draw, dark = true, label }) {
   const p = E.outBack(inv(0, 0.5, t)); if (p <= 0) return;
@@ -1341,9 +1359,7 @@ function insetLens(t, { cx, cy, r, sx, sy, draw, dark = true, label }) {
   ctx.drawImage(dark ? TEX.night : TEX.paper, cx - W / 2, cy - H / 2);
   ctx.translate(cx, cy); draw(t); ctx.restore();
   lensRing(cx, cy, rr, clamp(p), S.dark ? null : PAL.inkSoft);                      // the plate's own ink: a pale ring vanishes on paper
-  if (label) { const LO = { kind: 'mono', size: 22, ls: 3, align: 'center', role: 'label' }, bx = textBox(label, cx, cy + r + 48, LO);
-    backing(bx[0], bx[1], bx[2], bx[3], { alpha: clamp((t - 0.5) * 4), seed: 19, pad: 8, feather: 12 });
-    text(typed(label, t - 0.5, 30), cx, cy + r + 48, { ...LO, color: S.dark ? '#b9b9d6' : PAL.inkSoft }); }
+  if (label) haloText(typed(label, t - 0.5, 30), cx, cy + r + 48, { kind: 'mono', size: 22, ls: 3, align: 'center', role: 'label', color: S.dark ? '#b9b9d6' : PAL.inkSoft });
 }
 
 /* ---------- motion helpers ---------- */

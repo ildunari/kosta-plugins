@@ -265,16 +265,15 @@ const P2 = {
   },
   overlay(t) {
     withAlpha(beat(t, 1.2, 9.6), () => { const lt = t - 1.2;                  // backbone schematic, left
-      backing(60, 404, 440, 630, { dark: true, alpha: clamp(lt * 4), seed: 31, pad: 12 });   // on a patch of night paper, so drifting proteins never pass under its words
-      text(typed('PLGA  ·  50 : 50', lt, 30), 250, 430, { kind: 'mono', size: 22, ls: 4, align: 'center', color: '#b9b9d6' });
+      haloText(typed('PLGA  ·  50 : 50', lt, 30), 250, 430, { kind: 'mono', size: 22, ls: 4, align: 'center', color: '#b9b9d6' });
       const beads = Array.from({ length: 6 }, (_, i) => [130 + i * 48, 520 + (i % 2 ? 18 : -18) + 3 * Math.sin(t * 1.4 + i)]);
       ink(beads, { w: 2, color: '#b9b9d6', amp: 0, draw: E.out3(clamp(lt / 0.9)) });
       beads.forEach(([x, y], i) => { const s = E.outBack(clamp((lt - i * 0.12) * 4)); if (s <= 0) return;
         ink(shape.circle(x, y, 15 * s, 24), { closed: true, w: 2, color: '#f0eef8', fill: [0, 1, 1, 0, 1, 0][i] ? PAL.pink : PAL.drug, amp: 0.3, seed: 70 + i });   // a random-ish copolymer, not strictly alternating
         if (i % 2 === 0) ink([[x, y - 15 * s], [x - 6, y - 32 * s]], { w: 2, color: '#f0eef8', amp: 0 });
         if (i < 5) { ctx.beginPath(); ctx.arc((x + beads[i + 1][0]) / 2, (y + beads[i + 1][1]) / 2, 3.5 * s, 0, TAU); ctx.fillStyle = PAL.accent; ctx.fill(); } });
-      text(typed('lactide  ·  glycolide', lt - 1.0, 30), 250, 584, { kind: 'mono', size: 22, align: 'center', color: PAL.nightLabel });
-      text(typed('schematic · ester bonds hold it together', lt - 1.4, 30), 250, 622, { kind: 'display', size: 24, italic: true, align: 'center', color: '#a9aacb' }); });
+      haloText(typed('lactide  ·  glycolide', lt - 1.0, 30), 250, 584, { kind: 'mono', size: 22, align: 'center', color: PAL.nightLabel });
+      haloText(typed('schematic · ester bonds hold it together', lt - 1.4, 30), 250, 622, { kind: 'display', size: 24, italic: true, align: 'center', color: '#a9aacb' }); });
     withAlpha(beat(t, 1.5, 7.2), () => stat(t - 1.5, { x: 1330, y: 580, kicker: 'PLASMA PROTEIN', value: u => '≈ ' + countUp(70, u, 1.2) + ' g per litre', note: 'a coat forms in under a minute', dark: true, size: 56 }));
     const [sx, sy] = edgeII(0.5, 22, t);
     withAlpha(beat(t, 3.8, 9.9), () => callout(t - 3.8, { ax: sx, ay: sy, ex: 1270, ey: 800, x2: 1330, title: 'protein corona', sub: 'the body now sees the coat, not the particle', dark: true }));
@@ -492,14 +491,13 @@ const P5 = {
     const cx = 960, q = 'Every dose is a slow journey.', qo = { kind: 'display', size: 60, italic: true, color: PAL.nightInk, cps: 20 };
     dropText(q, cx - measure(q, qo) / 2, 650, t - 1.5, qo);
     const rl = E.out3(inv(2.8, 3.6, t)); if (rl > 0) ink([[cx - 320 * rl, 690], [cx + 320 * rl, 690]], { w: 1.2, color: PAL.peri, amp: 0, alpha: 0.7 });
-    backing(340, 712, 1580, 1016, { dark: true, alpha: clamp((t - 2.4) * 3), seed: 51, pad: 12, feather: 24 });   // the drifting dust never crosses the credits
     const col = `THE LONG RELEASE  ·  4 PLATES  ·  ${fmt(TOTAL_F)} FRAMES  ·  DRAWN IN CODE`, co = { kind: 'mono', size: 22, ls: 5, color: '#a9aacb' };
-    text(typed(col, t - 2.5, 60), cx - measure(col, co) / 2, 740, co);
+    haloText(typed(col, t - 2.5, 60), cx - measure(col, co) / 2, 740, co);   // glyph halos: the drifting dust never crosses a letter
     // notes and sources at label size, one short line each, so every line gets its own reading time
     const notes = ['NOTES  ·  VALUES ARE ROUNDED AND ILLUSTRATIVE', 'EPR IS VARIABLE IN PATIENTS  ·  NOT A SPECIFIC FORMULATION',
       'SOURCES  ·  PROTEIN CORONA: TENZER ET AL., NAT. NANOTECHNOL. 2013', 'TUMOUR PORES: HOBBS ET AL., PNAS 1998',
       'TUMOUR DELIVERY: WILHELM ET AL., NAT. REV. MATER. 2016', 'PLASMA PROTEIN: CLINICAL REFERENCE RANGE'], so = { kind: 'mono', size: 22, ls: 0, color: '#8a8bb0' };   // quieter than the colophon, still > 5:1
-    notes.forEach((l, k) => text(typed(l, t - 2.9 - k * 0.15, 90), cx - measure(l, so) / 2, 860 + k * 31, so));
+    notes.forEach((l, k) => haloText(typed(l, t - 2.9 - k * 0.15, 90), cx - measure(l, so) / 2, 860 + k * 31, so));
   },
 };
 
