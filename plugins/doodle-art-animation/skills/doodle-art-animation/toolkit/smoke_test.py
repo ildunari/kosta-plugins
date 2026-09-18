@@ -316,10 +316,14 @@ def check_video(story, work, out_dir, workers, seconds, meta):
             m = re.search(rf'{k}_volume:\s*(-?[\d.]+|-inf) dB', out)
             db[k] = float(m.group(1)) if m and m.group(1) != '-inf' else -999.0
         res['audio_max_db'], res['audio_mean_db'] = db['max'], db['mean']
-        if db['max'] < -60:
-            P.append(f"audio is silent (max volume {db['max']} dB < -60)")
-        if db['mean'] < -50:
-            P.append(f"audio is nearly silent (mean volume {db['mean']} dB < -50)")
+        if meta.get('silent'):                               # defineStory({ silent: true }): silence is the point
+            if db['max'] >= -60:
+                P.append(f"story is silent but the audio has sound (max volume {db['max']} dB)")
+        else:
+            if db['max'] < -60:
+                P.append(f"audio is silent (max volume {db['max']} dB < -60)")
+            if db['mean'] < -50:
+                P.append(f"audio is nearly silent (mean volume {db['mean']} dB < -50)")
     code, out = run([sys.executable, 'motion_check.py', mp4], work)
     m = re.search(r'median\s+([\d.]+).*?still\(<0\.5\)\s+(\d+)%', out)
     if code != 0 or not m:

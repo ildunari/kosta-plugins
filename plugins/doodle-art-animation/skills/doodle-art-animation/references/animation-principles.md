@@ -1,6 +1,6 @@
 # Animation principles: flow inside a scene
 
-Read this while writing the scene script (workflow step 3) and again while building each plate. An experienced animator applies these without thinking; a model has to apply them on purpose. They are about how motion flows **within** a plate and from one animation to the next. Seams and camera cuts between plates are covered in `references/film-grammar.md`; speed shapes and the speed limits are in `references/motion.md`.
+Read this while writing the scene script and again while building each plate. An experienced animator applies these without thinking; a model has to apply them on purpose. They are about how motion flows **within** a plate and from one animation to the next. Seams and camera cuts between plates are covered in `references/film-grammar.md`; speed shapes and the speed limits are in `references/motion.md`.
 
 These are principles for judgement, not fixed numbers. The figures below are typical starting points taken from hand-drawn practice at 12 drawings a second. Each film picks its own values, and a plate can break a principle on purpose when the story asks for it (a hard stop for a shock, everything moving at once for an explosion). Break them knowingly, not by default.
 
@@ -178,7 +178,7 @@ withAlpha(e, () => dot(x0 - 40 + v * (t - t0), y0 + wander(7, t, 3)[1], { r: 6 *
 
 ## Cohesive scene checklist
 
-Run this on each plate's range sheet (a frame grid of the plate: `--sheet-range`, SKILL.md step 5) and then at full speed.
+Run this on each plate's range sheet (a frame grid of the plate: `--sheet-range`, SKILL.md phase 4) and then at full speed.
 
 1. **No dead drawings.** Every frame has at least one thing clearly moving, and no element sits perfectly still after its move (moving hold).
 2. **Overlap.** Each beat starts while the previous one is still settling; no gap where nothing is happening between beats.

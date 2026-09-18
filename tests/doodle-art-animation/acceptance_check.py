@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""acceptance_check.py — go / no-go checks for doodle-art-animation v0.13 (docs/doodle-art-animation/ACCEPTANCE.md).
+"""acceptance_check.py — go / no-go checks for doodle-art-animation (docs/doodle-art-animation/ACCEPTANCE.md: L1-L17 from v0.13, W1-W9 from v0.14).
 
 usage:
   python3 tests/doodle-art-animation/acceptance_check.py            # static text and file checks (seconds)
@@ -34,9 +34,28 @@ def check(item, name, ok, detail=''):
 def skip(item, name, why): results.append((item, name, 'SKIP', why))
 def want(item): return not ONLY or item in ONLY
 
+def norm(t):
+    """fold the unicode a writer (or a defeat) might use for an ASCII character we match on"""
+    if t is None: return None
+    for a, b in (('\u2011', '-'), ('\u2010', '-'), ('\u2012', '-'), ('\u2013', '-'), ('\u2014', '-'),
+                 ('\u00a0', ' '), ('\u2019', "'"), ('\u2018', "'"), ('\u201c', '"'), ('\u201d', '"')):
+        t = t.replace(a, b)
+    return t
+
+# a negation that lands on the keyword sits in front of it, in the same sentence: "do not reuse", "never stop"
+NEG = r'(never|not|no longer|do not|don.t|need not|cannot|can.t|must not|no need to|was a v0\.\d+ idea)'
+def _before(text, m):
+    return text[max(0, text.rfind('.', 0, m.start()) + 1):m.start()]
+def asserted(text, pat):
+    """any match of pat that is not negated in front of it — i.e. the file really says this"""
+    return [m for m in re.finditer(pat, text, re.I) if not re.search(NEG, _before(text, m), re.I)]
+def denied(text, pat):
+    """the file mentions pat only to negate it — the way prose defeats a keyword check"""
+    return bool(re.search(pat, text, re.I)) and not asserted(text, pat)
+
 def read(p):
     try:
-        with open(p, encoding='utf-8') as f: return f.read()
+        with open(p, encoding='utf-8') as f: return norm(f.read())
     except FileNotFoundError: return None
 def has(text, *needles, ci=True):
     if text is None: return False
@@ -76,6 +95,15 @@ COMP = read(os.path.join(REF, 'components.md')) or ''
 WRITING = read(os.path.join(REF, 'writing.md')) or ''
 ENGINE = read(os.path.join(TK, 'engine.js')) or ''
 RULES = section(SKILL, r'^## The rules that matter most')
+_WF = section(SKILL, r'^## Workflow')
+def _step(pat):
+    for m in re.finditer(r'^(?:\d+|Gate \d+)[.)] (.*?)(?=^(?:\d+|Gate \d+)[.)] |\Z)', _WF, re.M | re.S):
+        if re.search(pat, m.group(1), re.I): return m.group(1)
+    return ''
+LSCRIPT = _step(r'scene script')            # the step that authors the plan
+LGATE1 = _step(r'script-reviewer')          # the review gate
+LBUILD = _step(r'build-lanes\.md')          # the step that builds the plates
+LASSEMBLE = _step(r'--sheet-range')
 STROKES = ['pencil-2b', 'pencil-hb', 'pencil-2h', 'cpencil', 'charcoal', 'marker', 'marker-2', 'techpen', 'spray']
 LIFE = ['quadruped', 'fishSchool', 'insect', 'flock', 'figure', 'crowd']
 SETTLE = ['house', 'hut', 'tent', 'tower', 'village', 'skyline', 'road', 'bridge', 'ship', 'cart', 'fields', 'market', 'map', 'ruins']
@@ -174,9 +202,9 @@ if want('L10'):
     check('L10', 'SKILL.md says to suggest a plugin change', has(SKILL, 'plugin change'))
 
 if want('L11'):
-    s3 = workflow_step(SKILL, 3)
-    check('L11', 'step 3 says "scene script"', has(s3, 'scene script'))
-    check('L11', 'step 3 asks for a short summary, not the full script', has(s3, 'summary') and 'show the script to the user' not in s3)
+    check('L11', 'a step authors the scene script', bool(LSCRIPT) and has(LSCRIPT, 'scene script'))
+    check('L11', 'the user gets a short summary, not the full script',
+          has(LGATE1 or LSCRIPT, 'summary') and 'show the script to the user' not in SKILL)
 
 if want('L12'):
     ap_ = read(os.path.join(REF, 'animation-principles.md'))
@@ -186,13 +214,13 @@ if want('L12'):
     check('L12', 'principles file covers the agreed principles', not miss, 'missing ' + ', '.join(miss))
     check('L12', 'principles file has do / don\'t examples in engine terms',
           bool(ap_) and bool(re.search(r"\bdon[’']t\b", ap_, re.I)) and bool(re.search(r'`(kf|inv|E\.\w+|along|draw|overlay)', ap_ or '')))
-    check('L12', 'step 3 points to animation-principles.md', 'animation-principles.md' in workflow_step(SKILL, 3))
+    check('L12', 'the script step points to animation-principles.md', 'animation-principles.md' in LSCRIPT)
 
 if want('L13'):
     rm = read(os.path.join(TK, 'render.mjs')) or ''
     check('L13', 'render.mjs supports --sheet-range', 'sheet-range' in rm)
-    s5 = workflow_step(SKILL, 5)
-    check('L13', 'step 5 requires range sheets and detail crops', '--sheet-range' in s5 and has(s5, 'crop'))
+    lb = LBUILD or LASSEMBLE
+    check('L13', 'the build step requires range sheets and detail crops', '--sheet-range' in lb and has(lb, 'crop'))
 
 if want('L15') or want('L16'):
     for n in AGENTS_NEW:
@@ -221,12 +249,148 @@ if want('L17'):
     s0 = workflow_step(SKILL, 0)
     check('L17', 'workflow step 0 points to intake.md', 'intake.md' in s0)
 
+AGENTS_ALL = ['script-reviewer', 'sound-designer', 'film-reviewer', 'seam-reviewer', 'audio-reviewer']
+AG = {n: (read(os.path.join(PLUG, 'agents', f'{n}.md')) or '') for n in AGENTS_ALL}
+AGD = {n: frontmatter(os.path.join(PLUG, 'agents', f'{n}.md')).get('description', '') for n in AGENTS_ALL}
+PLAN = read(os.path.join(PLUG, 'skills', 'doodle-plan', 'SKILL.md')) or ''
+BUILD = read(os.path.join(PLUG, 'skills', 'doodle-build', 'SKILL.md')) or ''
+INTAKE = read(os.path.join(REF, 'intake.md')) or ''
+LANES = read(os.path.join(REF, 'build-lanes.md')) or ''
+WF = section(SKILL, r'^## Workflow')
+def wstep(pat):
+    """the workflow step whose text matches pat (a regex), or '' """
+    for m in re.finditer(r'^(?:\d+|Gate \d+)[.)] (.*?)(?=^(?:\d+|Gate \d+)[.)] |\Z)', WF, re.M | re.S):
+        if re.search(pat, m.group(1), re.I): return m.group(1)
+    return ''
+
+if want('W1'):
+    authoring = wstep(r'writes? the scene script|scene script')
+    check('W1', 'a step authors the script on its own', bool(authoring) and 'sound-designer' not in authoring,
+          'the script step still mentions sound-designer' if authoring else 'no script-authoring step found')
+    g1 = next((m.group(1) for m in re.finditer(r'^Gate 1[.)] (.*?)(?=^(?:\d+|Gate \d+)[.)] |\Z)', WF, re.M | re.S)), '')
+    onsaved = bool(re.search(r'(never before that file exists|never before the file exists|only once .{0,40}saved|on the saved `?script\.md)', g1, re.I))
+    check('W1', 'Gate 1 is a step of its own and runs script-reviewer on the saved script',
+          bool(g1) and 'script-reviewer' in g1 and onsaved and not re.search(r'before anything is saved|on the topic', g1, re.I),
+          'Gate 1 must name script-reviewer and say it runs on the saved script, not on the topic')
+    check('W1', 'the sound plan has its own step', bool(wstep(r'sound-designer')) and wstep(r'sound-designer') != authoring)
+    bad = [n for n, d in AGD.items() if re.search(r'workflow step \d', d, re.I)]
+    check('W1', 'no agent description names a workflow step number', not bad, ', '.join(bad))
+
+if want('W2'):
+    need = {'script-reviewer': r'script', 'sound-designer': r'review', 'film-reviewer': r'(built|html)',
+            'seam-reviewer': r'(built|html)', 'audio-reviewer': r'(mp4|audio)'}
+    # a stop clause, not merely the word "stop": and nothing that licenses carrying on regardless
+    STOPS = r'\b(stop|refuse|do not (start|review|continue)|don.t (start|review|continue))\b'
+    # any sentence that offers a way to continue without the input defeats the rule, however it is phrased
+    LICENCE = (r"(do not stop|don.t stop|never need to stop|no need to stop|proceed anyway|carry on anyway|"
+               r"none worth worrying|review (it|them|what|those) anyway|a plan too|is a plan|"
+               r"(review|score|describe|guess|imagine|infer)[^.\n]{0,60}(anyway|instead|provisional|without (it|one|a )))")
+    for n in AGENTS_ALL:
+        pre = section(AG[n], r'^## Preconditions')
+        why = []
+        if not pre.strip(): why.append('no "## Preconditions" section')
+        else:
+            if not re.search(STOPS, pre, re.I): why.append('no stop clause')
+            if not re.search(need[n], pre, re.I): why.append('does not name its input')
+            if asserted(pre, LICENCE): why.append('licenses carrying on without the input')
+        check('W2', f'{n} has Preconditions that stop on a missing input', not why, '; '.join(why))
+
+if want('W3'):
+    tbl = section(SKILL, r'^## Phases and gates')
+    hdr = next((l for l in tbl.splitlines() if l.strip().startswith('|')), '')
+    check('W3', 'SKILL.md has a "## Phases and gates" table', bool(tbl.strip()) and bool(hdr))
+    check('W3', 'the table says needs / produces / lanes', all(w in hdr.lower() for w in ('needs', 'produces', 'lane')), hdr[:90])
+    rows = [l for l in tbl.splitlines() if l.strip().startswith('|') and '---' not in l][1:]
+    want_rows = ['intake', 'substance', 'script', 'gate 1', 'sound', 'art', 'assemble', 'gate 2', 'render', 'deliver']
+    missing = [w for w in want_rows if not any(w in r.lower() for r in rows)]
+    check('W3', 'every phase and both gates have a row', not missing, 'missing ' + ', '.join(missing))
+    g1row = next((r for r in rows if 'gate 1' in r.lower()), '')
+    check('W3', "Gate 1's row needs a saved script and does not let the art lanes run",
+          bool(g1row) and 'script.md' in g1row.lower() and not re.search(r'art lane', g1row, re.I)
+          and not re.search(r'nothing on disk|on the topic', g1row, re.I), g1row[:110])
+
+if want('W4'):
+    check('W4', 'references/build-lanes.md exists', bool(LANES.strip()))
+    miss = [k for k, ok in {'one plate per agent': bool(re.search(r'one plate', LANES, re.I)),
+                            'range sheet evidence': has(LANES, 'range sheet'),
+                            'no engine edits': bool(re.search(r'(never|not|no)[^.\n]{0,40}engine\.js', LANES, re.I)),
+                            'shared helpers file': has(LANES, 'helpers'),
+                            'assembly by the main session': bool(re.search(r'assembl', LANES, re.I)),
+                            'style drift': has(LANES, 'drift')}.items() if not ok]
+    check('W4', 'build-lanes.md covers the lane contract', not miss, 'missing ' + ', '.join(miss))
+    check('W4', 'the build step points to build-lanes.md', 'build-lanes.md' in WF)
+
+if want('W5'):
+    sh = wstep(r'--sheet 1')   # the phase that renders the shared set
+    check('W5', 'one phase renders the shared qa/ set and says the reviewers reuse it',
+          bool(sh) and has(sh, 'reuse') and has(sh, 'qa/') and has(sh, 'once') and not denied(sh, r'reuse'),
+          'the assemble phase must render the set once and say the reviewers reuse it')
+    revs = [n for n in ('film-reviewer', 'seam-reviewer', 'audio-reviewer')
+            if not (re.search(r'(reuse|already (there|in `?qa)|already sitting)', AG[n], re.I)
+                    and re.search(r'qa/', AG[n]))
+            or denied(AG[n], r'\breuses? the shared')]
+    check('W5', 'the three reviewers say they reuse it', not revs, ', '.join(revs))
+
+if want('W6'):
+    def narrows(text):
+        """a clause that really narrows the re-run: 're-run only ...' not negated, and no 're-run everything' rule"""
+        hits = [m for m in re.finditer(r're-?run only', text, re.I)
+                if not re.search(r'(never|not|don.t|always)\W{0,12}$', text[max(0, m.start() - 24):m.start()], re.I)]
+        # a rule that demands the whole gate again defeats the narrowing, unless it is being forbidden
+        whole = asserted(text, r're-?run (everything|the full gate|the whole (gate|set)|every check|all (of )?the checks)'
+                               r'|every check in the gate again')
+        return bool(hits) and not whole
+    check('W6', 'SKILL.md narrows the re-run to the affected checks', narrows(SKILL))
+    capped = bool(re.search(r'(three rounds|after three (passes|rounds))', QA, re.I)) and not denied(QA, r'(three rounds|after three)')
+    check('W6', 'doodle-qa narrows it the same way, and caps the loop',
+          narrows(QA) and capped and not re.search(r'no cap on the rounds|as many passes as it takes', QA, re.I),
+          'needs the narrowing and a bound on the loop')
+
+if want('W7'):
+    for n in ('doodle-plan', 'doodle-build', 'doodle-qa', 'doodle-render'):
+        fm = frontmatter(os.path.join(PLUG, 'skills', n, 'SKILL.md'))
+        check('W7', f'skills/{n}/SKILL.md is a user command', fm.get('name') == n and bool(fm.get('description'))
+              and str(fm.get('disable-model-invocation')).lower() == 'true',
+              f"name={fm.get('name')} disable-model-invocation={fm.get('disable-model-invocation')}")
+    check('W7', 'SKILL.md names both commands', 'doodle-plan' in SKILL and 'doodle-build' in SKILL)
+
+if want('W8'):
+    bad = [n for n, d in AGD.items() if re.search(r'proactiv', d, re.I)]
+    check('W8', 'no agent description invites proactive use', not bad, ', '.join(bad))
+    miss = [n for n, d in AGD.items()
+            if not re.search(r'invoked by [^.]{0,160}doodle-(plan|build|qa|render)[^.]{0,160}(never|not) on its own initiative', d, re.I)
+            or re.search(r'(start|invoke) yourself|without being asked|the moment', d, re.I)]
+    check('W8', 'each description says which command invokes it, and that it never self-starts', not miss, ', '.join(miss))
+
+if want('W9'):
+    tp = section(INTAKE, r'^## The plan card')
+    miss = [k for k, ok in {
+        'section': bool(tp.strip()),
+        'says a model cannot run a clock': bool(re.search(r'(cannot|can.t|no) (run a clock|timer|way to)|cannot run a clock', tp, re.I)),
+        'reply cannot arrive mid-turn': bool(re.search(r'(turn ends|mid-?turn|until your turn)', tp, re.I)),
+        'the wait is bounded by work': bool(re.search(r'bound(ed)? by work|is the wait', tp, re.I)),
+        'never stalls': bool(re.search(r'(never blocks|carry (straight )?on|without waiting)', tp, re.I)),
+        'what stays editable': bool(re.search(r'(edit|chang|revis)', tp, re.I)),
+    }.items() if not ok]
+    check('W9', 'intake.md says how Gate 1 really behaves', not miss, 'missing ' + ', '.join(miss))
+    clockish = re.search(r"(wait|waiting) (about )?\d+ minutes", tp, re.I)
+    check('W9', 'intake.md does not tell the model to wait out a clock it cannot run',
+          not clockish or bool(re.search(r'(harness|supervisor)[^.]{0,120}(pause|resume|wake)', tp, re.I)),
+          'a wait of N minutes is only allowed as the harness-supported exception')
+    check('W9', 'intake.md does not claim a reply can arrive mid-turn',
+          not re.search(r'repl(y|ies)[^.]{0,60}(reaches|arrives)[^.]{0,20}(you )?mid-?turn', tp, re.I))
+    g1 = next((m.group(1) for m in re.finditer(r'^Gate 1[.)] (.*?)(?=^(?:\d+|Gate \d+)[.)] |\Z)', WF, re.M | re.S)), '')
+    check('W9', 'Gate 1 in SKILL.md matches, and says what may start while the card stands',
+          bool(g1) and bool(re.search(r'(cannot run a clock|bounded by work|not by time)', g1, re.I))
+          and bool(re.search(r'(while the card stands|during the wait|meanwhile)', g1, re.I)),
+          'Gate 1 must say the wait is work-bounded and what may start')
+
 if want('REL'):
     pj = json.loads(read(os.path.join(PLUG, '.claude-plugin', 'plugin.json')) or '{}')
     mj = json.loads(read(os.path.join(REPO, '.claude-plugin', 'marketplace.json')) or '{}')
     mv = next((p.get('version') for p in mj.get('plugins', []) if p.get('name') == 'doodle-art-animation'), None)
-    check('REL', 'plugin.json version 0.13.0', pj.get('version') == '0.13.0', str(pj.get('version')))
-    check('REL', 'marketplace entry version 0.13.0', mv == '0.13.0', str(mv))
+    check('REL', 'plugin.json version 0.14.0', pj.get('version') == '0.14.0', str(pj.get('version')))
+    check('REL', 'marketplace entry version 0.14.0', mv == '0.14.0', str(mv))
 
 # ---------------------------------------------------------------- full checks (build, probe, render)
 def run(cmd, cwd=None, timeout=1800):
@@ -352,7 +516,8 @@ if a.full:
         check('REL', 'smoke_test covered story_brushes.js', 'story_brushes' in out)
 
 # ---------------------------------------------------------------- report
-order = ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9', 'L10', 'L11', 'L12', 'L13', 'L14', 'L15', 'L16', 'L17', 'REL']
+order = ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9', 'L10', 'L11', 'L12', 'L13', 'L14', 'L15', 'L16', 'L17',
+         'W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'REL']
 col = {'PASS': '\033[32m', 'FAIL': '\033[31m', 'SKIP': '\033[33m'}
 tty = sys.stdout.isatty()
 for item in order:

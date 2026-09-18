@@ -1,13 +1,28 @@
-# doodle-art-animation v0.13 — acceptance (go / no-go)
+# doodle-art-animation — acceptance (go / no-go)
+
+v0.13's film and toolkit items are L1–L17; v0.14's workflow items are W1–W9 at the end of this file. Both are in force.
 
 The ledger agreed with Kosta on 2026-09-17, turned into checks. `tests/doodle-art-animation/acceptance_check.py`
-runs every **[auto]** item (`--static` for the text and file checks, add `--full` for builds, renders and timing).
+runs every **[auto]** item: with no flags it does the text and file checks, and `--full` adds builds, page probes, renders and timing.
 **[eye]** items need evidence (a named frame sheet or clip) looked at by a person or the final reviewer.
-v0.13 ships only when every auto item passes, every eye item has evidence, and the existing gates still pass
+A version ships only when every auto item passes, every eye item has evidence, and the existing gates still pass
 (`smoke_test.py`, marketplace validation in CI, `text_check` CLEAN on the example films).
 
 Paths below are relative to `plugins/doodle-art-animation/skills/doodle-art-animation/` unless they start with
 `plugins/` or `docs/`.
+
+**What these checks can and cannot do.** Most of the W items are rules about prose, and the checks read prose:
+they catch a rule that was deleted, renamed, moved or contradicted by accident, which is how these documents
+actually decay. They are not proof against someone writing text that satisfies the words and means the
+opposite — two reviews have demonstrated exactly that, and each round of hardening only raised the price. Where
+a rule could be turned into something mechanical (a file that must exist, a flag a tool must parse, a number a
+render must hit) it has been. For the rest, the check is a tripwire and the review is the gate: when you change
+one of these documents, read the rule next to it, and expect a reviewer to ask whether the text still means it.
+
+The checks reject the prose each review used to defeat them, including negated stop-clauses, a `Gate 1` row
+whose cells invert the rule, an uncapped fix loop, a description that says "invoked by" and then tells the agent
+to start itself, and the timed deadline restored verbatim (`tests/doodle-art-animation/` has no copy of that
+harness; it lived in the reviewer's scratch folder).
 
 ## Guiding rule (applies to every item)
 
@@ -88,20 +103,20 @@ a film may not cross, except snaps, determinism and reading time.
   plugin change when something goes wrong that the plugin should have prevented.
 
 ## L11 · Scene script and a short summary for the user
-- [auto] Workflow step 3 says `scene script` and asks for a short summary for films over about a minute, not
-  the full table.
+- [auto] The workflow step that authors the plan says `scene script`, and the user sees a short summary
+  (at Gate 1), never the full table.
 
 ## L12 · Continuity and flow
 - [auto] `references/animation-principles.md` exists and covers overlapping action, follow-through, staggered
   starts, hand-offs, moving holds, arcs, anticipation, and one main motion with supporting motion, with
   do / don't examples in engine terms.
-- [auto] SKILL.md step 3 and the key rules point to it.
+- [auto] The script-authoring step and the key rules point to it.
 - [eye] It reads as practical guidance a model can act on, not a list of terms.
 
 ## L13 · Frame sheets for a time range
 - [auto] `node render.mjs film.html --sheet-range 2-4 --fps 6 --dir D` writes `D/range_2-4.jpg`, a grid of
   frames from that range.
-- [auto] Workflow step 5 requires a range sheet per scene (and close-up crops for detail) and names `--sheet-range`.
+- [auto] The build step requires a range sheet per scene (and close-up crops for detail) and names `--sheet-range`.
 
 ## L15 / L16 · New agents
 - [auto] `plugins/doodle-art-animation/agents/` has `script-reviewer.md`, `sound-designer.md` and
@@ -114,10 +129,65 @@ a film may not cross, except snaps, determinism and reading time.
 - [auto] `references/intake.md` exists and covers: asking permission first; 3–7 questions; up to four options
   with the recommended one first and marked `(Recommended)`; an `Other` answer; the question tool when present
   and plain text otherwise; skipping on "just make it".
-- [auto] SKILL.md workflow has an intake step 0 that points to it.
+- [auto] The workflow's intake step points to it.
+
+## v0.14 — workflow ledger (W1–W9)
+
+Agreed with Kosta on 2026-09-17 after a real Cowork run fired `script-reviewer` and then `sound-designer`
+before a script existed, wrote the script afterwards, and then built with the reviews already stale.
+The v0.13 items above stay in force; these add the phase and gate structure.
+
+## W1 · The script step is split, and sound design has one home
+- [auto] SKILL.md's workflow has a step that only authors the script, a separate blocking `Gate 1`, and a
+  separate step for the sound plan. The script-authoring step does not mention `sound-designer`.
+- [auto] No agent description contains a workflow step number (they drift), and `sound-designer` no longer
+  claims "workflow step 5".
+
+## W2 · Every agent refuses to start without its input
+- [auto] Each of the five agent files has a `## Preconditions` section that names the file or artefact it needs,
+  says to stop and report when it is missing, and offers no way to carry on without it: `script-reviewer` a script file, `sound-designer` a reviewed script, `film-reviewer` and `seam-reviewer` a built film, `audio-reviewer` an MP4 with audio.
+
+## W3 · A phase table, not prose
+- [auto] SKILL.md has a `## Phases and gates` table whose header names what each phase **needs**, what it
+  **produces**, and which **lanes** may run at the same time, with a row for every phase and both gates.
+- [auto] Gate 1's row needs `script.md` on disk and does not list the art lanes as concurrent work.
+
+## W4 · Per-scene build lanes
+- [auto] `references/build-lanes.md` exists and covers: one plate per agent, a range sheet as the agent's
+  evidence, no engine edits, shared helpers in one file, assembly by the main session, and how style drift is
+  prevented.
+- [auto] SKILL.md's build step points to it.
+
+## W5 · One shared QA render
+- [auto] SKILL.md's assemble step says the sheets, strips and seam sheets are rendered once into `qa/` and that
+  the reviewers reuse them instead of rendering their own.
+- [auto] `film-reviewer`, `seam-reviewer` and `audio-reviewer` each say they reuse that set.
+
+## W6 · Fix loop re-runs only what changed
+- [auto] SKILL.md and `skills/doodle-qa/SKILL.md` both say to merge the fix list, apply it, and re-run only the
+  checks affected by the change, and neither also demands the whole gate again.
+- [auto] `doodle-qa` caps the loop: three rounds, then report what is still failing.
+
+## W7 · The order is mechanical: the commands
+- [auto] `skills/doodle-plan/SKILL.md` (intake, research lanes, script, Gate 1) and
+  `skills/doodle-build/SKILL.md` (build lanes, assembly, one build, the shared QA render) exist, and all four
+  commands — these two plus `doodle-qa` and `doodle-render` — carry `name`, `description` and
+  `disable-model-invocation: true`, because they are the user's to type.
+- [auto] SKILL.md names both commands.
+
+## W8 · Agents don't invite themselves
+- [auto] No agent description mentions acting proactively. Each one says, in a single sentence, which command
+  invokes it (`doodle-plan`, `doodle-build`, `doodle-qa` or `doodle-render`) and that it never starts on its own initiative.
+
+## W9 · Gate 1 never blocks and never fakes a clock
+- [auto] `references/intake.md` has a `## The plan card, and why it has no clock` section which says a model cannot run a timer and
+  a reply cannot arrive mid-turn; that the wait is bounded by the work the plan does not govern; that the run
+  carries on rather than stalling; and what stays editable afterwards (the script and seams, until the final
+  render). It must not instruct the model to wait a number of minutes as its only mechanism.
+- [auto] SKILL.md's Gate 1 step says the same, and says which work may start while the card stands.
 
 ## Release
-- [auto] `plugin.json` and the marketplace entry say `0.13.0`.
+- [auto] `plugin.json` and the marketplace entry say `0.14.0`.
 - [auto] `smoke_test.py` passes on every bundled story, including `story_brushes.js`.
 - [eye] Final independent review against this file and the ledger; example films and gallery re-rendered and
   sent to Kosta.

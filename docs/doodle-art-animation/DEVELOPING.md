@@ -22,12 +22,14 @@ plugins/doodle-art-animation/       the plugin
   agents/script-reviewer.md         reviews the scene script and seam list before any drawing
   agents/sound-designer.md          turns a reviewed script into a sound plan and cue sheet
   agents/audio-reviewer.md          checks the rendered audio against the picture, from measurements
-  skills/doodle-qa/                 /doodle-art-animation:doodle-qa, runs every check and the reviewers
+  skills/doodle-plan/               /doodle-art-animation:doodle-plan, phases 0-Gate 1 (intake, research, script)
+  skills/doodle-build/              /doodle-art-animation:doodle-build, phases 3-5 (sound, scene lanes, assembly)
+  skills/doodle-qa/                 /doodle-art-animation:doodle-qa, Gate 2: every check and the reviewers
   skills/doodle-render/             /doodle-art-animation:doodle-render, final MP4 plus checks
   skills/doodle-art-animation/
     SKILL.md                        workflow and the most important rules (keep it under ~500 lines)
     references/                     style, motion, writing, film-grammar, animation-principles,
-                                    intake, sound, api, render, components
+                                    intake, build-lanes, sound, api, render, components
     toolkit/                        engine.js, shell.html, build.py, render.mjs,
                                     motion_check.py, speed_check.mjs, audio_check.py, text_check.mjs,
                                     smoke_test.py, story_example.js (The Long Release), story_one_drop.js,
@@ -36,7 +38,8 @@ plugins/doodle-art-animation/       the plugin
                                     space, lab, studio)
 docs/doodle-art-animation/          not shipped with the plugin
   DEVELOPING.md                     this file
-  ACCEPTANCE.md                     the v0.13 go/no-go rules, checked by tests/doodle-art-animation/
+  v0.14-state.md                    what v0.14 changed, how it was checked, its known limits
+  ACCEPTANCE.md                     the go/no-go rules (L1-L17 films and toolkit, W1-W9 workflow)
   HANDOFF.md                        history, measurements, known weaknesses (paths in it refer to the original handoff zip)
   history/  reference/  examples/   design review, reference-film study images, an older story file
                                     (The Long Release now lives in the toolkit as story_example.js)
@@ -45,7 +48,7 @@ docs/doodle-art-animation/          not shipped with the plugin
 ## Testing the plugin
 
 - Validate: `claude plugin validate plugins/doodle-art-animation --strict`
-- Acceptance checks (v0.13 and later): `python3 tests/doodle-art-animation/acceptance_check.py` for the text and
+- Acceptance checks, also run by CI on every push and PR: `python3 tests/doodle-art-animation/acceptance_check.py` for the text and
   file rules, and `--full --node-modules <playwright>/node_modules` for builds, page probes, renders and timing.
   They are the written form of what was agreed with the owner; extend them when the plugin gains a feature.
 - Load it in a session: `claude --plugin-dir plugins/doodle-art-animation`, then `/reload-plugins` after edits.
@@ -59,7 +62,7 @@ Work in a scratch folder outside the repo:
 mkdir -p /tmp/doodle-test && cp -R plugins/doodle-art-animation/skills/doodle-art-animation/toolkit/. /tmp/doodle-test/ && cd /tmp/doodle-test
 cp story_example.js story.js
 python3 build.py story.js film.html && python3 build.py story_reel.js reel.html && python3 build.py story_gallery.js gallery.html
-node render.mjs film.html --stills 150,480,700      # quick look
+node render.mjs film.html --stills 150,480,700 --dir qa_stills   # --sheet clears f_*.jpg in its own --dir      # quick look
 node render.mjs film.html --sheet 1                 # qa/contact_sheet.jpg
 node render.mjs film.html --strips                  # qa/strip_NN_type.jpg, one per transition
 node render.mjs film.html --seams                   # qa/seam_NN_type.jpg, both sides of each transition
@@ -121,6 +124,10 @@ CI: `.github/workflows/doodle-smoke.yml` runs it on ubuntu-latest for pushes to 
   in `window.__brushProbe`, an entry in `references/api.md` and a specimen in `story_brushes.js`.
 - Speed: `speed_check.mjs` reads transition and camera speed from the engine's values through `window.__seamProbe`
   and `window.__camProbe`. Its `FAST` verdict is advice (a film may choose its own pace); `SNAP` is a failure.
+- The workflow is a phase table with two gates (SKILL.md, "Phases and gates"): nothing starts before its input
+  exists, every agent guards its own preconditions, phase 4 fans out one agent per scene
+  (`references/build-lanes.md`), phase 5 renders one shared `qa/` set the reviewers reuse, and Gate 2's fix loop
+  re-runs only the checks a change affects. If you add a phase or an agent, add its row and its preconditions.
 - Stories never edit `engine.js`; they override `PAL` and add helpers. If the engine changes, re-run the example and the reel.
 
 ## Conventions

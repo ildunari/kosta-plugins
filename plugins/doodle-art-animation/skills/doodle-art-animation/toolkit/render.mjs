@@ -31,13 +31,31 @@ const fontWarnings = [];
 const fail = msg => { console.error('\x1b[31mERROR:', msg, '\x1b[0m'); process.exit(1); };
 async function openPage() {
   const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
-  page.on('pageerror', e => console.error('PAGE ERROR:', e.message));
+  // a story that throws while loading never sets __ready, so the wait below would burn its whole
+  // timeout and then bury the real cause under a Playwright stack. Fail on the first error instead.
+  let firstError = null, onError = null;
+  const errored = new Promise(res => { onError = res; });
+  page.on('pageerror', e => { console.error('PAGE ERROR:', e.message); if (!firstError) { firstError = e.message; onError(); } });
   if (process.env.DOODLE_BLOCK_FONTS) await page.route(/fonts\.(googleapis|gstatic)\.com/, r => process.env.DOODLE_BLOCK_FONTS === 'hang' ? null : r.abort());   // test the offline path
   // not networkidle: a silent font server would stall it. When the first page fell back, later pages skip the font wait
   // (?nofonts) and freeze the same fallback, so they neither wait the cap again nor pick up fonts that arrive late.
   const q = fontWarnings.length && fontWarnings[0] ? '&nofonts=1' : '';
   await page.goto(pathToFileURL(file).href + '?render=1' + q, { waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(() => window.__ready === true, null, { timeout: 90000, polling: 250 });
+  const ready = page.waitForFunction(() => window.__ready === true, null, { timeout: 90000, polling: 250 });
+  ready.catch(() => {});                                     // handled below; keeps the race from warning
+  let state = await Promise.race([ready.then(() => 'ready'), errored.then(() => 'error')]);
+  if (state === 'error') {
+    // an error before __ready is usually fatal (a bad story never boots), but boot() waits for fonts first,
+    // so a harmless error can land while the page is still loading. Give the page its wait before judging.
+    // boot() waits for fonts (up to FONT_WAIT) before setting __ready, so give it that much and no more:
+    // a fatal story is reported in seconds instead of sitting out the 90 s readiness timeout.
+    state = await page.waitForFunction(() => window.__ready === true, null, { timeout: 15000, polling: 200 })
+      .then(() => 'ready').catch(() => 'stuck');
+    if (state === 'stuck')
+      fail(`the story threw while loading, so the film never became ready: ${firstError}\n` +
+           '       (a name used before it is declared usually means the plates were concatenated in the wrong order,\n' +
+           '        or a value one plate reads from another is not in helpers.js)');
+  }
   const warn = (await page.evaluate(() => window.__fontWarning)) || null;
   if (warn && !fontWarnings.length) console.warn('\x1b[33mWARNING:', warn, '\x1b[0m');
   const fam = w => w && w.slice(0, w.indexOf(')'));        // compare which families are missing, not the reason text
@@ -59,12 +77,18 @@ const tile = (glob, cols, rows, outName, w = 480, crop = null) => execFileSync('
 if (opt('stills', null) || opt('sheet', null)) {
   const list = opt('stills', null) ? String(opt('stills')).split(',').map(Number)
     : Array.from({ length: Math.ceil(info.frames / (info.fps * +opt('sheet'))) }, (_, i) => Math.round(i * info.fps * +opt('sheet')));
+  // a contact sheet tiles f_*.jpg, so clear any left from an earlier, longer run of this film:
+  // qa/ outlives a single run now (the reviewers reuse it), and stale frames would be tiled in as if current
+  if (opt('sheet', null)) for (const fn of fs.readdirSync(dir)) if (/^f_\d+\.jpg$/.test(fn)) fs.unlinkSync(path.join(dir, fn));
   for (const f of list) await grab(first, f, `f_${String(f).padStart(5, '0')}.jpg`);
   console.log(`wrote ${list.length} stills to ${dir}`);
   if (opt('sheet', null)) { tile('f_*.jpg', 6, Math.ceil(list.length / 6), 'contact_sheet.jpg'); console.log('contact sheet:', path.join(dir, 'contact_sheet.jpg')); }
   await browser.close(); process.exit(0);
 }
 if (opt('seams', null)) {
+  // qa/ is reused between runs, so a film that lost a seam would otherwise leave its old sheet behind
+  // for a reviewer to score. Same for --strips below.
+  for (const fn of fs.readdirSync(dir)) if (/^seam_\d+_\w+\.jpg$/.test(fn)) fs.unlinkSync(path.join(dir, fn));
   const fps = info.fps, fr = t => Math.max(0, Math.min(info.frames - 1, Math.round(t * fps)));
   for (const [i, s] of info.starts.entries()) {
     if (i === 0) continue;
@@ -81,6 +105,7 @@ if (opt('seams', null)) {
   await browser.close(); process.exit(0);
 }
 if (opt('strips', null)) {   // 12 frames at 8 fps, from 0.25 s before each plate start
+  for (const fn of fs.readdirSync(dir)) if (/^strip_\d+_\w+\.jpg$/.test(fn)) fs.unlinkSync(path.join(dir, fn));
   const starts = info.starts.map((s, i) => ({ ...s, i })).filter(s => s.i > 0);
   for (const s of starts) {
     const tag = `s${String(s.i).padStart(2, '0')}`;

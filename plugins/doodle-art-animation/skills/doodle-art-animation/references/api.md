@@ -11,7 +11,8 @@ Plate fields:
 | `dur` | Plate length in seconds |
 | `dark` | `true` for the night world |
 | `enter` | `{ type, dur, ease, curve, draw (custom transition), momentum, settle, match, carry, sfx, …type options (dir, k, dive, scaleFrom, from, to, fromFill, toFill, style, at, ink, drop, fall, rim, rimAlpha, rough, color, opacity, back, radius) }` |
-| `header` | `{ num, title, sub }` |
+| `silent` (on `defineStory`) | `true` renders a silent audio track of the right length and turns off the automatic risers, transition sounds and pen scratches, which play even with no cues. Check it with `audio_check.py --silent`. |
+| `header` | `{ num, title, sub }` — the kicker above the title is always `PLATE <roman num>`; there is no field for other kicker text. A film's own kicker (`A FIELD STUDY IN 3 PLATES`) belongs to the title card, drawn in that plate's own `draw` |
 | `log` | `t => ({ title, rows: [[label, value]], states, state })` |
 | `stage` | `{ n, name, prevN }` |
 | `hero` | `t => ({ x, y, label, r, tag, alpha })` |
@@ -55,6 +56,7 @@ Plate fields:
 **Components:**
 - `stat`, `callout`, `reticle`, `card` (returns 0 until open), `logRuler`, `lineChart` (returns `{ X, Y, ends }`), `insetLens`.
 - `callout` turns its leader around at the elbow (and slides its text in) when the text would leave the frame; the hero tag does the same near the right edge.
+- `callout`'s `align` is which side of the elbow the text sits on, and it does not follow the leader's direction: route `x2` to the **left** of the anchor and you must pass `align: 'right'`, or the text reads back across its own leader. Only the frame-edge turnaround flips it for you.
 - `card`: a title wider than the card shrinks to fit, and a figure label that would collide moves to the bottom-right corner.
 - `lineChart` series: `{ pts, color, w, draw (0..1, default 1), label }`; the label appears at the line's end as it finishes. Charts and rulers draw nothing before their local `t` reaches 0.
 - `insetLens` picks its ring and label ink from the plate it sits on (`S.dark`); its own `dark` option is the lens interior.

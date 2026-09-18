@@ -4,7 +4,7 @@ Read this when planning the film.
 
 ## Explainer voice
 
-- **Title card:** kicker `A FIELD STUDY IN 15 PLATES`, a title of 2–4 words, and an italic subtitle naming the hero's journey (*the journey of one molecule*).
+- **Title card:** kicker `A FIELD STUDY IN 15 PLATES`, a title of 2–4 words, and an italic subtitle naming the hero's journey (*the journey of one molecule*). The title card draws its own kicker, title and subtitle in `draw`; a numbered plate's `header` takes only `{ num, title, sub }` and always shows `PLATE <roman>` above the title, so don't script a custom kicker for one.
 - **Plate titles** are plain nouns or verb pairs: *The Ocean*, *Evaporation*, *Rising & Cooling*, *Melt, Run, Soak*.
 - **Subtitles** are one lowercase italic line of 4–8 words that states the mechanism literally, with a little life: *sunlight shakes a molecule loose*.
 - **Big stats:** one number per plate, with `≈`, a unit, and a note stating the assumption.
@@ -79,7 +79,14 @@ Example (`toolkit/story_seams.js`, "Pencil to Ladybug"; `story_example.js` lists
 
 ## Plate script format
 
-Write this before coding. One row per plate. Beat times are local seconds, written as start→end, with "→" alone meaning the beat stays:
+Write this before coding, and save it as `script.md` in the film folder. Say what each plate shows and where the eye goes — not the exact rotations, vertex angles or pixel positions. Those are the drawing's business, and a script that fixes them tends to fix two of them into a contradiction (a wing tilted "nose down-right" whose leading edge then faces downstream) which whoever draws it can only follow or quietly break. One row per plate. Beat times are local seconds, written as start→end, with "→" alone meaning the beat stays. The `Enter` column is the plate's own entry transition; each seam's exit lives in the seam list below the table, not in a column of its own.
+
+The `#` column reads as a field guide does — `0`, `I`, `II`, … `End` — but build lanes and their files are numbered by position, from 0: plate `I` is `plate_1_<slug>.js` and `P1`, `End` is the last index. Say that mapping once in the script so no lane has to guess it.
+
+Two things the table gets wrong more often than anything else:
+
+- **A state or a log value that changes is written as a change**: `FLYING → LANDED at 6.3`, `T+ 4.6→11`, not a single value. A cell holding one value becomes `state: 2` in the plate, and the HUD then says LANDED over a dart that is still visibly flying.
+- **Beat windows must include what the component itself spends.** A `stat` starts its note 1.2 s in, so its window needs 1.5 s + `readTime(note)`; a `callout` starts its sub at 0.7 s, so it needs 1.0 s + `readTime(sub)`; and a line that has to finish before the plate ends needs its whole reading time inside `dur`. Windows written without that arithmetic look generous in the table and fail `text_check` as soon as they are built, and by then `dur` is fixed and the only lever left is starting the line earlier.
 
 | # | Plate (world) | Dur | Enter | Camera | Header: title / subtitle | Hero route | Beats (start→end) | Journey log | Stage | Sound |
 |---|---|---|---|---|---|---|---|---|---|---|
