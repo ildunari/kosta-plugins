@@ -442,6 +442,8 @@ if want('V6'):
     check('V6', 'sound.md states the event rule and the climax lift',
           bool(re.search(r'different (kinds of )?events?[^.]{0,60}different sounds', SOUND, re.I)) and bool(re.search(r'climax', SOUND, re.I)))
     check('V6', 'toolkit/cue_check.mjs exists', os.path.isfile(os.path.join(TK, 'cue_check.mjs')))
+    check('V6', 'fixture story_monotone.js exists', os.path.isfile(os.path.join(FIX, 'story_monotone.js')))
+    check('V6', 'variation is not seeded by call order', 'AUDIO.n++' not in ENGINE and bool(re.search(r'const sfxRng[\s\S]{0,400}AUDIO\.plate', ENGINE)))
     audio = [p for p in glob.glob(os.path.join(PLUG, '**', '*'), recursive=True) if p.lower().endswith(('.wav', '.mp3', '.ogg', '.flac', '.m4a', '.aac'))]
     check('V6', 'the plugin still ships no audio files', not audio, ', '.join(os.path.relpath(a, PLUG) for a in audio[:5]))
 if want('V7'):
@@ -530,7 +532,7 @@ if a.full:
                 rc, out = run(['node', tool, h], cwd=work, timeout=3600)
                 check(item, f'{tool} fails {fixture}', rc == 1 and (not word or word in out), f'rc={rc} {out[-300:]}')
     if want('V1'): gate('V1', 'legibility_check.mjs', 'story_clash.js', 'CLASH')
-    if want('V6'): gate('V6', 'cue_check.mjs')
+    if want('V6'): gate('V6', 'cue_check.mjs', 'story_monotone.js', 'FAIL    dominant')
     if want('V8'): gate('V8', 'story_check.mjs', 'story_drift.js')
 
     if want('L8'):

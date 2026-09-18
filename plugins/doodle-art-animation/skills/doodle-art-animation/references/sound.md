@@ -10,8 +10,8 @@ A viewer hears a repeated sound as the same event happening again. So the same s
 
 - **Different kinds of events get different sounds.** A platen touching a tablet is a `thump` or a `crunch`; a camera move is its transition sound; a label arriving is a `pop`. Never the same `thump` for a contact and a camera move.
 - **Fit the world.** A pen `scratch` belongs on paper. Inside a microscope, on a screen or on a night plate there is no pen: use `readout`, or nothing.
-- **Repeats vary on their own.** Every effect in the engine re-rolls its pitch, length and timbre on each call (seeded by the call's time and a counter), so twelve `droplet`s are twelve different drops. Pass `seed: n` only when you want the *exact* same sound again (a motif, a callback).
-- **No type dominates.** `cue_check.mjs` fails a film where one sound is more than 30% of its events (from 40 events up) or where a fixed sound repeats identically more than 5 times.
+- **Repeats vary on their own.** Every effect in the engine re-rolls its pitch, length and timbre on each call, and for the low sounds (`thump`, `crunch`'s body, `shutter`) the body itself varies, not just the details, so twelve `droplet`s are twelve different drops and a run of `thump`s is not one sample. The seed is the plate, the time within the plate, the sound's name and how many calls of that name at that instant came before, never the order of calls across the film: adding or retiming one cue re-rolls only that cue, and lengthening a plate leaves the later plates' sounds as they were. Pass `seed: n` only when you want the *exact* same sound again (a motif, a callback).
+- **No type dominates.** `cue_check.mjs` fails a film where one sound is more than 30% of its cues and seams plus two events of grace (so four pops and nothing else fail, and 5 of 8 fail), at any length, or where a fixed sound repeats identically more than 5 times. The automatic header typing and the pulses inside a bed (a heartbeat) are listed but do not count towards dominance.
 
 ## Event → sound map
 
@@ -66,7 +66,7 @@ A story can still add its own: `SFX.drip = (ac, out, t, o = {}) => { … }` befo
 
 ## Beds
 
-`bed: (ac, out, t0, dur) => …` on a plate plays on a bus that ducks by 50% under every transition and by 25% under a `chime`, `pop` or `crunch`.
+`bed: (ac, out, t0, dur) => …` on a plate plays on a bus that ducks by 50% under every transition and by 25% under a `chime`, `pop` or `crunch`. Overlapping ducks combine as the deepest one at each moment, so a cue inside a transition's duck never pulls the bed back up early.
 
 - **Music bed:** `defineStory({ music: { tonic: 220, gain } })` gives every plate without a `bed` an automatic pad. Stage `n` plays chord `n` of a I–vi–IV–V–ii–V loop; night plates drop an octave, darken and add a low noise bed; the end card resolves to I with an added 9th. `SFX.pad` and `SFX.padKey` build your own.
 - **Ambience beds** (`BED.*`, in the bed shape, each takes `(ac, out, t0, dur, opts)` and fades in and out over about a second; left and right are synthesized separately so they are really stereo):
@@ -94,7 +94,7 @@ A film that sits at −20 dB from start to end sounds flat, however good its cue
 
 ## Levels and checks
 
-- **Level:** mean about −18 to −21 dB, peak about −3 dB, loudness range 6 LU or more. The example measures a mean of −20.2 dB, a peak of −4.7 dB, −18.1 LUFS integrated and a range of 7.4 LU.
+- **Level:** mean about −18 to −21 dB, peak about −3 dB, loudness range 6 LU or more. The example measures a mean of −20.5 dB, a peak of −4.8 dB, −18.3 LUFS integrated and a range of 7.4 LU. `story_one_drop`, `story_components`, `story_seams` and `story_brushes` also carry a `dynamics` climax lift (7.4 to 9.4 LU); the two catalogue reels (`story_reel`, `story_gallery`) have no climax and stay flat, so their range warning is expected.
 - **`audio_check.py film.mp4 --starts <transition times>`** prints PASS, WARN or FAIL for:
   - level (warns outside −21.5 to −17.5 dB) and peak (warns above −1 or below −6 dB);
   - EBU R128 loudness and true peak (warns above 0 dBTP), and loudness range (warns below 6 LU);
@@ -105,4 +105,4 @@ A film that sits at −20 dB from start to end sounds flat, however good its cue
   - with `--starts`, a sound onset within 0.25 s of each transition. `bleed`, `fade` and `hatch` have slow swells, so a warning there is normal.
 
   It exits 1 only on a failure; `--profile` prints the level for each second.
-- **`node cue_check.mjs film.html [--json out.json] [--list]`** lists every sound the film plays (time, type, options, and the layer: cue, header, riser, transition, bed) and reports counts per type, the share of the most-used type, identical repeats, a sound that serves both a cue and a transition, and pen scratches on night plates. It exits 1 when one type is more than 30% of the events (from 40 events up) or a fixed sound repeats identically more than 5 times (or identical repeats pass 15% of the events), and 0 otherwise.
+- **`node cue_check.mjs film.html [--json out.json] [--list]`** lists every sound the film plays (time, type, options, and the layer: cue, header, riser, transition, bed) and reports counts per type, the share of the most-used type, identical repeats, a sound that serves both a cue and a transition, and pen scratches on night plates. It sorts the events into three pools: the **judged** events (the plates' cues and the seams, each seam counted once), the **headers** (the automatic typing, one event per header: it is one kind of event by design and varies by itself), and the bed **pulses** (event sounds a bed plays, such as a heartbeat's thumps: a loop repeats by design); texture sounds in beds (`tone`, `noise`, pads, `BED.*`) are listed apart. It exits 1 when the most-used judged type is at least 4 events and more than 30% of the judged events plus 2 (the grace keeps a couple of cues from swinging a short film; there is no minimum film length), or when a fixed sound repeats identically more than 5 times among cues, headers and pulses (or identical repeats pass 15% of them), and 0 otherwise. The fixture `tests/doodle-art-animation/fixtures/story_monotone.js` (ten pops in 16 s) must fail it.

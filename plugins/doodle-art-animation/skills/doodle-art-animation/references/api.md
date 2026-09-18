@@ -2,7 +2,9 @@
 
 Everything a story can call. The engine lives in `toolkit/engine.js`; read that file when a detail is missing here.
 
-**Story.** Call `defineStory({ title, stages, music, twos, weave, grain, drift, plates })`, then `boot()`.
+**Story.** Call `defineStory({ title, stages, music, dynamics, silent, twos, weave, grain, drift, plates })`, then `boot()`.
+- `music: { tonic, gain }` gives every plate without a `bed` an automatic pad in that key (`references/sound.md`, "Beds").
+- `dynamics: [[t, dB], …]` is the film's loudness shape: the master level over time in film seconds, dB relative to the default, linear ramps between points (a quiet opening and a lift at the climax; `references/sound.md`, "Dynamics"). Without it, plates' `lift` fields shape the level; without either it is flat.
 
 Plate fields:
 
@@ -21,8 +23,10 @@ Plate fields:
 | `drift` | Override the automatic push-in (a fraction, or `false`) |
 | `draw(t)` | The scene |
 | `overlay(t)` | Art that ignores the camera, momentum and the match-cut/carry shift (stats, callouts, cards, charts). It still leaves with its plate during a transition. Anchor to the hero with `heroOf(plate, t)`. |
-| `cues` | `[[t, name, opts]]` |
-| `bed` | `(ac, out, t0, dur) => …` |
+| `cues` | `[[t, name, opts]]`: at local time `t`, play `SFX[name](ac, out, plateStart + t, opts)` |
+| `bed` | `(ac, out, t0, dur) => …`, or a `BED.*` bed; replaces the automatic music pad for this plate |
+| `pen` | How the header types on: `true` pen `scratch`, `false` soft `readout` blips, `'none'` silent. Defaults to a pen on paper plates and no pen on `dark` ones |
+| `lift` | dB: this plate's level lift, ramped up over its first 1.5 s and down over 1.5 s after it ends. Used only when `defineStory` has no `dynamics` |
 | `counter`, `marks` | `false` hides the frame counter or the registration marks |
 
 `draw(t)` receives local seconds. During the next plate's transition, `t` runs past `dur`, so clamp your animations.
@@ -99,5 +103,14 @@ Plate fields:
 - Custom transitions: `enter: { type: 'custom', draw(p, X) }` (see `references/motion.md`), with `morphPose(A, B, u, poseA, poseB)`, `softReveal(fn, x, y, r, feather)`, `S.side` ('old' or 'new'), `S.trans` ({ type, p }) and `S.dark` (whether the plate being drawn is a night plate).
 - `TRANS[type](p, X)` adds a new built-in transition. It returns the share of the frame the new plate owns, and should get matching `HEADER_DELAY` and `TRANS_SFX` entries.
 - `S.trans = { type, p }` lets plates react to their own transition.
+
+**Sound** (all synthesized; the catalogue and the event map are in `references/sound.md`):
+- `SFX.<name>(ac, out, t, opts)`: every effect a cue can name. Events: `tick`, `scratch`, `readout`, `pop`, `chime`, `plink`, `thump`, `crunch`, `creak`, `pump`, `relay`, `hiss`, `plop`, `slosh`, `shaker`, `clink`, `pour`, `foil`, `droplet`, `pageFlip`, `pegSnap`. Motion (the transition sounds): `swell`, `riser`, `whoosh`, `glide`, `flick`, `shutter`, `bend`, `crackle`. Building blocks that do not vary by themselves: `tone`, `noise`, `pad`, `padKey`. Every varied effect takes `seed` (fixes one exact sound) and most take `g` (level). `VARIED` is the set of names that vary per call.
+- `BED.roomTone`, `BED.rain`, `BED.wind`, `BED.cityHum`: ambience beds, `(ac, out, t0, dur, opts)`, usable directly as a plate's `bed`; `BED.mix(...beds)` layers beds.
+- `TRANS_SFX[type](ac, out, t, dur, enter)`: the automatic sound of each seam; `enter.sfx: (ac, out, t, dur) => …` replaces it for one custom transition.
+- Helpers for a story's own sounds (`SFX.drip = (ac, out, t, o = {}) => …` before `defineStory`):
+  - `sfxRng(o, t, name)`: the per-call random generator the built-ins use (seeded by `o.seed`, or by the plate, the time within it, `name` and the repeat count at that instant), so a story's sound varies like theirs. `rr(r, a, b)` draws a number in `[a, b)` from it; `semis(r, n)` a pitch ratio within ±n semitones.
+  - `synth(ac, out, t, dur, fill, { g, pan, pan1, filters, r, fade })`: renders a mono buffer that `fill(d, r)` writes sample by sample, normalized so `g` is its peak, through optional biquads (`{ type, f, f1, q, gain, curve }`). `noiseInto(d, r, env)` adds noise shaped by `env(s)`; `DSP.burst`, `DSP.chirp`, `DSP.modes`, `DSP.reson` are the grain, bubble, struck-mode and resonator primitives the v0.15 sounds are built from.
+  - `note(tonic, degree)`: a degree of the major pentatonic scale over `tonic`; `SR` is the sample rate. Keep it deterministic: no `Math.random`, no clock.
 
 **Theme.** `Object.assign(PAL, { … })` at the top of the story adds subject colours. `FONT` and `FONT_LOADS` hold the three faces.

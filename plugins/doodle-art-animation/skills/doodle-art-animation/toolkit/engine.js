@@ -2045,18 +2045,25 @@ const SCALE = [0, 2, 4, 7, 9, 12, 14, 16];
 const note = (tonic, deg) => tonic * 2 ** (SCALE[((deg % 8) + 8) % 8] / 12 + Math.floor(deg / 8));
 /*
  * Variation. Every sound below that is listed in VARIED re-rolls its small details (pitch, length, timbre) on each
- * call from a seed: opts.seed when given (a fixed seed plays the same sound every time), otherwise the call time
- * and a per-render counter. Still deterministic: the same film renders the same audio every time, but no two pops,
- * risers or pen scratches in it are identical. AUDIO.tag names the layer that is playing (cue, header, riser,
- * transition, bed) for cue_check.mjs.
+ * call from a seed: opts.seed when given (a fixed seed plays the same sound every time), otherwise the plate the call
+ * belongs to, its time within that plate, the sound's name, and how many calls of that name at that time came before
+ * (so two identical calls at one instant still differ). Nothing depends on call order across the film: adding,
+ * removing or retiming a cue re-rolls only that cue, and lengthening a plate leaves every later plate's sounds alone.
+ * Still deterministic: the same film renders the same audio every time, but no two pops, risers or pen scratches in it
+ * are identical. AUDIO.tag names the layer that is playing (cue, header, riser, transition, bed) for cue_check.mjs;
+ * renderAudio sets AUDIO.plate and AUDIO.t0 (that plate's start) as it walks the plates.
  */
-const AUDIO = { tag: 'cue', n: 0 };
+const AUDIO = { tag: 'cue', plate: 0, t0: 0, seen: new Map(), reset() { this.plate = 0; this.t0 = 0; this.seen.clear(); this.tag = 'cue'; } };
 const VARIED = new Set(['tick', 'scratch', 'readout', 'pop', 'chime', 'plink', 'thump', 'swell', 'riser', 'crackle', 'whoosh', 'shutter',
   'glide', 'flick', 'bend', 'hiss', 'crunch', 'creak', 'pump', 'relay', 'plop', 'slosh', 'shaker', 'clink', 'pour', 'foil', 'droplet',
   'pageFlip', 'pegSnap']);
 const saltOf = s => { let h = 7; for (let i = 0; i < s.length; i++) h = Math.imul(h, 31) + s.charCodeAt(i) | 0; return h; };
-/** rng for one sound: mulberry seeded by opts.seed, or by the call time and a counter */
-const sfxRng = (o, t, name) => mulberry((o && o.seed != null ? Math.imul(o.seed | 0, 7919) : Math.imul(Math.round(t * 1000), 131) + Math.imul(AUDIO.n++, 977)) ^ saltOf(name));
+/** rng for one sound: mulberry seeded by opts.seed, or by (plate, time within the plate, name, repeat at that instant) */
+const sfxRng = (o, t, name) => {
+  if (o && o.seed != null) return mulberry(Math.imul(o.seed | 0, 7919) ^ saltOf(name));
+  const ms = Math.round((t - AUDIO.t0) * 1000), key = AUDIO.plate + '|' + ms + '|' + name, k = AUDIO.seen.get(key) || 0; AUDIO.seen.set(key, k + 1);
+  return mulberry((hash3(ms, AUDIO.plate + 1, k) * 4294967296 | 0) ^ saltOf(name));
+};
 const rr = (r, a, b) => a + (b - a) * r();
 const semis = (r, n) => 2 ** ((r() * 2 - 1) * n / 12);                      // a random interval within +/- n semitones
 
@@ -2080,8 +2087,8 @@ const semis = (r, n) => 2 ** ((r() * 2 - 1) * n / 12);                      // a
 const DSP = {
   burst(d, t0, amp, len, tau, r) { const i0 = t0 * SR | 0, n = Math.min(d.length - i0, len * SR | 0), k = 1 / (tau * SR);
     for (let i = 0; i < n; i++) d[i0 + i] += amp * (r() * 2 - 1) * Math.exp(-i * k); },
-  chirp(d, t0, amp, f0, f1, sweep, tau, len = tau * 6) { const i0 = t0 * SR | 0, n = Math.min(d.length - i0, len * SR | 0), k = Math.log(f1 / f0) / Math.max(1e-4, sweep);
-    let ph = 0; for (let i = 0; i < n; i++) { const s = i / SR; ph += TAU * f0 * Math.exp(k * Math.min(s, sweep)) / SR; d[i0 + i] += amp * Math.sin(ph) * Math.exp(-s / tau) * Math.min(1, i / 48); } },
+  chirp(d, t0, amp, f0, f1, sweep, tau, len = tau * 6, ph0 = 0) { const i0 = t0 * SR | 0, n = Math.min(d.length - i0, len * SR | 0), k = Math.log(f1 / f0) / Math.max(1e-4, sweep);
+    let ph = ph0; for (let i = 0; i < n; i++) { const s = i / SR; ph += TAU * f0 * Math.exp(k * Math.min(s, sweep)) / SR; d[i0 + i] += amp * Math.sin(ph) * Math.exp(-s / tau) * Math.min(1, i / 48); } },
   modes(d, t0, list) { const i0 = t0 * SR | 0;
     for (const [f, a, tau] of list) { const n = Math.min(d.length - i0, tau * 7 * SR | 0), w = TAU * f / SR, k = 1 / (tau * SR);
       for (let i = 0; i < n; i++) d[i0 + i] += a * Math.sin(w * i) * Math.exp(-i * k) * Math.min(1, i / 24); } },
@@ -2137,12 +2144,18 @@ const SFX = {
       SFX.tone(ac, out, t + k * step + rr(r, 0, 0.012), { f: f * (r() < 0.3 ? 1.335 : 1) * semis(r, 0.3), dur: rr(r, 0.018, 0.03), g: g * rr(r, 0.6, 1), pan: panOf(t) * 0.4 }); },
   pop(ac, out, t, o = {}) { const r = sfxRng(o, t, 'pop'), pan = panOf(t), f = rr(r, 840, 1120), h = [2, 2.5, 3][r() * 3 | 0];
     SFX.tone(ac, out, t, { f, f2: f * rr(r, 0.58, 0.7), dur: rr(r, 0.11, 0.17), g: 0.07 * rr(r, 0.85, 1.08), pan }); SFX.tone(ac, out, t + 0.01, { f: f * h, dur: rr(r, 0.06, 0.1), g: 0.02 * rr(r, 0.7, 1.2), pan }); },
-  chime(ac, out, t, o = {}) { const { f = 660 } = o, r = sfxRng(o, t, 'chime'), rat = [1, rr(r, 1.99, 2.02), rr(r, 2.96, 3.06)], L = rr(r, 0.85, 1.15);
-    rat.forEach((m, i) => SFX.tone(ac, out, t + i * 0.012, { f: f * m, dur: (2.0 - i * 0.5) * L, g: 0.05 / (i + 1) * rr(r, 0.9, 1.1), a: 0.02, pan: (i - 1) * 0.3 })); },
+  chime(ac, out, t, o = {}) { const { f = 660 } = o, r = sfxRng(o, t, 'chime'), rat = [1, rr(r, 1.99, 2.02), rr(r, 2.96, 3.06)], L = rr(r, 0.85, 1.15), k = semis(r, 0.08);
+    rat.forEach((m, i) => SFX.tone(ac, out, t + i * rr(r, 0.008, 0.018), { f: f * m * k, dur: (2.0 - i * 0.5) * L, g: 0.05 / (i + 1) * rr(r, 0.9, 1.1), a: 0.02, pan: (i - 1) * 0.3 })); },
   /** f defaults to a random note of the film's key (music.tonic, two octaves up) */
   plink(ac, out, t, o = {}) { const r = sfxRng(o, t, 'plink'), f = o.f ?? (STORY.music ? note((STORY.music.tonic || 220) * 4, r() * 6 | 0) : 1500 * semis(r, 3));
     SFX.tone(ac, out, t, { f, f2: f * rr(r, 0.3, 0.45), dur: rr(r, 0.07, 0.12), g: 0.06 * rr(r, 0.85, 1.1), pan: panOf(t) }); },
-  thump(ac, out, t, o = {}) { const { g = 0.25 } = o, r = sfxRng(o, t, 'thump'); SFX.tone(ac, out, t, { f: rr(r, 80, 100), f2: rr(r, 38, 48), dur: rr(r, 0.19, 0.26), g }); },
+  /** a landing or contact: a low body (its pitch, drop, length and weight all vary), a second body mode and the soft click of contact */
+  thump(ac, out, t, o = {}) { const { g = 0.25 } = o, r = sfxRng(o, t, 'thump'), dur = rr(r, 0.18, 0.34);
+    synth(ac, out, t, dur + 0.02, (d, q) => { const f = rr(q, 68, 108);
+      DSP.chirp(d, 0, 1, f, f * rr(q, 0.38, 0.56), rr(q, 0.06, 0.16), rr(q, 0.02, 0.034), dur, q() * TAU);                          // the body
+      DSP.chirp(d, rr(q, 0, 0.004), rr(q, 0.1, 0.35), f * rr(q, 1.45, 2.4), f * rr(q, 1, 1.6), 0.05, rr(q, 0.015, 0.035), dur, q() * TAU);   // a second mode
+      DSP.burst(d, 0, rr(q, 0.1, 0.35), 0.03, rr(q, 0.004, 0.01), q); },                                                             // the contact
+      { g: g * rr(r, 0.85, 1), r, filters: [{ type: 'lowpass', f: rr(r, 500, 1200), q: 0.7 }] }); },
   swell(ac, out, t, o = {}) { const { dur = 0.6, up = true } = o, r = sfxRng(o, t, 'swell'), k = semis(r, 2);
     SFX.tone(ac, out, t, { f: (up ? 220 : 1300) * k, f2: (up ? 1300 : 200) * k, dur, g: 0.05, type: r() < 0.5 ? 'triangle' : 'sine', a: dur * 0.6 });
     SFX.noise(ac, out, t, { dur, g: 0.08, f0: (up ? 300 : 4000) * k, f1: (up ? 4000 : 300) * k, q: rr(r, 1.5, 2.5) });
@@ -2158,7 +2171,7 @@ const SFX = {
     SFX.noise(ac, out, t, { dur, g, f0: rr(r, 400, 650), f1: rr(r, 4000, 6000), q: rr(r, 1, 1.5), a: dur * rr(r, 0.38, 0.52), pan: dir === 'rl' ? 0.4 : dir === 'lr' ? -0.4 : 0 });
     SFX.tone(ac, out, t + dur * 0.5, { f: rr(r, 150, 210), f2: rr(r, 50, 70), dur: 0.18, g: 0.08 }); },
   shutter(ac, out, t, o = {}) { const { dur = 0.6 } = o, r = sfxRng(o, t, 'shutter');
-    SFX.tick(ac, out, t); SFX.tone(ac, out, t + dur * 0.46, { f: rr(r, 105, 135), f2: rr(r, 45, 55), dur: 0.16, g: 0.16 }); SFX.tick(ac, out, t + dur * 0.55); SFX.tick(ac, out, t + dur * 0.6); },
+    SFX.tick(ac, out, t); const f = rr(r, 85, 160); SFX.tone(ac, out, t + dur * rr(r, 0.42, 0.5), { f, f2: f * rr(r, 0.35, 0.55), dur: rr(r, 0.1, 0.22), g: 0.16 * rr(r, 0.75, 1) }); SFX.tick(ac, out, t + dur * 0.55); SFX.tick(ac, out, t + dur * 0.6); },
   glide(ac, out, t, o = {}) { const { dur = 0.8, up = false } = o, r = sfxRng(o, t, 'glide'), k = semis(r, 3);
     SFX.tone(ac, out, t, { f: (up ? 260 : 900) * k, f2: (up ? 1100 : 220) * k, dur, g: 0.045, a: dur * 0.3 }); SFX.noise(ac, out, t, { dur, g: 0.04, f0: (up ? 400 : 3000) * k, f1: (up ? 3000 : 400) * k, q: rr(r, 1.2, 1.8) }); },
   flick(ac, out, t, o = {}) { const { dur = 0.7 } = o, r = sfxRng(o, t, 'flick');
@@ -2181,8 +2194,9 @@ const SFX = {
       for (let k = 0, n = dur * rr(q, 260, 380) | 0; k < n; k++) { const s = 0.01 + dur * q() ** 1.6;                                             // the grind: decaying grains
         DSP.burst(d, s, rr(q, 0.08, 0.5) * (1 - s / (dur + 0.02)) ** 0.7, 0.005, rr(q, 0.0003, 0.0015), q); } },
       { g, r, pan: panOf(t) * 0.5, filters: [{ type: 'highpass', f: rr(r, 350, 550), q: 0.7 }, { type: 'peaking', f: rr(r, 1800, 2800), q: 0.8, gain: 5 }, { type: 'lowpass', f: rr(r, 5500, 7000), q: 0.6 }] });
-    synth(ac, out, t, 0.3, (d, q) => { DSP.chirp(d, 0, 1, rr(q, 110, 150), 60, 0.1, 0.05, 0.3); noiseInto(d, q, s => 0.25 * Math.exp(-s / 0.07)); },
-      { g: g * 0.8, r, filters: [{ type: 'lowpass', f: 400, q: 0.7 }] }); },                                                                          // the platen's body thud
+    synth(ac, out, t, 0.36, (d, q) => { const f0 = rr(q, 85, 175), tau = rr(q, 0.03, 0.075), nz = rr(q, 0.15, 0.6), nt = rr(q, 0.03, 0.1);
+      DSP.chirp(d, rr(q, 0, 0.012), 1, f0, f0 * rr(q, 0.35, 0.6), rr(q, 0.05, 0.14), tau, 0.34, q() * TAU); noiseInto(d, q, s => nz * Math.exp(-s / nt)); },
+      { g: g * rr(r, 0.45, 0.85), r, filters: [{ type: 'lowpass', f: rr(r, 280, 520), q: 0.7 }] }); },                                              // the platen's body thud
   /** strained wood or steel: stick-slip pulses through the body's resonances. material 'wood' | 'steel' */
   creak(ac, out, t, o = {}) { const { dur = 0.8, g = 0.08, material = 'wood' } = o, r = sfxRng(o, t, 'creak'), steel = material === 'steel', sd = r() * 1e6 | 0;
     synth(ac, out, t, dur + 0.05, (d, q) => {
@@ -2363,7 +2377,7 @@ async function renderAudio() {
   // defineStory({ silent: true }): the user chose no sound. The automatic risers, transition effects and header
   // scratches below would otherwise play anyway, so render a stereo track of silence of the right length instead.
   if (STORY.silent) return new OfflineAudioContext(2, Math.ceil(SR * (TOTAL_T + 0.5)), SR).startRendering();
-  const ac = new OfflineAudioContext(2, Math.ceil(SR * (TOTAL_T + 0.5)), SR); ac._noise = noiseBuffer(ac, 6); AUDIO.n = 0;
+  const ac = new OfflineAudioContext(2, Math.ceil(SR * (TOTAL_T + 0.5)), SR); ac._noise = noiseBuffer(ac, 6); AUDIO.reset();
   const comp = ac.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 4; comp.knee.value = 6; comp.connect(ac.destination);
   const dry = ac.createGain(); dry.gain.value = 0.9; dry.connect(comp);
   const rv = makeReverb(ac), wet = ac.createGain(); wet.gain.value = 0.3; rv.connect(wet).connect(comp);
@@ -2372,9 +2386,20 @@ async function renderAudio() {
   for (const [t, dB] of dyn) lift.gain.linearRampToValueAtTime(10 ** (dB / 20), Math.max(0, t));
   const out = ac.createGain(); out.gain.value = 3.8; out.connect(lift);
   const bedBus = ac.createGain(); bedBus.gain.value = 1; bedBus.connect(out);          // beds duck under transitions and cues
-  const duck = (t, depth = 0.55, dur = 0.5) => { bedBus.gain.setValueAtTime(1, Math.max(0, t - 0.02)); bedBus.gain.linearRampToValueAtTime(1 - depth, t + 0.05); bedBus.gain.linearRampToValueAtTime(1, t + dur); };
+  // Each duck dips to 1 - depth in 70 ms and recovers linearly by t + dur. Overlapping ducks combine as the deepest one
+  // at each instant (a cue inside a transition's duck no longer snaps the bed back up): they are collected here and
+  // written after the loop as one value curve per merged span, which starts and ends at 1.
+  const ducks = [], duck = (t, depth = 0.55, dur = 0.5) => ducks.push([t, depth, dur]);
+  const duckAt = x => ducks.reduce((v, [t, depth, dur]) => Math.min(v, x <= t - 0.02 || x >= t + dur ? 1
+    : x < t + 0.05 ? 1 - depth * (x - t + 0.02) / 0.07 : 1 - depth * (t + dur - x) / (dur - 0.05)), 1);
+  const writeDucks = () => { const spans = ducks.map(([t, , dur]) => [Math.max(0, t - 0.02), t + dur]).sort((a, b) => a[0] - b[0]), merged = [];
+    for (const sp of spans) { const m = merged[merged.length - 1]; if (m && sp[0] <= m[1] + 0.01) m[1] = Math.max(m[1], sp[1]); else merged.push([...sp]); }
+    for (const [a, b] of merged) { const n = Math.max(3, Math.ceil((b - a) / 0.005) + 1), c = new Float32Array(n);
+      for (let i = 0; i < n; i++) c[i] = duckAt(a + (b - a) * i / (n - 1));
+      c[0] = c[n - 1] = 1; bedBus.gain.setValueCurveAtTime(c, a, b - a); } };
   for (const p of STORY.plates) {
     const t0 = p.start, tr = p.enter, ty = tr?.type, d = tr?.dur || 0.5;
+    AUDIO.plate = p.i; AUDIO.t0 = t0;                                                    // seeds are per plate (see sfxRng)
     if (p.i > 0) { AUDIO.tag = 'riser'; if (ty !== 'fade') SFX.riser(ac, out, Math.max(0, t0 - 0.35));
       AUDIO.tag = 'transition'; (TRANS_SFX[ty] || TRANS_SFX.cut)(ac, out, t0, d, tr || {}); duck(t0, 0.5, d + 0.4); }
     // the header types on: pen scratch on paper; on a night plate (or pen: false) there is no pen, so soft readout blips
@@ -2384,6 +2409,7 @@ async function renderAudio() {
     AUDIO.tag = 'cue';
     for (const [ct, type, opt] of (p.cues || [])) { SFX[type](ac, out, t0 + ct, opt || {}); if (type === 'chime' || type === 'pop' || type === 'crunch') duck(t0 + ct, 0.25, 0.35); }
   }
+  writeDucks(); AUDIO.reset();
   return ac.startRendering();
 }
 function makeReverb(ac) {

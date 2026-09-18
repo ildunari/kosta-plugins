@@ -7,27 +7,41 @@
 //   riser       the automatic riser before a seam
 //   transition  the automatic TRANS_SFX sound of a seam (counted once, as TRANS:<type>)
 //   bed         anything a plate's bed (or the automatic music bed) plays; beds loop by design and are listed apart
-// Only the top-level calls count (a whoosh that calls noise and tone is one whoosh). It reports:
-//   COUNT    events per type, and the share of the most-used type (a header's three typed lines count as one event)
-//   DOMINANT one type is more than MAX_SHARE of all foreground events (cue, header, transition)           -> FAIL
-//            (judged from MIN_EVENTS events up: in a short film a couple of cues swing the share)
+// Only the top-level calls count (a whoosh that calls noise and tone is one whoosh). The events fall in three pools:
+//   judged   the film's cues and its seams (each seam counted once, as TRANS:<type>): what the viewer hears as events
+//   headers  the automatic typing under each header (a header's three lines count as one event). It is one kind of
+//            event by design, the engine's own, and varies on every call, so it is counted and listed but does not
+//            count towards dominance: a film of ten headers is not monotone because each is written with a pen
+//   pulses   event sounds a bed plays (a heartbeat's thumps, a clock's ticks). A bed is a loop, so its pulse repeats by
+//            design and does not count towards dominance either; the pulses are listed and still judged for identical
+//            repeats. Texture sounds in beds (tone, noise, pad, padKey, BED.*) are listed apart and not judged.
+// It reports:
+//   COUNT    events per type in each pool
+//   DOMINANT the most-used type in the judged pool is more than MAX_SHARE of it, with SLACK events of grace for small
+//            samples: FAIL when n_dom >= MIN_DOM and n_dom > MAX_SHARE * n + SLACK. Judged at any length: a short
+//            film of one sound over and over fails (four pops and nothing else: 4 > 0.3 * 4 + 2), and the grace stops
+//            two cues from swinging a short film (3 of 6 passes; 5 of 8 fails)
 //   REPEAT   identical repeats: the same type with the same options, where the sound does not vary by itself
-//            (the engine's VARIED sounds re-seed on every call unless opts.seed is fixed). FAIL when one sound is
-//            repeated identically more than MAX_SAME times, or identical repeats are more than MAX_REPEAT_SHARE of
-//            the events
+//            (the engine's VARIED sounds re-seed on every call unless opts.seed is fixed), over cues, headers and
+//            bed pulses (a seam's own sound is excluded). FAIL when one sound is repeated identically more than MAX_SAME times, or
+//            identical repeats are more than MAX_REPEAT_SHARE of those events
 //   SERVES   one type used for events of different kinds: as a cue and also inside a transition (the same thump for
 //            a contact and a camera move)                                                                    -> WARN
 //   PEN      a scratch cue on a night plate (no pen in that world)                                             -> WARN
 // Calibration (v0.15): The Slow Squeeze (the review film, 172 s) has scratch at 34% of 264 events and 131 identical
-// repeats (tick x34, pop x28) on its own engine, and still 34% scratch rebuilt on the v0.15 engine: it fails both ways.
-// The bundled stories peak at 29% where judged and have no identical repeats.
+// repeats (tick x34, pop x28) on its own engine: it fails both ways. The final v0.15 review replaced the old 40-event floor (under
+// which five of the seven bundled stories went unjudged, some at 35-50% scratch) with the grace rule above, and took
+// the automatic header typing out of the judged pool. The bundled stories then pass with their cues as written, except
+// story_components, whose cues were 9 pops in 20 (fails 9 > 8); its cues were given variety. The fixture
+// tests/doodle-art-animation/fixtures/story_monotone.js (ten pops in 16 s) must fail.
 // Exit 0 when nothing fails, 1 on DOMINANT or REPEAT, 2 on setup errors (no file, no playwright, no SFX in the page).
 import { createRequire } from 'module';
 import { pathToFileURL } from 'url';
 import fs from 'fs'; import path from 'path'; import { execFileSync } from 'child_process';
 const require = createRequire(import.meta.url);
 
-const MAX_SHARE = 0.30, MIN_EVENTS = 40, MAX_SAME = 5, MAX_REPEAT_SHARE = 0.15;
+const MAX_SHARE = 0.30, SLACK = 2, MIN_DOM = 4, MAX_SAME = 5, MAX_REPEAT_SHARE = 0.15;
+const TEXTURE = new Set(['tone', 'noise', 'pad', 'padKey']);    // bed material that is not an event; BED.* too
 
 const args = process.argv.slice(2);
 if (!args[0] || args[0].startsWith('--')) { console.log('usage: node cue_check.mjs film.html [--json out.json] [--list]'); process.exit(2); }
@@ -89,18 +103,25 @@ const top = L.filter(e => e.depth === 0);
 // a header's kicker, title and subtitle type on as one event: count it once per plate; a seam's riser is part of its
 // transition sound (counted as the TRANS: event)
 const seenHeader = new Set();
-const fg = top.filter(e => e.tag !== 'bed' && e.tag !== 'riser' && !(e.tag === 'header' && (seenHeader.has(e.plate) || !seenHeader.add(e.plate)))), beds = top.filter(e => e.tag === 'bed'), risers = top.filter(e => e.tag === 'riser');
+const headers = top.filter(e => e.tag === 'header' && !seenHeader.has(e.plate) && seenHeader.add(e.plate));
+const judged = top.filter(e => e.tag === 'cue' || e.tag === 'transition');
+const bedAll = top.filter(e => e.tag === 'bed'), risers = top.filter(e => e.tag === 'riser');
+const pulses = bedAll.filter(e => !TEXTURE.has(e.k) && !e.k.startsWith('BED.')), textures = bedAll.filter(e => !pulses.includes(e));
+const tally = list => { const c = {}; for (const e of list) c[e.k] = (c[e.k] || 0) + 1; return Object.entries(c).sort((a, b) => b[1] - a[1]); };
+const fg = [...judged, ...headers];                                    // every foreground event, for the byTag breakdown
 const count = {}, byTag = {};
 for (const e of fg) { count[e.k] = (count[e.k] || 0) + 1; (byTag[e.k] ||= {})[e.tag] = (byTag[e.k][e.tag] || 0) + 1; }
-const types = Object.entries(count).sort((a, b) => b[1] - a[1]);
-const [domType, domN] = types[0] || ['-', 0], share = fg.length ? domN / fg.length : 0;
+const types = tally(judged);
+const [domType, domN] = types[0] || ['-', 0], share = judged.length ? domN / judged.length : 0, domLimit = MAX_SHARE * judged.length + SLACK;
+const allTypes = tally(fg), allShare = fg.length ? allTypes[0][1] / fg.length : 0;
 
 // identical repeats: same type + same options, for sounds that do not vary on their own (or whose seed is fixed)
+const repPool = [...judged.filter(e => !e.trans), ...headers, ...pulses];   // headers vary by themselves on a v0.15 engine; on an older one they can repeat
 const groups = new Map();
-for (const e of fg) { if (e.trans || (V.has(e.k) && !e.seeded)) continue;
-  const key = e.k + ' ' + e.o; const g = groups.get(key) || { k: e.k, o: e.o, times: [] }; g.times.push(e.t); groups.set(key, g); }
+for (const e of repPool) { if (V.has(e.k) && !e.seeded) continue;
+  const key = e.tag + ' ' + e.k + ' ' + e.o; const g = groups.get(key) || { k: e.k, tag: e.tag, o: e.o, times: [] }; g.times.push(e.t); groups.set(key, g); }
 const same = [...groups.values()].filter(g => g.times.length > 1).sort((a, b) => b.times.length - a.times.length);
-const repeats = same.reduce((s, g) => s + g.times.length - 1, 0), repShare = fg.length ? repeats / fg.length : 0;
+const repeats = same.reduce((s, g) => s + g.times.length - 1, 0), repShare = repPool.length ? repeats / repPool.length : 0;
 const maxSame = same.length ? same[0].times.length : 0;
 
 // one type serving events of different kinds: a cue sound that also plays inside a transition
@@ -111,21 +132,27 @@ const serves = Object.keys(inTrans).filter(k => !PRIMS.has(k) && (byTag[k] || {}
 const pen = fg.filter(e => e.k === 'scratch' && e.tag === 'cue' && plates[e.plate].dark);
 
 const fmt = t => t.toFixed(2);
-console.log(`${res.title}: ${fg.length} sound events (${beds.length} more inside beds, ${risers.length} risers counted with their seams), ${types.length} types, ${res.total.toFixed(1)} s`
+console.log(`${res.title}: ${judged.length} judged events (cues and seams), ${headers.length} typed headers, ${pulses.length} bed pulses, `
+  + `${textures.length} bed textures, ${risers.length} risers counted with their seams; ${types.length} judged types, ${res.total.toFixed(1)} s`
   + (res.hasTag ? '' : '  [older engine: layers told apart by time]'));
 if (list) for (const e of top) console.log(`  ${fmt(e.t).padStart(7)} s  plate ${String(e.plate).padEnd(2)} ${e.tag.padEnd(10)} ${e.k.padEnd(16)} ${e.o === '{}' ? '' : e.o.slice(0, 90)}`);
-console.log('COUNT   ' + types.map(([k, n]) => `${k} ${n}` + (Object.keys(byTag[k]).length > 1 || byTag[k].cue == null ? ` (${Object.entries(byTag[k]).map(([t, m]) => `${t} ${m}`).join(', ')})` : '')).join(', '));
-if (beds.length) { const bc = {}; for (const e of beds) bc[e.k] = (bc[e.k] || 0) + 1;
-  console.log('BEDS    ' + Object.entries(bc).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(', ')); }
-const failShare = fg.length >= MIN_EVENTS && share > MAX_SHARE;
-console.log(`${failShare ? 'FAIL' : 'PASS'}    dominant: ${domType} is ${(share * 100).toFixed(0)}% of events (limit ${MAX_SHARE * 100}%${fg.length < MIN_EVENTS ? `, not judged under ${MIN_EVENTS} events` : ''})`);
+const line = list => list.map(([k, n]) => `${k} ${n}`).join(', ') || '-';
+console.log('COUNT   ' + line(types));
+console.log('HEADERS ' + line(tally(headers)) + '  (automatic, varied per call; not judged for dominance)');
+if (pulses.length) console.log('PULSES  ' + line(tally(pulses)) + '  (inside beds: a loop repeats by design; judged for identical repeats only)');
+if (textures.length) console.log('BEDS    ' + line(tally(textures)));
+const failShare = domN >= MIN_DOM && domN > domLimit;
+console.log(`${failShare ? 'FAIL' : 'PASS'}    dominant: ${domType} is ${domN} of ${judged.length} judged events, ${(share * 100).toFixed(0)}% `
+  + `(limit ${MAX_SHARE * 100}% + ${SLACK} events = ${domLimit.toFixed(1)}; judged from ${MIN_DOM})`
+  + (fg.length > judged.length ? `; with the headers, ${allTypes[0][0]} is ${(allShare * 100).toFixed(0)}% of all ${fg.length}` : ''));
 const failRep = maxSame > MAX_SAME || repShare > MAX_REPEAT_SHARE;
-console.log(`${failRep ? 'FAIL' : 'PASS'}    identical repeats: ${repeats} (${(repShare * 100).toFixed(0)}% of events, limit ${MAX_REPEAT_SHARE * 100}%); most repeated ${maxSame}x (limit ${MAX_SAME})`);
-for (const g of same.slice(0, 8)) console.log(`REPEAT  ${g.k} ${g.o === '{}' ? '(default options)' : g.o.slice(0, 70)} x${g.times.length} at ${g.times.slice(0, 8).map(fmt).join(', ')}${g.times.length > 8 ? ', ...' : ''} s`);
+console.log(`${failRep ? 'FAIL' : 'PASS'}    identical repeats: ${repeats} (${(repShare * 100).toFixed(0)}% of cues, headers and pulses, limit ${MAX_REPEAT_SHARE * 100}%); most repeated ${maxSame}x (limit ${MAX_SAME})`);
+for (const g of same.slice(0, 8)) console.log(`REPEAT  ${g.tag === 'bed' ? 'bed pulse ' : ''}${g.k} ${g.o === '{}' ? '(default options)' : g.o.slice(0, 70)} x${g.times.length} at ${g.times.slice(0, 8).map(fmt).join(', ')}${g.times.length > 8 ? ', ...' : ''} s`);
 for (const s of serves) console.log(`WARN    serves: ${s.k} plays as a cue (${s.cues.slice(0, 6).map(fmt).join(', ')} s) and inside the ${s.transitions.join('/')} transition sound; give the camera move and the on-screen event different sounds`);
 if (pen.length) console.log(`WARN    pen: scratch cue on a night plate (no pen there) at ${pen.slice(0, 8).map(e => fmt(e.t)).join(', ')} s`);
 const fail = failShare || failRep;
 console.log(`result: ${fail ? 'FAIL' : serves.length || pen.length ? 'WARN' : 'PASS'}`);
-if (jsonOut) fs.writeFileSync(path.resolve(jsonOut), JSON.stringify({ title: res.title, events: top, counts: count, byTag, dominant: { type: domType, share },
-  repeats: { total: repeats, share: repShare, groups: same }, serves, pen, beds: beds.length, limits: { MAX_SHARE, MIN_EVENTS, MAX_SAME, MAX_REPEAT_SHARE } }, null, 1));
+if (jsonOut) fs.writeFileSync(path.resolve(jsonOut), JSON.stringify({ title: res.title, events: top, counts: Object.fromEntries(types), byTag,
+  headers: Object.fromEntries(tally(headers)), pulses: Object.fromEntries(tally(pulses)), dominant: { type: domType, n: domN, of: judged.length, share, limit: domLimit },
+  repeats: { total: repeats, share: repShare, groups: same }, serves, pen, beds: bedAll.length, limits: { MAX_SHARE, SLACK, MIN_DOM, MAX_SAME, MAX_REPEAT_SHARE } }, null, 1));
 process.exit(fail ? 1 : 0);

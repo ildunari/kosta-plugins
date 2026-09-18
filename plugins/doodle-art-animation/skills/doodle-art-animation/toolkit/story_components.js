@@ -63,7 +63,7 @@ const C1 = {
   log: t => ({ title: `LOG · ${HERO}`, rows: [['DISTANCE', `${fmt(Math.round(lerp(0, 2400, t / 7.5)))} m`], ['SIGNAL', `${Math.round(lerp(12, 70, clamp(t / 6)))} %`]] }),
   cam: t => follow(p1At, t, { s: 1.1, lead: 200, anchor: [700, 620] }),
   hero: t => { const [x, y] = p1At(t); return { x, y, label: HERO, r: 44 }; },
-  cues: [[1.4, 'pop'], [2.0, 'scratch', { chars: 18 }], [4.0, 'chime', { f: 587 }]],
+  cues: [[1.2, 'pageFlip'], [2.0, 'scratch', { chars: 18 }], [4.0, 'chime', { f: 587 }]],   // the card opens: paper, not a pop
   draw(t) {
     const c = C1.cam(t);
     parallax(c, 0.2, () => { cloud(500, 380, 21); cloud(1300, 300, 22); cloud(2100, 360, 23); });
@@ -93,7 +93,7 @@ const C2 = {
   header: { num: 2, title: 'Downstream', sub: 'match cut, carried motion, a follow pan' }, stage: { n: 3, name: 'RIVER' },
   cam: t => ({ x: W / 2, y: H / 2, s: 1, dx: -clamp(p2At(t - 0.4)[0] - 820, 0, WORLD - W) }),
   hero: t => { const [x, y] = p2At(t); return { x, y: y - 20, label: HERO, r: 40 }; },
-  cues: [[1.6, 'scratch', { chars: 12 }], [3.4, 'pop'], [5.0, 'chime', { f: 523 }]],
+  cues: [[1.6, 'scratch', { chars: 12 }], [3.0, 'pageFlip'], [5.0, 'chime', { f: 523 }]],
   draw(t) {
     const c = C2.cam(t);
     parallax(c, 0.15, () => { cloud(1400, 380, 31); cloud(2600, 340, 32); });
@@ -118,7 +118,7 @@ const C3 = {
   header: { num: 3, title: 'In the Water', sub: 'an inset lens and a dark chart' }, stage: { n: 4, name: 'INSIDE' },
   cam: t => ({ x: C3c[0], y: C3c[1], s: 1 + 0.08 * E.inOutSine(t / 7), rot: 0.07 * Math.sin(t * 0.45) }),
   hero: t => { const [dx, dy] = wander(3, t, 10, 1.4); return { x: C3c[0] + dx, y: C3c[1] + dy, label: HERO, r: 56 }; },
-  cues: [[1.2, 'pop'], [1.4, 'readout', { chars: 20 }], [3.2, 'chime', { f: 440 }]],
+  cues: [[1.0, 'clink'], [1.4, 'readout', { chars: 20 }], [3.2, 'chime', { f: 440 }]],   // the lens opens: glass
   draw(t) {
     specks(t, 110, 41, { cx: 900, cy: 560, rx: 820, ry: 440 });
     const h = C3.hero(t); probe(h.x, h.y, 1, t, true);
@@ -141,7 +141,7 @@ const C4 = {
   header: { num: 4, title: 'Inside the Scene', sub: 'components drawn in the world scale with it' }, stage: { n: 5, name: 'WORLD' },
   cam: t => ({ x: 960, y: 560, s: 1 + 0.14 * E.inOutSine(clamp(t / 7)) }),
   hero: t => ({ x: 1500, y: 560 + 8 * Math.sin(t * 1.8), label: HERO, r: 40 }),
-  cues: [[1.6, 'scratch', { chars: 16 }], [3.0, 'pop']],
+  cues: [[1.6, 'scratch', { chars: 16 }], [3.6, 'clink']],
   draw(t) {
     ground(t, { y: 800, seed: 17 });
     cloud(300 + 12 * t, 360, 51);
@@ -212,7 +212,7 @@ const C7 = {
   header: { num: 7, title: 'Back Up', sub: 'a lens that is open across the next seam' }, stage: { n: 8, name: 'SURFACE' },
   hero: t => ({ x: 1100, y: 600 + 6 * Math.sin(t * 2), label: HERO, r: 40 }),
   cam: t => ({ x: 1100, y: 600, s: 1.02 + 0.05 * E.inOutSine(t / 6.5) }),
-  cues: [[1.6, 'pop'], [3.0, 'scratch', { chars: 20 }]],
+  cues: [[1.5, 'clink'], [3.0, 'scratch', { chars: 20 }]],
   draw(t) { ground(t, { y: 720, seed: 31 }); cloud(700 - 10 * t, 380, 71); const h = C7.hero(t); probe(h.x, h.y, 1, t); },
   overlay(t) {
     const h = heroOf(C7, t);
@@ -227,7 +227,7 @@ const C8 = {
   dur: 5.5, dark: false, enter: { type: 'iris' },
   header: { num: 8, title: 'Summary', sub: 'stat, card and chart together' }, stage: { n: 9, name: 'SUMMARY' },
   hero: t => ({ x: 480, y: 600, label: HERO, r: 40 }),
-  cues: [[1.4, 'pop']],
+  cues: [[1.0, 'pop'], [1.6, 'pageFlip']],
   draw(t) { ground(t, { y: 760, seed: 41 }); probe(480, 600 + 6 * Math.sin(t * 2), 1, t); cloud(1500 + 6 * t, 330, 81); },
   overlay(t) {
     withAlpha(beat(t, 1.0), () => stat(t - 1.0, { x: 96, y: 420, kicker: 'PLATES', value: '9', note: 'eight seams' }));
@@ -244,5 +244,6 @@ const END = {
     dropText(q, 960 - measure(q, qo) / 2, 700, t - 0.5, qo);
   },
 };
-defineStory({ title: 'Component Reel', stages: 9, music: { tonic: 220 }, plates: [C0, C1, C2, C3, C4, C5, C6, C7, C8, END] });
+defineStory({ title: 'Component Reel', stages: 9, music: { tonic: 220 }, plates: [C0, C1, C2, C3, C4, C5, C6, C7, C8, END],
+  dynamics: [[0, -4], [6.5, -3.5], [22, -2.5], [36, -1], [42, 0], [43.5, 4], [48.5, 4], [50.5, 1], [65.5, 0]] });   // sound: a lift at the gathered ring (plate VI)
 boot();
