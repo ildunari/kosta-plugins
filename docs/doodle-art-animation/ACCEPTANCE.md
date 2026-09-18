@@ -1,4 +1,6 @@
-# doodle-art-animation v0.13 — acceptance (go / no-go)
+# doodle-art-animation — acceptance (go / no-go)
+
+v0.13 items are L1–L17; v0.14's workflow items are W1–W9 at the end of this file.
 
 The ledger agreed with Kosta on 2026-09-17, turned into checks. `tests/doodle-art-animation/acceptance_check.py`
 runs every **[auto]** item (`--static` for the text and file checks, add `--full` for builds, renders and timing).
@@ -116,8 +118,59 @@ a film may not cross, except snaps, determinism and reading time.
   and plain text otherwise; skipping on "just make it".
 - [auto] SKILL.md workflow has an intake step 0 that points to it.
 
+# v0.14 — workflow ledger (W1–W9)
+
+Agreed with Kosta on 2026-09-17 after a real Cowork run fired `script-reviewer` and then `sound-designer`
+before a script existed, wrote the script afterwards, and then built with the reviews already stale.
+The v0.13 items above stay in force; these add the phase and gate structure.
+
+## W1 · The script step is split, and sound design has one home
+- [auto] SKILL.md's workflow has a step that only authors the script, a separate blocking `Gate 1`, and a
+  separate step for the sound plan. The script-authoring step does not mention `sound-designer`.
+- [auto] No agent description contains a workflow step number (they drift), and `sound-designer` no longer
+  claims "workflow step 5".
+
+## W2 · Every agent refuses to start without its input
+- [auto] Each of the five agent files has a `## Preconditions` section naming the file or artefact it needs and
+  saying to stop and report when it is missing: `script-reviewer` a script file, `sound-designer` a reviewed
+  script, `film-reviewer` and `seam-reviewer` a built film, `audio-reviewer` an MP4 with audio.
+
+## W3 · A phase table, not prose
+- [auto] SKILL.md has a `## Phases and gates` table whose header names what each phase **needs**, what it
+  **produces**, and which **lanes** may run at the same time.
+
+## W4 · Per-scene build lanes
+- [auto] `references/build-lanes.md` exists and covers: one plate per agent, a range sheet as the agent's
+  evidence, no engine edits, shared helpers in one file, assembly by the main session, and how style drift is
+  prevented.
+- [auto] SKILL.md's build step points to it.
+
+## W5 · One shared QA render
+- [auto] SKILL.md's QA step says the sheets, strips and seam sheets are rendered once into `qa/` and that the
+  reviewers reuse them instead of rendering their own.
+
+## W6 · Fix loop re-runs only what changed
+- [auto] SKILL.md and `skills/doodle-qa/SKILL.md` both say to merge the fix list, apply it, and re-run only the
+  checks affected by the change.
+
+## W7 · The order is mechanical: two commands
+- [auto] `skills/doodle-plan/SKILL.md` (intake, research lanes, script, Gate 1) and
+  `skills/doodle-build/SKILL.md` (build lanes, assembly, checks, reviewers) exist, each with `name`,
+  `description` and `disable-model-invocation: true`.
+- [auto] SKILL.md names both commands.
+
+## W8 · Agents don't invite themselves
+- [auto] No agent description says "use proactively". Each description names the command or phase that owns it
+  (`doodle-plan`, `doodle-build` or `doodle-qa`).
+
+## W9 · Gate 1 is a timed card
+- [auto] `references/intake.md` has a `## Timed plan approval` section: the summary carries an explicit wait
+  (10 minutes by default), silence counts as approval, the deadline is stated up front, and it says what stays
+  editable afterwards (the script and seams, until the final render).
+- [auto] SKILL.md's Gate 1 step says the same, and says which work may start during the wait.
+
 ## Release
-- [auto] `plugin.json` and the marketplace entry say `0.13.0`.
+- [auto] `plugin.json` and the marketplace entry say `0.14.0`.
 - [auto] `smoke_test.py` passes on every bundled story, including `story_brushes.js`.
 - [eye] Final independent review against this file and the ledger; example films and gallery re-rendered and
   sent to Kosta.

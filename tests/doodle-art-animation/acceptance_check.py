@@ -221,12 +221,97 @@ if want('L17'):
     s0 = workflow_step(SKILL, 0)
     check('L17', 'workflow step 0 points to intake.md', 'intake.md' in s0)
 
+AGENTS_ALL = ['script-reviewer', 'sound-designer', 'film-reviewer', 'seam-reviewer', 'audio-reviewer']
+AG = {n: (read(os.path.join(PLUG, 'agents', f'{n}.md')) or '') for n in AGENTS_ALL}
+AGD = {n: frontmatter(os.path.join(PLUG, 'agents', f'{n}.md')).get('description', '') for n in AGENTS_ALL}
+PLAN = read(os.path.join(PLUG, 'skills', 'doodle-plan', 'SKILL.md')) or ''
+BUILD = read(os.path.join(PLUG, 'skills', 'doodle-build', 'SKILL.md')) or ''
+INTAKE = read(os.path.join(REF, 'intake.md')) or ''
+LANES = read(os.path.join(REF, 'build-lanes.md')) or ''
+WF = section(SKILL, r'^## Workflow')
+def wstep(pat):
+    """the workflow step whose text matches pat (a regex), or '' """
+    for m in re.finditer(r'^(?:\d+|Gate \d+)[.)] (.*?)(?=^(?:\d+|Gate \d+)[.)] |\Z)', WF, re.M | re.S):
+        if re.search(pat, m.group(1), re.I): return m.group(1)
+    return ''
+
+if want('W1'):
+    authoring = wstep(r'writes? the scene script|scene script')
+    check('W1', 'a step authors the script on its own', bool(authoring) and 'sound-designer' not in authoring,
+          'the script step still mentions sound-designer' if authoring else 'no script-authoring step found')
+    check('W1', 'a blocking Gate 1 step exists', bool(re.search(r'^Gate 1[.)]', WF, re.M)) and bool(wstep(r'script-reviewer')))
+    check('W1', 'the sound plan has its own step', bool(wstep(r'sound-designer')) and wstep(r'sound-designer') != authoring)
+    bad = [n for n, d in AGD.items() if re.search(r'workflow step \d', d, re.I)]
+    check('W1', 'no agent description names a workflow step number', not bad, ', '.join(bad))
+
+if want('W2'):
+    need = {'script-reviewer': r'script', 'sound-designer': r'review', 'film-reviewer': r'(built|html)',
+            'seam-reviewer': r'(built|html)', 'audio-reviewer': r'(mp4|audio)'}
+    for n in AGENTS_ALL:
+        pre = section(AG[n], r'^## Preconditions')
+        ok = bool(pre.strip()) and bool(re.search(r'\bstop\b', pre, re.I)) and bool(re.search(need[n], pre, re.I))
+        check('W2', f'{n} has Preconditions that stop on a missing input', ok,
+              'no "## Preconditions" section' if not pre.strip() else 'must say stop, and name its input')
+
+if want('W3'):
+    tbl = section(SKILL, r'^## Phases and gates')
+    hdr = next((l for l in tbl.splitlines() if l.strip().startswith('|')), '')
+    check('W3', 'SKILL.md has a "## Phases and gates" table', bool(tbl.strip()) and bool(hdr))
+    check('W3', 'the table says needs / produces / lanes', all(w in hdr.lower() for w in ('needs', 'produces', 'lane')), hdr[:90])
+
+if want('W4'):
+    check('W4', 'references/build-lanes.md exists', bool(LANES.strip()))
+    miss = [k for k, ok in {'one plate per agent': bool(re.search(r'one plate', LANES, re.I)),
+                            'range sheet evidence': has(LANES, 'range sheet'),
+                            'no engine edits': bool(re.search(r'(never|not|no)[^.\n]{0,40}engine\.js', LANES, re.I)),
+                            'shared helpers file': has(LANES, 'helpers'),
+                            'assembly by the main session': bool(re.search(r'assembl', LANES, re.I)),
+                            'style drift': has(LANES, 'drift')}.items() if not ok]
+    check('W4', 'build-lanes.md covers the lane contract', not miss, 'missing ' + ', '.join(miss))
+    check('W4', 'the build step points to build-lanes.md', 'build-lanes.md' in WF)
+
+if want('W5'):
+    qa = wstep(r'qa/|contact sheet')
+    check('W5', 'QA step renders the sheets once and the reviewers reuse qa/',
+          bool(qa) and has(qa, 'reuse') and has(qa, 'qa/'), 'the QA step must say the reviewers reuse qa/')
+
+if want('W6'):
+    check('W6', 'SKILL.md says to re-run only the affected checks',
+          bool(re.search(r're-?run only', SKILL, re.I)))
+    check('W6', 'doodle-qa says the same', bool(re.search(r're-?run only', QA, re.I)))
+
+if want('W7'):
+    for n, t in (('doodle-plan', PLAN), ('doodle-build', BUILD)):
+        fm = frontmatter(os.path.join(PLUG, 'skills', n, 'SKILL.md'))
+        check('W7', f'skills/{n}/SKILL.md with frontmatter', fm.get('name') == n and bool(fm.get('description'))
+              and str(fm.get('disable-model-invocation')).lower() == 'true')
+    check('W7', 'SKILL.md names both commands', 'doodle-plan' in SKILL and 'doodle-build' in SKILL)
+
+if want('W8'):
+    bad = [n for n, d in AGD.items() if re.search(r'use proactively', d, re.I)]
+    check('W8', 'no agent description says "use proactively"', not bad, ', '.join(bad))
+    miss = [n for n, d in AGD.items() if not re.search(r'doodle-(plan|build|qa)', d)]
+    check('W8', 'each description names the command that owns it', not miss, ', '.join(miss))
+
+if want('W9'):
+    tp = section(INTAKE, r'^## Timed plan approval')
+    miss = [k for k, ok in {'section': bool(tp.strip()), '10 minutes': '10 min' in tp.lower(),
+                            'silence approves': bool(re.search(r'(silence|no reply|hear nothing|don.t hear)', tp, re.I)),
+                            'deadline stated up front': bool(re.search(r'(say|state|tell).{0,40}(deadline|before|up front|when)', tp, re.I)),
+                            'what stays editable': bool(re.search(r'(edit|change|revis)', tp, re.I))}.items() if not ok]
+    check('W9', 'intake.md has a timed plan approval section', not miss, 'missing ' + ', '.join(miss))
+    g1 = wstep(r'^\*\*|timed|deadline') or section(SKILL, r'^Gate 1')
+    g1 = next((m.group(1) for m in re.finditer(r'^Gate 1[.)] (.*?)(?=^(?:\d+|Gate \d+)[.)] |\Z)', WF, re.M | re.S)), '')
+    check('W9', 'Gate 1 in SKILL.md is the timed card and says what may start during the wait',
+          bool(g1) and bool(re.search(r'(10 min|timed)', g1, re.I)) and bool(re.search(r'(during the wait|meanwhile|while waiting)', g1, re.I)),
+          'Gate 1 must name the wait and what work may start during it')
+
 if want('REL'):
     pj = json.loads(read(os.path.join(PLUG, '.claude-plugin', 'plugin.json')) or '{}')
     mj = json.loads(read(os.path.join(REPO, '.claude-plugin', 'marketplace.json')) or '{}')
     mv = next((p.get('version') for p in mj.get('plugins', []) if p.get('name') == 'doodle-art-animation'), None)
-    check('REL', 'plugin.json version 0.13.0', pj.get('version') == '0.13.0', str(pj.get('version')))
-    check('REL', 'marketplace entry version 0.13.0', mv == '0.13.0', str(mv))
+    check('REL', 'plugin.json version 0.14.0', pj.get('version') == '0.14.0', str(pj.get('version')))
+    check('REL', 'marketplace entry version 0.14.0', mv == '0.14.0', str(mv))
 
 # ---------------------------------------------------------------- full checks (build, probe, render)
 def run(cmd, cwd=None, timeout=1800):
@@ -352,7 +437,8 @@ if a.full:
         check('REL', 'smoke_test covered story_brushes.js', 'story_brushes' in out)
 
 # ---------------------------------------------------------------- report
-order = ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9', 'L10', 'L11', 'L12', 'L13', 'L14', 'L15', 'L16', 'L17', 'REL']
+order = ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9', 'L10', 'L11', 'L12', 'L13', 'L14', 'L15', 'L16', 'L17',
+         'W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'REL']
 col = {'PASS': '\033[32m', 'FAIL': '\033[31m', 'SKIP': '\033[33m'}
 tty = sys.stdout.isatty()
 for item in order:
