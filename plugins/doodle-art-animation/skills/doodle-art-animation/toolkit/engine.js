@@ -1858,6 +1858,72 @@ const panOf = t => (hash3(Math.round(t * 1000), 5) - 0.5) * 1.3;          // det
 const PROG = [[0, 4, 7, 11], [-3, 0, 4, 7], [5, 9, 12, 16], [7, 11, 14, 17], [2, 5, 9, 12], [7, 11, 14, 17]];
 const SCALE = [0, 2, 4, 7, 9, 12, 14, 16];
 const note = (tonic, deg) => tonic * 2 ** (SCALE[((deg % 8) + 8) % 8] / 12 + Math.floor(deg / 8));
+/*
+ * Variation. Every sound below that is listed in VARIED re-rolls its small details (pitch, length, timbre) on each
+ * call from a seed: opts.seed when given (a fixed seed plays the same sound every time), otherwise the call time
+ * and a per-render counter. Still deterministic: the same film renders the same audio every time, but no two pops,
+ * risers or pen scratches in it are identical. AUDIO.tag names the layer that is playing (cue, header, riser,
+ * transition, bed) for cue_check.mjs.
+ */
+const AUDIO = { tag: 'cue', n: 0 };
+const VARIED = new Set(['tick', 'scratch', 'readout', 'pop', 'chime', 'plink', 'thump', 'swell', 'riser', 'crackle', 'whoosh', 'shutter',
+  'glide', 'flick', 'bend', 'hiss', 'crunch', 'creak', 'pump', 'relay', 'plop', 'slosh', 'shaker', 'clink', 'pour', 'foil', 'droplet',
+  'pageFlip', 'pegSnap']);
+const saltOf = s => { let h = 7; for (let i = 0; i < s.length; i++) h = Math.imul(h, 31) + s.charCodeAt(i) | 0; return h; };
+/** rng for one sound: mulberry seeded by opts.seed, or by the call time and a counter */
+const sfxRng = (o, t, name) => mulberry((o && o.seed != null ? Math.imul(o.seed | 0, 7919) : Math.imul(Math.round(t * 1000), 131) + Math.imul(AUDIO.n++, 977)) ^ saltOf(name));
+const rr = (r, a, b) => a + (b - a) * r();
+const semis = (r, n) => 2 ** ((r() * 2 - 1) * n / 12);                      // a random interval within +/- n semitones
+
+/*
+ * Sample-level synthesis for the sounds WebAudio nodes can't shape well (grains, bubbles, modes, stick-slip).
+ * Techniques, after Andy Farnell, Designing Sound (MIT Press 2010) and its SuperCollider port
+ * (en.wikibooks.org/wiki/Designing_Sound_in_SuperCollider: Bubbles, Rain, Running water, Creaking door, Motors):
+ *   - bubbles and drops: a damped sine whose pitch rises exponentially after it forms (Minnaert resonance with the
+ *     rising chirp of K. van den Doel, "Physically based models for liquid sounds", ACM TAP 2005): droplet, plop,
+ *     slosh, pour, rain;
+ *   - modal synthesis: a struck object as a sum of exponentially decaying sines at its mode frequencies (inharmonic
+ *     for glass and metal): clink, relay, pegSnap, foil, the rattle in shaker;
+ *   - stick-slip friction: an irregular impulse train (slip events whose rate follows the force) through fixed
+ *     resonators, the body of the door or beam: creak;
+ *   - granular clusters: many millisecond noise grains, densest at the start and decaying, for fracture and grit:
+ *     crunch, foil crinkle, pageFlip's flutter;
+ *   - filtered noise with slow random (value-noise) modulation of level and centre frequency: wind, hiss, cityHum
+ *     pass-bys, roomTone air.
+ * Each fill writes a mono buffer that is normalized to peak 1, so `g` is the sound's peak before the master chain.
+ */
+const DSP = {
+  burst(d, t0, amp, len, tau, r) { const i0 = t0 * SR | 0, n = Math.min(d.length - i0, len * SR | 0), k = 1 / (tau * SR);
+    for (let i = 0; i < n; i++) d[i0 + i] += amp * (r() * 2 - 1) * Math.exp(-i * k); },
+  chirp(d, t0, amp, f0, f1, sweep, tau, len = tau * 6) { const i0 = t0 * SR | 0, n = Math.min(d.length - i0, len * SR | 0), k = Math.log(f1 / f0) / Math.max(1e-4, sweep);
+    let ph = 0; for (let i = 0; i < n; i++) { const s = i / SR; ph += TAU * f0 * Math.exp(k * Math.min(s, sweep)) / SR; d[i0 + i] += amp * Math.sin(ph) * Math.exp(-s / tau) * Math.min(1, i / 48); } },
+  modes(d, t0, list) { const i0 = t0 * SR | 0;
+    for (const [f, a, tau] of list) { const n = Math.min(d.length - i0, tau * 7 * SR | 0), w = TAU * f / SR, k = 1 / (tau * SR);
+      for (let i = 0; i < n; i++) d[i0 + i] += a * Math.sin(w * i) * Math.exp(-i * k) * Math.min(1, i / 24); } },
+  /** two-pole resonator (centre f, bandwidth bw Hz); f may be a function of the sample index for a sweep */
+  reson(x, f, bw) { const r = Math.exp(-Math.PI * bw / SR), a2 = -r * r, y = new Float32Array(x.length); let y1 = 0, y2 = 0;
+    const fixed = typeof f !== 'function', c = fixed ? 2 * r * Math.cos(TAU * f / SR) : 0;
+    for (let i = 0; i < x.length; i++) { const a1 = fixed ? c : 2 * r * Math.cos(TAU * f(i) / SR), v = (1 - r) * x[i] + a1 * y1 + a2 * y2; y[i] = v; y2 = y1; y1 = v; } return y; },
+  norm(d) { let m = 0; for (let i = 0; i < d.length; i++) m = Math.max(m, Math.abs(d[i])); if (m > 0) for (let i = 0; i < d.length; i++) d[i] /= m; return d; },
+};
+/** synth: fill(d, r) writes a mono buffer of `dur` s that plays at t, normalized, through optional biquads.
+ *  filters: [{ type, f, f1 (ramp to by the end), q, gain, curve (Float32Array of Hz over the sound) }]; pan1 ramps the pan. */
+function synth(ac, out, t, dur, fill, { g = 0.1, pan = 0, pan1 = null, filters = [], r = mulberry(1), fade = 0 } = {}) {
+  const n = Math.max(2, Math.ceil(SR * dur)), b = ac.createBuffer(1, n, SR), d = b.getChannelData(0); fill(d, r); DSP.norm(d);
+  if (fade) { const m = Math.min(n >> 1, fade * SR | 0); for (let i = 0; i < m; i++) { d[i] *= i / m; d[n - 1 - i] *= i / m; } }
+  const s = ac.createBufferSource(); s.buffer = b; let node = s;
+  for (const f of filters) { const bq = ac.createBiquadFilter(); bq.type = f.type || 'bandpass'; bq.Q.value = f.q ?? 0.7; if (f.gain != null) bq.gain.value = f.gain;
+    if (f.curve) bq.frequency.setValueCurveAtTime(f.curve, t, dur); else { bq.frequency.setValueAtTime(f.f, t); if (f.f1) bq.frequency.exponentialRampToValueAtTime(f.f1, t + dur); }
+    node = node.connect(bq); }
+  const v = ac.createGain(), pn = ac.createStereoPanner(); v.gain.value = g; pn.pan.setValueAtTime(clamp(pan, -1, 1), t);
+  if (pan1 != null) pn.pan.linearRampToValueAtTime(clamp(pan1, -1, 1), t + dur);
+  node.connect(v).connect(pn).connect(out); s.start(t);
+}
+/** white noise shaped by env(s) (s in seconds) into d */
+const noiseInto = (d, r, env) => { for (let i = 0; i < d.length; i++) d[i] += (r() * 2 - 1) * env(i / SR); };
+/** a slow random curve (value noise) sampled n times over dur, mapped to [lo, hi] */
+const slowCurve = (seed, dur, rate, lo, hi, n = 64) => { const c = new Float32Array(n); for (let i = 0; i < n; i++) c[i] = lo + (hi - lo) * (vnoise(i / (n - 1) * dur * rate, seed) + 1) / 2; return c; };
+
 const SFX = {
   tone(ac, out, t, { f = 880, f2 = null, dur = 0.12, g = 0.06, type = 'sine', a = 0.004, pan = 0 }) {
     const o = ac.createOscillator(), v = ac.createGain(), pn = ac.createStereoPanner(); o.type = type; o.frequency.setValueAtTime(f, t); pn.pan.value = pan;
@@ -1876,27 +1942,155 @@ const SFX = {
       l.connect(lg).connect(mod.gain); node = node.connect(mod); l.start(t); l.stop(t + dur); }
     node.connect(pn).connect(out); s.start(t, (t * 7.3) % 5); s.stop(t + dur + 0.05);
   },
-  tick(ac, out, t) { SFX.tone(ac, out, t, { f: 3200, dur: 0.03, g: 0.012, pan: panOf(t) }); },
-  /** pen-on-paper scratch for the whole length of a typed line */
-  scratch(ac, out, t, { chars = 20, cps = 30, g = 0.016 } = {}) { SFX.noise(ac, out, t, { dur: Math.max(0.15, chars / cps), g, f0: 3600, q: 1.1, a: 0.02, lfo: Math.min(cps, 24), pan: panOf(t) * 0.5 }); },
-  pop(ac, out, t) { const pan = panOf(t); SFX.tone(ac, out, t, { f: 980, f2: 620, dur: 0.14, g: 0.07, pan }); SFX.tone(ac, out, t + 0.01, { f: 1960, dur: 0.08, g: 0.02, pan }); },
-  chime(ac, out, t, { f = 660 } = {}) { [1, 2, 3.01].forEach((m, i) => SFX.tone(ac, out, t + i * 0.012, { f: f * m, dur: 2.0 - i * 0.5, g: 0.05 / (i + 1), a: 0.02, pan: (i - 1) * 0.3 })); },
-  plink(ac, out, t, { f = 1500 } = {}) { SFX.tone(ac, out, t, { f, f2: f * 0.35, dur: 0.09, g: 0.06, pan: panOf(t) }); },
-  thump(ac, out, t, { g = 0.25 } = {}) { SFX.tone(ac, out, t, { f: 90, f2: 42, dur: 0.22, g }); },
-  swell(ac, out, t, { dur = 0.6, up = true } = {}) {
-    SFX.tone(ac, out, t, { f: up ? 220 : 1300, f2: up ? 1300 : 200, dur, g: 0.05, type: 'triangle', a: dur * 0.6 });
-    SFX.noise(ac, out, t, { dur, g: 0.08, f0: up ? 300 : 4000, f1: up ? 4000 : 300, q: 2 });
+  tick(ac, out, t, o = {}) { const r = sfxRng(o, t, 'tick'); SFX.tone(ac, out, t, { f: 3200 * semis(r, 3), dur: rr(r, 0.022, 0.04), g: 0.012 * rr(r, 0.8, 1.15), pan: panOf(t) }); },
+  /** pen-on-paper scratch for the whole length of a typed line; each one a slightly different nib and hand */
+  scratch(ac, out, t, o = {}) { const { chars = 20, cps = 30, g = 0.016 } = o, r = sfxRng(o, t, 'scratch');
+    SFX.noise(ac, out, t, { dur: Math.max(0.15, chars / cps), g: g * rr(r, 0.85, 1.12), f0: rr(r, 3000, 4400), q: rr(r, 0.9, 1.5), a: 0.02, lfo: Math.min(cps, 24) * rr(r, 0.85, 1.15), pan: panOf(t) * 0.5 }); },
+  /** a typed line where there is no pen (a night plate, a screen, a microscope): soft instrument blips at typing speed */
+  readout(ac, out, t, o = {}) { const { chars = 20, cps = 30, g = 0.01 } = o, r = sfxRng(o, t, 'readout'), f = rr(r, 1700, 2500), step = Math.max(1 / 14, 1 / cps);
+    for (let k = 0, n = Math.min(40, Math.ceil(chars / cps / step)); k < n; k++)
+      SFX.tone(ac, out, t + k * step + rr(r, 0, 0.012), { f: f * (r() < 0.3 ? 1.335 : 1) * semis(r, 0.3), dur: rr(r, 0.018, 0.03), g: g * rr(r, 0.6, 1), pan: panOf(t) * 0.4 }); },
+  pop(ac, out, t, o = {}) { const r = sfxRng(o, t, 'pop'), pan = panOf(t), f = rr(r, 840, 1120), h = [2, 2.5, 3][r() * 3 | 0];
+    SFX.tone(ac, out, t, { f, f2: f * rr(r, 0.58, 0.7), dur: rr(r, 0.11, 0.17), g: 0.07 * rr(r, 0.85, 1.08), pan }); SFX.tone(ac, out, t + 0.01, { f: f * h, dur: rr(r, 0.06, 0.1), g: 0.02 * rr(r, 0.7, 1.2), pan }); },
+  chime(ac, out, t, o = {}) { const { f = 660 } = o, r = sfxRng(o, t, 'chime'), rat = [1, rr(r, 1.99, 2.02), rr(r, 2.96, 3.06)], L = rr(r, 0.85, 1.15);
+    rat.forEach((m, i) => SFX.tone(ac, out, t + i * 0.012, { f: f * m, dur: (2.0 - i * 0.5) * L, g: 0.05 / (i + 1) * rr(r, 0.9, 1.1), a: 0.02, pan: (i - 1) * 0.3 })); },
+  /** f defaults to a random note of the film's key (music.tonic, two octaves up) */
+  plink(ac, out, t, o = {}) { const r = sfxRng(o, t, 'plink'), f = o.f ?? (STORY.music ? note((STORY.music.tonic || 220) * 4, r() * 6 | 0) : 1500 * semis(r, 3));
+    SFX.tone(ac, out, t, { f, f2: f * rr(r, 0.3, 0.45), dur: rr(r, 0.07, 0.12), g: 0.06 * rr(r, 0.85, 1.1), pan: panOf(t) }); },
+  thump(ac, out, t, o = {}) { const { g = 0.25 } = o, r = sfxRng(o, t, 'thump'); SFX.tone(ac, out, t, { f: rr(r, 80, 100), f2: rr(r, 38, 48), dur: rr(r, 0.19, 0.26), g }); },
+  swell(ac, out, t, o = {}) { const { dur = 0.6, up = true } = o, r = sfxRng(o, t, 'swell'), k = semis(r, 2);
+    SFX.tone(ac, out, t, { f: (up ? 220 : 1300) * k, f2: (up ? 1300 : 200) * k, dur, g: 0.05, type: r() < 0.5 ? 'triangle' : 'sine', a: dur * 0.6 });
+    SFX.noise(ac, out, t, { dur, g: 0.08, f0: (up ? 300 : 4000) * k, f1: (up ? 4000 : 300) * k, q: rr(r, 1.5, 2.5) });
   },
-  riser(ac, out, t, { dur = 0.35 } = {}) { SFX.noise(ac, out, t, { dur, g: 0.035, f0: 300, f1: 2400, q: 1.5, a: dur * 0.8 }); SFX.tone(ac, out, t, { f: 330, f2: 660, dur, g: 0.018, type: 'triangle', a: dur * 0.8 }); },
-  crackle(ac, out, t, { dur = 0.8, g = 0.05 } = {}) { const r = mulberry(Math.round(t * 100));
+  /** the riser before a seam; the length varies but it always ends at t + dur (the seam) */
+  riser(ac, out, t, o = {}) { const { dur = 0.35 } = o, r = sfxRng(o, t, 'riser'), d = dur * rr(r, 0.8, 1.25), t1 = Math.max(0, t + dur - d), f = 330 * semis(r, 4);
+    SFX.noise(ac, out, t1, { dur: d, g: 0.035 * rr(r, 0.85, 1.1), f0: rr(r, 250, 400), f1: rr(r, 1800, 3200), q: rr(r, 1.1, 2), a: d * 0.8 });
+    SFX.tone(ac, out, t1, { f, f2: f * (r() < 0.7 ? 2 : 1.5), dur: d, g: 0.018, type: r() < 0.6 ? 'triangle' : 'sine', a: d * 0.8 }); },
+  crackle(ac, out, t, o = {}) { const { dur = 0.8, g = 0.05 } = o, r = sfxRng(o, t, 'crackle');
     for (let i = 0; i < 26; i++) { const u = r(); SFX.noise(ac, out, t + u * dur * 0.9, { dur: 0.03 + r() * 0.05, g: g * (0.4 + r()), f0: 900 + u * 2600, q: 3, a: 0.004, pan: (r() - 0.5) * 1.2 }); }
     SFX.noise(ac, out, t, { dur, g: g * 0.5, f0: 200, f1: 1800, q: 0.8 }); },
-  whoosh(ac, out, t, { dur = 0.6, g = 0.09, dir = 'lr' } = {}) { SFX.noise(ac, out, t, { dur, g, f0: 500, f1: 5000, q: 1.2, a: dur * 0.45, pan: dir === 'rl' ? 0.4 : dir === 'lr' ? -0.4 : 0 }); SFX.tone(ac, out, t + dur * 0.5, { f: 180, f2: 60, dur: 0.18, g: 0.08 }); },
-  shutter(ac, out, t, { dur = 0.6 } = {}) { SFX.tick(ac, out, t); SFX.tone(ac, out, t + dur * 0.46, { f: 120, f2: 50, dur: 0.16, g: 0.16 }); SFX.tick(ac, out, t + dur * 0.55); SFX.tick(ac, out, t + dur * 0.6); },
-  glide(ac, out, t, { dur = 0.8, up = false } = {}) { SFX.tone(ac, out, t, { f: up ? 260 : 900, f2: up ? 1100 : 220, dur, g: 0.045, a: dur * 0.3 }); SFX.noise(ac, out, t, { dur, g: 0.04, f0: up ? 400 : 3000, f1: up ? 3000 : 400, q: 1.5 }); },
-  flick(ac, out, t, { dur = 0.7 } = {}) { SFX.noise(ac, out, t, { dur: 0.16, g: 0.12, f0: 2500, f1: 6000, q: 0.9, a: 0.02 }); SFX.noise(ac, out, t + dur * 0.55, { dur: 0.12, g: 0.09, f0: 900, q: 1, a: 0.01 }); SFX.thump(ac, out, t + dur * 0.62, { g: 0.14 }); },
-  bend(ac, out, t, { dur = 0.8, f = 440, f2 = 660 } = {}) { SFX.tone(ac, out, t, { f, f2, dur, g: 0.05, type: 'triangle', a: 0.05 }); SFX.tone(ac, out, t, { f: f * 2, f2: f2 * 2, dur, g: 0.015, a: 0.05 }); },
-  hiss(ac, out, t, { dur = 0.7 } = {}) { SFX.noise(ac, out, t, { dur, g: 0.06, f0: 1200, f1: 3500, q: 2, lfo: 14 }); },
+  whoosh(ac, out, t, o = {}) { const { dur = 0.6, g = 0.09, dir = 'lr' } = o, r = sfxRng(o, t, 'whoosh');
+    SFX.noise(ac, out, t, { dur, g, f0: rr(r, 400, 650), f1: rr(r, 4000, 6000), q: rr(r, 1, 1.5), a: dur * rr(r, 0.38, 0.52), pan: dir === 'rl' ? 0.4 : dir === 'lr' ? -0.4 : 0 });
+    SFX.tone(ac, out, t + dur * 0.5, { f: rr(r, 150, 210), f2: rr(r, 50, 70), dur: 0.18, g: 0.08 }); },
+  shutter(ac, out, t, o = {}) { const { dur = 0.6 } = o, r = sfxRng(o, t, 'shutter');
+    SFX.tick(ac, out, t); SFX.tone(ac, out, t + dur * 0.46, { f: rr(r, 105, 135), f2: rr(r, 45, 55), dur: 0.16, g: 0.16 }); SFX.tick(ac, out, t + dur * 0.55); SFX.tick(ac, out, t + dur * 0.6); },
+  glide(ac, out, t, o = {}) { const { dur = 0.8, up = false } = o, r = sfxRng(o, t, 'glide'), k = semis(r, 3);
+    SFX.tone(ac, out, t, { f: (up ? 260 : 900) * k, f2: (up ? 1100 : 220) * k, dur, g: 0.045, a: dur * 0.3 }); SFX.noise(ac, out, t, { dur, g: 0.04, f0: (up ? 400 : 3000) * k, f1: (up ? 3000 : 400) * k, q: rr(r, 1.2, 1.8) }); },
+  flick(ac, out, t, o = {}) { const { dur = 0.7 } = o, r = sfxRng(o, t, 'flick');
+    SFX.noise(ac, out, t, { dur: 0.16, g: 0.12, f0: rr(r, 2100, 2900), f1: rr(r, 5200, 6800), q: 0.9, a: 0.02 }); SFX.noise(ac, out, t + dur * 0.55, { dur: 0.12, g: 0.09, f0: rr(r, 750, 1100), q: 1, a: 0.01 });
+    SFX.tone(ac, out, t + dur * 0.62, { f: rr(r, 110, 140), f2: 55, dur: 0.16, g: 0.12 }); },          // the page landing: its own low tap, not the contact thump
+  bend(ac, out, t, o = {}) { const { dur = 0.8, f = 440, f2 = 660 } = o, r = sfxRng(o, t, 'bend'), k = semis(r, 1.5);
+    SFX.tone(ac, out, t, { f: f * k, f2: f2 * k, dur, g: 0.05, type: 'triangle', a: 0.05 }); SFX.tone(ac, out, t, { f: f * 2 * k, f2: f2 * 2 * k, dur, g: 0.015 * rr(r, 0.6, 1.4), a: 0.05 }); },
+  /** steam from a valve or a cooling vent: turbulent, bright noise; kind 'steam' (default) or 'vent' (softer, lower) */
+  hiss(ac, out, t, o = {}) { const { dur = 0.7, g = 0.045, kind = 'steam' } = o, r = sfxRng(o, t, 'hiss'), sd = r() * 1e6 | 0, steam = kind !== 'vent';
+    const at = steam ? 0.015 : Math.min(0.25, dur / 3), rel = dur * (steam ? 0.35 : 0.3), rate = rr(r, 18, 34);
+    synth(ac, out, t, dur, (d, q) => noiseInto(d, q, s => Math.min(1, s / at) * Math.min(1, (dur - s) / rel) * (1 + 0.35 * vnoise(s * rate, sd))), {
+      g: g * (kind === 'vent' ? 1.2 : 0.6), r, pan: panOf(t) * 0.6, filters: steam ? [{ type: 'highpass', f: rr(r, 2200, 3200), q: 0.6 }, { type: 'peaking', f: rr(r, 4500, 7000), q: 1.2, gain: 6 }]
+        : [{ type: 'bandpass', f: rr(r, 1100, 1800), q: 0.6 }] }); },
+
+  /* ---- new in v0.15: objects, liquids, machines (seeded; opts.seed fixes one exact sound) ---- */
+  /** a compaction crack and grind: a tablet or grain under a press. dur = the grind; hard (0..1) = crack share */
+  crunch(ac, out, t, o = {}) { const { dur = 0.55, g = 0.16, hard = 0.6 } = o, r = sfxRng(o, t, 'crunch');
+    synth(ac, out, t, dur + 0.08, (d, q) => {
+      for (let k = 0, n = 3 + (r() * 4 | 0); k < n; k++) DSP.burst(d, rr(q, 0, 0.025), rr(q, 0.6, 1) * (0.4 + hard), 0.004, rr(q, 0.0005, 0.0014), q);   // the crack: a few sharp fractures
+      for (let k = 0, n = dur * rr(q, 260, 380) | 0; k < n; k++) { const s = 0.01 + dur * q() ** 1.6;                                             // the grind: decaying grains
+        DSP.burst(d, s, rr(q, 0.08, 0.5) * (1 - s / (dur + 0.02)) ** 0.7, 0.005, rr(q, 0.0003, 0.0015), q); } },
+      { g, r, pan: panOf(t) * 0.5, filters: [{ type: 'highpass', f: rr(r, 350, 550), q: 0.7 }, { type: 'peaking', f: rr(r, 1800, 2800), q: 0.8, gain: 5 }, { type: 'lowpass', f: rr(r, 5500, 7000), q: 0.6 }] });
+    synth(ac, out, t, 0.3, (d, q) => { DSP.chirp(d, 0, 1, rr(q, 110, 150), 60, 0.1, 0.05, 0.3); noiseInto(d, q, s => 0.25 * Math.exp(-s / 0.07)); },
+      { g: g * 0.8, r, filters: [{ type: 'lowpass', f: 400, q: 0.7 }] }); },                                                                          // the platen's body thud
+  /** strained wood or steel: stick-slip pulses through the body's resonances. material 'wood' | 'steel' */
+  creak(ac, out, t, o = {}) { const { dur = 0.8, g = 0.08, material = 'wood' } = o, r = sfxRng(o, t, 'creak'), steel = material === 'steel', sd = r() * 1e6 | 0;
+    synth(ac, out, t, dur + 0.05, (d, q) => {
+      const x = new Float32Array(d.length), base = steel ? rr(q, 140, 260) : rr(q, 55, 95);
+      for (let s = 0.005; s < dur;) { const u = s / dur, F = Math.sin(Math.PI * u) ** 0.7;
+        if (q() > 0.15 * (1 - F)) { const i = s * SR | 0; x[i] += F * rr(q, 0.6, 1); x[i + 1] -= F * 0.5; }
+        s += 1 / (base * (0.7 + 0.6 * F) * (1 + 0.25 * vnoise(u * 6, sd))); }
+      const fm = steel ? [[rr(q, 900, 1300), 15, 1], [rr(q, 2300, 2900), 25, 0.7], [rr(q, 4200, 5200), 40, 0.4]] : [[rr(q, 380, 520), 60, 1], [rr(q, 900, 1200), 110, 0.8], [rr(q, 2000, 2600), 200, 0.5]];
+      for (const [f, bw, a] of fm) { const y = DSP.reson(x, f, bw); DSP.norm(y); for (let i = 0; i < d.length; i++) d[i] += a * y[i]; } },
+      { g, r, pan: panOf(t) * 0.6, filters: [{ type: 'highpass', f: 150 }] }); },
+  /** one stroke of a hydraulic hand pump: lever clack, a rising fluid squeeze and whine, the valve click and a breath of release */
+  pump(ac, out, t, o = {}) { const { dur = 0.9, g = 0.12 } = o, r = sfxRng(o, t, 'pump');
+    synth(ac, out, t, dur + 0.2, (d, q) => {
+      DSP.burst(d, 0, 0.8, 0.003, 0.0008, q); DSP.modes(d, 0, [[rr(q, 170, 210), 0.9, 0.04], [rr(q, 420, 500), 0.5, 0.03], [rr(q, 1000, 1300), 0.35, 0.015]]);
+      const x = new Float32Array(d.length), f0 = rr(q, 160, 220), f1 = f0 * rr(q, 2.2, 2.8), wh = rr(q, 65, 80);
+      noiseInto(x, q, s => s > 0.04 && s < dur ? Math.sin(Math.PI * ((s - 0.04) / (dur - 0.04)) ** 0.8) : 0);
+      const y = DSP.reson(x, i => f0 * (f1 / f0) ** Math.min(1, i / (dur * SR)), 90); DSP.norm(y);
+      let ph = 0; for (let i = 0; i < d.length; i++) { const s = i / SR, u = Math.min(1, s / dur), e = s > 0.04 && s < dur ? Math.sin(Math.PI * u) : 0;
+        ph += TAU * wh * (1 + 0.5 * u) / SR; d[i] += 0.55 * y[i] + 0.12 * e * (Math.sin(ph) + 0.5 * Math.sin(2 * ph) + 0.33 * Math.sin(3 * ph)); }
+      const vc = dur * rr(q, 0.82, 0.9); DSP.burst(d, vc, 0.6, 0.002, 0.0005, q); DSP.modes(d, vc, [[rr(q, 2000, 2500), 0.3, 0.012], [rr(q, 3600, 4200), 0.2, 0.008]]);
+      DSP.burst(d, vc + 0.01, 0.12, 0.15, 0.05, q); },
+      { g, r, pan: panOf(t) * 0.5, filters: [{ type: 'highpass', f: 50 }] }); },
+  /** a heater or instrument relay: armature click plus a contact bounce, ringing the metal frame. off: true = the softer release */
+  relay(ac, out, t, o = {}) { const { g = 0.09, off = false } = o, r = sfxRng(o, t, 'relay');
+    synth(ac, out, t, 0.12, (d, q) => { const k = off ? 1.25 : 1;
+      for (const [s, a] of [[0, 1], [rr(q, 0.004, 0.009), rr(q, 0.3, 0.5)]]) { DSP.burst(d, s, a, 0.001, 0.00025, q);
+        DSP.modes(d, s, [[rr(q, 1900, 2300) * k, 0.5 * a, 0.018], [rr(q, 3500, 4000) * k, 0.35 * a, 0.012], [rr(q, 5600, 6400) * k, 0.25 * a, 0.008], [rr(q, 300, 400), 0.3 * a, 0.01]]); } },
+      { g: off ? g * 0.7 : g, r, pan: panOf(t) * 0.7 }); },
+  /** a small object into liquid: a soft impact and the rising pitch of the cavity bubble, a few small bubbles after. size ~0.5..2 */
+  plop(ac, out, t, o = {}) { const { g = 0.09, size = 1 } = o, r = sfxRng(o, t, 'plop');
+    synth(ac, out, t, 0.35, (d, q) => { DSP.burst(d, 0, 0.35, 0.005, 0.0015, q); const f0 = rr(q, 350, 650) / size;
+      DSP.chirp(d, rr(q, 0.008, 0.015), 1, f0, f0 * rr(q, 2.2, 2.9), rr(q, 0.05, 0.09), rr(q, 0.06, 0.1), 0.3);
+      for (let k = 0, n = 1 + (q() * 3 | 0); k < n; k++) { const f = rr(q, 900, 2200); DSP.chirp(d, rr(q, 0.04, 0.15), rr(q, 0.15, 0.3), f, f * 2, 0.02, 0.02, 0.08); } },
+      { g, r, pan: panOf(t) * 0.5, filters: [{ type: 'highpass', f: 120 }] }); },
+  /** liquid moving in a vessel: surges of low wash with bubbles clustered on them */
+  slosh(ac, out, t, o = {}) { const { dur = 0.9, g = 0.08 } = o, r = sfxRng(o, t, 'slosh');
+    synth(ac, out, t, dur + 0.1, (d, q) => { const surges = [...Array(2 + (q() * 2 | 0))].map(() => [rr(q, 0.1, 0.85) * dur, rr(q, 0.06, 0.16), rr(q, 0.5, 1)]);
+      const env = s => surges.reduce((a, [c, w, h]) => a + h * Math.exp(-(((s - c) / w) ** 2)), 0), x = new Float32Array(d.length); noiseInto(x, q, env);
+      let lp = 0; for (let i = 0; i < d.length; i++) { lp += 0.08 * (x[i] - lp); d[i] += 1.2 * lp; }
+      for (let k = 0, n = dur * rr(q, 25, 45) | 0; k < n; k++) { const [c, w, h] = surges[q() * surges.length | 0], f = rr(q, 300, 1400);
+        DSP.chirp(d, Math.max(0, c + (q() * 2 - 1) * w * 1.5), rr(q, 0.04, 0.12) * h, f, f * rr(q, 1.8, 2.6), rr(q, 0.03, 0.06), rr(q, 0.02, 0.05), 0.15); } },
+      { g, r, pan: panOf(t) * 0.5, filters: [{ type: 'bandpass', f: rr(r, 500, 750), q: 0.5 }] }); },
+  /** an orbital shaker (or any small lab motor) running for dur: motor hum with harmonics and the glassware rattling once per orbit */
+  shaker(ac, out, t, o = {}) { const { dur = 3, g = 0.045, rpm } = o, r = sfxRng(o, t, 'shaker'), orbit = (rpm ?? rr(r, 160, 220)) / 60, sd = r() * 1e6 | 0;
+    synth(ac, out, t, dur, (d, q) => { const fm = rr(q, 45, 60), up = Math.min(0.5, dur / 4); let ph = 0;
+      for (let i = 0; i < d.length; i++) { const s = i / SR, e = Math.min(1, s / up, (dur - s) / up); ph += TAU * fm * (0.3 + 0.7 * e) * (1 + 0.01 * vnoise(s * 3, sd)) / SR;
+        let v = 0; for (let h = 1; h <= 6; h++) v += Math.sin(h * ph) / h; d[i] += 0.12 * e * v; }
+      const glass = [rr(q, 2200, 2800), rr(q, 3000, 3800)], hit = (s, a) => { const f = glass[q() * 2 | 0] * semis(q, 0.5);
+        DSP.burst(d, s, a, 0.0006, 0.0002, q); DSP.modes(d, s, [[f, a * 1.2, 0.006], [f * rr(q, 2.5, 2.9), a * 0.5, 0.004]]); };
+      for (let s = up * 0.6; s < dur - up * 0.5; s += (1 / orbit) * rr(q, 0.92, 1.08))                            // each orbit the flasks knock: a cluster of hits
+        for (let k = 0, n = 2 + (q() * 4 | 0); k < n; k++) hit(s + rr(q, 0, 0.06), rr(q, 0.25, 0.6));
+      for (let s = up; s < dur - up; s += rr(q, 0.02, 0.08)) hit(s, rr(q, 0.05, 0.15)); },                   // and a light continuous rattle
+      { g, r, pan: panOf(t) * 0.5, filters: [{ type: 'lowpass', f: 7000 }], fade: 0.01 }); },
+  /** glass on glass: two struck glasses ringing at their own inharmonic modes. f = the first glass's lowest mode */
+  clink(ac, out, t, o = {}) { const { g = 0.07 } = o, r = sfxRng(o, t, 'clink');
+    synth(ac, out, t, 1.4, (d, q) => { DSP.burst(d, 0, 0.4, 0.0008, 0.0002, q);
+      const glass = (f, a, s) => DSP.modes(d, s, [[f, a, rr(q, 0.5, 0.9)], [f * rr(q, 2.3, 2.7), a * 0.5, 0.35], [f * rr(q, 4.2, 4.9), a * 0.3, 0.2], [f * rr(q, 6.6, 7.6), a * 0.15, 0.1]]);
+      const f1 = o.f ?? rr(q, 1800, 3000); glass(f1, 1, 0); glass(f1 * rr(q, 1.07, 1.3), 0.6, rr(q, 0, 0.003)); },
+      { g, r, pan: panOf(t) * 0.6, filters: [{ type: 'highpass', f: 600 }] }); },
+  /** water poured into a vessel for dur: a stream of bubbles over a wash whose resonance rises as the vessel fills */
+  pour(ac, out, t, o = {}) { const { dur = 2, g = 0.06 } = o, r = sfxRng(o, t, 'pour'), at = Math.min(0.15, dur / 4), rel = Math.min(0.3, dur / 3);
+    const env = s => Math.min(1, s / at, (dur - s) / rel);
+    synth(ac, out, t, dur, (d, q) => noiseInto(d, q, s => Math.max(0, env(s)) * (1 + 0.3 * Math.sin(s * rr(q, 20, 30)))),
+      { g: g * 0.7, r, pan: panOf(t) * 0.4, filters: [{ type: 'bandpass', f: rr(r, 350, 450), f1: rr(r, 1100, 1500), q: 1.2 }] });
+    synth(ac, out, t, dur + 0.1, (d, q) => { for (let k = 0, n = dur * rr(q, 50, 80) | 0; k < n; k++) { const s = q() * dur, u = s / dur, f = rr(q, 500, 2500) * (1 + 0.6 * u);
+        DSP.chirp(d, s, rr(q, 0.1, 0.35) * Math.max(0, env(s)), f, f * rr(q, 1.6, 2.4), rr(q, 0.01, 0.03), rr(q, 0.01, 0.03), 0.1); } },
+      { g, r, pan: panOf(t) * 0.4, filters: [{ type: 'highpass', f: 300 }] }); },
+  /** a blister pack pressed until the foil gives: crinkle, the pop through the foil, a little crinkle after */
+  foil(ac, out, t, o = {}) { const { g = 0.1 } = o, r = sfxRng(o, t, 'foil');
+    synth(ac, out, t, 0.25, (d, q) => { const p = rr(q, 0.07, 0.11);
+      for (let k = 0, n = 6 + (q() * 7 | 0); k < n; k++) DSP.burst(d, q() * p, rr(q, 0.15, 0.35), 0.0015, rr(q, 0.0003, 0.0012), q);
+      DSP.burst(d, p, 1, 0.003, 0.0005, q); DSP.modes(d, p, [[rr(q, 1300, 1900), 0.45, 0.03], [rr(q, 3100, 3900), 0.25, 0.015]]);
+      for (let k = 0, n = 3 + (q() * 4 | 0); k < n; k++) DSP.burst(d, p + rr(q, 0.005, 0.06), rr(q, 0.08, 0.2), 0.0012, 0.0004, q); },
+      { g, r, pan: panOf(t) * 0.6, filters: [{ type: 'highpass', f: 600 }] }); },
+  /** one water drop: a tiny impact and a damped sine that rises in pitch (a Minnaert bubble). f = starting pitch */
+  droplet(ac, out, t, o = {}) { const { g = 0.07 } = o, r = sfxRng(o, t, 'droplet');
+    synth(ac, out, t, 0.3, (d, q) => { const f0 = o.f ?? rr(q, 700, 1600); DSP.burst(d, 0, 0.15, 0.001, 0.0003, q);
+      DSP.chirp(d, 0.002, 1, f0, f0 * rr(q, 1.8, 2.7), rr(q, 0.03, 0.06), rr(q, 0.035, 0.07), 0.28); },
+      { g, r, pan: panOf(t) * 0.6, filters: [{ type: 'highpass', f: 300 }] }); },
+  /** a page turned: a rising, fluttering swish of air and the soft slap of the page landing */
+  pageFlip(ac, out, t, o = {}) { const { dur = 0.45, g = 0.11 } = o, r = sfxRng(o, t, 'pageFlip'), sd = r() * 1e6 | 0;
+    synth(ac, out, t, dur + 0.04, (d, q) => { const fl = rr(q, 25, 40);
+      noiseInto(d, q, s => Math.sin(Math.PI * Math.min(1, s / (dur * 0.85))) ** 2 * (0.6 + 0.4 * Math.max(0, vnoise(s * fl, sd)) * 2));
+      DSP.burst(d, dur * rr(q, 0.8, 0.9), 1.4, 0.012, 0.003, q); },
+      { g, r, pan: panOf(t) * 0.6, filters: [{ type: 'bandpass', f: rr(r, 900, 1300), f1: rr(r, 3500, 5000), q: 0.8 }] }); },
+  /** a clothes peg: a scrape of the spring, the woody snap and a faint ring of the coil */
+  pegSnap(ac, out, t, o = {}) { const { g = 0.09 } = o, r = sfxRng(o, t, 'pegSnap');
+    synth(ac, out, t, 0.25, (d, q) => { const x = new Float32Array(d.length); DSP.burst(x, 0, 1, 0.015, 0.006, q); const y = DSP.reson(x, rr(q, 4500, 5500), 400); DSP.norm(y);
+      for (let i = 0; i < d.length; i++) d[i] += 0.2 * y[i];
+      const s = rr(q, 0.015, 0.03); DSP.burst(d, s, 1, 0.001, 0.0003, q);
+      DSP.modes(d, s, [[rr(q, 800, 1000), 0.7, 0.02], [rr(q, 2100, 2600), 0.5, 0.012], [rr(q, 4000, 4600), 0.2, 0.006], [rr(q, 3000, 3400), 0.12, 0.08], [rr(q, 5000, 5400), 0.07, 0.05]]); },
+      { g, r, pan: panOf(t) * 0.6, filters: [{ type: 'highpass', f: 200 }] }); },
+
   /** simple pad (fixed notes); prefer padKey */
   pad(ac, out, t, { dur = 8, notes = [220, 277.2, 329.6], g = 0.022, dark = false }) { SFX.padKey(ac, out, t, { dur, tonic: notes[0], chord: notes.map(f => 12 * Math.log2(f / notes[0])), g, dark }); },
   /** stereo pad in a key: chord = semitones over tonic; sine+triangle pairs, detuned and panned */
@@ -1908,16 +2102,57 @@ const SFX = {
       o.connect(v).connect(pn).connect(lp); o.start(t); o.stop(t + dur + 0.5); }); });
   },
 };
+/*
+ * Ambience beds, in the plate `bed` shape: `bed: BED.rain`, or with options `bed: (ac, o, t, d) => BED.rain(ac, o, t, d, { heavy: 0.8 })`.
+ * Layer several with BED.mix(BED.roomTone, myPad). They fade in and out over about a second, so neighbours crossfade.
+ * Left and right are synthesized separately (decorrelated), so a bed is really stereo.
+ */
+const BED = {
+  /** lab or office air: low air-handling rush, a fridge or transformer hum at the mains frequency (hum: 50 or 60) and its harmonics */
+  roomTone(ac, out, t0, dur, o = {}) { const { g = 0.02, hum = 50, fridge = true } = o, r = sfxRng(o, t0, 'roomTone');
+    [-0.7, 0.7].forEach(pan => synth(ac, out, t0, dur, (d, q) => noiseInto(d, q, () => 1), { g: g * 1.6, r, pan, fade: Math.min(1, dur / 4), filters: [{ type: 'lowpass', f: rr(r, 350, 500), q: 0.5 }, { type: 'highpass', f: 60 }] }));
+    if (fridge) synth(ac, out, t0, dur, (d, q) => { const sd = q() * 1e6 | 0, amps = [0.4, 1, 0.35, 0.2, 0.1];
+      for (let i = 0; i < d.length; i++) { const s = i / SR, w = 0.8 + 0.2 * vnoise(s * 0.3, sd); let v = 0; amps.forEach((a, h) => v += a * Math.sin(TAU * hum * (h + 1) * s)); d[i] = v * w; } },
+      { g: g * 0.5, r, fade: Math.min(1, dur / 4), pan: 0.15 }); },
+  /** rain: a wash of noise and many small drop impacts (each a click and a tiny rising bubble), with the odd big drip. heavy 0..1 */
+  rain(ac, out, t0, dur, o = {}) { const { g = 0.03, heavy = 0.5 } = o, r = sfxRng(o, t0, 'rain');
+    [-0.75, 0.75].forEach(pan => synth(ac, out, t0, dur, (d, q) => { const rate = 60 + 190 * heavy;
+      noiseInto(d, q, () => 0.18 + 0.12 * heavy);
+      for (let s = q() / rate; s < dur - 0.05; s += -Math.log(1 - q() * 0.999) / rate) { DSP.burst(d, s, rr(q, 0.05, 0.3), 0.0006, 0.0002, q);
+        if (q() < 0.5) { const f = rr(q, 2000, 6000); DSP.chirp(d, s + 0.0005, rr(q, 0.05, 0.25), f, f * 1.5, 0.005, 0.006, 0.03); } }
+      for (let s = rr(q, 0.2, 1.5); s < dur - 0.3; s += rr(q, 0.5, 2)) { const f = rr(q, 700, 1500); DSP.chirp(d, s, rr(q, 0.3, 0.6), f, f * rr(q, 1.8, 2.5), 0.04, 0.05, 0.25); } },
+      { g, r, pan, fade: Math.min(1, dur / 4), filters: [{ type: 'highpass', f: 400 }, { type: 'lowpass', f: 7000 }] })); },
+  /** wind: noise whose level and colour follow slow random gusts, a low rumble and a faint whistle on the strong gusts. strength 0..1 */
+  wind(ac, out, t0, dur, o = {}) { const { g = 0.035, strength = 0.5 } = o, r = sfxRng(o, t0, 'wind'), sd = r() * 1e6 | 0, rate = rr(r, 0.2, 0.4);
+    const gust = s => 0.3 + 0.7 * ((vnoise(s * rate, sd) + 1) / 2) ** 1.5;
+    [-0.6, 0.6].forEach((pan, j) => synth(ac, out, t0, dur, (d, q) => noiseInto(d, q, s => gust(s + j * 0.4)), { g: g * (0.8 + 0.4 * strength), r, pan, fade: Math.min(1.2, dur / 4),
+      filters: [{ type: 'bandpass', f: 500, q: 0.8, curve: slowCurve(sd + j, dur, rate, 280, 700 + 500 * strength) }, { type: 'lowpass', f: 1400, q: 0.5 }] }));
+    synth(ac, out, t0, dur, (d, q) => noiseInto(d, q, gust), { g: g * 0.8, r, fade: Math.min(1.2, dur / 4), filters: [{ type: 'lowpass', f: 160, q: 0.5 }] });
+    if (strength > 0.3) synth(ac, out, t0, dur, (d, q) => noiseInto(d, q, s => gust(s) ** 3), { g: g * 0.25 * strength, r, pan: 0.3, fade: Math.min(1.2, dur / 4),
+      filters: [{ type: 'bandpass', f: 800, q: 25, curve: slowCurve(sd, dur, rate, 650, 1150) }] }); },
+  /** distant traffic: a low city rumble, a soft mid wash, and cars passing every few seconds across the stereo field */
+  cityHum(ac, out, t0, dur, o = {}) { const { g = 0.03, cars = 1 } = o, r = sfxRng(o, t0, 'cityHum');
+    [-0.7, 0.7].forEach(pan => synth(ac, out, t0, dur, (d, q) => noiseInto(d, q, () => 1), { g: g * 1.4, r, pan, fade: Math.min(1, dur / 4), filters: [{ type: 'lowpass', f: rr(r, 160, 240), q: 0.6 }, { type: 'highpass', f: 35 }] }));
+    synth(ac, out, t0, dur, (d, q) => noiseInto(d, q, () => 1), { g: g * 0.3, r, fade: Math.min(1, dur / 4), filters: [{ type: 'bandpass', f: 500, q: 0.5 }] });
+    for (let s = rr(r, 0, 2); s < dur - 1 && cars > 0; s += rr(r, 2.5, 6) / cars) { const len = Math.min(rr(r, 3, 6), dur - s), dir = r() < 0.5 ? -1 : 1, f = rr(r, 700, 1000);
+      synth(ac, out, t0 + s, len, (d, q) => noiseInto(d, q, x => Math.sin(Math.PI * x / len) ** 3), { g: g * rr(r, 0.5, 1), r, pan: -0.8 * dir, pan1: 0.8 * dir,
+        filters: [{ type: 'bandpass', f, f1: f * 0.6, q: 0.7 }] }); } },
+  /** layer beds: bed: BED.mix(BED.roomTone, (ac, o, t, d) => SFX.pad(ac, o, t, { dur: d })) */
+  mix: (...beds) => (ac, out, t0, dur) => beds.forEach(b => b(ac, out, t0, dur)),
+};
+/* transition sounds: each seam gets its own variation (the SFX above re-seed per call); a cut is a low tap of its own, not the contact thump */
 const TRANS_SFX = {
   custom: (ac, o, t, d, tr) => tr.sfx ? tr.sfx(ac, o, t, d) : SFX.swell(ac, o, t, { dur: d, up: true }),
   through: (ac, o, t, d) => { SFX.glide(ac, o, t, { dur: d / 2, up: true }); SFX.glide(ac, o, t + d / 2, { dur: d / 2 }); },
   lensIn: (ac, o, t, d) => SFX.swell(ac, o, t - 0.05, { dur: d + 0.2, up: true }), lensOut: (ac, o, t, d) => SFX.swell(ac, o, t - 0.05, { dur: d + 0.2, up: false }),
-  cut: (ac, o, t) => SFX.thump(ac, o, t), fade: () => {}, burn: (ac, o, t, d) => SFX.crackle(ac, o, t, { dur: d }),
+  cut: (ac, o, t) => { const r = sfxRng({}, t, 'cut'); SFX.tone(ac, o, t, { f: rr(r, 120, 160), f2: rr(r, 55, 70), dur: rr(r, 0.12, 0.18), g: 0.2 }); SFX.tick(ac, o, t); },
+  fade: () => {}, burn: (ac, o, t, d) => SFX.crackle(ac, o, t, { dur: d }),
   wipe: (ac, o, t, d, tr) => SFX.whoosh(ac, o, t, { dur: d, dir: tr.dir }), iris: (ac, o, t, d) => SFX.shutter(ac, o, t, { dur: d }),
-  zoom: (ac, o, t, d, tr) => SFX.glide(ac, o, t, { dur: d, up: tr.dir === 'in' }), hatch: (ac, o, t, d) => SFX.hiss(ac, o, t, { dur: d }),
+  zoom: (ac, o, t, d, tr) => SFX.glide(ac, o, t, { dur: d, up: tr.dir === 'in' }),
+  hatch: (ac, o, t, d) => { const r = sfxRng({}, t, 'hatch'); SFX.noise(ac, o, t, { dur: d, g: 0.06, f0: rr(r, 1000, 1400), f1: rr(r, 3000, 4000), q: 2, lfo: rr(r, 11, 17) }); },   // hatching strokes
   page: (ac, o, t, d) => SFX.flick(ac, o, t, { dur: d }), roll: (ac, o, t, d) => SFX.flick(ac, o, t, { dur: d }), morph: (ac, o, t, d) => SFX.bend(ac, o, t, { dur: d }),
   shape: (ac, o, t, d) => { SFX.bend(ac, o, t, { dur: d }); SFX.swell(ac, o, t, { dur: d, up: true }); },
-  bleed: (ac, o, t, d) => { SFX.noise(ac, o, t, { dur: d + 0.3, g: 0.07, f0: 250, f1: 1400, q: 0.7, a: d * 0.5 }); SFX.tone(ac, o, t + d * 0.3, { f: 110, f2: 70, dur: 0.5, g: 0.06 }); },
+  bleed: (ac, o, t, d) => { const r = sfxRng({}, t, 'bleed'); SFX.noise(ac, o, t, { dur: d + 0.3, g: 0.07, f0: rr(r, 200, 300), f1: rr(r, 1200, 1700), q: 0.7, a: d * 0.5 }); SFX.tone(ac, o, t + d * 0.3, { f: rr(r, 95, 125), f2: 70, dur: 0.5, g: 0.06 }); },
   pan: (ac, o, t, d, tr) => SFX.whoosh(ac, o, t, { dur: d, dir: tr.dir === 'right' ? 'rl' : 'lr', g: 0.12 }),
 };
 /** default bed when a plate has none and STORY.music = {tonic}: the stage's chord, darker and lower at night */
@@ -1927,24 +2162,42 @@ function autoBed(p) {
   return (ac, out, t0, dur) => { SFX.padKey(ac, out, t0, { dur, tonic: m.tonic || 220, chord, g: m.gain || 0.018, dark: p.dark, oct: p.dark ? -1 : 0 });
     if (p.dark) SFX.noise(ac, out, t0, { dur, g: 0.025, f0: 160, type: 'lowpass', q: 0.5, a: 1 }); };
 }
+/**
+ * The film's loudness shape. defineStory({ dynamics: [[t, dB], ...] }) sets the master level over time (film seconds,
+ * dB relative to the default, linear ramps between points), e.g. [[0, -3], [40, -3], [46, 3], [58, 3], [62, 0]] for a
+ * quiet opening and a lift at the climax. Without it, a plate with `lift: dB` ramps up over its first 1.5 s and back down
+ * over 1.5 s after it ends. Without either, the level is flat.
+ */
+function dynamicsOf() {
+  if (Array.isArray(STORY.dynamics) && STORY.dynamics.length) return [...STORY.dynamics].sort((a, b) => a[0] - b[0]);
+  const pts = [];
+  for (const p of STORY.plates) if (p.lift) pts.push([p.start, 0], [p.start + Math.min(1.5, p.dur / 2), p.lift], [p.start + p.dur, p.lift], [p.start + p.dur + 1.5, 0]);
+  return pts;
+}
 async function renderAudio() {
   // defineStory({ silent: true }): the user chose no sound. The automatic risers, transition effects and header
   // scratches below would otherwise play anyway, so render a stereo track of silence of the right length instead.
   if (STORY.silent) return new OfflineAudioContext(2, Math.ceil(SR * (TOTAL_T + 0.5)), SR).startRendering();
-  const ac = new OfflineAudioContext(2, Math.ceil(SR * (TOTAL_T + 0.5)), SR); ac._noise = noiseBuffer(ac, 6);
+  const ac = new OfflineAudioContext(2, Math.ceil(SR * (TOTAL_T + 0.5)), SR); ac._noise = noiseBuffer(ac, 6); AUDIO.n = 0;
   const comp = ac.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 4; comp.knee.value = 6; comp.connect(ac.destination);
   const dry = ac.createGain(); dry.gain.value = 0.9; dry.connect(comp);
   const rv = makeReverb(ac), wet = ac.createGain(); wet.gain.value = 0.3; rv.connect(wet).connect(comp);
-  const out = ac.createGain(); out.gain.value = 3.8; out.connect(dry); out.connect(rv);
+  const lift = ac.createGain(); lift.connect(dry); lift.connect(rv);                   // the film's loudness shape (dynamicsOf)
+  const dyn = dynamicsOf(); lift.gain.setValueAtTime(dyn.length ? 10 ** (dyn[0][1] / 20) : 1, 0);
+  for (const [t, dB] of dyn) lift.gain.linearRampToValueAtTime(10 ** (dB / 20), Math.max(0, t));
+  const out = ac.createGain(); out.gain.value = 3.8; out.connect(lift);
   const bedBus = ac.createGain(); bedBus.gain.value = 1; bedBus.connect(out);          // beds duck under transitions and cues
   const duck = (t, depth = 0.55, dur = 0.5) => { bedBus.gain.setValueAtTime(1, Math.max(0, t - 0.02)); bedBus.gain.linearRampToValueAtTime(1 - depth, t + 0.05); bedBus.gain.linearRampToValueAtTime(1, t + dur); };
   for (const p of STORY.plates) {
     const t0 = p.start, tr = p.enter, ty = tr?.type, d = tr?.dur || 0.5;
-    if (p.i > 0) { if (ty !== 'fade') SFX.riser(ac, out, Math.max(0, t0 - 0.35)); (TRANS_SFX[ty] || TRANS_SFX.cut)(ac, out, t0, d, tr || {}); duck(t0, 0.5, d + 0.4); }
-    if (p.header) { const hd = t0 + headerDelay(p), h = p.header;
-      SFX.scratch(ac, out, hd, { chars: 9, cps: 30 }); SFX.scratch(ac, out, hd + 0.15, { chars: h.title.length, cps: 17 }); if (h.sub) SFX.scratch(ac, out, hd + 0.7, { chars: h.sub.length, cps: 30, g: 0.012 }); }
-    const bed = p.bed || autoBed(p); if (bed) bed(ac, bedBus, t0, p.dur);
-    for (const [ct, type, opt] of (p.cues || [])) { SFX[type](ac, out, t0 + ct, opt || {}); if (type === 'chime' || type === 'pop') duck(t0 + ct, 0.25, 0.35); }
+    if (p.i > 0) { AUDIO.tag = 'riser'; if (ty !== 'fade') SFX.riser(ac, out, Math.max(0, t0 - 0.35));
+      AUDIO.tag = 'transition'; (TRANS_SFX[ty] || TRANS_SFX.cut)(ac, out, t0, d, tr || {}); duck(t0, 0.5, d + 0.4); }
+    // the header types on: pen scratch on paper; on a night plate (or pen: false) there is no pen, so soft readout blips
+    if (p.header) { const hd = t0 + headerDelay(p), h = p.header, pen = p.pen ?? !p.dark, s = pen ? SFX.scratch : SFX.readout; AUDIO.tag = 'header';
+      if (p.pen !== 'none') { s(ac, out, hd, { chars: 9, cps: 30 }); s(ac, out, hd + 0.15, { chars: h.title.length, cps: 17 }); if (h.sub) s(ac, out, hd + 0.7, { chars: h.sub.length, cps: 30, g: pen ? 0.012 : 0.005 }); } }
+    AUDIO.tag = 'bed'; const bed = p.bed || autoBed(p); if (bed) bed(ac, bedBus, t0, p.dur);
+    AUDIO.tag = 'cue';
+    for (const [ct, type, opt] of (p.cues || [])) { SFX[type](ac, out, t0 + ct, opt || {}); if (type === 'chime' || type === 'pop' || type === 'crunch') duck(t0 + ct, 0.25, 0.35); }
   }
   return ac.startRendering();
 }

@@ -152,7 +152,7 @@ const P2 = {
   log: t => ({ title: `JOURNEY LOG · ${HERO}`, rows: [['ELAPSED', 'T+ 40 min'], ['SIZE', '≈ 0.3 nm']], states: STATES, state: 1 }),
   cam: t => ({ x: C2[0], y: C2[1], s: 1 + 0.08 * E.inOutSine(t / 6.5), rot: 0.08 * Math.sin(t * 0.45) }),
   hero: t => { const [dx, dy] = wander(99, t, 8, 1.6, 5); return { x: C2[0] + dx, y: C2[1] + dy, label: HERO, r: 64 }; },
-  cues: [[1.4, 'scratch', { chars: 15 }], [2.7, 'chime', { f: 440 }], [2.6, 'pop'], [2.9, 'scratch', { chars: 14 }], ...Array.from({ length: 6 }, (_, i) => [0.9 + i * 0.45, 'plink', { f: note(880, i) }])],
+  cues: [[1.4, 'readout', { chars: 15 }], [2.7, 'chime', { f: 440 }], [2.6, 'pop'], [2.9, 'readout', { chars: 14 }], ...Array.from({ length: 6 }, (_, i) => [0.9 + i * 0.45, 'plink', { f: note(880, i) }])],
   draw(t) {
     const pts = MOLS.map(m => molAt(m, t)), hx = P2.hero(t);
     for (let a = 0; a < pts.length; a++) for (let b = a + 1; b < pts.length; b++) {    // hydrogen bonds blink on and off
@@ -177,7 +177,7 @@ const P3 = {
   log: t => ({ title: `JOURNEY LOG · ${HERO}`, rows: [['ELAPSED', 'T+ 3 h'], ['SIZE', '≈ 20 µm']], states: STATES, state: 1 }),
   cam: t => ({ x: C2[0], y: C2[1], s: 1 + 0.07 * E.inOutSine(t / 6.5), dy: -12 * t, rot: 0.03 * Math.sin(t * 0.5) }),
   hero: t => ({ x: C2[0], y: C2[1] + 6 * Math.sin(t * 1.4), label: HERO, r: 30 }),
-  cues: [[1.8, 'scratch', { chars: 23 }], [3.0, 'chime', { f: 392 }], [2.9, 'pop'], [3.4, 'scratch', { chars: 30 }], [0, 'noise', { dur: 7, g: 0.03, f0: 500, f1: 900, q: 0.6, a: 1.5 }]],
+  cues: [[1.8, 'readout', { chars: 23 }], [3.0, 'chime', { f: 392 }], [2.9, 'pop'], [3.4, 'readout', { chars: 30 }], [0, 'noise', { dur: 7, g: 0.03, f0: 500, f1: 900, q: 0.6, a: 1.5 }]],
   draw(t) {
     for (let i = 0; i < 7; i++) flow([[300 + i * 230, 1040], [330 + i * 230 + 40 * Math.sin(i), 620], [300 + i * 230, 180]], t, { speed: 160, gap: 150, len: 60, color: PAL.nightMuted, w: 1.8, alpha: 0.6, seed: 30 + i });
     for (const d of DROPS) {                                                   // near droplets are bigger, brighter and rise faster (depth)
@@ -292,7 +292,7 @@ const P5 = {
 const END = {
   dur: 10, dark: true, enter: { type: 'page', dur: 1.4 }, counter: false, focus: () => [960, 400],
   hero: t => ({ x: 960, y: 400, r: 70, tag: false, alpha: inv(0.3, 1, t) }),
-  cues: [[1.4, 'scratch', { chars: 34, cps: 22 }], [1.7, 'chime', { f: 392 }], [3.0, 'plink', { f: 880 }], [4.0, 'plink', { f: 660 }]],
+  cues: [[1.4, 'readout', { chars: 34, cps: 22 }], [1.7, 'chime', { f: 392 }], [3.0, 'plink', { f: 880 }], [4.0, 'plink', { f: 660 }]],
   draw(t) {
     for (let k = 0; k < 4; k++) { const q = ((t - 1.0 + k * 0.45) % 1.8) / 1.8; if (t < 1.0 - k * 0.45 + 0.001 || q < 0) continue;   // ripples, one every 0.45 s
       ink(shape.ellipse(960, 400, 80 + q * 420, (80 + q * 420) * 0.42, 0, 64), { closed: true, w: 3 - 1.5 * q, color: '#b9bbef', alpha: 0.9 * (1 - q), amp: 0.5, seed: k }); }

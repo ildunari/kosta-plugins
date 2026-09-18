@@ -191,7 +191,7 @@ const P1 = {
   cam: camI,
   hero: t => { const [x, y] = npI(t); return { x, y, label: 'NP·01', r: 36 }; },
   bed: heart(0.24, [220, 277.2, 329.6]),
-  cues: [[2.0, 'scratch', { chars: 29, cps: 40 }], [3.2, 'scratch', { chars: 34, cps: 40 }], [3.6, 'chime', { f: 660 }], [4.3, 'pop'], [4.65, 'scratch', { chars: 14 }], [6.0, 'pop'], [6.9, 'plink'], [7.25, 'plink'], [7.6, 'plink'], [7.95, 'plink']],
+  cues: [[2.0, 'scratch', { chars: 29, cps: 40 }], [3.2, 'scratch', { chars: 34, cps: 40 }], [3.6, 'chime', { f: 660 }], [4.3, 'pop'], [4.65, 'scratch', { chars: 14 }], [6.0, 'pop'], [6.9, 'tick'], [7.25, 'tick'], [7.6, 'tick'], [7.95, 'tick']],
   draw(t) {
     const v = y => 110 + 260 * (1 - ((y - 660) / 200) ** 2), x0 = -200, x1 = SPAN1;
     const tissue = shape.band(shape.ridge(x0, x1, 392, 8, 5), H + 20);
@@ -245,7 +245,7 @@ const P2 = {
   cam: camII,
   hero: () => ({ x: C2[0], y: C2[1], label: 'NP·01', r: 270 }),
   bed: darkBed([110, 164.8, 196]),
-  cues: [[0.12, 'pop'], [2.7, 'scratch', { chars: 34, cps: 40 }], [3.2, 'chime', { f: 523 }], [4.0, 'pop'], [5.3, 'pop'], [5.65, 'scratch', { chars: 20 }], ...Array.from({ length: 12 }, (_, i) => [1.0 + i * 0.62, 'plink'])],
+  cues: [[0.12, 'pop'], [2.7, 'readout', { chars: 34, cps: 40 }], [3.2, 'chime', { f: 523 }], [4.0, 'pop'], [5.3, 'pop'], [5.65, 'readout', { chars: 20 }], ...Array.from({ length: 12 }, (_, i) => [1.0 + i * 0.62, 'droplet', { g: 0.05 }])],
   draw(t) {
     const r = mulberry(210);                                                  // a dense plasma of proteins drifting past
     for (let i = 0; i < 90; i++) { const x0 = r() * (W + 400) - 200, y0 = 160 + r() * 860, sp = 30 + r() * 20, [wx, wy] = wander(i, t, 16, 0.6, 3);
@@ -374,7 +374,7 @@ const P4 = {
   cam: camIV,
   hero: t => ({ x: C4[0], y: C4[1], label: 'NP·01', r: R4(t) + 50 }),
   bed: (ac, out, t0, dur) => { darkBed([98, 146.8, 185])(ac, out, t0, dur); },
-  cues: [[0.12, 'pop'], [1.7, 'pop'], [2.2, 'pop'], [2.55, 'scratch', { chars: 16 }], [6.6, 'pop'], [6.95, 'scratch', { chars: 17 }], [11.6, 'chime', { f: 440 }], ...drugsIV.slice(0, 16).map(d => [d.tr + 0.2, 'plink'])],   // 0.12: a hit as the lens opens
+  cues: [[0.12, 'pop'], [1.7, 'pop'], [2.2, 'pop'], [2.55, 'readout', { chars: 16 }], [6.6, 'pop'], [6.95, 'readout', { chars: 17 }], [11.6, 'chime', { f: 440 }], ...drugsIV.slice(0, 16).map(d => [d.tr + 0.2, 'plink'])],   // 0.12: a hit as the lens opens
   draw(t) {
     const e = inv(1, 12, t), R = R4(t);
     const r = mulberry(410);
@@ -442,7 +442,7 @@ const P5 = {
   focus: () => [960, 380],
   cam: t => ({ x: 960, y: 380, s: 1 + 0.05 * E.inOutSine(clamp(t / 10.5)), dx: 14 * Math.sin(t * 0.6), dy: 8 * Math.sin(t * 0.45), rot: 0.02 * Math.sin(t * 0.3) }),   // a slow drift; the text in overlay stays put
   bed: (ac, out, t0, dur) => SFX.pad(ac, out, t0, { dur: dur - 0.5, notes: [130.8, 196, 246.9, 329.6], g: 0.02, dark: true }),
-  cues: [[0.12, 'pop'], [1.2, 'chime', { f: 392 }], [1.5, 'scratch', { chars: 29, cps: 20 }], [3.0, 'chime', { f: 587 }],   // 0.12: a hit as the morph begins
+  cues: [[0.12, 'pop'], [1.2, 'chime', { f: 392 }], [1.5, 'readout', { chars: 29, cps: 20 }], [3.0, 'chime', { f: 587 }],   // 0.12: a hit as the morph begins
     ...pass5.slice(1).map((p, k) => [p, 'plink', { f: 1200 + k * 200 }]), [LOOP5[1], 'chime', { f: 784 }], [BURST5, 'pop'], [BURST5 + 0.1, 'noise', { dur: 0.9, g: 0.03, f0: 2400, f1: 600, q: 0.7 }]],
   draw(t) {
     const [cx, cy] = [960, 380], a = E.out3(inv(0.3, 1.4, t)), u = loop5(t);
@@ -500,5 +500,6 @@ const P5 = {
   },
 };
 
-defineStory({ title: 'The Long Release', stages: 4, plates: [P0, P1, P2, P3, P4, P5] });
+defineStory({ title: 'The Long Release', stages: 4, plates: [P0, P1, P2, P3, P4, P5],
+  dynamics: [[0, -5], [6.5, -4.5], [16.5, -3.5], [26.5, -2], [39, -1], [41.5, 3], [50.5, 3], [53, 0], [62, -1]] });   // sound: quiet start, building to a lift at the release (plate IV)
 boot();
