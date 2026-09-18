@@ -31,13 +31,23 @@ const fontWarnings = [];
 const fail = msg => { console.error('\x1b[31mERROR:', msg, '\x1b[0m'); process.exit(1); };
 async function openPage() {
   const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
-  page.on('pageerror', e => console.error('PAGE ERROR:', e.message));
+  // a story that throws while loading never sets __ready, so the wait below would burn its whole
+  // timeout and then bury the real cause under a Playwright stack. Fail on the first error instead.
+  let firstError = null, onError = null;
+  const errored = new Promise(res => { onError = res; });
+  page.on('pageerror', e => { console.error('PAGE ERROR:', e.message); if (!firstError) { firstError = e.message; onError(); } });
   if (process.env.DOODLE_BLOCK_FONTS) await page.route(/fonts\.(googleapis|gstatic)\.com/, r => process.env.DOODLE_BLOCK_FONTS === 'hang' ? null : r.abort());   // test the offline path
   // not networkidle: a silent font server would stall it. When the first page fell back, later pages skip the font wait
   // (?nofonts) and freeze the same fallback, so they neither wait the cap again nor pick up fonts that arrive late.
   const q = fontWarnings.length && fontWarnings[0] ? '&nofonts=1' : '';
   await page.goto(pathToFileURL(file).href + '?render=1' + q, { waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(() => window.__ready === true, null, { timeout: 90000, polling: 250 });
+  const ready = page.waitForFunction(() => window.__ready === true, null, { timeout: 90000, polling: 250 });
+  ready.catch(() => {});                                     // handled below; keeps the race from warning
+  await Promise.race([ready, errored]);
+  if (firstError && !(await page.evaluate(() => window.__ready === true).catch(() => false)))
+    fail(`the story threw while loading, so the film never became ready: ${firstError}\n` +
+         '       (a name used before it is declared usually means the plates were concatenated in the wrong order,\n' +
+         '        or a value one plate reads from another is not in helpers.js)');
   const warn = (await page.evaluate(() => window.__fontWarning)) || null;
   if (warn && !fontWarnings.length) console.warn('\x1b[33mWARNING:', warn, '\x1b[0m');
   const fam = w => w && w.slice(0, w.indexOf(')'));        // compare which families are missing, not the reason text

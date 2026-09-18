@@ -42,6 +42,7 @@ A lane starts with no memory of the conversation that produced the script, so it
 | `helpers.js` | The house helpers for this film (below) |
 | `references/style.md`, `references/motion.md`, `references/animation-principles.md`, `references/api.md`, `references/components.md` | The fixed look, the motion it must keep alive, the primitives it draws with |
 | The hero's ID tag and how it appears in this plate | `NP·01` must be the same object, tagged the same way, in every plate |
+| The **names** of the shared values its seams use | Hand the lane the identifiers, not only the prose: "your entry seam starts at `LAND_TITLE`, declared in `helpers.js`". A lane told only that it enters "from where the drop landed" has to invent a name, and an invented name is a `ReferenceError` at assembly |
 | The **absolute** path of every reference it must read | A lane is a fresh agent: `${CLAUDE_PLUGIN_ROOT}` is not expanded in its prompt, and a bare file name resolves nowhere. Give full paths to `style.md`, `components.md`, `api.md`, `motion.md` and `animation-principles.md`, and to the working folder |
 | Its plate's time window, **local and global** | `draw(t)` and `overlay(t)` get local seconds, starting at 0. `render.mjs --sheet-range` takes seconds from the start of the **film**. A lane working on a probe of its own plate alone has local = global; the moment it looks at a sheet of the assembled film, it needs the offset |
 
@@ -129,7 +130,8 @@ python3 build.py story.js film.html
 
 Four things the main session does here, because no lane can:
 
-- **Plate order** is the order in the `plates` array. Concatenation order only has to put every plate object before `defineStory`; it is the array that plays. Get it right against the script, since a mis-ordered array builds cleanly and plays the film wrong.
+- **Plate order** is the order in the `plates` array: get it right against the script, because a mis-ordered array builds cleanly and plays the film wrong.
+- **Concatenation order matters too, and not only for `defineStory`.** A plate's `enter` is evaluated the moment its `const` initialises, so any value it reads must already exist at that point in the file. `helpers.js` goes first and the plates follow in film order; a plate that reads something declared later in the file fails with `Cannot access 'X' before initialization`. As always `build.py` exits 0 — the error appears only at page load, and `render.mjs` waits 90 seconds before printing it under a timeout stack. This is why seam anchors live in `helpers.js`: there they are declared before any plate.
 - **Paste the sound in.** Each plate's `cues` and `bed` come from `cues.md` now, along with `defineStory({ music: … })` if the sound plan asks for one. The lanes deliberately left these out.
 - **`stages`** counts only the numbered plates — not the title plate or the end card. `story_example.js` has six plates and `stages: 4`. It has to agree with every plate's `stage: { n, name, prevN }`: lanes fill in their own `n`, `name` and `prevN` from the script, and the main session checks the chain runs 1, 2, 3… with each `prevN` matching the previous numbered plate's `n`.
 - **Kit selection happens on the assembled text.** `build.py` scans `story.js` for `KIT.<name>` and inlines only those kits, so a plate that is missing from `story.js` also silently loses its kit. Check the `kits:` line `build.py` prints against what the plates actually use. If it prints `all`, something in the story refers to `KIT` in a way the scan cannot read, which only costs file size.

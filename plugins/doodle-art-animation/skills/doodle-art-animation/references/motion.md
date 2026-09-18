@@ -181,7 +181,7 @@ The built-in types are presets. When a seam matters, write it in the story: give
   - time passing, `bleed`;
   - one object becoming another, a custom morph (or `shape` for simple outlines); going into a surface, `through`.
   - Better still, design the seam first (`references/writing.md`, "Designing the seams") and let the link choose the type.
-- Use 4–6 types per film, and never the same one three times in a row.
+- Use 4–6 types in a film with five or more seams, and never the same one three times in a row. A two- or three-seam film has nothing to vary: pick the right link for each seam and stop there.
 - **Motion carries across the seam.** When the old plate's hero (or camera pan) is still moving at the cut, the new plate enters travelling the same way and eases to rest (`enter.carry`, seconds, default 0.35; `false` turns it off). It is off for `pan`, `page`, `roll`, `fade`, `through` and `shape`.
 - **Pans follow the action.** `pan` with no `dir` (or `dir: 'auto'`) keeps the camera travelling the way it was, whether it was chasing a moving hero or panning on its own; it falls back to `'left'` when nothing is moving.
 - **Momentum** is automatic (`LEAD` and `SETTLE` in the engine). Set `enter.momentum: false` to turn it off, or `enter.settle` (seconds) to change the settle length. Momentum scales only upward, because scenes bleed past the frame edges only when enlarged.

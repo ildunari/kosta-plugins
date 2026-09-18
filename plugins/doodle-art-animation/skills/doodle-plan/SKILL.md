@@ -52,7 +52,9 @@ Only once `script.md` is saved, run `doodle-art-animation:script-reviewer` with 
 
 Nothing else runs yet. Don't start `sound-designer` here and don't open a build lane; both need the script the review is about to change.
 
-Apply every must-fix. For the rest, either apply it or say in one line why you kept your version. Re-save `script.md`. If the verdict was `revise` and the edits were large, run the reviewer once more on the saved file.
+Apply every must-fix that does not break something the user asked for. When one does — a beat that pushes a 30-second film past its length, a change of hero — take the cheapest version that keeps their constraint, and record the trade in one line for the plan card rather than silently choosing either side.
+
+Otherwise, apply every must-fix. For the rest, either apply it or say in one line why you kept your version. Re-save `script.md`. If the verdict was `revise` and the edits were large, run the reviewer once more on the saved file.
 
 ## 6. The plan card
 
