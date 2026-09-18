@@ -22,12 +22,20 @@ The plugin has five agents. Three review a built film and run here: `film-review
 
 ## 2. Run the checks
 
-`/doodle-art-animation:doodle-build` already rendered the shared set into `qa/` (contact sheet, strips, seam sheets, `qa/text_check.json`) at the end of the build. Reuse it: re-run only what is missing, or stale because the **story file** is newer than the sheets (`ls -l` the story and `qa/`). Judge staleness against the story, not the HTML — the build below rewrites the HTML every time, and comparing against it would make the whole set look stale and undo the saving. Rebuild the HTML only when the story is newer than it. If the folder was built by hand and has no `qa/`, run the whole set.
+`/doodle-art-animation:doodle-build` already rendered the shared set into `qa/` (contact sheet, strips, seam sheets, `qa/text_check.json`) at the end of the build. Reuse it: re-run only what is missing or stale. The film depends on everything the build reads — the plate files and `helpers.js` (or a hand-written story), `engine.js`, `shell.html`, `build.py` and the kits — so the set is stale when any of those is newer than it:
+
+```
+find . -maxdepth 2 \( -name '*.js' -o -name '*.mjs' -o -name 'shell.html' -o -name 'build.py' \) \
+     -not -path './qa/*' -not -path './node_modules/*' -newer qa/contact_sheet.jpg
+```
+
+In a folder with an `assemble.sh`, `story.js` is generated and always looks new, so add `-not -name story.js`; the plate files and `helpers.js` stand for it. Anything the command lists means rebuild and re-render the parts that change touches; nothing means the set is current. Don't judge against the built HTML — the build rewrites it every time, so it always looks newer. If the folder was built by hand and has no `qa/`, run the whole set.
 
 Run these from the working folder, in order, and keep each command's key output:
 
 ```
-python3 build.py <story> <film>.html          # only if the story is newer than the HTML
+sh assemble.sh                                 # only if the folder has one: story.js is generated from the plate files
+python3 build.py <story> <film>.html          # only if a source is newer than the HTML
 node render.mjs <film>.html --sheet 1          # qa/contact_sheet.jpg
 node render.mjs <film>.html --strips           # qa/strip_NN_type.jpg
 node render.mjs <film>.html --seams            # qa/seam_NN_type.jpg, prints each transition time
@@ -76,6 +84,6 @@ If the user says yes: merge the reviews into one fix list, apply it, rebuild, an
 | A cue, bed or `music` changed | `audio_check` after the next render, then `audio-reviewer` |
 | The scene script itself changed | `script-reviewer` |
 
-A build (`python3 build.py`) comes before any of them, and anything needing an MP4 waits for the next render. Repeat until the affected checks are clean, then report the same summary as above for what changed, and say which checks you did not re-run and why.
+Apply each fix to its source — the plate file or `helpers.js` in a folder built by `/doodle-art-animation:doodle-build`, never `story.js`, which `assemble.sh` regenerates — then `sh assemble.sh` and a build (`python3 build.py`) come before any of them, and anything needing an MP4 waits for the next render. Repeat until the affected checks are clean, then report the same summary as above for what changed, and say which checks you did not re-run and why.
 
 **Three rounds, then stop.** If a check is still failing after three passes, don't keep going round: report what is failing, what you tried, and what you think it would take — a story change the user should weigh, a target that is wrong for this film, or a plugin fault. A check three fixes could not satisfy is usually a disagreement about the film, not a bug in the film.

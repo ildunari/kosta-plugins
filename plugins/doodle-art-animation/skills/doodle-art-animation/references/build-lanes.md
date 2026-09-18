@@ -123,17 +123,26 @@ Assembly is not parallel work and is not delegated. The main session owns it.
 **The plate files must be concatenated, not imported.** `build.py` takes exactly one story file and inlines it into a plain `<script>` block in `shell.html`, next to the engine and the kits. There is no module graph: no `import`, no `export`, no `type="module"`, and no second file served alongside — the built HTML is a single self-contained file opened from disk. So:
 
 ```bash
+# story_tail.js: the story call, every plate in screen order, and the music
+#   defineStory({ title: 'The Long Release', stages: 4, plates: [P0, P1, P2, P3, P4, P5] });
+#   boot();
+# assemble.sh: regenerates story.js from its sources, in film order
+cat > assemble.sh <<'SH'
+#!/bin/sh
+set -e
 cat helpers.js plate_0_title.js plate_1_blood.js plate_2_corona.js \
-    plate_3_vessels.js plate_4_release.js plate_5_end.js > story.js
-printf "defineStory({ title: 'The Long Release', stages: 4, plates: [P0, P1, P2, P3, P4, P5] });\nboot();\n" >> story.js
-python3 build.py story.js film.html
+    plate_3_vessels.js plate_4_release.js plate_5_end.js story_tail.js > story.js
+SH
+sh assemble.sh && python3 build.py story.js film.html
 ```
+
+**`story.js` is generated from then on.** Every later fix — a reviewer's note at Gate 2, a late reply from the user — goes into a plate file, `helpers.js` or `story_tail.js`, and `sh assemble.sh` rebuilds the story. Edit `story.js` directly and the next reassembly silently throws the fix away.
 
 Four things the main session does here, because no lane can:
 
 - **Plate order** is the order in the `plates` array: get it right against the script, because a mis-ordered array builds cleanly and plays the film wrong.
 - **Concatenation order matters too, and not only for `defineStory`.** A plate's `enter` is evaluated the moment its `const` initialises, so any value it reads must already exist at that point in the file. `helpers.js` goes first and the plates follow in film order; a plate that reads something declared later in the file fails with `Cannot access 'X' before initialization`. As always `build.py` exits 0 — the error appears only at page load, where `render.mjs` reports it within about fifteen seconds and names the identifier. This is why seam anchors live in `helpers.js`: there they are declared before any plate.
-- **Paste the sound in.** Each plate's `cues` and `bed` come from `cues.md` now, along with `defineStory({ music: … })` if the sound plan asks for one. The lanes deliberately left these out.
+- **Paste the sound in — into the plate files.** Each plate's `cues` and `bed` from `cues.md` go into that plate's own file, and `music` into `story_tail.js`. The lanes deliberately left these out; pasting them into `story.js` instead would lose them at the next reassembly.
 - **`stages`** counts only the numbered plates — not the title plate or the end card. `story_example.js` has six plates and `stages: 4`. It has to agree with every plate's `stage: { n, name, prevN }`: lanes fill in their own `n`, `name` and `prevN` from the script, and the main session checks the chain runs 1, 2, 3… with each `prevN` matching the previous numbered plate's `n`.
 - **Kit selection happens on the assembled text.** `build.py` scans `story.js` for `KIT.<name>` and inlines only those kits, so a plate that is missing from `story.js` also silently loses its kit. Check the `kits:` line `build.py` prints against what the plates actually use. If it prints `all`, something in the story refers to `KIT` in a way the scan cannot read, which only costs file size.
 

@@ -59,17 +59,30 @@ node render.mjs probe_2.html --sheet-range 0-<the plate's duration> --fps 6 --di
 
 ## 5. Assemble and build once
 
-Concatenate the plates in plate order, then append the story tail:
+`story.js` is generated, never edited. Its sources are `helpers.js`, the plate files and a short `story_tail.js`, and one script rebuilds it from them — so every later fix goes into a source file and the film is reassembled, instead of drifting away from what the lanes wrote.
 
-```
-cat helpers.js plate_0_*.js plate_1_*.js plate_2_*.js plate_3_*.js plate_4_*.js > story.js   # helpers first, then plates in film order
-# name every file in film order like this; a `plate_*.js` glob puts plate_10 before plate_2
-printf "defineStory({ title: '<title>', stages: <n>, plates: [P0, P1, P2, P3, P4] });\nboot();\n" >> story.js
-python3 build.py story.js film.html
-```
+1. Put the sound into its plates: paste each plate's `cues` and `bed` from `cues.md` into that plate's file now. Pasted into `story.js` they would vanish at the next reassembly.
+2. Write `story_tail.js` with the story call, listing **every** plate object in screen order — title plate and end card included — and the music if the sound plan asks for it:
 
-- `plates` lists every plate object in screen order, including the title plate and the end card. `stages` counts only the numbered plates between them (`story_example.js` has six plates and `stages: 4`).
-- Paste each plate's `cues` and `bed` from `cues.md` now, and set `defineStory({ music: … })` if the sound plan asks for one.
+   ```
+   defineStory({ title: '<title>', stages: <n>, music: { … }, plates: [P0, P1, P2, … every plate …] });
+   boot();
+   ```
+
+   `stages` counts only the numbered plates between the title and the end card (`story_example.js` has six plates and `stages: 4`).
+3. Write `assemble.sh`, naming every plate file from the script explicitly, in film order — never a `plate_*.js` glob, which puts `plate_10` before `plate_2` — then run it and build:
+
+   ```
+   cat > assemble.sh <<'SH'
+   #!/bin/sh
+   # regenerates story.js from its sources; edit those, not story.js
+   set -e
+   cat helpers.js plate_0_title.js plate_1_<slug>.js plate_2_<slug>.js … plate_<last>_end.js story_tail.js > story.js
+   SH
+   sh assemble.sh && python3 build.py story.js film.html
+   ```
+
+   The plate list must match `story_tail.js` exactly: a file missing from `assemble.sh` is a `ReferenceError`, and a name missing from `plates` is a plate that silently never plays.
 - Fix every `PAGE ERROR` before going on; a page error means the film is not built.
 
 ## 6. One shared QA render

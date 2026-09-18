@@ -28,15 +28,20 @@ Either way, write the decisions to `brief.md`: length, hero, setting, audio, ton
 
 ## 3. Research lanes, then `facts.md`
 
-Start these with the Agent tool **in one message** so they run at the same time, each returning facts with a source for every number:
+Research runs in two steps, because checking a number needs the number first.
+
+**First, in parallel** — start both with the Agent tool **in one message**, each returning facts with a source for every number:
 
 - **Topic research** — the mechanism, the stages, the standard figures, what a general reader gets wrong.
 - **The user's own data or sources** — read the files, dataset or links they gave, and pull the 10–20 numbers that matter (`references/writing.md`, "Adapting any subject").
-- **Numbers and citations** — check every figure the other two return against a second source, do the arithmetic on every comparison, and mark what is exact, `≈`, a range or illustrative.
+
+**Then, on what they returned** — merge the two into a draft `facts.md` and hand it to one more agent:
+
+- **Numbers and citations** — check every figure in the draft against a second source, do the arithmetic on every comparison, and mark what is exact, `≈`, a range or illustrative. Started alongside the others it would have nothing to check.
 
 Don't fan out when it costs more than it saves: a small or familiar topic, a single source document, or a user who already supplied the facts. Do it yourself in one pass and say so.
 
-Merge the results into `facts.md`, one line per fact: the number with its unit, the claim in plain words, the source, and exact / `≈` / illustrative. Drop anything you can't source — every number on screen needs one, and the sources go on the end card.
+Apply its corrections and write the final `facts.md`, one line per fact: the number with its unit, the claim in plain words, the source, and exact / `≈` / illustrative. Drop anything you can't source — every number on screen needs one, and the sources go on the end card.
 
 ## 4. The hero, then `script.md`
 
@@ -60,7 +65,7 @@ Post the plan card as `references/intake.md` describes under "The plan card": on
 
 There is no clock to run: you cannot time ten minutes, and a reply typed now would not reach you until this turn ends. So the card is followed by the work the plan does not govern, and then by the handoff. That work is the wait:
 
-- the working folder already exists from step 1; copy the toolkit into it now (`cp -R "${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation/toolkit/." .`);
+- the working folder already exists from step 1; copy the toolkit into it now, from the skill path resolved in step 1 (`cp -R "<skill>/toolkit/." .`, where `<skill>` is `${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation`, or `${CLAUDE_SKILL_DIR}/../doodle-art-animation` when that is empty);
 - `helpers.js`: the film's palette names, the hero function and its ID tag, shared shapes, and **any constant a seam anchors to** (a landing point, a hand-off position) — the seam list names those, and a plate whose `enter` reads one from another plate's file cannot build on its own;
 - the sound plan: `doodle-art-animation:sound-designer` on the reviewed `script.md`, saved as `cues.md`.
 
