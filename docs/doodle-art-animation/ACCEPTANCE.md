@@ -11,6 +11,19 @@ A version ships only when every auto item passes, every eye item has evidence, a
 Paths below are relative to `plugins/doodle-art-animation/skills/doodle-art-animation/` unless they start with
 `plugins/` or `docs/`.
 
+**What these checks can and cannot do.** Most of the W items are rules about prose, and the checks read prose:
+they catch a rule that was deleted, renamed, moved or contradicted by accident, which is how these documents
+actually decay. They are not proof against someone writing text that satisfies the words and means the
+opposite — two reviews have demonstrated exactly that, and each round of hardening only raised the price. Where
+a rule could be turned into something mechanical (a file that must exist, a flag a tool must parse, a number a
+render must hit) it has been. For the rest, the check is a tripwire and the review is the gate: when you change
+one of these documents, read the rule next to it, and expect a reviewer to ask whether the text still means it.
+
+The checks reject the prose each review used to defeat them, including negated stop-clauses, a `Gate 1` row
+whose cells invert the rule, an uncapped fix loop, a description that says "invoked by" and then tells the agent
+to start itself, and the timed deadline restored verbatim (`tests/doodle-art-animation/` has no copy of that
+harness; it lived in the reviewer's scratch folder).
+
 ## Guiding rule (applies to every item)
 
 The plugin fixes the base style, tone and tools; each film's model decides content, scenes, pacing and
@@ -131,12 +144,13 @@ The v0.13 items above stay in force; these add the phase and gate structure.
   claims "workflow step 5".
 
 ## W2 · Every agent refuses to start without its input
-- [auto] Each of the five agent files has a `## Preconditions` section naming the file or artefact it needs and
-  saying to stop and report when it is missing: `script-reviewer` a script file, `sound-designer` a reviewed script, `film-reviewer` and `seam-reviewer` a built film, `audio-reviewer` an MP4 with audio.
+- [auto] Each of the five agent files has a `## Preconditions` section that names the file or artefact it needs,
+  says to stop and report when it is missing, and offers no way to carry on without it: `script-reviewer` a script file, `sound-designer` a reviewed script, `film-reviewer` and `seam-reviewer` a built film, `audio-reviewer` an MP4 with audio.
 
 ## W3 · A phase table, not prose
 - [auto] SKILL.md has a `## Phases and gates` table whose header names what each phase **needs**, what it
-  **produces**, and which **lanes** may run at the same time.
+  **produces**, and which **lanes** may run at the same time, with a row for every phase and both gates.
+- [auto] Gate 1's row needs `script.md` on disk and does not list the art lanes as concurrent work.
 
 ## W4 · Per-scene build lanes
 - [auto] `references/build-lanes.md` exists and covers: one plate per agent, a range sheet as the agent's
@@ -145,25 +159,28 @@ The v0.13 items above stay in force; these add the phase and gate structure.
 - [auto] SKILL.md's build step points to it.
 
 ## W5 · One shared QA render
-- [auto] SKILL.md's QA step says the sheets, strips and seam sheets are rendered once into `qa/` and that the
-  reviewers reuse them instead of rendering their own.
+- [auto] SKILL.md's assemble step says the sheets, strips and seam sheets are rendered once into `qa/` and that
+  the reviewers reuse them instead of rendering their own.
+- [auto] `film-reviewer`, `seam-reviewer` and `audio-reviewer` each say they reuse that set.
 
 ## W6 · Fix loop re-runs only what changed
 - [auto] SKILL.md and `skills/doodle-qa/SKILL.md` both say to merge the fix list, apply it, and re-run only the
-  checks affected by the change.
+  checks affected by the change, and neither also demands the whole gate again.
+- [auto] `doodle-qa` caps the loop: three rounds, then report what is still failing.
 
-## W7 · The order is mechanical: two commands
+## W7 · The order is mechanical: the commands
 - [auto] `skills/doodle-plan/SKILL.md` (intake, research lanes, script, Gate 1) and
-  `skills/doodle-build/SKILL.md` (build lanes, assembly, checks, reviewers) exist, each with `name`,
-  `description` and `disable-model-invocation: true`.
+  `skills/doodle-build/SKILL.md` (build lanes, assembly, one build, the shared QA render) exist, and all four
+  commands — these two plus `doodle-qa` and `doodle-render` — carry `name`, `description` and
+  `disable-model-invocation: true`, because they are the user's to type.
 - [auto] SKILL.md names both commands.
 
 ## W8 · Agents don't invite themselves
-- [auto] No agent description says "use proactively". Each description names the command or phase that owns it
-  (`doodle-plan`, `doodle-build` or `doodle-qa`).
+- [auto] No agent description mentions acting proactively. Each one says, in a single sentence, which command
+  invokes it (`doodle-plan`, `doodle-build` or `doodle-qa`) and that it never starts on its own initiative.
 
 ## W9 · Gate 1 never blocks and never fakes a clock
-- [auto] `references/intake.md` has a `## Timed plan approval` section which says a model cannot run a timer and
+- [auto] `references/intake.md` has a `## The plan card, and why it has no clock` section which says a model cannot run a timer and
   a reply cannot arrive mid-turn; that the wait is bounded by the work the plan does not govern; that the run
   carries on rather than stalling; and what stays editable afterwards (the script and seams, until the final
   render). It must not instruct the model to wait a number of minutes as its only mechanism.

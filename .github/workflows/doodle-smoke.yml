@@ -8,10 +8,16 @@ on:
     branches: [main]
     paths:
       - "plugins/doodle-art-animation/**"
+      - "tests/doodle-art-animation/**"
+      - "docs/doodle-art-animation/ACCEPTANCE.md"
+      - ".claude-plugin/marketplace.json"
       - ".github/workflows/doodle-smoke.yml"
   pull_request:
     paths:
       - "plugins/doodle-art-animation/**"
+      - "tests/doodle-art-animation/**"
+      - "docs/doodle-art-animation/ACCEPTANCE.md"
+      - ".claude-plugin/marketplace.json"
       - ".github/workflows/doodle-smoke.yml"
   workflow_dispatch:
 

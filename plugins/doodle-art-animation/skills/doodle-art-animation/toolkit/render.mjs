@@ -43,11 +43,19 @@ async function openPage() {
   await page.goto(pathToFileURL(file).href + '?render=1' + q, { waitUntil: 'domcontentloaded' });
   const ready = page.waitForFunction(() => window.__ready === true, null, { timeout: 90000, polling: 250 });
   ready.catch(() => {});                                     // handled below; keeps the race from warning
-  await Promise.race([ready, errored]);
-  if (firstError && !(await page.evaluate(() => window.__ready === true).catch(() => false)))
-    fail(`the story threw while loading, so the film never became ready: ${firstError}\n` +
-         '       (a name used before it is declared usually means the plates were concatenated in the wrong order,\n' +
-         '        or a value one plate reads from another is not in helpers.js)');
+  let state = await Promise.race([ready.then(() => 'ready'), errored.then(() => 'error')]);
+  if (state === 'error') {
+    // an error before __ready is usually fatal (a bad story never boots), but boot() waits for fonts first,
+    // so a harmless error can land while the page is still loading. Give the page its wait before judging.
+    // boot() waits for fonts (up to FONT_WAIT) before setting __ready, so give it that much and no more:
+    // a fatal story is reported in seconds instead of sitting out the 90 s readiness timeout.
+    state = await page.waitForFunction(() => window.__ready === true, null, { timeout: 15000, polling: 200 })
+      .then(() => 'ready').catch(() => 'stuck');
+    if (state === 'stuck')
+      fail(`the story threw while loading, so the film never became ready: ${firstError}\n` +
+           '       (a name used before it is declared usually means the plates were concatenated in the wrong order,\n' +
+           '        or a value one plate reads from another is not in helpers.js)');
+  }
   const warn = (await page.evaluate(() => window.__fontWarning)) || null;
   if (warn && !fontWarnings.length) console.warn('\x1b[33mWARNING:', warn, '\x1b[0m');
   const fam = w => w && w.slice(0, w.indexOf(')'));        // compare which families are missing, not the reason text
@@ -78,6 +86,9 @@ if (opt('stills', null) || opt('sheet', null)) {
   await browser.close(); process.exit(0);
 }
 if (opt('seams', null)) {
+  // qa/ is reused between runs, so a film that lost a seam would otherwise leave its old sheet behind
+  // for a reviewer to score. Same for --strips below.
+  for (const fn of fs.readdirSync(dir)) if (/^seam_\d+_\w+\.jpg$/.test(fn)) fs.unlinkSync(path.join(dir, fn));
   const fps = info.fps, fr = t => Math.max(0, Math.min(info.frames - 1, Math.round(t * fps)));
   for (const [i, s] of info.starts.entries()) {
     if (i === 0) continue;
@@ -94,6 +105,7 @@ if (opt('seams', null)) {
   await browser.close(); process.exit(0);
 }
 if (opt('strips', null)) {   // 12 frames at 8 fps, from 0.25 s before each plate start
+  for (const fn of fs.readdirSync(dir)) if (/^strip_\d+_\w+\.jpg$/.test(fn)) fs.unlinkSync(path.join(dir, fn));
   const starts = info.starts.map((s, i) => ({ ...s, i })).filter(s => s.i > 0);
   for (const s of starts) {
     const tag = `s${String(s.i).padStart(2, '0')}`;

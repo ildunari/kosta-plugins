@@ -62,7 +62,8 @@ node render.mjs probe_2.html --sheet-range 0-<the plate's duration> --fps 6 --di
 Concatenate the plates in plate order, then append the story tail:
 
 ```
-cat helpers.js plate_0_title.js plate_1_*.js plate_2_*.js plate_3_*.js plate_4_end.js > story.js   # helpers first, then plates in film order
+cat helpers.js plate_0_*.js plate_1_*.js plate_2_*.js plate_3_*.js plate_4_*.js > story.js   # helpers first, then plates in film order
+# name every file in film order like this; a `plate_*.js` glob puts plate_10 before plate_2
 printf "defineStory({ title: '<title>', stages: <n>, plates: [P0, P1, P2, P3, P4] });\nboot();\n" >> story.js
 python3 build.py story.js film.html
 ```

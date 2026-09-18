@@ -27,7 +27,7 @@ The plugin has five agents. Three review a built film and run here: `film-review
 Run these from the working folder, in order, and keep each command's key output:
 
 ```
-python3 build.py <story> <film>.html
+python3 build.py <story> <film>.html          # only if the story is newer than the HTML
 node render.mjs <film>.html --sheet 1          # qa/contact_sheet.jpg
 node render.mjs <film>.html --strips           # qa/strip_NN_type.jpg
 node render.mjs <film>.html --seams            # qa/seam_NN_type.jpg, prints each transition time
@@ -78,4 +78,4 @@ If the user says yes: merge the reviews into one fix list, apply it, rebuild, an
 
 A build (`python3 build.py`) comes before any of them, and anything needing an MP4 waits for the next render. Repeat until the affected checks are clean, then report the same summary as above for what changed, and say which checks you did not re-run and why.
 
-**Three rounds, then stop.** If a check is still failing after three passes, don't keep going round: report what is failing, what you tried, and what you think it would take — a story change the user should weigh, a target that is wrong for this film, or a plugin fault. A check that two fixes could not satisfy is usually a disagreement about the film, not a bug in the film.
+**Three rounds, then stop.** If a check is still failing after three passes, don't keep going round: report what is failing, what you tried, and what you think it would take — a story change the user should weigh, a target that is wrong for this film, or a plugin fault. A check three fixes could not satisfy is usually a disagreement about the film, not a bug in the film.

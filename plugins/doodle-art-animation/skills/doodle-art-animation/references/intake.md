@@ -67,7 +67,7 @@ Reply compactly, e.g. "1a 2b 3: my own answer". Anything you skip, I'll decide.
 - If an answer conflicts with a plugin rule (for example "no motion on the end card"), say so in one line and propose the nearest option that works.
 - Don't ask again later about anything the intake settled; if something new comes up during the build, ask one focused question then.
 
-## Timed plan approval
+## The plan card, and why it has no clock
 
 At Gate 1 the script has been written and `script-reviewer` has passed it, and the user gets a short summary of the plan before the expensive drawing starts. That is the last cheap moment to change the film — and also the moment a run most often stalls, because the user asked for a film and walked away. A film that waits four hours for a reply is worse than a film built from a reviewed plan, so this gate never blocks.
 
@@ -131,7 +131,7 @@ Everything the plan does not govern can begin as soon as the summary is posted �
 - The sound plan — `sound-designer` works from the reviewed script, and cues are cheap to change afterwards.
 - Reading the references the build needs, and gathering any facts still outstanding with their sources.
 
-**The art lanes do not start.** Drawing the plates is the expensive work the plan exists to govern, and a scene change after the lanes have run throws that work away. Hold them until the deadline passes or the user replies.
+**The art lanes do not start.** Drawing the plates is the expensive work the plan exists to govern, and a scene change after the lanes have run throws that work away. Hold them until the user replies, or until you hand off.
 
 ### If the user skipped intake
 

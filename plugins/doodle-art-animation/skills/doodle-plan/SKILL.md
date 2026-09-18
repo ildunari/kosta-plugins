@@ -1,6 +1,6 @@
 ---
 name: doodle-plan
-description: Plan a doodle-art-animation film before anything is drawn - the intake round, parallel research lanes, the hero and the scene script, the blocking script review, and a timed plan card for the user. Ends with an approved script.md, facts.md and brief.md in a working folder.
+description: Plan a doodle-art-animation film before anything is drawn - the intake round, parallel research lanes, the hero and the scene script, the blocking script review, and a plan card for the user. Ends with an approved script.md, facts.md and brief.md in a working folder.
 disable-model-invocation: true
 argument-hint: "[topic or source] [working folder]"
 ---
@@ -42,7 +42,7 @@ Merge the results into `facts.md`, one line per fact: the number with its unit, 
 
 Pick the one subject the viewer follows through every plate and give it an ID tag (`NP·01`, `FOX·01`, `PKT·01`). Then write the scene script in the table format of `references/writing.md` ("Plate script format"), and under it the seam list ("Designing the seams") with exit, entry, link and transition for every seam.
 
-While you write it, plan how the motion flows (`references/animation-principles.md`): inside a scene the animations overlap, stagger and hand off instead of stopping and starting, and each seam carries motion from one scene into the next. Check as you go that the durations add up to the length in `brief.md`, that every line of text has time to be read, that the film uses 4–6 transition types, never the same one three times in a row, and `fade` only into the end card.
+While you write it, plan how the motion flows (`references/animation-principles.md`): inside a scene the animations overlap, stagger and hand off instead of stopping and starting, and each seam carries motion from one scene into the next. Check as you go that the durations add up to the length in `brief.md`, that every line of text has time to be read, that the film uses 4–6 transition types once it has five or more seams, and never the same one three times in a row, and `fade` only into the end card.
 
 Save it as `script.md` in the working folder. The reviewers look for it there.
 
@@ -52,13 +52,11 @@ Only once `script.md` is saved, run `doodle-art-animation:script-reviewer` with 
 
 Nothing else runs yet. Don't start `sound-designer` here and don't open a build lane; both need the script the review is about to change.
 
-Apply every must-fix that does not break something the user asked for. When one does — a beat that pushes a 30-second film past its length, a change of hero — take the cheapest version that keeps their constraint, and record the trade in one line for the plan card rather than silently choosing either side.
-
-Otherwise, apply every must-fix. For the rest, either apply it or say in one line why you kept your version. Re-save `script.md`. If the verdict was `revise` and the edits were large, run the reviewer once more on the saved file.
+Apply every must-fix that does not break something the user asked for. When one does — a beat that pushes a 30-second film past its length, a change of hero — take the reviewer's recommendation if it keeps the user's constraint, otherwise the cheapest version that does, and record the trade in one line on the plan card rather than silently choosing either side. For the rest, either apply it or say in one line why you kept your version. Re-save `script.md`. If the verdict was `revise` and the edits were large, run the reviewer once more on the saved file.
 
 ## 6. The plan card
 
-Post the plan card as `references/intake.md` describes under "Timed plan approval": one or two lines per scene, the hero's journey, the length, the sound idea, and the assumptions the intake left open. End it with the line that says what happens next — reply to change anything, otherwise run the build — and say what stays editable afterwards (the script and the seams, up to the final render).
+Post the plan card as `references/intake.md` describes under "The plan card": one or two lines per scene, the hero's journey, the length, the sound idea, and the assumptions the intake left open. End it with the line that says what happens next — reply to change anything, otherwise run the build — and say what stays editable afterwards (the script and the seams, up to the final render).
 
 There is no clock to run: you cannot time ten minutes, and a reply typed now would not reach you until this turn ends. So the card is followed by the work the plan does not govern, and then by the handoff. That work is the wait:
 

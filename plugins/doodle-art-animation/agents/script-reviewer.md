@@ -11,7 +11,7 @@ You review the plan of a hand-inked explainer film made with the doodle-art-anim
 
 ## Beat windows, checked with the component's own delays
 
-A window that ignores what the component spends before its text appears is the failure that survives review most often, and it cannot be fixed later because `dur` is fixed by then. Do this arithmetic on every row: a `stat` needs 1.5 s + `readTime(note)`, a `callout` 1.0 s + `readTime(sub)`, and any line that must end with the plate needs its whole reading time inside `dur` — `readTime(s)` is about 0.28 s a word plus 0.9 s. Say which rows are too thin and by how much, and give the start time that works.
+A window that ignores what the component spends before its text appears is the failure that survives review most often, and it cannot be fixed later because `dur` is fixed by then. Do this arithmetic on every row: a `stat` needs 1.5 s + `readTime(note)`, a `callout` 1.0 s + `readTime(sub)`, and any line that must end with the plate needs its whole reading time inside `dur` — `readTime(s)` is `s.length / 12 + 0.8` (`engine.js`), so count characters, not words. Say which rows are too thin and by how much, and give the start time that works.
 
 ## When a fix collides with the user's own constraint
 
