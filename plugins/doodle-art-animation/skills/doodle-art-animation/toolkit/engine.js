@@ -990,7 +990,21 @@ function regMarks(dark, alpha = 1) {
   }
   ctx.restore();
 }
-function background(dark, t) { ctx.drawImage(dark ? TEX.night : TEX.paper, 0, 0); contours(t, dark); }
+function background(dark, t) { ctx.drawImage(dark ? TEX.night : TEX.paper, 0, 0); contours(t, dark); haloGround(dark, t); }
+/** the ground a glyph halo paints with: this frame's paper plus its drifting contour loops, drawn once per plate per
+    frame into an offscreen canvas in the paper's own frame. With the loops included, a halo over plain paper is the
+    paper, tint and all, so it cannot show as an outline; over line art it still knocks the lines back. */
+const HALO_BG = { c: null };
+function haloGround(dark, t) {
+  const tex = dark ? TEX.night : TEX.paper;
+  if (!HALO_BG.c || HALO_BG.c.width !== tex.width || HALO_BG.c.height !== tex.height) {
+    HALO_BG.c = document.createElement('canvas'); HALO_BG.c.width = tex.width; HALO_BG.c.height = tex.height; }
+  const was = ctx; ctx = HALO_BG.c.getContext('2d');
+  try { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+        ctx.drawImage(tex, 0, 0); contours(t, dark); }
+  finally { ctx = was; }
+  S.haloPat = ctx.createPattern(HALO_BG.c, 'no-repeat');   // a copy: the next plate in a transition can reuse the canvas
+}
 /** layer(fn, slot): draw fn() into a reusable offscreen W×H canvas (ctx is swapped for the duration) and return it */
 const LAYERS = [];
 function layer(fn, slot = 0) {
@@ -1111,11 +1125,22 @@ function textBox(s, x, y, o = {}) {
  * o.haloAlpha (default 0.92) and o.haloColor tune it. The stroke is drawn straight on ctx, not through text(), so the
  * legibility checks see it as part of what the text sits on.
  */
+/** the halo's ink: the plate's own paper texture, placed where drawPlate laid the paper (S.base), so over plain paper the
+    halo matches it grain for grain and cannot show; a flat PAL colour left a pale outline round every haloed line */
+const HALO = {};
+function haloInk(dark = S.dark) {
+  const tex = dark ? TEX.night : TEX.paper;
+  if (!tex) return dark ? PAL.night : PAL.paper;
+  const key = dark ? 'night' : 'paper';
+  const pat = (S.haloPat && S.haloDark === !!dark) ? S.haloPat : (HALO[key] || (HALO[key] = ctx.createPattern(tex, 'no-repeat')));
+  pat.setTransform(ctx.getTransform().inverse().multiply(S.base || new DOMMatrix()));   // pattern space = the paper's frame
+  return pat;
+}
 function haloText(s, x, y, o = {}) {
   if (s && o.halo !== false && (o.alpha ?? 1) > 0) {
     const { kind = 'sans', size = 24, weight = 400, italic = false, align = 'left', ls = 0, alpha = 1, base = 'alphabetic', dark = S.dark } = o;
     ctx.save(); setFont(kind, size, weight, italic); ctx.letterSpacing = ls + 'px'; ctx.textAlign = align; ctx.textBaseline = base;
-    ctx.globalAlpha *= alpha * (o.haloAlpha ?? 0.92); ctx.strokeStyle = o.haloColor || (dark ? PAL.night : PAL.paper);
+    ctx.globalAlpha *= alpha * (o.haloAlpha ?? 0.92); ctx.strokeStyle = o.haloColor || haloInk(dark);
     ctx.lineWidth = size * (o.haloWidth ?? 0.25); ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.miterLimit = 2;
     ctx.strokeText(s, x, y); ctx.restore();
   }
@@ -1926,7 +1951,7 @@ function defineStory(story) {
  */
 function drawPlate(pl, t, o = {}) {
   const { xf = null, all = false, hud = 1, bg = true, hudOnly = false, chrome = true } = o;   // chrome: false skips header, dial, log and marks (the reticle still follows hud)
-  const darkWas = S.dark, baseWas = S.base; S.dark = !!pl.dark;
+  const darkWas = S.dark, baseWas = S.base, patWas = S.haloPat, pdWas = S.haloDark; S.dark = !!pl.dark; S.haloPat = null; S.haloDark = !!pl.dark;
   ctx.save();
   if (all && xf) xf();
   S.base = ctx.getTransform();                                         // the frame the paper is drawn in: backing() samples it here
@@ -1955,7 +1980,7 @@ function drawPlate(pl, t, o = {}) {
     if (pl.log) journeyLog(ht - 0.35, pl.log(t), pl.dark);
     if (pl.marks !== false) regMarks(pl.dark);
   }
-  ctx.restore(); S.dark = darkWas; S.base = baseWas;
+  ctx.restore(); S.dark = darkWas; S.base = baseWas; S.haloPat = patWas; S.haloDark = pdWas;
 }
 /** true while frame f is inside a transition (or a plate's lead into one): those run on ones so scale and mask steps stay small */
 function onOnes(f) {
