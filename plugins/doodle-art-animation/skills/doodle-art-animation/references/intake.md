@@ -1,6 +1,6 @@
 # Intake: a few questions before the film
 
-Read this before workflow step 1. A short intake catches the choices that are expensive to change after the plates are built (length, audio, the hero, the setting, the tone). It is a light check, not an interview: a handful of questions, each answerable with one click or one letter.
+Read this at the start of a film, before any research or scripting. A short intake catches the choices that are expensive to change after the plates are built (length, audio, the hero, the setting, the tone). It is a light check, not an interview: a handful of questions, each answerable with one click or one letter.
 
 ## 1. Ask permission first
 
@@ -61,7 +61,8 @@ Reply compactly, e.g. "1a 2b 3: my own answer". Anything you skip, I'll decide.
 ## 4. After the answers
 
 - Restate the decisions as a short brief (4–8 lines): length, hero, setting, audio, tone and audience, must-include facts, ending, delivery, plus any assumption you made for unanswered questions.
-- Carry the brief into the scene script (workflow step 3): plate count and durations follow the length, the hero column follows the hero, the sound column follows the audio choice, the end card follows the ending.
+- **Save that brief as `brief.md`** in the film folder. It is not just a message to the user: every later phase reads it. The script is written against it, the sound plan is written against it, and each build lane is handed it so the plate it draws is consistent with decisions taken before that lane existed. A brief that only ever appeared in the conversation reaches none of them.
+- Carry the brief into the scene script: plate count and durations follow the length, the hero column follows the hero, the sound column follows the audio choice, the end card follows the ending.
 - For films over about a minute, the script summary you show the user before building should reflect these decisions, so they can see their answers in it.
 - If an answer conflicts with a plugin rule (for example "no motion on the end card"), say so in one line and propose the nearest option that works.
 - Don't ask again later about anything the intake settled; if something new comes up during the build, ask one focused question then.
