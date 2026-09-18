@@ -112,7 +112,7 @@ const P1 = {
       brush.stroke([[x - 12, y - f], [x, y], [x + 12, y - f]], { type: 'pencil-hb', seed: 80 + i, w: 2.4, alpha: inv(1.8, 2.4, t), streaks: false }); }
     ctx.restore();
   },
-  overlay(t) { KIT.caption(t - 1.9, 'brush.hatch · charcoal', 1540, 660); },
+  overlay(t) { KIT.caption(t - 1.9, 'brush.hatch · charcoal', 1540, 660, { backing: true }); },
 };
 
 /* ---------- plate II · pens, markers and spray: a notebook diagram ---------- */
@@ -185,8 +185,8 @@ const P3 = {
       pen([[x - 13, y - f], [x, y], [x + 13, y - f]], { w: 2, seed: 90 + i, alpha: inv(1.5, 2, t) }); }
   },
   overlay(t) {
-    KIT.caption(t - 0.8, 'wash(poly, { bleed })', 520, 990);
-    KIT.caption(t - 2.0, 'brush.hatch · pencil-hb', 520, 1020);
+    KIT.caption(t - 0.8, 'wash(poly, { bleed })', 520, 990, { backing: true });
+    KIT.caption(t - 2.0, 'brush.hatch · pencil-hb', 520, 1020, { backing: true });
   },
 };
 

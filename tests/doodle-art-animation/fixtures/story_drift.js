@@ -1,7 +1,7 @@
 /* =====================  FIXTURE: story_drift  ·  story_check.mjs must fail this  ===================== */
 /* Three plates whose Journey Log contradicts itself, the way "The Slow Squeeze" did: elapsed time goes
-   T+ 5 min -> T+ 10 min -> T+ 5 min (TIME), plates 2 and 3 both claim stage 2 (STAGE), and the hero's ID in the log
-   title changes from DRUG·01 to DRUG·02 on the last plate (HERO).
+   T+ 5 min -> T+ 10 min -> T+ 5 min (TIME), plate 3 goes back to stage 1 after stage 2 (STAGE), and the hero's ID in the log
+   title and the hero() label change from DRUG·01 to DRUG·02 on the last plate (HERO).
    Build: python3 build.py story_drift.js story_drift.html */
 const HERO = [960, 560];
 const STATES = ['PRESSED', 'RELEASED'];
@@ -15,7 +15,7 @@ const P = [
   { dur: 3, dark: false, enter: { type: 'cut' }, hero: hero('DRUG·01'), header: { num: 2, title: 'Cooled', sub: 'ten minutes in' },
     stage: { n: 2, name: 'COOL', prevN: 1 }, log: logOf('DRUG·01', 'T+ 10 min', 'THE BENCH'), draw: scene(3) },
   { dur: 3, dark: false, enter: { type: 'cut' }, hero: hero('DRUG·02'), header: { num: 3, title: 'Back again', sub: 'the clock went backwards' },
-    stage: { n: 2, name: 'COOL', prevN: 2 }, log: logOf('DRUG·02', 'T+ 5 min', 'THE BENCH'), draw: scene(5) },
+    stage: { n: 1, name: 'PRESS', prevN: 2 }, log: logOf('DRUG·02', 'T+ 5 min', 'THE BENCH'), draw: scene(5) },
 ];
 defineStory({ title: 'Drift Fixture', stages: 3, plates: P });
 boot();

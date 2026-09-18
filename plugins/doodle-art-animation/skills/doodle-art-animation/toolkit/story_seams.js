@@ -222,7 +222,7 @@ const P4 = {
   dur: 5.5, dark: false,
   enter: { type: 'cut', match: 1, settle: 1.4 },                                 // match cut: the sketch opens exactly where the ladybug was, then glides home
   header: { num: 4, title: 'The Notebook', sub: 'what was seen, written down' }, stage: { n: 4, name: 'NOTEBOOK', prevN: 3 },
-  hero: () => ({ x: SK[0], y: SK[1], label: 'SKETCH·01', r: 96 }),
+  hero: () => ({ x: SK[0], y: SK[1], label: 'LADYBUG·01', r: 96 }),   // the sketch is of the same ladybug: same ID
   cues: [[0.3, 'scratch', { chars: 40 }]],
   draw(t) {
     notebook(t);

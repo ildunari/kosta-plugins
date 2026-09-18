@@ -203,7 +203,9 @@ carrying a fact), `label` (the default: chart axes, legends, card notes), `hud` 
   what is behind it, and how busy that background is. It prints one line per failure (`CLASH`, `SMALL`), writes
   close-up crops of every flagged line with `--crops DIR`, and exits 1 on any failure.
 - [auto] It exits 1 on the fixture `tests/doodle-art-animation/fixtures/story_clash.js` (text on line work and
-  undersized story text) and 0 on every bundled `story*.js`.
+  undersized story text) and on `tests/doodle-art-animation/fixtures/story_legmiss.js` (the final review's probes:
+  faint ink, half a line on a dark block, haloed lines in dense hatching, glyph-by-glyph and single-glyph text, a
+  gradient fill), and 0 on every bundled `story*.js`.
 
 ## V2 · Size and contrast floors for text the story depends on
 - [auto] On screen, after the camera: `fact` ≥ 28 px, `label` ≥ 22 px, `hud` ≥ 18 px; contrast ≥ 4.5 for every
@@ -251,10 +253,12 @@ carrying a fact), `label` (the default: chart axes, legends, card notes), `hud` 
   re-checked on its own chunk, not by a fresh review of the whole film.
 
 ## V8 · The story's own facts stay consistent
-- [auto] `toolkit/story_check.mjs` exists. `node story_check.mjs film.html` reads each plate's header, stage and
-  Journey Log over time, and exits 1 when elapsed time runs backwards, a stage number repeats, or the hero's ID in
-  the log title changes. It exits 1 on the fixture `tests/doodle-art-animation/fixtures/story_drift.js` and 0 on
-  every bundled `story*.js`.
+- [auto] `toolkit/story_check.mjs` exists. `node story_check.mjs film.html` reads each plate's header, stage, hero
+  label and Journey Log over time, and exits 1 when a clock (`T+` values, ELAPSED / TIME / DAY rows, `DAY n`) runs
+  backwards, header numbers repeat or run backwards, a stage exceeds `stages`, runs backwards or returns after a
+  different one (consecutive plates may share a stage), or the hero's ID in the log title or its `hero()` label
+  changes or the two disagree. It exits 1 on the fixtures `tests/doodle-art-animation/fixtures/story_drift.js` and
+  `story_drift2.js` and 0 on every bundled `story*.js`.
 
 ## Release
 - [auto] `plugin.json` and the marketplace entry say `0.15.0`.

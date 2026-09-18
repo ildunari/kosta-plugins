@@ -169,7 +169,7 @@ KIT.ai = (() => {
         ctx.save(); ctx.beginPath(); ctx.rect(-6, -40, w + 12, 240); ctx.clip();
         ink([[-6, 64], [w, 64]], { w: K.lw(o, 1), color: PAL.peri, amp: 0.3, alpha: 0.4, seed: seed + 1 });
         xs.forEach(([x0, g], i) => { if (g <= 0) return;
-          const x = x0 - off, sc = E.outBack(g), fa = clamp((x + 6) / 50);
+          const x = x0 - off, sc = E.outBack(g), fa = clamp((x + 50) / 50);   // fades over the last 50 px as it scrolls out left (the first chip sat at x = 0, alpha 0.12)
           withAlpha(fa, () => {
             ctx.save(); ctx.translate(x + G.cw[i] / 2, 20); ctx.scale(sc, sc);
             ink(K.rrect(-G.cw[i] / 2, -20, G.cw[i], 40, 9), { closed: true, w: K.lw(o, 1.6), color: ic, fill: chips[i % chips.length], amp: 0.4, seed: seed + 10 + i });
@@ -234,7 +234,7 @@ KIT.ai = (() => {
         const [dx, dy] = wander(i, t, 14 * m.z, 0.5, seed), x = ((m.x + t * 38 * m.z * o.speed + dx) % (w + 40) + w + 40) % (w + 40) - 20, y = m.y + dy - t * 6 * m.z;
         const yy = ((y % h) + h) % h, s = 1.4 + 3.2 * m.z;
         if (m.k === 0) flat(shape.circle(x, yy, s, 10), m.c, a);
-        else if (m.k === 1) text(hash3(i, Math.floor(t * 2 + m.ph), seed) < 0.5 ? '0' : '1', x, yy, { kind: 'mono', size: Math.round(9 + 9 * m.z), color: m.c, alpha: a });
+        else if (m.k === 1) text(hash3(i, Math.floor(t * 2 + m.ph), seed) < 0.5 ? '0' : '1', x, yy, { kind: 'mono', size: Math.round(9 + 9 * m.z), color: m.c, alpha: a, role: 'decor' });   // a data speck: ornament
         else ink([[x - s * 2.5, yy], [x + s * 2.5, yy]], { w: 1 + m.z * 1.4, color: m.c, alpha: a, amp: 0.2, seed: seed + i });
       });
       ctx.restore();
