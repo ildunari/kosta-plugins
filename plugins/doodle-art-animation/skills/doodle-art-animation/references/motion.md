@@ -52,6 +52,7 @@ Every stat, callout, card and myth has a start **and an end**. Wrap a component 
 
 | Beat | Timing |
 |---|---|
+| Header on the **first plate** | At +0.1 s, whatever the plate asks for: the engine has nothing to wait for on a film's first drawing. To hold a title back, draw it yourself in the plate rather than in `header` |
 | Header after a **cut** | Title at +0.25 s, stage dial +0.25 s after that, journey log +0.35 s after the title |
 | Header after any other transition | The title starts 0.3 s after the move *lands* (90% of its travel: `landAt(enter)`, about 0.6–0.85 × `dur` depending on its curve), not after its last creeping drawing |
 | Header after a **lensOut** | The title starts immediately (the one exception: the new world is already open) |

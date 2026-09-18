@@ -4,7 +4,7 @@ Read this when planning the film.
 
 ## Explainer voice
 
-- **Title card:** kicker `A FIELD STUDY IN 15 PLATES`, a title of 2–4 words, and an italic subtitle naming the hero's journey (*the journey of one molecule*).
+- **Title card:** kicker `A FIELD STUDY IN 15 PLATES`, a title of 2–4 words, and an italic subtitle naming the hero's journey (*the journey of one molecule*). The title card draws its own kicker, title and subtitle in `draw`; a numbered plate's `header` takes only `{ num, title, sub }` and always shows `PLATE <roman>` above the title, so don't script a custom kicker for one.
 - **Plate titles** are plain nouns or verb pairs: *The Ocean*, *Evaporation*, *Rising & Cooling*, *Melt, Run, Soak*.
 - **Subtitles** are one lowercase italic line of 4–8 words that states the mechanism literally, with a little life: *sunlight shakes a molecule loose*.
 - **Big stats:** one number per plate, with `≈`, a unit, and a note stating the assumption.
