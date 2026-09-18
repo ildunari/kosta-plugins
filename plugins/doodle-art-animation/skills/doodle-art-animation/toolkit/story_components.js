@@ -118,7 +118,7 @@ const C3 = {
   header: { num: 3, title: 'In the Water', sub: 'an inset lens and a dark chart' }, stage: { n: 4, name: 'INSIDE' },
   cam: t => ({ x: C3c[0], y: C3c[1], s: 1 + 0.08 * E.inOutSine(t / 7), rot: 0.07 * Math.sin(t * 0.45) }),
   hero: t => { const [dx, dy] = wander(3, t, 10, 1.4); return { x: C3c[0] + dx, y: C3c[1] + dy, label: HERO, r: 56 }; },
-  cues: [[1.2, 'pop'], [1.4, 'scratch', { chars: 20 }], [3.2, 'chime', { f: 440 }]],
+  cues: [[1.2, 'pop'], [1.4, 'readout', { chars: 20 }], [3.2, 'chime', { f: 440 }]],
   draw(t) {
     specks(t, 110, 41, { cx: 900, cy: 560, rx: 820, ry: 440 });
     const h = C3.hero(t); probe(h.x, h.y, 1, t, true);

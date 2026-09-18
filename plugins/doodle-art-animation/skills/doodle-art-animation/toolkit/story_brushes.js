@@ -223,7 +223,7 @@ const EMBLEM = shape.blob(960, 400, 120, 90, 0.2, 40);
 const P5 = {
   dur: 5, dark: true, counter: false, focus: () => [960, 400], enter: { type: 'fade', dur: 1.0 },
   cam: t => ({ x: 960, y: 400, s: 1 + 0.05 * E.inOutSine(clamp(t / 5)), dx: 10 * Math.sin(t * 0.7) + 5 * t, dy: 6 * Math.sin(t * 0.5) - 3 * t }),
-  cues: [[0.4, 'chime', { f: 523 }], [1.2, 'scratch', { chars: 26, cps: 22 }]],
+  cues: [[0.4, 'chime', { f: 523 }], [1.2, 'readout', { chars: 26, cps: 22 }]],
   draw(t) {
     breathe(EMBLEM, t, 0, { seed: 91, color: PAL.cyan, bleed: 0.5, draw: E.out3(inv(0, 1.2, t)) }, 0.06, 1.8);
     for (let k = 0; k < 5; k++) { const q = (t * 0.5 + k / 5) % 1;
