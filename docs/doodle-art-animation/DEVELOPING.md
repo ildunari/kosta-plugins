@@ -32,13 +32,14 @@ plugins/doodle-art-animation/       the plugin
                                     intake, build-lanes, sound, api, render, components
     toolkit/                        engine.js, shell.html, build.py, render.mjs,
                                     motion_check.py, speed_check.mjs, audio_check.py, text_check.mjs,
+                                    legibility_check.mjs, story_check.mjs, cue_check.mjs,
                                     smoke_test.py, story_example.js (The Long Release), story_one_drop.js,
                                     story_seams.js, story_reel.js, story_gallery.js, story_components.js,
                                     story_brushes.js, kits/ (_kit.js, earth, life, settle, tech, ai,
                                     space, lab, studio)
 docs/doodle-art-animation/          not shipped with the plugin
   DEVELOPING.md                     this file
-  v0.14-state.md                    what v0.14 changed, how it was checked, its known limits
+  v0.14-state.md, v0.15-state.md    what each release changed, how it was checked, its known limits
   ACCEPTANCE.md                     the go/no-go rules (L1-L17 films and toolkit, W1-W9 workflow)
   HANDOFF.md                        history, measurements, known weaknesses (paths in it refer to the original handoff zip)
   history/  reference/  examples/   design review, reference-film study images, an older story file
@@ -128,6 +129,11 @@ CI: `.github/workflows/doodle-smoke.yml` runs it on ubuntu-latest for pushes to 
   exists, every agent guards its own preconditions, phase 4 fans out one agent per scene
   (`references/build-lanes.md`), phase 5 renders one shared `qa/` set the reviewers reuse, and Gate 2's fix loop
   re-runs only the checks a change affects. If you add a phase or an agent, add its row and its preconditions.
+- Text: every engine text call carries a role (`fact` 28 px, `label` 22, `hud` 18, `decor` exempt) and the
+  components meet those floors by default, on a glyph halo (`haloText`). A new component that draws text passes a
+  role and uses the halo; `legibility_check.mjs` must stay clean on every bundled story.
+- Sound: every `SFX` entry is synthesized, deterministic and seeded, and repeats vary; `cue_check.mjs` must stay
+  clean on every bundled story. The plugin ships no audio files.
 - Stories never edit `engine.js`; they override `PAL` and add helpers. If the engine changes, re-run the example and the reel.
 
 ## Conventions
