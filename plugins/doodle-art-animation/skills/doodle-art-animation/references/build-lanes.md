@@ -8,7 +8,7 @@ The rule that makes it work: **the plan is fixed before the lanes start, and no 
 
 One lane, one plate, one file.
 
-- The file is `plate_<n>_<slug>.js` in the working folder: `plate_2_corona.js`, `plate_3_leaky_vessels.js`. `<n>` is the plate's index in the film, so the files sort into story order.
+- The file is `plate_<n>_<slug>.js` in the working folder: `plate_2_corona.js`, `plate_3_leaky_vessels.js`. `<n>` is the plate's index in the film, counting from 0. Pad it to two digits from ten plates up (`plate_09_…`, `plate_10_…`), because `plate_10_*.js` sorts before `plate_2_*.js` and assembly order is the film's order.
 - It holds **one plate object, named `P<n>`** — `const P2 = { … }` in `plate_2_corona.js` — in the shape `story_example.js` uses: `dur`, `dark`, `enter`, `header`, `stage`, `cam`, `draw(t)`, `overlay(t)`, plus the optional `hero`, `focus`, `log`, `drift`, `counter` and `marks` (`references/api.md`, "Plate fields"). `P<n>` is the name assembly concatenates and lists in `plates`, so it must be exactly that. One plate object per file and no second one; the drawing helpers only this plate uses may sit beside it, under prefixed names.
 - **`cues` and `bed` are not the lane's.** The sound plan (`cues.md`) is written in parallel with the lanes and pasted into the plates at assembly, so a lane leaves both fields out rather than inventing sound for its own plate.
 - The lane **never edits** `engine.js`, `shell.html`, `build.py`, the files in `kits/`, `helpers.js`, `story.js`, another lane's plate file, or anything else in the toolkit. If the plate needs something the engine does not do, the lane says so in its report and works around it; it does not patch the engine. An engine change is a plugin change, and the whole film would have to be rebuilt on it.
@@ -42,6 +42,7 @@ A lane starts with no memory of the conversation that produced the script, so it
 | `helpers.js` | The house helpers for this film (below) |
 | `references/style.md`, `references/motion.md`, `references/animation-principles.md`, `references/api.md`, `references/components.md` | The fixed look, the motion it must keep alive, the primitives it draws with |
 | The hero's ID tag and how it appears in this plate | `NP·01` must be the same object, tagged the same way, in every plate |
+| The **absolute** path of every reference it must read | A lane is a fresh agent: `${CLAUDE_PLUGIN_ROOT}` is not expanded in its prompt, and a bare file name resolves nowhere. Give full paths to `style.md`, `components.md`, `api.md`, `motion.md` and `animation-principles.md`, and to the working folder |
 | Its plate's time window, **local and global** | `draw(t)` and `overlay(t)` get local seconds, starting at 0. `render.mjs --sheet-range` takes seconds from the start of the **film**. A lane working on a probe of its own plate alone has local = global; the moment it looks at a sheet of the assembled film, it needs the offset |
 
 ### The seam is shared, so both lanes get it
@@ -102,6 +103,17 @@ Style drift is what makes fan-out fail: six plates that are each fine and togeth
 4. **The kits come first.** Before drawing a common object, a lane checks `references/components.md`. Two lanes drawing their own mountains produce two kinds of mountain; two lanes calling `KIT.earth.mountains` produce one film.
 5. **Only the main session judges the film as a whole**, and the Gate 2 reviewers see the **assembled film**, never the pieces. `film-reviewer`, `seam-reviewer` and `audio-reviewer` are looking for exactly what a lane cannot see: scenery repeating between plates, the hero drawn differently in plate II than in plate IV, five seams in a row at the same speed, a stat in the same corner every time. Running a reviewer on a single plate's probe wastes it.
 
+## When a lane fails
+
+A lane can come back with nothing, with a file that will not build, or with a plate that misses its row of the script. None of that is a reason to re-brief the same lane and hope:
+
+- **Nothing, or an error.** Read what it did write. If the plate file exists and is close, the main session finishes it — it has the script, the seam list and the helpers, and it is about to assemble anyway. Re-running a lane costs a second full briefing to arrive at the same place.
+- **A file that will not build.** Build it alone (the probe recipe above) and read the error. A `ReferenceError` naming something from another plate is a missing entry in `helpers.js`, which is the main session's to add. A duplicate declaration is a name that needed its prefix.
+- **A plate that does not match its row.** Fix it at assembly and say so in the report. The script is the contract, and a lane that drew something else has usually misread one line of it.
+- **A lane that asks for a shared helper.** Add it at assembly and point the plates at it; nothing re-reads `helpers.js` mid-build.
+
+Whatever happened, the film is assembled and sent through Gate 2 as one thing. A plate finished by hand is normal. A plate quietly left out of `story.js` is not, and `build.py` will not tell you — it only scans the text it is handed.
+
 ## Assembly, by the main session
 
 Assembly is not parallel work and is not delegated. The main session owns it.
@@ -141,6 +153,7 @@ After the fixes, build once more and take **one shared QA render into `qa/`** fo
 Fanning out costs a brief per lane, an assembly pass, and a class of bug (collisions, duplicated helpers, seams that only meet at assembly) that a serial build simply does not have. It is worth it for a long film of independent scenes. It is not worth it for:
 
 - **Short films.** One or two plates, or a film of about 30 seconds or less: fan out from three scenes up. The briefing costs more than the drawing.
+- **No agents in the harness.** Some harnesses have no way to run one. Then the main session builds the plates itself, one after another, to the same contract — the contract is what keeps the film coherent, not the parallelism.
 - **One continuous scene or camera.** A film that is a single unbroken push through one landscape, or one long camera move across a diagram, has no seams to divide it at. Its plates share geometry, and two lanes drawing halves of one continuous world will not meet in the middle.
 - **Plates too interdependent to draw alone.** Both halves of a custom morph seam, where one object has to become another and neither drawing can be settled without the other. A recap that redraws earlier art. A film where plate III is plate II from another angle, or where each scene is a step of one diagram accumulating on screen. A lane needs something it can draw without the other plates in front of it.
 - **A film whose look is still being found.** If the first plate is also the experiment that settles how this film's subject gets drawn, build that plate in the main session first and fan out the rest once there is something for the lanes to match.

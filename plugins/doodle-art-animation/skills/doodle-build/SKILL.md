@@ -38,7 +38,7 @@ Run `doodle-art-animation:sound-designer` with `script.md`, `brief.md` and the a
 
 Fan out with the Agent tool, one agent per plate, all started in one message. The contract is in `references/build-lanes.md`; hold every lane to it.
 
-Each lane gets: the absolute working folder, its own row from the plate table, the seams on either side of it, `helpers.js`, `brief.md`, `facts.md`, and the references it needs (`style.md`, `components.md`, `api.md`, `motion.md`, `animation-principles.md`).
+Each lane gets: the absolute working folder, its own row from the plate table, the seams on either side of it, `helpers.js`, `brief.md`, `facts.md`, and the **absolute paths** of the references it must read (`style.md`, `components.md`, `api.md`, `motion.md`, `animation-principles.md`) — a lane is a fresh agent, so `${CLAUDE_PLUGIN_ROOT}` is not expanded in its prompt and a bare file name resolves nowhere. When a lane returns nothing, an error, or a plate that misses its row, follow "When a lane fails" in `references/build-lanes.md`: the main session finishes it at assembly rather than re-briefing.
 
 Each lane:
 
