@@ -20,6 +20,7 @@ Make the shareable MP4 of a film in the current working folder and check it befo
 ## 2. Render
 
 ```
+sh assemble.sh                                  # if the folder has one: story.js is generated from the plate files
 python3 build.py <story> <film>.html
 node render.mjs <film>.html <film>.mp4 --workers <workers> --bitrate 3800k --strict-fonts
 ```

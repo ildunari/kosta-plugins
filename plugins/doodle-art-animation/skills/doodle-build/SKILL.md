@@ -26,7 +26,7 @@ cp -R "<toolkit>/." .
 mkdir -p qa
 ```
 
-Then write `helpers.js`, unless `/doodle-art-animation:doodle-plan` already wrote one — in that case read it and add only what is missing, never overwrite it. It holds the film's palette names, the `hero` function and its ID tag, the journey-log rows, any shape or pose that two or more plates share, and **every constant a seam anchors to**: if plate 2's `enter` reads the point where plate 1's drop landed, that point is declared here, or plate 2 cannot build without plate 1's file. It is the one file every lane reads and no lane writes, so keep it small and finish it before the lanes start — a helper added later reaches nobody.
+Then write `helpers.js`, unless `/doodle-art-animation:doodle-plan` already wrote one. If it did, and `script.md` is older than it, read it and add only what is missing. If `script.md` is newer — the user changed the plan at the card — reconcile first: the hero function and its ID tag, the palette and every seam anchor come from the script, so bring those into line with it before any lane starts, or every lane draws the old plan. It holds the film's palette names, the `hero` function and its ID tag, the journey-log rows, any shape or pose that two or more plates share, and **every constant a seam anchors to**: if plate 2's `enter` reads the point where plate 1's drop landed, that point is declared here, or plate 2 cannot build without plate 1's file. It is the one file every lane reads and no lane writes, so keep it small and finish it before the lanes start — a helper added later reaches nobody.
 
 ## 3. Sound plan and art lanes start together
 
