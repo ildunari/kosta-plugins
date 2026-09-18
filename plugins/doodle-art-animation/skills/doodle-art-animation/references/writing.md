@@ -79,7 +79,7 @@ Example (`toolkit/story_seams.js`, "Pencil to Ladybug"; `story_example.js` lists
 
 ## Plate script format
 
-Write this before coding, and save it as `script.md` in the film folder. One row per plate. Beat times are local seconds, written as start→end, with "→" alone meaning the beat stays. The `Enter` column is the plate's own entry transition; each seam's exit lives in the seam list below the table, not in a column of its own.
+Write this before coding, and save it as `script.md` in the film folder. Say what each plate shows and where the eye goes — not the exact rotations, vertex angles or pixel positions. Those are the drawing's business, and a script that fixes them tends to fix two of them into a contradiction (a wing tilted "nose down-right" whose leading edge then faces downstream) which whoever draws it can only follow or quietly break. One row per plate. Beat times are local seconds, written as start→end, with "→" alone meaning the beat stays. The `Enter` column is the plate's own entry transition; each seam's exit lives in the seam list below the table, not in a column of its own.
 
 The `#` column reads as a field guide does — `0`, `I`, `II`, … `End` — but build lanes and their files are numbered by position, from 0: plate `I` is `plate_1_<slug>.js` and `P1`, `End` is the last index. Say that mapping once in the script so no lane has to guess it.
 
