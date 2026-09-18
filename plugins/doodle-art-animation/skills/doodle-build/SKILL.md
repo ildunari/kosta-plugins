@@ -63,7 +63,7 @@ Concatenate the plates in plate order, then append the story tail:
 
 ```
 cat helpers.js plate_0_title.js plate_1_*.js plate_2_*.js plate_3_*.js plate_4_end.js > story.js
-printf "defineStory({ title: '<title>', stages: <n>, plates: [P0, P1, P2, P3, P4] });\nboot();\n" >> story.js
+printf "defineStory({ title: '<title>', stages: <n>, plates: [P0_TITLE, P1_..., P2_..., P3_..., P4_END] });\nboot();\n" >> story.js
 python3 build.py story.js film.html
 ```
 
