@@ -26,8 +26,10 @@ The plugin has five agents. Three review a built film and run here: `film-review
 
 ```
 find . -maxdepth 2 \( -name '*.js' -o -name '*.mjs' -o -name 'shell.html' -o -name 'build.py' \) \
-     -not -path './qa/*' -not -path './node_modules/*' -newer qa/contact_sheet.jpg
+     -not -path './qa/*' -not -path './node_modules/*' -newer qa/.complete
 ```
+
+Compare against `qa/.complete`, which the build writes only after the whole set rendered, never against one sheet: a run interrupted after the contact sheet would otherwise leave a fresh sheet in front of old strips and seam sheets and bless the lot. No `qa/.complete` means the set is incomplete — render all of it, and touch the marker when it succeeds.
 
 In a folder with an `assemble.sh`, `story.js` is generated and always looks new, so add `-not -name story.js`; the plate files and `helpers.js` stand for it. Anything the command lists means rebuild and re-render the parts that change touches; nothing means the set is current. Don't judge against the built HTML — the build rewrites it every time, so it always looks newer. If the folder was built by hand and has no `qa/`, run the whole set.
 
@@ -41,13 +43,15 @@ node render.mjs <film>.html --strips           # qa/strip_NN_type.jpg
 node render.mjs <film>.html --seams            # qa/seam_NN_type.jpg, prints each transition time
 node text_check.mjs <film>.html --json qa/text_check.json
 node speed_check.mjs <film>.html               # engine values against the speed limits (skip if the folder has no speed_check.mjs)
+python3 smoke_test.py --stories <story> --work qa_smoke   # page errors, fonts, blank frames, and a short clip whose sound it checks
+touch qa/.complete                             # only once everything above succeeded
 ```
 
 If there is an MP4, also run:
 
 ```
 python3 motion_check.py <film>.mp4
-python3 audio_check.py <film>.mp4 --starts <transition times printed by text_check>
+python3 audio_check.py <film>.mp4 --starts <transition times printed by text_check>   # add --silent, and drop --starts, for a story made with silent: true
 ffprobe -v error -count_frames -select_streams v -show_entries stream=nb_read_frames -of csv=p=0 <film>.mp4
 ```
 
@@ -55,7 +59,7 @@ Stop and report if the build fails or any `PAGE ERROR` appears. Open the contact
 
 ## 3. Run the reviewers
 
-Start the reviewers in parallel with the Agent tool: `doodle-art-animation:film-reviewer`, `doodle-art-animation:seam-reviewer` and, if there is an MP4 with sound, `doodle-art-animation:audio-reviewer`. Give each the absolute working folder, the HTML name, the story file and the MP4 (if any). Tell them that `qa/` already holds the contact sheet (`qa/contact_sheet.jpg`), strips, seam sheets and `qa/text_check.json` from this run (and the `text_check`, `speed_check`, `motion_check` and `audio_check` output, pasted into the prompt), so they should reuse those and render only the extra stills they need. Give `audio-reviewer` the transition times and any sound plan from `sound-designer` too. Without an MP4, skip `audio-reviewer` and list it under "Not checked".
+Start the reviewers in parallel with the Agent tool: `doodle-art-animation:film-reviewer`, `doodle-art-animation:seam-reviewer` and, if there is an MP4 with sound, `doodle-art-animation:audio-reviewer`. Give each the absolute working folder, the HTML name, the story file and the MP4 (if any). Tell them that `qa/` already holds the contact sheet (`qa/contact_sheet.jpg`), strips, seam sheets and `qa/text_check.json` from this run (and the `text_check`, `speed_check`, `motion_check` and `audio_check` output, pasted into the prompt), so they should reuse those and render only the extra stills they need. Give `audio-reviewer` the transition times and any sound plan from `sound-designer` too. Without an MP4, skip `audio-reviewer` and list it under "Not checked" — `/doodle-art-animation:doodle-render` runs it once the MP4 exists. For a silent film (`silent: true` in the story) there is nothing for it to review; say so.
 
 If step 1 found a scene script, also start `doodle-art-animation:script-reviewer` with the script, the story file, the sources the folder or story lists, and the user's request and intake answers if you have them from this conversation (say so if you don't). It normally runs before the build, during planning; here it checks that the built film still matches its plan. With no script, skip it and note that script review belongs to planning.
 

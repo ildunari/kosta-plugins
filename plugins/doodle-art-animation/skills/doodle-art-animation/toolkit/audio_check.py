@@ -1,5 +1,5 @@
 """audio_check.py — is the film's sound in range?
-usage: python3 audio_check.py film.mp4 [--starts 3.2,8.0,...] [--profile]
+usage: python3 audio_check.py film.mp4 [--starts 3.2,8.0,...] [--profile] [--silent]
 
 Measures the audio track with ffmpeg and numpy and prints PASS / WARN / FAIL lines.
   level     RMS mean (what `ffmpeg -af volumedetect` calls mean_volume), target -21..-18 dB
@@ -12,7 +12,9 @@ Measures the audio track with ffmpeg and numpy and prints PASS / WARN / FAIL lin
   silence   stretches of 1.5 s or more below -50 dBFS, or 0.5 s or more at the very start -> WARN
   duration  audio vs video length, difference over 0.2 s             -> FAIL
   cues      with --starts (transition times in seconds): the nearest sound onset to each; none within 0.25 s warns
-Exit code 1 only on hard failures (no audio, mono, clipping, duration mismatch). --profile prints dB per second."""
+Exit code 1 only on hard failures (no audio, mono, clipping, duration mismatch). --profile prints dB per second.
+--silent: the film was made with defineStory({ silent: true }); it passes when the track is silence of the right
+length, and fails if any sound got in."""
 import json, subprocess, sys
 import numpy as np
 
@@ -48,6 +50,14 @@ if len(x) < sr * 0.1:
     line('FAIL', 'audio', 'audio stream is empty')
     sys.exit(1)
 adur = len(x) / sr
+
+if '--silent' in args:
+    pk = db(np.abs(x).max())
+    line('PASS' if pk < -60 else 'FAIL', 'silent', f'peak {pk:.1f} dB' + ('' if pk < -60 else ' - the film was made silent, but sound got in'))
+    vdur = float(vid[0].get('duration') or probe['format']['duration']) if vid else adur
+    line('FAIL' if vid and abs(adur - vdur) > 0.2 else 'PASS', 'duration', f'audio {adur:.2f} s, video {vdur:.2f} s')
+    print(f'result: {"FAIL" if fails else "PASS"} ({len(fails)} fail, 0 warn)')
+    sys.exit(1 if fails else 0)
 
 # level and peak
 rms, peak = db(np.sqrt(np.mean(x ** 2))), db(np.abs(x).max())

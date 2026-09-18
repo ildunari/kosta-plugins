@@ -358,7 +358,7 @@ if want('W8'):
     bad = [n for n, d in AGD.items() if re.search(r'proactiv', d, re.I)]
     check('W8', 'no agent description invites proactive use', not bad, ', '.join(bad))
     miss = [n for n, d in AGD.items()
-            if not re.search(r'invoked by [^.]{0,120}doodle-(plan|build|qa)[^.]{0,120}(never|not) on its own initiative', d, re.I)
+            if not re.search(r'invoked by [^.]{0,160}doodle-(plan|build|qa|render)[^.]{0,160}(never|not) on its own initiative', d, re.I)
             or re.search(r'(start|invoke) yourself|without being asked|the moment', d, re.I)]
     check('W8', 'each description says which command invokes it, and that it never self-starts', not miss, ', '.join(miss))
 

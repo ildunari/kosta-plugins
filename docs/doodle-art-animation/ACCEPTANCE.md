@@ -177,7 +177,7 @@ The v0.13 items above stay in force; these add the phase and gate structure.
 
 ## W8 · Agents don't invite themselves
 - [auto] No agent description mentions acting proactively. Each one says, in a single sentence, which command
-  invokes it (`doodle-plan`, `doodle-build` or `doodle-qa`) and that it never starts on its own initiative.
+  invokes it (`doodle-plan`, `doodle-build`, `doodle-qa` or `doodle-render`) and that it never starts on its own initiative.
 
 ## W9 · Gate 1 never blocks and never fakes a clock
 - [auto] `references/intake.md` has a `## The plan card, and why it has no clock` section which says a model cannot run a timer and

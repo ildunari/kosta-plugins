@@ -1928,6 +1928,9 @@ function autoBed(p) {
     if (p.dark) SFX.noise(ac, out, t0, { dur, g: 0.025, f0: 160, type: 'lowpass', q: 0.5, a: 1 }); };
 }
 async function renderAudio() {
+  // defineStory({ silent: true }): the user chose no sound. The automatic risers, transition effects and header
+  // scratches below would otherwise play anyway, so render a stereo track of silence of the right length instead.
+  if (STORY.silent) return new OfflineAudioContext(2, Math.ceil(SR * (TOTAL_T + 0.5)), SR).startRendering();
   const ac = new OfflineAudioContext(2, Math.ceil(SR * (TOTAL_T + 0.5)), SR); ac._noise = noiseBuffer(ac, 6);
   const comp = ac.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 4; comp.knee.value = 6; comp.connect(ac.destination);
   const dry = ac.createGain(); dry.gain.value = 0.9; dry.connect(comp);
@@ -2007,7 +2010,7 @@ async function loadFonts() {
 async function boot() {
   await loadFonts();
   buildTextures();
-  window.__story = { fps: FPS, frames: TOTAL_F, width: W, height: H, title: STORY.title, starts: STORY.plates.map(p => ({ t: p.start, type: p.enter ? p.enter.type : null, dur: p.enter ? p.enter.dur : 0, settle: p.enter ? p.enter.settle ?? 0.9 : 0 })) };
+  window.__story = { fps: FPS, frames: TOTAL_F, width: W, height: H, title: STORY.title, silent: !!STORY.silent, starts: STORY.plates.map(p => ({ t: p.start, type: p.enter ? p.enter.type : null, dur: p.enter ? p.enter.dur : 0, settle: p.enter ? p.enter.settle ?? 0.9 : 0 })) };
   window.__renderFrame = f => { renderFrame(f); return true; };
   window.__frameData = (f, type = 'image/jpeg', q = 0.94) => { renderFrame(f); return cvs.toDataURL(type, q).split(',')[1]; };
   window.__audioWav = async () => b64(wavBytes(await renderAudio()));

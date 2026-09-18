@@ -23,7 +23,7 @@ Candidate areas, roughly in order of how much they change the build:
 |---|---|---|
 | Length | Sets the number of plates and the pacing | ≈ 30 s teaser · ≈ 60 s · 2–3 min · 4–5 min full study |
 | Hero subject | The thing tracked through every plate | the obvious traveller · an alternative · a character the viewer can relate to |
-| Audio | Changes the sound design and the render | music + ambience + effects · effects and ambience only · music only · silent |
+| Audio | Changes the sound design and the render | music + ambience + effects · effects and ambience only · music only · silent (`defineStory({ silent: true })` — leaving out cues is not enough, the engine adds its own) |
 | Tone and audience | Sets the copy, density of facts and pace | curious general audience · students · specialists · children |
 | Setting and scenery | The places the plates show | the literal setting · a stylised map or cross-section · a mix |
 | Drawing complexity | Density of each plate, build time | rich and detailed · balanced · sparse and diagrammatic |

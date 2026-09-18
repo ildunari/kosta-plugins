@@ -11,6 +11,7 @@ Plate fields:
 | `dur` | Plate length in seconds |
 | `dark` | `true` for the night world |
 | `enter` | `{ type, dur, ease, curve, draw (custom transition), momentum, settle, match, carry, sfx, …type options (dir, k, dive, scaleFrom, from, to, fromFill, toFill, style, at, ink, drop, fall, rim, rimAlpha, rough, color, opacity, back, radius) }` |
+| `silent` (on `defineStory`) | `true` renders a silent audio track of the right length and turns off the automatic risers, transition sounds and pen scratches, which play even with no cues. Check it with `audio_check.py --silent`. |
 | `header` | `{ num, title, sub }` — the kicker above the title is always `PLATE <roman num>`; there is no field for other kicker text. A film's own kicker (`A FIELD STUDY IN 3 PLATES`) belongs to the title card, drawn in that plate's own `draw` |
 | `log` | `t => ({ title, rows: [[label, value]], states, state })` |
 | `stage` | `{ n, name, prevN }` |

@@ -31,7 +31,7 @@ Run the render in the background and check on it. It prints the frame total firs
 ```
 ffprobe -v error -count_frames -select_streams v -show_entries stream=nb_read_frames,width,height,r_frame_rate -of compact <film>.mp4
 python3 motion_check.py <film>.mp4
-python3 audio_check.py <film>.mp4
+python3 audio_check.py <film>.mp4          # add --silent for a story made with silent: true
 ls -lh <film>.mp4 <film>.html; du -sh <film>_frames
 ```
 
@@ -41,6 +41,8 @@ ls -lh <film>.mp4 <film>.html; du -sh <film>_frames
 - At 3800k the MP4 lands at about 20–30 MB per minute (the 55 s One Drop example is 18 MB).
 
 If anything fails, say what and suggest `/doodle-art-animation:doodle-qa`; don't deliver a failing file as final.
+
+**Then review the sound, unless the film is silent.** This is the first moment an MP4 exists, so it is the first moment `doodle-art-animation:audio-reviewer` can do its job — `audio_check` only measures levels, not whether a cue lands on its moment or a bed hands off cleanly across a seam. Run the agent with the working folder, the HTML, the story file, the MP4, the transition times and `cues.md` if there is one, and fix what it fails before delivering. A cue fix means a rebuild and a re-render, so keep it to what matters.
 
 ## 4. Deliver
 

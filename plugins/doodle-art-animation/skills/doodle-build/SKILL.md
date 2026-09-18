@@ -30,7 +30,7 @@ Then write `helpers.js`, unless `/doodle-art-animation:doodle-plan` already wrot
 
 ## 3. Sound plan and art lanes start together
 
-Both need only the reviewed script, so start them in the same message. Skip the sound plan if `cues.md` already exists or the film is silent.
+Both need only the reviewed script, so start them in the same message. Skip the sound plan if the film is silent, or if `cues.md` exists and is newer than `script.md`. A `cues.md` older than the script was planned against a version the user may since have changed — a scene retimed at the plan card moves every cue in it — so run `sound-designer` again.
 
 Run `doodle-art-animation:sound-designer` with `script.md`, `brief.md` and the absolute working folder. Save its cue sheet as `cues.md`; the cues get pasted into the plates at assembly, not by a lane.
 
@@ -61,6 +61,7 @@ node render.mjs probe_2.html --sheet-range 0-<the plate's duration> --fps 6 --di
 
 `story.js` is generated, never edited. Its sources are `helpers.js`, the plate files and a short `story_tail.js`, and one script rebuilds it from them — so every later fix goes into a source file and the film is reassembled, instead of drifting away from what the lanes wrote.
 
+0. If the brief says the film is silent, add `silent: true` to the `defineStory` call in `story_tail.js` and skip the rest of the sound. Leaving out cues is not enough: the engine adds a riser, a transition sound and a pen scratch on its own for every seam and header, and `silent: true` is what turns those off.
 1. Put the sound into its plates: paste each plate's `cues` and `bed` from `cues.md` into that plate's file now. Pasted into `story.js` they would vanish at the next reassembly.
 2. Write `story_tail.js` with the story call, listing **every** plate object in screen order — title plate and end card included — and the music if the sound plan asks for it:
 
@@ -95,7 +96,10 @@ node render.mjs film.html --strips --dir qa           # qa/strip_NN_type.jpg
 node render.mjs film.html --seams --dir qa            # qa/seam_NN_type.jpg, prints each seam's time
 node text_check.mjs film.html --json qa/text_check.json
 node speed_check.mjs film.html
+touch qa/.complete                                    # last, and only if every line above succeeded
 ```
+
+`qa/.complete` marks the set as whole. A run that stops half-way leaves the old marker behind the new sheets, so the next staleness check sees the gap instead of trusting a set that is half new, half old.
 
 Keep the seam times and the `text_check` and `speed_check` output to hand on to the QA command. `motion_check.py` and `audio_check.py` need an MP4, so they wait for the render. Open the contact sheet and a few strips yourself before you report.
 
