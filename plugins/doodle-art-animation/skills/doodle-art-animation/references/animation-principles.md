@@ -176,6 +176,48 @@ withAlpha(e, () => dot(x0 - 40 + v * (t - t0), y0 + wander(7, t, 3)[1], { r: 6 *
 - **Holds are timing too.** A pose held for 4–8 drawings (with a moving hold) lets the eye land before the next action.
 - **Rhythm across a scene.** Contrast fast and slow: a quick accent (3–6 drawings) followed by a slow stretch (1.5–3 s), a burst of staggered pops and then one slow draw-on. If every beat enters over 0.4 s with the same ease, the plate drones, however well each beat is made. Vary length, ease and energy from beat to beat, as `references/film-grammar.md` asks from seam to seam.
 
+## Things that are acted on change
+
+**Why.** When something is pressed, heated, filled, emptied, cut or pushed, the viewer watches it to see what happens. If it comes out looking the way it went in, the film has told them nothing happened, whatever the caption says. The Slow Squeeze pressed a tablet and the tablet came out the same height; its gauges read the wrong value while the press was moving; its polymer chains were drawn over with new lines instead of turning; a jar that should have released drug stayed full. Every one of those was a still picture of a process the film was about.
+
+**How here.**
+
+- **Anything acted on changes visibly**, in at least one of shape, size, rotation, texture or colour, and **stays recognisable** while it does. A pressed tablet gets shorter and wider, its edges bulge, its surface texture tightens; it is still that tablet. A heated block reddens and its hatching loosens; a filled jar's level rises and its colour deepens; a cut rope parts and its ends fray and swing. Keep the outline's character (the same seed, the same line weight, the same features) so the viewer never wonders whether it is a new object.
+- **The change follows the action's timing.** It starts when the action touches the object, eases with it (`E.arrive` for a press landing, a slower ease for heat soaking in), and has follow-through: a little overshoot and settle, a spring back, a crack that keeps spreading after the blow (sections 1 and 4 apply to the change as much as to the move).
+- **Key characters evolve over the film.** The hero and any second character carry a visible history: the corona builds up, the particle pits, the traveller's coat gets muddy, the letter picks up stamps. Drive the change from film progress or the journey log's quantities, not from a per-plate toggle, so it keeps its value across seams and reads as one thing going through a story.
+- **Readouts agree with the action at every moment.** A gauge, a counter, a clock, a bar, a log row or the STATE switch shows the value the picture shows, on the same frame. Drive both from one variable: the needle and the press's travel from the same `kf`, the log's diameter from the same number that sizes the drawing, the STATE switch flipping on the frame the thing happens. A readout that jumps to its end value while the action is still moving, or never moves at all, is a wrong number on screen.
+- **Transform in place; don't overdraw.** When chains align, move and bend the chains that are there (interpolate their points with `lerp` or `morphPose`) rather than drawing a new, aligned set on top of the old one. When a shape becomes another, morph it or cross it through a moment both share. Two drawings stacked in one place read as a mistake, not as a change.
+
+```js
+// don't: the press comes down and the tablet under it never changes;
+//        the gauge reads its end value from the start
+const press = kf(t, [[2.0, 0], [3.2, 1]], E.arrive);
+drawPlaten(560 + 180 * press);
+drawTablet(960, 780, { w: 220, h: 120 });
+drawGauge(1500, 420, { value: 250 });
+
+// do: one variable drives the platen, the tablet's shape and the gauge;
+//     the tablet squashes and spreads (roughly keeping its volume), bulges at the sides,
+//     springs back a little as the press lifts, and its texture tightens
+const press = curve(t, [[2.0, 0], [3.2, 1, E.arrive], [4.4, 1], [5.2, 0.85, E.spring(1)]]);
+const h = lerp(120, 70, press), w = 220 * Math.sqrt(120 / h);
+drawPlaten(560 + 180 * press);
+drawTablet(960, 850 - h / 2, { w, h, bulge: 0.12 * press, hatchGap: lerp(9, 5, press), seed: 12 });
+drawGauge(1500, 420, { value: 250 * press });
+
+// don't: a new, aligned set of chains drawn over the tangled ones
+chains.forEach(c => pen(c.tangled));
+withAlpha(beat(t, 3.0), () => chains.forEach(c => pen(c.aligned)));
+
+// do: each chain's own points move from tangled to aligned, staggered from the platen down
+chains.forEach(c => {                                                // c.depth: 0 at the platen, rising downwards
+  const u = stagger(c.depth, t, { t0: 2.2, step: 0.04, dur: 1.2, ease: E.arrive });
+  pen(c.tangled.map((p, k) => [lerp(p[0], c.aligned[k][0], u), lerp(p[1], c.aligned[k][1], u)]), { seed: c.seed });
+});
+```
+
+`drawPlaten`, `drawTablet` and `drawGauge` stand for your own story's helpers, as the names in the earlier sections do. Plan each change in the scene script's `Changes` column (`references/writing.md`), so the lane that draws the plate knows which object changes and how.
+
 ## Cohesive scene checklist
 
 Run this on each plate's range sheet (a frame grid of the plate: `--sheet-range`, SKILL.md phase 4) and then at full speed.
@@ -191,5 +233,6 @@ Run this on each plate's range sheet (a frame grid of the plate: `--sheet-range`
 9. **Joining.** New elements enter on a beat of running motion, in its direction, and grow in rather than pop in.
 10. **Speed shape.** Starts and stops are eased and asymmetric; spacing on the sheet is close at the ends and wide in the middle.
 11. **Rhythm.** The plate has both fast accents and slow stretches, and its beats don't all share one length and ease.
+12. **Change.** Whatever the plate acts on visibly changes and stays recognisable; the hero shows its history; every readout agrees with the picture on every frame; nothing is overdrawn where it should have transformed.
 
 If a plate fails an item, fix the motion before adding more content. More elements rarely fix a plate that doesn't flow.

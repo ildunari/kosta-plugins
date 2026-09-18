@@ -99,6 +99,35 @@ Beside `pen` and `ink`, the engine has a natural-media brush set (`brush.stroke`
 - Leave empty paper where callout text will land. Never put a callout over busy art. When the hero is on the right half, flip the callout to `align: 'right'`.
 - The HUD and the hero reticle are furniture. They never scale with the camera.
 
+## Layout: bands and clearances
+
+This section is guidance for arranging a scene, not a grid to copy. Every plate is composed differently, and fixed coordinates handed down from a reference collide with whatever the next plate needs. Decide where things go by what each region of the frame is for and what sits behind the text, then let `legibility_check.mjs` tell you whether the result reads.
+
+**Two bands belong to the furniture and stay clear of artwork.**
+
+- **The header band** runs across the top of the frame: the PLATE kicker, the title, its rule and the subtitle. Nothing drawn in the scene should pass behind those lines: no mountain peak under the subtitle, no gauge rising into the title, no chain crossing the rule. Compose the scene below it, or let only sky, paper or night texture sit there. If the camera pushes in and the art rises into the band, frame the push lower or start it after the header has faded.
+- **The Journey Log band** runs down the upper right corner: the log title, its rows and the STATE switch. Keep the scene's own subjects out from behind it for the whole plate, including while the camera moves. A press, a chart or a crowd that fills the right side stops short of the log, or the log's plate is one where the right side is quiet.
+
+The stage dial and the frame counter in the lower corners work the same way on a smaller scale: the bottom card and the ground line run past them, but nothing with its own marks (a scale bar, a label, a gauge) sits behind them.
+
+**Text on a dark or busy plate sits on a card or a halo.** A night plate full of speckle, a hatched cross-section or a crowded diagram is not a background for bare text. Put the line on a card, or give it a halo, using the `backing` option the engine's callouts, stats and Journey Log take; don't hand-draw a box per line. On plain paper or an open night sky, bare text is fine.
+
+**Overlap is right when the text is written on the surface it belongs to.** A label on a jar, notes on a card, a number printed on a panel, handwriting on a sheet of paper, a name on the side of a tablet: the surface is the text's ground, and the eye reads them as one object. Overlap is wrong when:
+
+- the text sits on line art of similar weight: an italic subtitle over pen hatching, a callout sub across a tangle of polymer chains, a label crossing another label's leader;
+- the text sits on something whose own marks carry meaning: a clock face, a gauge, a dial, a chart's axes or curve, a ruler's ticks. The viewer has to read both, and cannot read either.
+
+The Slow Squeeze failed on both: subtitles printed through gauge faces, a callout laid across the press's bolted platen, labels on top of the chains they named.
+
+**How to fix a clash**, in the order to try them:
+
+1. **Move it.** Put the text on empty paper beside what it names and let the leader do the pointing; flip a callout to the other side (`align: 'right'`) when the hero is on the right half.
+2. **Re-sequence it**, so the two never share the frame: the callout clears before the gauge swings up, or the chart draws after the note has faded. Two things that each need reading do not need to be on screen at the same moment.
+3. **Put a card behind it** (`backing`), when the text has to stay where it is, over the art it describes.
+4. **Change weight or colour**, as the last step: make the art behind it fainter (far objects at lower alpha and thinner `w`), or set the text in a weight or colour that separates from the lines under it. This helps with texture; it does not rescue text over a gauge or a chart.
+
+`legibility_check.mjs` enforces the result on the rendered frames: it flags text whose contrast or background busyness fails, and its crops show where. A clean `text_check` is not enough, because text boxes can be clear of each other and still sit on art. Fix every `CLASH` line it prints before Gate 2.
+
 ## Plate furniture (fixed positions on a 1920×1080 frame)
 
 | Element | Where | What it shows |
