@@ -417,7 +417,7 @@ const P4 = {
       const [ex, ey] = [g.X(day), g.Y(rel(day))];
       if (draw > 0) { ctx.beginPath(); ctx.arc(ex, ey, 7, 0, TAU); ctx.fillStyle = PAL.nightInk; ctx.fill();
         text(`${Math.round(rel(day))}%`, ex + 12, ey - 12, { kind: 'mono', size: 22, weight: 600, color: PAL.nightInk }); }
-      if (day > 2) text(typed('burst', (day - 2) / 3, 20), g.X(1.5), g.Y(30), { kind: 'display', size: 24, italic: true, color: PAL.gold });
+      if (day > 2) haloText(typed('burst', (day - 2) / 3, 20), g.X(3), g.Y(18), { kind: 'display', size: 24, italic: true, color: PAL.gold });   // below the curve's early rise, clear of the line
       if (day > 13) text(typed('sustained', (day - 13) / 3, 20), g.X(15), g.Y(56), { kind: 'display', size: 24, italic: true, color: PAL.gold });
       text(typed('illustrative profile ·', t - 3.2, 40), 1286, 892, { kind: 'mono', size: 22, color: PAL.nightLabel });   // a caveat is read, so it gets label size
       text(typed('shape depends on Mw, LA:GA, size', t - 3.8, 40), 1286, 924, { kind: 'mono', size: 22, color: PAL.nightLabel });

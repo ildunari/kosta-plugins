@@ -401,6 +401,19 @@ if want('V2'):
           'needs a Text size / Legibility section with 28, 22, 18 px and contrast 4.5')
     roles = [r for r in ("role: 'fact'", "role: 'label'", "role: 'hud'", "role: 'decor'") if r not in ENGINE]
     check('V2', 'engine components pass text roles', not roles, 'missing ' + ', '.join(roles))
+    def body(fn):
+        m = re.search(r'^function ' + fn + r'\b.*?(?=^function |^const [A-Z_]+ = |\Z)', ENGINE, re.M | re.S)
+        b = m.group(0) if m else ''
+        # a component may take its type from a shared preset (the Journey Log's LOG.lab etc.): count the preset in
+        for name in set(re.findall(r'\.\.\.([A-Z]{2,})\.', b)):
+            pm = re.search(r'^const ' + name + r' = \{.*?$', ENGINE, re.M)
+            if pm: b += pm.group(0)
+        return b
+    # the components that carry the story, and the role each must give its text
+    want_roles = {'callout': 'fact', 'stat': 'fact', 'journeyLog': 'hud', 'stageDial': 'hud',
+                  'frameCounter': 'decor', 'plateHeader': 'decor', 'lineChart': 'label'}
+    wrong = [f'{fn} ({r})' for fn, r in want_roles.items() if f"role: '{r}'" not in body(fn)]
+    check('V2', 'each story component gives its text the right role', not wrong, 'missing ' + ', '.join(wrong))
 if want('V3'):
     lay = section(STYLE, r'^## Layout: bands and clearances')
     check('V3', 'style.md has "## Layout: bands and clearances"', bool(lay.strip()))

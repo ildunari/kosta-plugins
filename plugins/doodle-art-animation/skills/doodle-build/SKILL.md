@@ -110,7 +110,7 @@ Keep the seam times and the `text_check` and `speed_check` output to hand on to 
 
 - **Plates:** one line each — file, seconds, what it draws, and whether its range sheet looked right.
 - **Sound:** whether `cues.md` exists and what went into the story.
-- **Build:** the `build.py` line, the `text_check` result line, the `speed_check` result line, and where `qa/` is.
+- **Build:** the `build.py` line, the result lines of `text_check`, `legibility_check`, `story_check`, `cue_check` and `speed_check`, and where `qa/` is.
 - **Open:** anything a lane could not do — a fact with no source, a seam that needs both plates changed, a shared-file change it asked for — and what you did about it.
 
 Then point the user at `/doodle-art-animation:doodle-qa` (it reuses `qa/`), and `/doodle-art-animation:doodle-render` once QA passes.
