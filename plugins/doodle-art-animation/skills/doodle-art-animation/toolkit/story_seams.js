@@ -251,5 +251,6 @@ const P5 = {
     text(typed(col, t - 2.0, 60), 960 - measure(col, co) / 2, 720, co);
   },
 };
-defineStory({ title: 'Pencil to Ladybug', stages: 4, music: { tonic: 262 }, plates: [P1, P2, P3, P4, P5] });
+defineStory({ title: 'Pencil to Ladybug', stages: 4, music: { tonic: 262 }, plates: [P1, P2, P3, P4, P5],
+  dynamics: [[0, -5], [6, -4], [12, -2], [13, 3], [20.5, 3], [22, 0], [25.3, -1]] });   // sound: a lift from the meadow to the notebook
 boot();

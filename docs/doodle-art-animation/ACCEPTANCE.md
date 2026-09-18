@@ -238,7 +238,12 @@ carrying a fact), `label` (the default: chart axes, legends, card notes), `hud` 
 - [auto] `references/sound.md` documents every one of them, the rule that different kinds of event get different
   sounds, and a loudness lift at the film's climax.
 - [auto] `toolkit/cue_check.mjs` exists, lists every sound the film plays with its time, flags one effect dominating
-  the film and identical repeats, exits 1 on a failure, and exits 0 on every bundled `story*.js`.
+  the film and identical repeats, exits 1 on a failure, and exits 0 on every bundled `story*.js`. Dominance is judged
+  at any film length over the cues and seams (more than 30% plus two events of grace, from four events up); the
+  automatic header typing and a bed's pulses are listed but not counted. It exits 1 with a failing `dominant:` line
+  on the fixture `tests/doodle-art-animation/fixtures/story_monotone.js` (ten pops in 16 s).
+- [auto] Unseeded repeats of a sound vary in their dominant component, and the variation is seeded by plate, time
+  within the plate, name and repeat at that instant, never by call order (fixes from the final v0.15 review).
 
 ## V7 · Scene verdicts at fixed points
 - [auto] `references/build-lanes.md`, `agents/film-reviewer.md` and `agents/seam-reviewer.md` use one scene-verdict

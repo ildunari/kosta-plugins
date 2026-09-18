@@ -242,5 +242,6 @@ const P5 = {
   },
 };
 
-defineStory({ title: 'The Brush Set', stages: 4, music: { tonic: 247 }, plates: [P0, P1, P2, P3, P4, P5] });
+defineStory({ title: 'The Brush Set', stages: 4, music: { tonic: 247 }, plates: [P0, P1, P2, P3, P4, P5],
+  dynamics: [[0, -5], [3.8, -4], [8.4, -3], [13, -1], [14, 3], [22.5, 3], [24, 0], [28, -1]] });   // sound: a lift for the washes and night paper
 boot();

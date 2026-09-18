@@ -311,5 +311,6 @@ const END = {
     ['NOTES  ·  ROUNDED VALUES  ·  THE VALLEY SPLIT IS ILLUSTRATIVE', 'VAPOUR STAY: VAN DER ENT & TUINENBURG 2017'].forEach((src, k) => text(typed(src, t - 3.8 - k * 0.4, 70), 960 - measure(src, so) / 2, 912 + k * 36, so));
   },
 };
-defineStory({ title: 'One Drop', stages: 5, music: { tonic: 220 }, plates: [T0, P1, P2, P3, P4, P5, END] });
+defineStory({ title: 'One Drop', stages: 5, music: { tonic: 220 }, plates: [T0, P1, P2, P3, P4, P5, END],
+  dynamics: [[0, -5], [6, -4.5], [13.5, -4], [27.5, -2], [34, -1], [36, 3], [44, 3], [46, 0], [55, -1]] });   // sound: quiet valley, a lift for the whole route (plate V)
 boot();
