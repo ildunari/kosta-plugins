@@ -385,12 +385,69 @@ if want('W9'):
           and bool(re.search(r'(while the card stands|during the wait|meanwhile)', g1, re.I)),
           'Gate 1 must say the wait is work-bounded and what may start')
 
+FIX = os.path.join(HERE, 'fixtures')
+STORIES = sorted(os.path.basename(p) for p in glob.glob(os.path.join(TK, 'story*.js')))
+SOUND = read(os.path.join(REF, 'sound.md')) or ''
+PRINC = read(os.path.join(REF, 'animation-principles.md')) or ''
+NEW_SFX = ['crunch', 'creak', 'pump', 'relay', 'hiss', 'plop', 'slosh', 'shaker', 'clink', 'pour', 'foil', 'droplet',
+           'pageFlip', 'pegSnap', 'roomTone', 'rain', 'wind', 'cityHum']
+
+if want('V1'):
+    check('V1', 'toolkit/legibility_check.mjs exists', os.path.isfile(os.path.join(TK, 'legibility_check.mjs')))
+    check('V1', 'fixture story_clash.js exists', os.path.isfile(os.path.join(FIX, 'story_clash.js')))
+if want('V2'):
+    fl = section(STYLE, r'^## (Text size|Legibility|Text floors)')
+    check('V2', 'style.md states the text floors and why', bool(fl) and all(n in fl for n in ('28', '22', '18', '4.5')),
+          'needs a Text size / Legibility section with 28, 22, 18 px and contrast 4.5')
+    roles = [r for r in ("role: 'fact'", "role: 'label'", "role: 'hud'", "role: 'decor'") if r not in ENGINE]
+    check('V2', 'engine components pass text roles', not roles, 'missing ' + ', '.join(roles))
+if want('V3'):
+    lay = section(STYLE, r'^## Layout: bands and clearances')
+    check('V3', 'style.md has "## Layout: bands and clearances"', bool(lay.strip()))
+    check('V3', 'layout guidance covers bands, cards, allowed overlap and fixes',
+          bool(lay) and all(re.search(p, lay, re.I) for p in (r'header band', r'journey log', r'(card|halo)', r'overlap', r're-?sequence')))
+if want('V4'):
+    st = section(WRITING, r'^## A story, not a tour of the source')
+    check('V4', 'writing.md has "## A story, not a tour of the source"', bool(st.strip()))
+    check('V4', 'it covers identity, want, obstacle, change and sections-as-obstacles',
+          bool(st) and all(re.search(p, st, re.I) for p in (r'identity', r'want', r'(obstacle|stands in)', r'chang', r'(section|chapter)')))
+    sr = read(os.path.join(PLUG, 'agents', 'script-reviewer.md')) or ''
+    check('V4', 'script-reviewer checks for a tour of the document and hero drift',
+          bool(re.search(r'tour of the (document|source|paper)', sr, re.I)) and bool(re.search(r'identity', sr, re.I)))
+if want('V5'):
+    ch = section(PRINC, r'^## Things that are acted on change')
+    check('V5', 'animation-principles.md has "## Things that are acted on change"', bool(ch.strip()))
+    check('V5', 'the scene-script format has a Changes column', bool(re.search(r'^\|[^\n]*\| Changes \|', WRITING, re.M)))
+    fr = read(os.path.join(PLUG, 'agents', 'film-reviewer.md')) or ''
+    check('V5', 'film-reviewer fails a key object that stays static', bool(re.search(r'(static|does not change|never changes)', fr, re.I)) and 'acted on' in fr.lower())
+if want('V6'):
+    sfx = section(ENGINE, r'^/\* =+ *SOUND') or ENGINE
+    miss = [n for n in NEW_SFX if not re.search(r'\b' + n + r'\s*[:(=]', ENGINE)]
+    check('V6', 'engine defines the new sounds', not miss, 'missing ' + ', '.join(miss))
+    miss = [n for n in NEW_SFX if f'`{n}`' not in SOUND]
+    check('V6', 'sound.md documents every new sound', not miss, 'missing ' + ', '.join(miss))
+    check('V6', 'sound.md states the event rule and the climax lift',
+          bool(re.search(r'different (kinds of )?events?[^.]{0,60}different sounds', SOUND, re.I)) and bool(re.search(r'climax', SOUND, re.I)))
+    check('V6', 'toolkit/cue_check.mjs exists', os.path.isfile(os.path.join(TK, 'cue_check.mjs')))
+    audio = [p for p in glob.glob(os.path.join(PLUG, '**', '*'), recursive=True) if p.lower().endswith(('.wav', '.mp3', '.ogg', '.flac', '.m4a', '.aac'))]
+    check('V6', 'the plugin still ships no audio files', not audio, ', '.join(os.path.relpath(a, PLUG) for a in audio[:5]))
+if want('V7'):
+    fmt = {n: read(p) or '' for n, p in (('build-lanes', os.path.join(REF, 'build-lanes.md')),
+                                          ('film-reviewer', os.path.join(PLUG, 'agents', 'film-reviewer.md')),
+                                          ('seam-reviewer', os.path.join(PLUG, 'agents', 'seam-reviewer.md')))}
+    miss = [n for n, t in fmt.items() if not (re.search(r'scene verdict', t, re.I) and all(w in t.lower() for w in ('evidence', 'reason', 'fix')))]
+    check('V7', 'one scene-verdict format in the lanes and both reviewers', not miss, ', '.join(miss))
+    check('V7', 'a small fix is re-checked on its own chunk', all(re.search(r'(its own chunk|only that (scene|plate|chunk))', t, re.I) for t in fmt.values()))
+if want('V8'):
+    check('V8', 'toolkit/story_check.mjs exists', os.path.isfile(os.path.join(TK, 'story_check.mjs')))
+    check('V8', 'fixture story_drift.js exists', os.path.isfile(os.path.join(FIX, 'story_drift.js')))
+
 if want('REL'):
     pj = json.loads(read(os.path.join(PLUG, '.claude-plugin', 'plugin.json')) or '{}')
     mj = json.loads(read(os.path.join(REPO, '.claude-plugin', 'marketplace.json')) or '{}')
     mv = next((p.get('version') for p in mj.get('plugins', []) if p.get('name') == 'doodle-art-animation'), None)
-    check('REL', 'plugin.json version 0.14.0', pj.get('version') == '0.14.0', str(pj.get('version')))
-    check('REL', 'marketplace entry version 0.14.0', mv == '0.14.0', str(mv))
+    check('REL', 'plugin.json version 0.15.0', pj.get('version') == '0.15.0', str(pj.get('version')))
+    check('REL', 'marketplace entry version 0.15.0', mv == '0.15.0', str(mv))
 
 # ---------------------------------------------------------------- full checks (build, probe, render)
 def run(cmd, cwd=None, timeout=1800):
@@ -443,6 +500,25 @@ if a.full:
             else:
                 rc, out = run(['node', 'speed_check.mjs', h], cwd=work)
                 check('L3', 'speed_check fails the snap fixture with SNAP', rc == 1 and 'SNAP' in out, f'rc={rc} {out[-300:]}')
+
+    def gate(item, tool, fixture=None, word=None):
+        """a tool must pass every bundled story, and fail its fixture"""
+        if not os.path.isfile(os.path.join(work, tool)):
+            skip(item, f'{tool} runs', f'{tool} missing'); return
+        bundled = sorted(os.path.basename(p) for p in glob.glob(os.path.join(TK, 'story*.js')))
+        for story in bundled:
+            h = build(story)
+            rc, out = run(['node', tool, h], cwd=work, timeout=3600) if h else (9, 'build failed')
+            check(item, f'{tool} passes {story}', rc == 0, out[-400:])
+        if fixture:
+            h = build(fixture)
+            if not h: check(item, f'{fixture} builds', False, f'tests/doodle-art-animation/fixtures/{fixture} missing or broken')
+            else:
+                rc, out = run(['node', tool, h], cwd=work, timeout=3600)
+                check(item, f'{tool} fails {fixture}', rc == 1 and (not word or word in out), f'rc={rc} {out[-300:]}')
+    if want('V1'): gate('V1', 'legibility_check.mjs', 'story_clash.js', 'CLASH')
+    if want('V6'): gate('V6', 'cue_check.mjs')
+    if want('V8'): gate('V8', 'story_check.mjs', 'story_drift.js')
 
     if want('L8'):
         bh = build('story_brushes.js')
@@ -517,7 +593,8 @@ if a.full:
 
 # ---------------------------------------------------------------- report
 order = ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9', 'L10', 'L11', 'L12', 'L13', 'L14', 'L15', 'L16', 'L17',
-         'W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'REL']
+         'W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9',
+         'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'REL']
 col = {'PASS': '\033[32m', 'FAIL': '\033[31m', 'SKIP': '\033[33m'}
 tty = sys.stdout.isatty()
 for item in order:

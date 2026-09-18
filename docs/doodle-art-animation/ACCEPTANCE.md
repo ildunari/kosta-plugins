@@ -1,6 +1,6 @@
 # doodle-art-animation — acceptance (go / no-go)
 
-v0.13's film and toolkit items are L1–L17; v0.14's workflow items are W1–W9 at the end of this file. Both are in force.
+v0.13's film and toolkit items are L1–L17, v0.14's workflow items W1–W9, and v0.15's legibility, story and sound items V1–V8, at the end of this file. All are in force.
 
 The ledger agreed with Kosta on 2026-09-17, turned into checks. `tests/doodle-art-animation/acceptance_check.py`
 runs every **[auto]** item: with no flags it does the text and file checks, and `--full` adds builds, page probes, renders and timing.
@@ -186,8 +186,73 @@ The v0.13 items above stay in force; these add the phase and gate structure.
   render). It must not instruct the model to wait a number of minutes as its only mechanism.
 - [auto] SKILL.md's Gate 1 step says the same, and says which work may start while the card stands.
 
+## v0.15 — legibility, story and sound (V1–V8)
+
+Agreed with Kosta on 2026-09-18 after an adversarial review of "The Slow Squeeze", a Cowork film made from his
+lab's paper with v0.13. All ten plates failed: text printed over artwork at contrast as low as 1.4 while
+`text_check` reported CLEAN, story text at 13–16 px, a hero whose identity changed five times and whose log ran
+backwards, a pressed tablet that came out the same height it went in, and 28 identical pops and 111 pen scratches.
+
+Text roles used below: every engine text call carries a role — `fact` (callout notes, stat notes and any line
+carrying a fact), `label` (the default: chart axes, legends, card notes), `hud` (Journey Log values and labels) or
+`decor` (frame counter, figure numbers, the PLATE kicker and similar ornament).
+
+## V1 · Legibility is checked on pixels, not boxes
+- [auto] `toolkit/legibility_check.mjs` exists. `node legibility_check.mjs film.html` renders sampled frames with
+  and without their text, and for every non-`decor` line measures its on-screen size, its WCAG contrast against
+  what is behind it, and how busy that background is. It prints one line per failure (`CLASH`, `SMALL`), writes
+  close-up crops of every flagged line with `--crops DIR`, and exits 1 on any failure.
+- [auto] It exits 1 on the fixture `tests/doodle-art-animation/fixtures/story_clash.js` (text on line work and
+  undersized story text) and 0 on every bundled `story*.js`.
+
+## V2 · Size and contrast floors for text the story depends on
+- [auto] On screen, after the camera: `fact` ≥ 28 px, `label` ≥ 22 px, `hud` ≥ 18 px; contrast ≥ 4.5 for every
+  role but `decor`. The floors are written in `references/style.md` with the reason (a 1080p frame watched on a
+  laptop or phone), and `legibility_check` enforces them.
+- [auto] The engine's own components pass these roles, so a story that uses `stat`, `callout`, `card`, the charts
+  and the HUD gets the floors by default.
+
+## V3 · Layout by guidance, not coordinates
+- [auto] `references/style.md` has a `## Layout: bands and clearances` section: the header band and the Journey Log
+  band stay clear of artwork, text on dark or busy plates sits on a card or halo, overlap is allowed when the text is
+  written on the surface it belongs to, and how to fix a clash (move, re-sequence, card, weight, colour). It gives
+  no pixel coordinates to copy.
+
+## V4 · A story, not a tour of the source
+- [auto] `references/writing.md` has a `## A story, not a tour of the source` section: one hero with one identity
+  for the whole film; what it wants, what stands in its way, what changes; a source's sections become obstacles and
+  turning points, not chapters.
+- [auto] `agents/script-reviewer.md` checks for a tour of the document and for a hero whose identity changes.
+
+## V5 · Things that are acted on change
+- [auto] `references/animation-principles.md` has a `## Things that are acted on change` section (shape, size,
+  rotation, texture, colour — while staying recognisable), the scene-script format in `references/writing.md` has
+  a `Changes` column, and `agents/film-reviewer.md` fails a key object that stays static through the action that
+  should change it.
+
+## V6 · Sound with variety, still synthesized
+- [auto] The engine's `SFX` has, besides its existing sounds: `crunch`, `creak`, `pump`, `relay`, `hiss`, `plop`,
+  `slosh`, `shaker`, `clink`, `pour`, `foil`, `droplet`, `pageFlip`, `pegSnap`, and the beds `roomTone`, `rain`,
+  `wind`, `cityHum`. Each takes a `seed`, and repeated calls vary unless a seed is fixed. All are synthesized; the
+  plugin still ships no audio files.
+- [auto] `references/sound.md` documents every one of them, the rule that different kinds of event get different
+  sounds, and a loudness lift at the film's climax.
+- [auto] `toolkit/cue_check.mjs` exists, lists every sound the film plays with its time, flags one effect dominating
+  the film and identical repeats, exits 1 on a failure, and exits 0 on every bundled `story*.js`.
+
+## V7 · Scene verdicts at fixed points
+- [auto] `references/build-lanes.md`, `agents/film-reviewer.md` and `agents/seam-reviewer.md` use one scene-verdict
+  format — PASS or FAIL, the evidence (an image path), the reason, and the fix — and say that a small fix is
+  re-checked on its own chunk, not by a fresh review of the whole film.
+
+## V8 · The story's own facts stay consistent
+- [auto] `toolkit/story_check.mjs` exists. `node story_check.mjs film.html` reads each plate's header, stage and
+  Journey Log over time, and exits 1 when elapsed time runs backwards, a stage number repeats, or the hero's ID in
+  the log title changes. It exits 1 on the fixture `tests/doodle-art-animation/fixtures/story_drift.js` and 0 on
+  every bundled `story*.js`.
+
 ## Release
-- [auto] `plugin.json` and the marketplace entry say `0.14.0`.
+- [auto] `plugin.json` and the marketplace entry say `0.15.0`.
 - [auto] `smoke_test.py` passes on every bundled story, including `story_brushes.js`.
 - [eye] Final independent review against this file and the ledger; example films and gallery re-rendered and
   sent to Kosta.
