@@ -38,6 +38,7 @@ plugins/doodle-art-animation/       the plugin
                                     space, lab, studio)
 docs/doodle-art-animation/          not shipped with the plugin
   DEVELOPING.md                     this file
+  v0.14-state.md                    what v0.14 changed, how it was checked, its known limits
   ACCEPTANCE.md                     the go/no-go rules (L1-L17 films and toolkit, W1-W9 workflow)
   HANDOFF.md                        history, measurements, known weaknesses (paths in it refer to the original handoff zip)
   history/  reference/  examples/   design review, reference-film study images, an older story file
