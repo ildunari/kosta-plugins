@@ -2,7 +2,9 @@
 
 Everything a story can call. The engine lives in `toolkit/engine.js`; read that file when a detail is missing here.
 
-**Story.** Call `defineStory({ title, stages, music, twos, weave, grain, drift, plates })`, then `boot()`.
+**Story.** Call `defineStory({ title, stages, music, dynamics, silent, twos, weave, grain, drift, plates })`, then `boot()`.
+- `music: { tonic, gain }` gives every plate without a `bed` an automatic pad in that key (`references/sound.md`, "Beds").
+- `dynamics: [[t, dB], …]` is the film's loudness shape: the master level over time in film seconds, dB relative to the default, linear ramps between points (a quiet opening and a lift at the climax; `references/sound.md`, "Dynamics"). Without it, plates' `lift` fields shape the level; without either it is flat.
 
 Plate fields:
 
@@ -12,8 +14,8 @@ Plate fields:
 | `dark` | `true` for the night world |
 | `enter` | `{ type, dur, ease, curve, draw (custom transition), momentum, settle, match, carry, sfx, …type options (dir, k, dive, scaleFrom, from, to, fromFill, toFill, style, at, ink, drop, fall, rim, rimAlpha, rough, color, opacity, back, radius) }` |
 | `silent` (on `defineStory`) | `true` renders a silent audio track of the right length and turns off the automatic risers, transition sounds and pen scratches, which play even with no cues. Check it with `audio_check.py --silent`. |
-| `header` | `{ num, title, sub }` — the kicker above the title is always `PLATE <roman num>`; there is no field for other kicker text. A film's own kicker (`A FIELD STUDY IN 3 PLATES`) belongs to the title card, drawn in that plate's own `draw` |
-| `log` | `t => ({ title, rows: [[label, value]], states, state })` |
+| `header` | `{ num, title, sub, backing }` (`backing: false` drops the glyph halo round title and subtitle; `'card'` puts them on a torn scrap) — the kicker above the title is always `PLATE <roman num>`; there is no field for other kicker text. A film's own kicker (`A FIELD STUDY IN 3 PLATES`) belongs to the title card, drawn in that plate's own `draw` |
+| `log` | `t => ({ title, rows: [[label, value]], states, state, backing })`; `backing` is `true` (default, a glyph halo round every line), `'card'` (a torn scrap behind the block) or `false` |
 | `stage` | `{ n, name, prevN }` |
 | `hero` | `t => ({ x, y, label, r, tag, alpha })` |
 | `focus` | `t => [x, y]` in screen coordinates, for plates without a hero |
@@ -21,8 +23,10 @@ Plate fields:
 | `drift` | Override the automatic push-in (a fraction, or `false`) |
 | `draw(t)` | The scene |
 | `overlay(t)` | Art that ignores the camera, momentum and the match-cut/carry shift (stats, callouts, cards, charts). It still leaves with its plate during a transition. Anchor to the hero with `heroOf(plate, t)`. |
-| `cues` | `[[t, name, opts]]` |
-| `bed` | `(ac, out, t0, dur) => …` |
+| `cues` | `[[t, name, opts]]`: at local time `t`, play `SFX[name](ac, out, plateStart + t, opts)` |
+| `bed` | `(ac, out, t0, dur) => …`, or a `BED.*` bed; replaces the automatic music pad for this plate |
+| `pen` | How the header types on: `true` pen `scratch`, `false` soft `readout` blips, `'none'` silent. Defaults to a pen on paper plates and no pen on `dark` ones |
+| `lift` | dB: this plate's level lift, ramped up over its first 1.5 s and down over 1.5 s after it ends. Used only when `defineStory` has no `dynamics` |
 | `counter`, `marks` | `false` hides the frame counter or the registration marks |
 
 `draw(t)` receives local seconds. During the next plate's transition, `t` runs past `dur`, so clamp your animations.
@@ -46,7 +50,12 @@ Plate fields:
 - Arrows and paths: `arrowHead`, `arrowPath`, `fluxArrow`, `journeyPath`, `textOnPath`.
 
 **Text:**
-- `text(s, x, y, { kind: 'display'|'sans'|'mono', size, weight, italic, color, align, ls })`.
+- `text(s, x, y, { kind: 'display'|'sans'|'mono', size, weight, italic, color, align, ls, alpha, role })`.
+  - `role` says which legibility floor the line must meet on screen (`references/style.md`, "Text size and legibility"): `'fact'` 28 px, `'label'` 22 px (the default when omitted), `'hud'` 18 px, `'decor'` exempt. Drawing ignores it; `legibility_check.mjs` reads it. Every engine component passes its own.
+- `screenText(s, x, y, opts)`: `text()` counter-scaled about its anchor, so the line keeps `size` px on screen under any camera zoom while its anchor still moves with the scene. Use it for scene labels in `draw()`; `KIT.caption(t, s, x, y, { screen: true })` does the same for captions.
+- `haloText(s, x, y, opts)`: `text()` with a glyph halo: the glyphs are first stroked in the plate's paper colour (`dark` picks night paper) with a round-joined line `haloWidth` em wide (default 0.25), at `haloAlpha` (0.92), so line art clears only in a thin band around each letter. `halo: false` skips it; `haloColor` overrides the colour. It is what the components use by default.
+- `backing(x0, y0, x1, y1, { dark, style, pad, feather, alpha, seed })`: a real card to write on, made of the plate's own paper. `style: 'card'` (default) is a torn scrap with a pencil edge and a shadow; `'patch'` is a soft-edged patch of the texture, which erases the drawing under it, so use it only over areas that are already empty-looking. Draw it before the text (and before any leader lines). `textBox(s, x, y, opts)` gives a line's box and `unionBox([...])` joins several, for sizing it on the full strings before they type on.
+- Text colour: `labelOf(dark)` for secondary text (`PAL.label` / `PAL.nightLabel`; `mutedOf` is for lines), `legible(color, dark)` to darken a coloured label on paper (or lighten it at night) until it reads at 6:1, `inkOn(bg)` for ink or pale paper on a coloured surface.
 - `typed(s, t, cps)`.
 - `dropText(s, x, y, t, opts)`: left-aligned only; for centred text, start at `cx - measure(s) / 2`.
 - `countUp(to, t, dur, decimals)`, plus `fmt`, `ROMAN`, `SUB`, `SUP`.
@@ -55,9 +64,12 @@ Plate fields:
 
 **Components:**
 - `stat`, `callout`, `reticle`, `card` (returns 0 until open), `logRuler`, `lineChart` (returns `{ X, Y, ends }`), `insetLens`.
+- Their text meets the role floors by default: callout title 32 px and sub 28 px (`fact`); stat kicker 22 px (`label`), value and 28 px note (`fact`); card title, chart ticks and axis labels, series labels, ruler ticks and marks, lens labels 22 px (`label`); Journey Log, stage dial and hero tag 18–21 px (`hud`); `FIG.` labels, the `PLATE` kicker and the frame counter `decor`.
+- `callout` and `stat` take `backing`: `true` (default, a glyph halo round each line), `'card'` (a torn scrap behind the block) or `false`. `dark` defaults to the plate's own world.
+- Bigger type needs room: a card holding a two-row `logRuler` needs about 180 px of height (marks sit 28 and 60 px above the rule, tick labels 34 px below); a `lineChart` needs about 40 px left of its axis, 70 px below it and 30 px above it.
 - `callout` turns its leader around at the elbow (and slides its text in) when the text would leave the frame; the hero tag does the same near the right edge.
 - `callout`'s `align` is which side of the elbow the text sits on, and it does not follow the leader's direction: route `x2` to the **left** of the anchor and you must pass `align: 'right'`, or the text reads back across its own leader. Only the frame-edge turnaround flips it for you.
-- `card`: a title wider than the card shrinks to fit, and a figure label that would collide moves to the bottom-right corner.
+- `card`: a title wider than the card tightens its letter-spacing (it never drops below 22 px, so keep titles short or the card wide), and a figure label that would collide moves to the bottom-right corner.
 - `lineChart` series: `{ pts, color, w, draw (0..1, default 1), label }`; the label appears at the line's end as it finishes. Charts and rulers draw nothing before their local `t` reaches 0.
 - `insetLens` picks its ring and label ink from the plate it sits on (`S.dark`); its own `dark` option is the lens interior.
 - Put these in `overlay(t)` when they should hold still, and in `draw(t)` when they belong to the world (a chart on a wall), where they zoom and pan with the camera.
@@ -91,5 +103,14 @@ Plate fields:
 - Custom transitions: `enter: { type: 'custom', draw(p, X) }` (see `references/motion.md`), with `morphPose(A, B, u, poseA, poseB)`, `softReveal(fn, x, y, r, feather)`, `S.side` ('old' or 'new'), `S.trans` ({ type, p }) and `S.dark` (whether the plate being drawn is a night plate).
 - `TRANS[type](p, X)` adds a new built-in transition. It returns the share of the frame the new plate owns, and should get matching `HEADER_DELAY` and `TRANS_SFX` entries.
 - `S.trans = { type, p }` lets plates react to their own transition.
+
+**Sound** (all synthesized; the catalogue and the event map are in `references/sound.md`):
+- `SFX.<name>(ac, out, t, opts)`: every effect a cue can name. Events: `tick`, `scratch`, `readout`, `pop`, `chime`, `plink`, `thump`, `crunch`, `creak`, `pump`, `relay`, `hiss`, `plop`, `slosh`, `shaker`, `clink`, `pour`, `foil`, `droplet`, `pageFlip`, `pegSnap`. Motion (the transition sounds): `swell`, `riser`, `whoosh`, `glide`, `flick`, `shutter`, `bend`, `crackle`. Building blocks that do not vary by themselves: `tone`, `noise`, `pad`, `padKey`. Every varied effect takes `seed` (fixes one exact sound) and most take `g` (level). `VARIED` is the set of names that vary per call.
+- `BED.roomTone`, `BED.rain`, `BED.wind`, `BED.cityHum`: ambience beds, `(ac, out, t0, dur, opts)`, usable directly as a plate's `bed`; `BED.mix(...beds)` layers beds.
+- `TRANS_SFX[type](ac, out, t, dur, enter)`: the automatic sound of each seam; `enter.sfx: (ac, out, t, dur) => …` replaces it for one custom transition.
+- Helpers for a story's own sounds (`SFX.drip = (ac, out, t, o = {}) => …` before `defineStory`):
+  - `sfxRng(o, t, name)`: the per-call random generator the built-ins use (seeded by `o.seed`, or by the plate, the time within it, `name` and the repeat count at that instant), so a story's sound varies like theirs. `rr(r, a, b)` draws a number in `[a, b)` from it; `semis(r, n)` a pitch ratio within ±n semitones.
+  - `synth(ac, out, t, dur, fill, { g, pan, pan1, filters, r, fade })`: renders a mono buffer that `fill(d, r)` writes sample by sample, normalized so `g` is its peak, through optional biquads (`{ type, f, f1, q, gain, curve }`). `noiseInto(d, r, env)` adds noise shaped by `env(s)`; `DSP.burst`, `DSP.chirp`, `DSP.modes`, `DSP.reson` are the grain, bubble, struck-mode and resonator primitives the v0.15 sounds are built from.
+  - `note(tonic, degree)`: a degree of the major pentatonic scale over `tonic`; `SR` is the sample rate. Keep it deterministic: no `Math.random`, no clock.
 
 **Theme.** `Object.assign(PAL, { … })` at the top of the story adds subject colours. `FONT` and `FONT_LOADS` hold the three faces.

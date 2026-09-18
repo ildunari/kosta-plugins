@@ -18,11 +18,12 @@ Both worlds carry four large, smooth topographic loops that drift slowly (muted 
 | Paper | `#ebe2cc` | Accent (vermilion: reticles, active state, dial) | `#d8643a` |
 | Ink | `#1b1518` | Periwinkle (rules, rulers, leaders, ticks) | `#8487c6` |
 | Soft ink (subtitles) | `#4a3f35` | Sea | `#2f7f98` |
-| Muted label | `#8a8176` | Sun | `#e3a03c` |
+| Muted (lines, rules, ticks; not text) | `#8a8176` | Sun | `#e3a03c` |
+| Label text (`PAL.label`, `labelOf()`) | `#544b42` | Night label text (`PAL.nightLabel`) | `#9c9dc0` |
 | Card paper (92% opaque) | `#ece6d8` | Leaf and grass | `#6f9a58` |
 | Night | `#0b0a1e` | Soil | `#baa27e` |
 | Night ink | `#dcdcef` | Hydrogen pink | `#e8577a` |
-| Night muted | `#77789a` | Molecule navy | `#26336a` |
+| Night muted (lines, not text) | `#77789a` | Molecule navy | `#26336a` |
 | Gold (angles, highlights) | `#e6c65c` | Cyan / mint (series) | `#56c3d2` / `#53ba8b` |
 
 Keep subject colours muted and slightly warm. The accent orange means "look here", so reserve it for the reticle, the active state dot, the dial progress, and the hero's own chart mark.
@@ -32,13 +33,32 @@ Keep subject colours muted and slightly warm. The accent orange means "look here
 | Use | Face (closest free match) | Setting | Speed |
 |---|---|---|---|
 | Plate title | **Fraunces** 500, 64 px (title card 104–112 px) | Sentence case; each glyph pops in place | 17 glyphs/s |
-| Subtitle, notes | Fraunces *italic* 30 px (notes 24 px) | Lowercase, types on | 30 chars/s |
-| Kickers, HUD, labels | **IBM Plex Mono** 13–21 px | ALL CAPS, letter-spacing 3–9 px | 30–40 chars/s |
-| Callout title / sub | **Inter Tight** 600, 30 px / 400, 22 px | Lowercase; the sub is grey | 30 / 45 chars/s |
+| Subtitle, notes | Fraunces *italic* 30 px (stat notes 28 px) | Lowercase, types on | 30 chars/s |
+| Kickers, labels, axes | **IBM Plex Mono** 22 px | ALL CAPS, letter-spacing 1–8 px | 30–40 chars/s |
+| HUD (Journey Log, stage dial, hero tag) | **IBM Plex Mono** 18 px labels, 21 px values | ALL CAPS, letter-spacing 1–3 px | 40 chars/s |
+| Callout title / sub | **Inter Tight** 600, 32 px / 400, 28 px | Lowercase; the sub is the label tone | 30 / 45 chars/s |
 | Big numbers | Fraunces 500, 56–62 px, tracking −1 px | `≈` prefix, thousands separators, real units (`km³`, `µm`) | Count-up over 1.3 s |
 | Colophon | Plex Mono 20 px, spacing 6 | Centred on the end card | 60 chars/s |
 
 Use real subscripts and superscripts (`H₂O`, `km³`, `10²⁰`) with the `SUB()` and `SUP()` helpers. **Reading time:** a line needs `readTime(s)` = characters ÷ 12 + 0.8 s on screen before anything may replace it.
+
+## Text size and legibility
+
+A film is made at 1920×1080 but watched smaller: in a laptop browser window at about 0.75× and on a phone at about 0.44×. A 14 px label lands at about 6 px on a phone, which nobody can read, and grey text that looks quiet on a monitor disappears on a small, bright screen. So every line of text has a **role**, and each role has a floor measured on screen, after the camera:
+
+| Role | Floor | What it covers |
+|---|---|---|
+| `fact` | 28 px | Callout titles and subs, stat values and notes, any line that carries a fact the story depends on |
+| `label` | 22 px | The default: chart axes and ticks, legends, ruler marks, card titles, stat kickers, scene labels, captions |
+| `hud` | 18 px | Journey Log labels and values, the stage dial's text, the hero's ID tag |
+| `decor` | exempt | Frame counter, `FIG.` numbers, the `PLATE` kicker, marks written on an object (dial digits, hex codes on a paint chip, server tags) |
+
+Every role but `decor` also needs **contrast of at least 4.5:1** against what is actually behind it, measured on the pixels. Pass the role as `o.role` on `text()`; the engine's components already do, so `stat`, `callout`, `card`, the charts, the ruler and the HUD meet their floors by default. `toolkit/legibility_check.mjs` measures all of it. `decor` is for real ornament only: a line a viewer needs to read meets its floor instead of being exempted.
+
+- **Tone.** Secondary text uses `PAL.label` / `PAL.nightLabel` (`labelOf(dark)`), which stay warm and quiet but clear 4.5:1. `PAL.muted` and `PAL.nightMuted` are for lines and ticks, not text. For coloured text (a series name, a ruler mark), `legible(color, dark)` darkens the hue on paper or lightens it at night until it reads; `inkOn(bg)` picks ink or pale paper for a label written on a coloured surface.
+- **Backing.** Text on a night plate, or over busy art, sits on something readable. `callout`, `stat`, the plate header, the Journey Log and the hero tag give their words a **glyph halo** by default, the cartographer's knockout: before the letters are filled, the same glyphs are stroked in the plate's paper colour (night paper on night plates) with a round-joined line about a quarter of an em wide. Line art clears only in a thin band around each letter, so the words read and the drawing behind them stays whole. `backing: 'card'` puts a block on a torn scrap of the same paper with a pencil edge and a small shadow, for a line that needs a real card; `backing: false` turns it off (for text deliberately written on a surface). Scene labels use `haloText(s, x, y, opts)` or `KIT.caption(..., { backing: true })`. Never erase a soft box out of the drawing behind a line (a paper hole in the artwork reads as damage, not as the notebook), and never draw a UI box: no flat fill, no rounded rectangle, no solid border.
+- **Camera.** Scene labels drawn in `draw()` scale with the camera: a 30 px label under a 0.5× pull-back lands at 15 px. Put labels that must stay readable in `overlay()`, or draw them with `screenText()` (or `KIT.caption(..., { screen: true })`), which keeps their on-screen size.
+- **Bigger type needs room.** A bottom card with a two-row ruler needs about 180 px of height; a chart needs about 40 px left of its axis and 70 px below it. Long credits and notes go on several short lines, so each line gets its own reading time.
 
 ## Line and texture
 
@@ -99,14 +119,47 @@ Beside `pen` and `ink`, the engine has a natural-media brush set (`brush.stroke`
 - Leave empty paper where callout text will land. Never put a callout over busy art. When the hero is on the right half, flip the callout to `align: 'right'`.
 - The HUD and the hero reticle are furniture. They never scale with the camera.
 
-## Plate furniture (fixed positions on a 1920×1080 frame)
+## Layout: bands and clearances
+
+This section is guidance for arranging a scene, not a grid to copy. Every plate is composed differently, and fixed coordinates handed down from a reference collide with whatever the next plate needs. Decide where things go by what each region of the frame is for and what sits behind the text, then let `legibility_check.mjs` tell you whether the result reads.
+
+**Two bands belong to the furniture and stay clear of artwork.**
+
+- **The header band** runs across the top of the frame: the PLATE kicker, the title, its rule and the subtitle. Nothing drawn in the scene should pass behind those lines: no mountain peak under the subtitle, no gauge rising into the title, no chain crossing the rule. Compose the scene below it, or let only sky, paper or night texture sit there. If the camera pushes in and the art rises into the band, frame the push lower or start it after the header has faded.
+- **The Journey Log band** runs down the upper right corner: the log title, its rows and the STATE switch. Keep the scene's own subjects out from behind it for the whole plate, including while the camera moves. A press, a chart or a crowd that fills the right side stops short of the log, or the log's plate is one where the right side is quiet.
+
+The stage dial and the frame counter in the lower corners work the same way on a smaller scale: the bottom card and the ground line run past them, but nothing with its own marks (a scale bar, a label, a gauge) sits behind them.
+
+**Text on a dark or busy plate sits on a card or a halo.** A night plate full of speckle, a hatched cross-section or a crowded diagram is not a background for bare text. Put the line on a card, or give it a halo, using the `backing` option the engine's callouts, stats and Journey Log take; don't hand-draw a box per line. On plain paper or an open night sky, bare text is fine.
+
+**Overlap is right when the text is written on the surface it belongs to.** A label on a jar, notes on a card, a number printed on a panel, handwriting on a sheet of paper, a name on the side of a tablet: the surface is the text's ground, and the eye reads them as one object. Overlap is wrong when:
+
+- the text sits on line art of similar weight: an italic subtitle over pen hatching, a callout sub across a tangle of polymer chains, a label crossing another label's leader;
+- the text sits on something whose own marks carry meaning: a clock face, a gauge, a dial, a chart's axes or curve, a ruler's ticks. The viewer has to read both, and cannot read either.
+
+The Slow Squeeze failed on both: subtitles printed through gauge faces, a callout laid across the press's bolted platen, labels on top of the chains they named.
+
+**How to fix a clash**, in the order to try them:
+
+1. **Move it.** Put the text on empty paper beside what it names and let the leader do the pointing; flip a callout to the other side (`align: 'right'`) when the hero is on the right half.
+2. **Re-sequence it**, so the two never share the frame: the callout clears before the gauge swings up, or the chart draws after the note has faded. Two things that each need reading do not need to be on screen at the same moment.
+3. **Put a card behind it** (`backing`), when the text has to stay where it is, over the art it describes.
+4. **Change weight or colour**, as the last step: make the art behind it fainter (far objects at lower alpha and thinner `w`), or set the text in a weight or colour that separates from the lines under it. This helps with texture; it does not rescue text over a gauge or a chart.
+
+`legibility_check.mjs` enforces the result on the rendered frames: it flags text whose contrast or background busyness fails, and its crops show where. A clean `text_check` is not enough, because text boxes can be clear of each other and still sit on art. Fix every `CLASH` line it prints before Gate 2.
+
+
+**What the check cannot see.** `legibility_check` judges whether a line can be read. It cannot judge whether the line belongs where it is: a subtitle whose glyph halo keeps it perfectly readable can still run across a gauge face and nibble the ticks that give the gauge its meaning, and that passes. Text over something whose own marks carry meaning — a gauge, a clock, a chart, a ruler — is a composition fault, and it is yours and the film reviewer's to catch by looking.
+## Plate furniture
+
+The first four rows are drawn by the engine in fixed places, so they are facts to design around. The last three are yours to place: they are described by where they sit relative to the scene and the HUD, not by coordinates, because the right spot depends on what the plate is drawing ("Layout: bands and clearances").
 
 | Element | Where | What it shows |
 |---|---|---|
 | Plate header | Kicker at (90, 95), title baseline (88, 158), rule at y 180, subtitle baseline (90, 221) | `PLATE  III` / *Rising & Cooling* / *warm air climbs, expands and chills* |
-| Journey log | x 1518–1868, header at y 70, rows every 30 px from y 112 | `JOURNEY LOG · H₂O·01`, 2–3 rows, then a three-way STATE switch (`○ ICE ● LIQUID ○ VAPOUR`) |
+| Journey log | x 1518–1868 (wider to the left when a row needs it), header at y 70, rows every 34 px from y 114 | `JOURNEY LOG · H₂O·01`, 2–3 rows, then a three-way STATE switch (`○ ICE ● LIQUID ○ VAPOUR`) that wraps under the STATE label when it does not fit |
 | Stage dial | Card at (45, 900, 358×138) | Ring with 12 ticks, orange progress arc, `STAGE 02 / 11`, stage name. Stages group plates: 11 stages over 15 plates. |
 | Frame counter | Baseline (1868, 1046) | `EXP 0360    F 0720` |
-| Big stat | Around x 600–720, y 200–340 | Kicker, count-up number, italic note giving the assumption |
-| Bottom card | x 490 to about 1680 (keep the counter clear), y about 900, h about 140 | Distribution bar, log ruler, budget equation |
-| Side card | About x 1260–1870, y 300–940 | `FIG. 2` panels: charts, size series, cutaways |
+| Big stat | In open paper near the top of the scene, clear of the header band and the Journey Log, and on the side of the frame the subject is not | Kicker, count-up number, italic note giving the assumption |
+| Bottom card | Along the bottom edge, between the stage dial and the frame counter, below anything the scene needs the viewer to watch | Distribution bar, log ruler, budget equation |
+| Side card | Beside the subject, below the Journey Log, on whichever side the scene leaves empty | `FIG. 2` panels: charts, size series, cutaways |

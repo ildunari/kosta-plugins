@@ -133,7 +133,7 @@ KIT.settle = (() => {
         ink([[-18, 0], [16, 0]], { w: K.lw(o, 2), color: ic, amp: 0.2, seed: seed + 51 }); arrowHead(18, 0, 0, 7, ic, K.lw(o, 2));
         ink([[-18, 0], [-24, -6], [-12, -6]], { closed: true, w: K.lw(o, 1.4), color: ic, fill: PAL.accent, amp: 0.2, seed: seed + 52 });
         ctx.restore();
-        text('N', vx, vy - 48, { kind: 'mono', size: 11, weight: 600, align: 'center', color: ic });
+        text('N', vx, vy - 48, { kind: 'mono', size: 11, weight: 600, align: 'center', color: ic, role: 'decor' });
       }
       if (o.smoke) smoke(t, g.smokeAt[0], g.smokeAt[1], o, seed + 60, W / 220 + 0.3, K.ph(draw, 0.8, 1));
       if (o.ground) groundLine(o, -W / 2 - 50, W / 2 + 50, seed + 70, K.ph(draw, 0, 0.35));
@@ -893,7 +893,7 @@ KIT.settle = (() => {
           ctx.save(); ctx.translate(cx, -H + 34); ctx.rotate(rt);
           ink([[-lw / 2 + 6, 0], [-lw / 2 + 6, 10]], { w: 1, color: ic, amp: 0.1, seed: ss + 60 }); ink([[lw / 2 - 6, 0], [lw / 2 - 6, 10]], { w: 1, color: ic, amp: 0.1, seed: ss + 61 });
           ink(R4(-lw / 2, 10, lw, 22), { closed: true, w: 1.4, color: PAL.ink, fill: PAL.settleCanvas, amp: 0.3, seed: ss + 62 });
-          text(label, 0, 26, { kind: 'mono', size: 12, weight: 600, ls: 2, align: 'center', color: PAL.ink });
+          text(label, 0, 26, { kind: 'mono', size: 12, weight: 600, ls: 2, align: 'center', color: PAL.ink, role: 'decor' });   // painted on the stall
           ctx.restore();
           if (on) { const lx = x1 - 14, ly = -H + 44 + 3 * Math.sin(t * 1.3 + i); ink([[lx, -H + 16], [lx, ly - 8]], { w: 1, color: ic, amp: 0.1, seed: ss + 63 });
             flat(shape.circle(lx, ly, 22, 16), PAL.settleLit, 0.12 + 0.05 * hash3(i, Math.floor(t * 6), seed));
@@ -966,7 +966,9 @@ KIT.settle = (() => {
           ctx.restore();
         });
       }
-      labels.forEach(([s, u, v], i) => text(typed(s, (draw - 0.6 - i * 0.05) * 3, 12), u * w, v * h, { kind: 'mono', size: 13, weight: 600, ls: 3, color: PAL.inkSoft }));
+      labels.forEach(([s, u, v], i) => { const lo = { kind: 'mono', size: 22, weight: 600, ls: 2, color: PAL.inkSoft }, a = clamp((draw - 0.6 - i * 0.05) * 30);   // place names sit on a patch of map paper
+        if (a > 0) flat(K.rrect(u * w - 7, v * h - 21, measure(s, lo) + 14, 29, 6), PAL.settleMapPaper, 0.92 * a);
+        text(typed(s, (draw - 0.6 - i * 0.05) * 3, 12), u * w, v * h, lo); });
       ctx.restore();
       if (o.compass) { const cx = w - 62, cy = 62, cr = 36, k = K.pop(draw, 0.35, 0.6);
         if (k > 0) popAt(cx, cy, k, () => {
@@ -979,15 +981,15 @@ KIT.settle = (() => {
             ink([[0, 0], [c * L, s2 * L], [-s2 * 6, c * 6]], { closed: true, w: 1, color: PAL.ink, fill: q ? PAL.ink : PAL.accent, amp: 0.1, seed: seed + 110 + q });
             ink([[0, 0], [c * L, s2 * L], [s2 * 6, -c * 6]], { closed: true, w: 1, color: PAL.ink, fill: PAL.settleMapPaper, amp: 0.1, seed: seed + 115 + q }); }
           ctx.restore();
-          text('N', cx, cy - cr - 6, { kind: 'mono', size: 13, weight: 600, align: 'center', color: PAL.ink });
+          text('N', cx, cy - cr - 6, { kind: 'mono', size: 13, weight: 600, align: 'center', color: PAL.ink, role: 'decor' });
         }); }
       const tl = K.ph(draw, 0.6, 0.9);
-      if (tl > 0) { const tw = Math.min(w * 0.6, measure(o.title, { kind: 'mono', size: 14, weight: 600, ls: 4 }) + 30), bx = 26, by = h - 54;
-        withAlpha(tl, () => { flat(R4(bx, by, tw, 30), PAL.settleMapPaper); ink(R4(bx, by, tw, 30), { closed: true, w: 1.4, color: PAL.ink, amp: 0.3, seed: seed + 120, double: true }); });
-        text(typed(o.title, (draw - 0.65) * 4, 16), bx + 15, by + 20, { kind: 'mono', size: 14, weight: 600, ls: 4, color: PAL.ink });
+      if (tl > 0) { const TO = { kind: 'mono', size: 22, weight: 600, ls: 2 }, tw = Math.min(w * 0.62, measure(o.title, TO) + 30), bx = 26, by = h - 62;
+        withAlpha(tl, () => { flat(R4(bx, by, tw, 38), PAL.settleMapPaper); ink(R4(bx, by, tw, 38), { closed: true, w: 1.4, color: PAL.ink, amp: 0.3, seed: seed + 120, double: true }); });
+        text(typed(o.title, (draw - 0.65) * 4, 16), bx + 15, by + 27, { ...TO, color: PAL.ink });
         const sx = w - 150, sy = h - 34;
         for (let q = 0; q < 4; q++) ink(R4(sx + q * 26, sy, 26, 6), { closed: true, w: 1, color: PAL.ink, fill: q % 2 ? PAL.settleMapPaper : PAL.ink, amp: 0.1, seed: seed + 121 + q, alpha: tl });
-        text('LEAGUES', sx + 52, sy - 6, { kind: 'mono', size: 10, ls: 2, align: 'center', color: PAL.inkSoft, alpha: tl }); }
+        text('LEAGUES', sx + 52, sy - 6, { kind: 'mono', size: 10, ls: 2, align: 'center', color: PAL.inkSoft, alpha: tl, role: 'decor' }); }
     });
   }
 

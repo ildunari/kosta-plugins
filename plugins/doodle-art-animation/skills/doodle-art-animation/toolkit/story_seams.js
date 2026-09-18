@@ -212,7 +212,7 @@ const P3 = {
     ladybug(bx, by, t, { s: 0.95, hd: lerp(-0.25, -0.1, land), open: 1 - E.inOut3(land) });
   },
   overlay(t) {
-    withAlpha(beat(t, 0.9, 3.2), () => stat(t - 0.9, { x: 480, y: 330, kicker: 'A LADYBIRD EATS, PER DAY', value: u => 'up to ≈ ' + countUp(50, u, 1.0), note: 'aphids, as an adult (illustrative)' }));
+    withAlpha(beat(t, 0.9, 3.2), () => stat(t - 0.9, { x: 480, y: 330, kicker: 'AN ADULT LADYBIRD EATS, PER DAY', value: u => 'up to ≈ ' + countUp(50, u, 1.0) + ' aphids' }));   // no note: a 3.3 s plate has no time to read one
   },
 };
 /* ---------- plate IV · the notebook: a pencil sketch of the same ladybug, drawn where the real one sat ---------- */
@@ -222,7 +222,7 @@ const P4 = {
   dur: 5.5, dark: false,
   enter: { type: 'cut', match: 1, settle: 1.4 },                                 // match cut: the sketch opens exactly where the ladybug was, then glides home
   header: { num: 4, title: 'The Notebook', sub: 'what was seen, written down' }, stage: { n: 4, name: 'NOTEBOOK', prevN: 3 },
-  hero: () => ({ x: SK[0], y: SK[1], label: 'SKETCH·01', r: 96 }),
+  hero: () => ({ x: SK[0], y: SK[1], label: 'LADYBUG·01', r: 96 }),   // the sketch is of the same ladybug: same ID
   cues: [[0.3, 'scratch', { chars: 40 }]],
   draw(t) {
     notebook(t);
@@ -247,9 +247,10 @@ const P5 = {
     ladybug(960, 420, t, { s: 0.7, hd: -Math.PI / 2 + 0.2 * Math.sin(t), walk: 1 });
     const q = 'From a pencil to a ladybug, and back.', qo = { kind: 'display', size: 52, italic: true, color: PAL.nightInk, cps: 24 };
     dropText(q, 960 - measure(q, qo) / 2, 640, t - 0.6, qo);
-    const col = 'A SEAM DESIGN EXAMPLE  ·  DRAWN IN CODE', co = { kind: 'mono', size: 18, ls: 6, color: '#9fa0c8' };
+    const col = 'A SEAM DESIGN EXAMPLE  ·  DRAWN IN CODE', co = { kind: 'mono', size: 22, ls: 5, color: '#a9aacb' };
     text(typed(col, t - 2.0, 60), 960 - measure(col, co) / 2, 720, co);
   },
 };
-defineStory({ title: 'Pencil to Ladybug', stages: 4, music: { tonic: 262 }, plates: [P1, P2, P3, P4, P5] });
+defineStory({ title: 'Pencil to Ladybug', stages: 4, music: { tonic: 262 }, plates: [P1, P2, P3, P4, P5],
+  dynamics: [[0, -5], [6, -4], [12, -2], [13, 3], [20.5, 3], [22, 0], [25.3, -1]] });   // sound: a lift from the meadow to the notebook
 boot();

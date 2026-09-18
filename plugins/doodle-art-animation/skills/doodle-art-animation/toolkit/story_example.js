@@ -164,9 +164,9 @@ const P0 = {
   overlay(t) {
     const fl = E.out3(inv(0, 0.9, t)), c = { w: 1.2, color: PAL.peri, amp: 0, alpha: 0.55 };
     ink([[34, 34], [lerp(34, W - 34, fl), 34]], c); ink([[W - 34, 34], [W - 34, lerp(34, H - 34, fl)]], c); ink([[34, 34], [34, lerp(34, H - 34, fl)]], c);
-    text(typed('Ø 150 nm', t - 2.0, 20), TIP[0] - 96, 500, { kind: 'mono', size: 18, align: 'right', color: PAL.peri });
+    text(typed('Ø 150 nm', t - 2.0, 20), TIP[0] - 96, 500, { kind: 'mono', size: 22, align: 'right', color: legible(PAL.peri, false) });
     withAlpha(1 - inv(5.95, 6.45, t), () => {                                  // the title clears just before the dive
-      text(typed('A FIELD STUDY IN 4 PLATES', t - 0.5, 34), 922, 392, { kind: 'mono', size: 21, ls: 9, color: PAL.inkSoft });
+      text(typed('A FIELD STUDY IN 4 PLATES', t - 0.5, 34), 922, 392, { kind: 'mono', size: 22, ls: 8, color: PAL.inkSoft });
       dropText('The Long Release', 914, 508, t - 0.95, { kind: 'display', size: 112, weight: 500, cps: 13 });
       const ul = E.out3(inv(2.0, 2.8, t));
       if (ul > 0) { ink([[918, 548], [lerp(918, 1800, ul), 548]], { w: 1.6, color: PAL.peri, amp: 0 });
@@ -191,7 +191,7 @@ const P1 = {
   cam: camI,
   hero: t => { const [x, y] = npI(t); return { x, y, label: 'NP·01', r: 36 }; },
   bed: heart(0.24, [220, 277.2, 329.6]),
-  cues: [[2.0, 'scratch', { chars: 29, cps: 40 }], [3.2, 'scratch', { chars: 34, cps: 40 }], [3.6, 'chime', { f: 660 }], [4.3, 'pop'], [4.65, 'scratch', { chars: 14 }], [6.0, 'pop'], [6.9, 'plink'], [7.25, 'plink'], [7.6, 'plink'], [7.95, 'plink']],
+  cues: [[2.0, 'scratch', { chars: 29, cps: 40 }], [3.2, 'scratch', { chars: 34, cps: 40 }], [3.6, 'chime', { f: 660 }], [4.3, 'pop'], [4.65, 'scratch', { chars: 14 }], [6.0, 'pop'], [6.9, 'tick'], [7.25, 'tick'], [7.6, 'tick'], [7.95, 'tick']],
   draw(t) {
     const v = y => 110 + 260 * (1 - ((y - 660) / 200) ** 2), x0 = -200, x1 = SPAN1;
     const tissue = shape.band(shape.ridge(x0, x1, 392, 8, 5), H + 20);
@@ -225,11 +225,11 @@ const P1 = {
     const cp = withCard(t, 6.0);
     if (cp) logRuler(t - 6.4, { x: 540, y: 1000, w: 1060, min: 1e-8, max: 1e-3,
       ticks: [[1e-8, '10 nm'], [1e-7, '100 nm'], [1e-6, '1 µm'], [1e-5, '10 µm'], [1e-4, '100 µm'], [1e-3, '1 mm']],
-      marks: [{ v: 1.5e-7, label: 'NP·01 · 150 nm', color: PAL.accent }, { v: 1e-6, label: 'bacterium · ~1 µm', row: 1 },
-        { v: 7.5e-6, label: 'red cell · 7.5 µm' }, { v: 7e-5, label: 'hair · ~70 µm', row: 1 }] });
+      marks: [{ v: 1.5e-7, label: 'NP·01 150 nm', color: PAL.accent }, { v: 1e-6, label: 'bacterium', row: 1 },   // rows chosen so no stem crosses a 22 px label
+        { v: 7.5e-6, label: 'red cell · 7.5 µm', row: 1 }, { v: 7e-5, label: 'hair · ~70 µm' }] });
   },
 };
-const withCard = (t, t0) => card(t - t0, { x: 490, y: 902, w: 1180, h: 142, title: 'SIZE LADDER · LOG SCALE', fig: 'FIG. 1' }) > 0;
+const withCard = (t, t0) => card(t - t0, { x: 490, y: 866, w: 1180, h: 180, title: 'SIZE LADDER · LOG SCALE', fig: 'FIG. 1' }) > 0;   // tall enough for two rows of 22 px marks
 
 /* ---------- PLATE II · the corona: a slow push and turn while the protein coat builds ---------- */
 const C2 = [960, 600], R2 = 200;
@@ -245,7 +245,7 @@ const P2 = {
   cam: camII,
   hero: () => ({ x: C2[0], y: C2[1], label: 'NP·01', r: 270 }),
   bed: darkBed([110, 164.8, 196]),
-  cues: [[0.12, 'pop'], [2.7, 'scratch', { chars: 34, cps: 40 }], [3.2, 'chime', { f: 523 }], [4.0, 'pop'], [5.3, 'pop'], [5.65, 'scratch', { chars: 20 }], ...Array.from({ length: 12 }, (_, i) => [1.0 + i * 0.62, 'plink'])],
+  cues: [[0.12, 'pop'], [2.7, 'readout', { chars: 34, cps: 40 }], [3.2, 'chime', { f: 523 }], [4.0, 'pop'], [5.3, 'pop'], [5.65, 'readout', { chars: 20 }], ...Array.from({ length: 12 }, (_, i) => [1.0 + i * 0.62, 'droplet', { g: 0.05 }])],
   draw(t) {
     const r = mulberry(210);                                                  // a dense plasma of proteins drifting past
     for (let i = 0; i < 90; i++) { const x0 = r() * (W + 400) - 200, y0 = 160 + r() * 860, sp = 30 + r() * 20, [wx, wy] = wander(i, t, 16, 0.6, 3);
@@ -265,15 +265,15 @@ const P2 = {
   },
   overlay(t) {
     withAlpha(beat(t, 1.2, 9.6), () => { const lt = t - 1.2;                  // backbone schematic, left
-      text(typed('PLGA  ·  50 : 50', lt, 30), 250, 430, { kind: 'mono', size: 18, ls: 5, align: 'center', color: '#b9b9d6' });
+      haloText(typed('PLGA  ·  50 : 50', lt, 30), 250, 430, { kind: 'mono', size: 22, ls: 4, align: 'center', color: '#b9b9d6' });
       const beads = Array.from({ length: 6 }, (_, i) => [130 + i * 48, 520 + (i % 2 ? 18 : -18) + 3 * Math.sin(t * 1.4 + i)]);
       ink(beads, { w: 2, color: '#b9b9d6', amp: 0, draw: E.out3(clamp(lt / 0.9)) });
       beads.forEach(([x, y], i) => { const s = E.outBack(clamp((lt - i * 0.12) * 4)); if (s <= 0) return;
         ink(shape.circle(x, y, 15 * s, 24), { closed: true, w: 2, color: '#f0eef8', fill: [0, 1, 1, 0, 1, 0][i] ? PAL.pink : PAL.drug, amp: 0.3, seed: 70 + i });   // a random-ish copolymer, not strictly alternating
         if (i % 2 === 0) ink([[x, y - 15 * s], [x - 6, y - 32 * s]], { w: 2, color: '#f0eef8', amp: 0 });
         if (i < 5) { ctx.beginPath(); ctx.arc((x + beads[i + 1][0]) / 2, (y + beads[i + 1][1]) / 2, 3.5 * s, 0, TAU); ctx.fillStyle = PAL.accent; ctx.fill(); } });
-      text(typed('lactide  ·  glycolide', lt - 1.0, 30), 250, 580, { kind: 'mono', size: 15, align: 'center', color: PAL.nightMuted });
-      text(typed('schematic · ester bonds hold it together', lt - 1.4, 30), 250, 616, { kind: 'display', size: 22, italic: true, align: 'center', color: '#9d9dbd' }); });
+      haloText(typed('lactide  ·  glycolide', lt - 1.0, 30), 250, 584, { kind: 'mono', size: 22, align: 'center', color: PAL.nightLabel });
+      haloText(typed('schematic · ester bonds hold it together', lt - 1.4, 30), 250, 622, { kind: 'display', size: 24, italic: true, align: 'center', color: '#a9aacb' }); });
     withAlpha(beat(t, 1.5, 7.2), () => stat(t - 1.5, { x: 1330, y: 580, kicker: 'PLASMA PROTEIN', value: u => '≈ ' + countUp(70, u, 1.2) + ' g per litre', note: 'a coat forms in under a minute', dark: true, size: 56 }));
     const [sx, sy] = edgeII(0.5, 22, t);
     withAlpha(beat(t, 3.8, 9.9), () => callout(t - 3.8, { ax: sx, ay: sy, ex: 1270, ey: 800, x2: 1330, title: 'protein corona', sub: 'the body now sees the coat, not the particle', dark: true }));
@@ -282,7 +282,7 @@ const P2 = {
     const sb = E.out3(inv(0.8, 1.4, t));
     ink([[1627, 1000], [lerp(1627, 1760, sb), 1000]], { w: 2, color: PAL.nightInk, amp: 0 });
     if (sb >= 1) { ink([[1627, 992], [1627, 1008]], { w: 2, color: PAL.nightInk, amp: 0 }); ink([[1760, 992], [1760, 1008]], { w: 2, color: PAL.nightInk, amp: 0 });
-      text(`${Math.round(50 / camII(t).s)} nm`, 1693, 985, { kind: 'mono', size: 15, align: 'center', color: PAL.nightInk }); }   // the scale bar follows the zoom
+      text(`${Math.round(50 / camII(t).s)} nm`, 1693, 982, { kind: 'mono', size: 22, align: 'center', color: PAL.nightInk }); }   // the scale bar follows the zoom
   },
 };
 
@@ -337,8 +337,8 @@ const P3 = {
     }
     ink([[960, 250], [960, 900]], { w: 1.6, color: PAL.peri, amp: 0, dash: [10, 8], alpha: E.out3(inv(0.3, 1, t)) });
     withAlpha(inv(7.2, 8.2, t), () => {                                         // side labels only once the wide view is back
-      text(typed('HEALTHY', t - 7.2, 20), 930, 322, { kind: 'mono', size: 17, ls: 6, align: 'right', color: PAL.muted });
-      text(typed('TUMOUR', t - 7.2, 20), 990, 322, { kind: 'mono', size: 17, ls: 6, color: PAL.muted }); });
+      screenText(typed('HEALTHY', t - 7.2, 20), 930, 322, { kind: 'mono', size: 22, ls: 5, align: 'right', color: PAL.label });   // scene labels: 22 px on screen under the pull-back
+      screenText(typed('TUMOUR', t - 7.2, 20), 990, 322, { kind: 'mono', size: 22, ls: 5, color: PAL.label }); });
     const lp = E.out3(inv(1.2, 2.2, t));
     if (lp > 0) { const tube = [[430, 918], [lerp(430, 920, lp), 918], [lerp(430, 920, lp), 958], [430, 958]];
       ink(tube, { closed: true, w: 2.4, fill: '#e7eef0', seed: 88 });
@@ -352,9 +352,9 @@ const P3 = {
     const [jx, jy] = at([760, 505]);                                           // a junction the particle passes while the label is up
     withAlpha(beat(t, 1.4, 6.7), () => callout(t - 1.4, { ax: jx, ay: jy, ex: 520, ey: 760, x2: 580, title: 'tight junctions', sub: 'healthy walls leave only tiny clefts' }));   // the label stays put; only its leader follows the camera
     const [gx, gy] = at([1282, 505]);
-    withAlpha(beat(t, 5.2, 12.6), () => callout(t - 5.2, { ax: gx, ay: gy, ex: 1380, ey: 240, x2: 1430, title: 'EPR effect', sub: 'leaky walls, poor drainage · clearest in mice' }));
+    withAlpha(beat(t, 5.2, 12.6), () => callout(t - 5.2, { ax: gx, ay: gy, ex: 1220, ey: 250, x2: 1280, title: 'EPR effect', sub: 'leaky walls, poor drainage · clearest in mice' }));
     withAlpha(beat(t, 8.3, 12.6), () => { const [lx, ly] = at([432, 1045]);   // once the wide view is back; below the cells
-      text(typed('lymph drains fluid away', t - 8.3, 30), lx, ly, { kind: 'mono', size: 16, color: PAL.inkSoft });
+      text(typed('lymph drains fluid away', t - 8.3, 30), lx, ly, { kind: 'mono', size: 22, color: PAL.inkSoft });
       text(typed('no drainage: particles stay put', t - 8.6, 30), at([1000, 1045])[0], ly, { kind: 'display', size: 24, italic: true, color: PAL.inkSoft }); });
   },
 };
@@ -374,7 +374,7 @@ const P4 = {
   cam: camIV,
   hero: t => ({ x: C4[0], y: C4[1], label: 'NP·01', r: R4(t) + 50 }),
   bed: (ac, out, t0, dur) => { darkBed([98, 146.8, 185])(ac, out, t0, dur); },
-  cues: [[0.12, 'pop'], [1.7, 'pop'], [2.2, 'pop'], [2.55, 'scratch', { chars: 16 }], [6.6, 'pop'], [6.95, 'scratch', { chars: 17 }], [11.6, 'chime', { f: 440 }], ...drugsIV.slice(0, 16).map(d => [d.tr + 0.2, 'plink'])],   // 0.12: a hit as the lens opens
+  cues: [[0.12, 'pop'], [1.7, 'pop'], [2.2, 'pop'], [2.55, 'readout', { chars: 16 }], [6.6, 'pop'], [6.95, 'readout', { chars: 17 }], [11.6, 'chime', { f: 440 }], ...drugsIV.slice(0, 16).map(d => [d.tr + 0.2, 'plink'])],   // 0.12: a hit as the lens opens
   draw(t) {
     const e = inv(1, 12, t), R = R4(t);
     const r = mulberry(410);
@@ -407,19 +407,20 @@ const P4 = {
     const [hx, hy] = at(-0.7);
     withAlpha(beat(t, 2.2, 7.6), () => callout(t - 2.2, { ax: hx, ay: hy, ex: 930, ey: 290, x2: 990, title: 'ester hydrolysis', sub: 'water splits the polyester backbone', dark: true }));
     const [dx, dy] = at(0.95);
-    withAlpha(beat(t, 6.6, 11.9), () => callout(t - 6.6, { ax: dx, ay: dy, ex: 870, ey: 895, x2: 930, title: 'drug diffuses out', sub: 'slowly, over days to weeks', dark: true }));
-    const cp = card(t - 1.7, { x: 1262, y: 380, w: 608, h: 560, dark: true, title: 'CUMULATIVE RELEASE', fig: 'FIG. 2' });
+    withAlpha(beat(t, 6.6, 11.9), () => callout(t - 6.6, { ax: dx, ay: dy, ex: 840, ey: 895, x2: 900, title: 'drug diffuses out', sub: 'slowly, over days to weeks', dark: true }));
+    const cp = card(t - 1.7, { x: 1262, y: 360, w: 608, h: 600, dark: true, title: 'CUMULATIVE RELEASE', fig: 'FIG. 2' });
     if (cp > 0) {
       const draw = inv(2.0, 11.5, t), day = lerp(0, 28, draw);
       const pts = Array.from({ length: 113 }, (_, i) => [i / 4, rel(i / 4)]).filter(([d]) => d <= Math.max(day, 0.01));
-      const g = lineChart(t - 2.0, { x: 1340, y: 470, w: 480, h: 340, xr: [0, 28], yr: [0, 100], xticks: [0, 7, 14, 21, 28], yticks: [0, 25, 50, 75, 100], xlab: 'DAYS', ylab: '% OF DRUG RELEASED', dark: true,
+      const g = lineChart(t - 2.0, { x: 1350, y: 462, w: 470, h: 318, xr: [0, 28], yr: [0, 100], xticks: [0, 7, 14, 21, 28], yticks: [0, 25, 50, 75, 100], xlab: 'DAYS', ylab: '% OF DRUG RELEASED', dark: true,
         series: [{ pts: pts.length > 1 ? pts : [[0, 0], [0.01, 0]], color: PAL.accent, draw: 1, w: 3.4 }] });
       const [ex, ey] = [g.X(day), g.Y(rel(day))];
       if (draw > 0) { ctx.beginPath(); ctx.arc(ex, ey, 7, 0, TAU); ctx.fillStyle = PAL.nightInk; ctx.fill();
-        text(`${Math.round(rel(day))}%`, ex + 12, ey - 12, { kind: 'mono', size: 16, weight: 600, color: PAL.nightInk }); }
-      if (day > 2) text(typed('burst', (day - 2) / 3, 20), g.X(1.5), g.Y(30), { kind: 'display', size: 24, italic: true, color: PAL.gold });
+        text(`${Math.round(rel(day))}%`, ex + 12, ey - 12, { kind: 'mono', size: 22, weight: 600, color: PAL.nightInk }); }
+      if (day > 2) haloText(typed('burst', (day - 2) / 3, 20), g.X(3), g.Y(18), { kind: 'display', size: 24, italic: true, color: PAL.gold });   // below the curve's early rise, clear of the line
       if (day > 13) text(typed('sustained', (day - 13) / 3, 20), g.X(15), g.Y(56), { kind: 'display', size: 24, italic: true, color: PAL.gold });
-      text(typed('illustrative profile · shape depends on Mw, LA:GA, size', t - 3.2, 40), 1286, 918, { kind: 'mono', size: 13, color: PAL.nightMuted });
+      text(typed('illustrative profile ·', t - 3.2, 40), 1286, 892, { kind: 'mono', size: 22, color: PAL.nightLabel });   // a caveat is read, so it gets label size
+      text(typed('shape depends on Mw, LA:GA, size', t - 3.8, 40), 1286, 924, { kind: 'mono', size: 22, color: PAL.nightLabel });
     }
   },
 };
@@ -442,7 +443,7 @@ const P5 = {
   focus: () => [960, 380],
   cam: t => ({ x: 960, y: 380, s: 1 + 0.05 * E.inOutSine(clamp(t / 10.5)), dx: 14 * Math.sin(t * 0.6), dy: 8 * Math.sin(t * 0.45), rot: 0.02 * Math.sin(t * 0.3) }),   // a slow drift; the text in overlay stays put
   bed: (ac, out, t0, dur) => SFX.pad(ac, out, t0, { dur: dur - 0.5, notes: [130.8, 196, 246.9, 329.6], g: 0.02, dark: true }),
-  cues: [[0.12, 'pop'], [1.2, 'chime', { f: 392 }], [1.5, 'scratch', { chars: 29, cps: 20 }], [3.0, 'chime', { f: 587 }],   // 0.12: a hit as the morph begins
+  cues: [[0.12, 'pop'], [1.2, 'chime', { f: 392 }], [1.5, 'readout', { chars: 29, cps: 20 }], [3.0, 'chime', { f: 587 }],   // 0.12: a hit as the morph begins
     ...pass5.slice(1).map((p, k) => [p, 'plink', { f: 1200 + k * 200 }]), [LOOP5[1], 'chime', { f: 784 }], [BURST5, 'pop'], [BURST5 + 0.1, 'noise', { dur: 0.9, g: 0.03, f0: 2400, f1: 600, q: 0.7 }]],
   draw(t) {
     const [cx, cy] = [960, 380], a = E.out3(inv(0.3, 1.4, t)), u = loop5(t);
@@ -468,7 +469,7 @@ const P5 = {
       ink(shape.circle(x, y, 6, 16), { closed: true, w: 1.6, color: g > 0 ? PAL.accent : PAL.peri, fill: g > 0 ? PAL.accent : PAL.night, amp: 0, alpha: o });
       if (g > 0 && g < 1) ink(shape.circle(x, y, 6 + 22 * E.out3(g), 24), { closed: true, w: 1.6, color: PAL.accent, amp: 0, alpha: 1 - g });
       const nx = cx + Math.cos(an) * 131, ny = cy + Math.sin(an) * 131, s = E.outBack(g);
-      if (s > 0) { ctx.save(); ctx.translate(nx, ny); ctx.scale(s, s); text(ROMAN(k + 1), 0, 0, { kind: 'mono', size: 15, weight: 600, align: 'center', base: 'middle', color: PAL.nightInk, alpha: clamp(g * 3) }); ctx.restore(); } });
+      if (s > 0) { ctx.save(); ctx.translate(nx, ny); ctx.scale(s, s); text(ROMAN(k + 1), 0, 0, { kind: 'mono', size: 15, weight: 600, align: 'center', base: 'middle', color: PAL.nightInk, alpha: clamp(g * 3), role: 'decor' }); ctx.restore(); } });
     if (u > 0 && t < LOOP5[1] + 0.3) { const mx = cx + Math.cos(am) * LOOPR, my = cy + Math.sin(am) * LOOPR, fade = 1 - inv(LOOP5[1], LOOP5[1] + 0.3, t);
       for (let j = 1; j <= 5; j++) { const aj = am - j * 0.05 * Math.min(1, u * 8); ctx.beginPath(); ctx.arc(cx + Math.cos(aj) * LOOPR, cy + Math.sin(aj) * LOOPR, 6 - j * 0.8, 0, TAU); ctx.fillStyle = `rgba(216,100,58,${(0.5 - j * 0.08) * fade})`; ctx.fill(); }
       ink(shape.circle(mx, my, 8, 16), { closed: true, w: 1.6, color: '#f6e7dc', fill: PAL.accent, amp: 0, alpha: fade }); }
@@ -490,15 +491,16 @@ const P5 = {
     const cx = 960, q = 'Every dose is a slow journey.', qo = { kind: 'display', size: 60, italic: true, color: PAL.nightInk, cps: 20 };
     dropText(q, cx - measure(q, qo) / 2, 650, t - 1.5, qo);
     const rl = E.out3(inv(2.8, 3.6, t)); if (rl > 0) ink([[cx - 320 * rl, 690], [cx + 320 * rl, 690]], { w: 1.2, color: PAL.peri, amp: 0, alpha: 0.7 });
-    const col = `THE LONG RELEASE  ·  4 PLATES  ·  ${fmt(TOTAL_F)} FRAMES  ·  DRAWN IN CODE`, co = { kind: 'mono', size: 20, ls: 6, color: '#9fa0c8' };
-    text(typed(col, t - 2.5, 60), cx - measure(col, co) / 2, 740, co);
-    const src = 'NOTES  ·  VALUES ARE ROUNDED AND ILLUSTRATIVE  ·  EPR IS VARIABLE IN PATIENTS  ·  NOT A SPECIFIC FORMULATION', so = { kind: 'mono', size: 15, ls: 5, color: PAL.nightMuted };
-    text(typed(src, t - 2.9, 60), cx - measure(src, so) / 2, 930, so);
-    const refs = ['SOURCES  ·  PROTEIN CORONA: TENZER ET AL., NAT. NANOTECHNOL. 2013  ·  TUMOUR PORES: HOBBS ET AL., PNAS 1998',
-      'TUMOUR DELIVERY: WILHELM ET AL., NAT. REV. MATER. 2016  ·  PLASMA PROTEIN: CLINICAL REFERENCE RANGE'], ro = { kind: 'mono', size: 14, ls: 3, color: PAL.nightMuted };
-    refs.forEach((l, k) => text(typed(l, t - 3.7 - k * 0.5, 70), cx - measure(l, ro) / 2, 966 + k * 26, ro));
+    const col = `THE LONG RELEASE  ·  4 PLATES  ·  ${fmt(TOTAL_F)} FRAMES  ·  DRAWN IN CODE`, co = { kind: 'mono', size: 22, ls: 5, color: '#a9aacb' };
+    haloText(typed(col, t - 2.5, 60), cx - measure(col, co) / 2, 740, co);   // glyph halos: the drifting dust never crosses a letter
+    // notes and sources at label size, one short line each, so every line gets its own reading time
+    const notes = ['NOTES  ·  VALUES ARE ROUNDED AND ILLUSTRATIVE', 'EPR IS VARIABLE IN PATIENTS  ·  NOT A SPECIFIC FORMULATION',
+      'SOURCES  ·  PROTEIN CORONA: TENZER ET AL., NAT. NANOTECHNOL. 2013', 'TUMOUR PORES: HOBBS ET AL., PNAS 1998',
+      'TUMOUR DELIVERY: WILHELM ET AL., NAT. REV. MATER. 2016', 'PLASMA PROTEIN: CLINICAL REFERENCE RANGE'], so = { kind: 'mono', size: 22, ls: 0, color: '#8a8bb0' };   // quieter than the colophon, still > 5:1
+    notes.forEach((l, k) => haloText(typed(l, t - 2.9 - k * 0.15, 90), cx - measure(l, so) / 2, 860 + k * 31, so));
   },
 };
 
-defineStory({ title: 'The Long Release', stages: 4, plates: [P0, P1, P2, P3, P4, P5] });
+defineStory({ title: 'The Long Release', stages: 4, plates: [P0, P1, P2, P3, P4, P5],
+  dynamics: [[0, -5], [6.5, -4.5], [16.5, -3.5], [26.5, -2], [39, -1], [41.5, 3], [50.5, 3], [53, 0], [62, -1]] });   // sound: quiet start, building to a lift at the release (plate IV)
 boot();

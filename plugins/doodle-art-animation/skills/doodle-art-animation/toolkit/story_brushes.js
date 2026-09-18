@@ -58,7 +58,7 @@ const P0 = {
   overlay(t) {
     const a = 1 - inv(3.4, 3.8, t);
     withAlpha(a, () => {
-      const k = 'A SPECIMEN SHEET', ko = { kind: 'mono', size: 21, ls: 9, color: PAL.inkSoft };
+      const k = 'A SPECIMEN SHEET', ko = { kind: 'mono', size: 22, ls: 8, color: PAL.inkSoft };
       text(typed(k, t - 0.3, 34), 960 - measure(k, ko) / 2, 380, ko);
       const ti = 'The Brush Set', to = { kind: 'display', size: 108, weight: 500 };
       dropText(ti, 960 - measure(ti, to) / 2, 520, t - 0.7, { ...to, cps: 14 });
@@ -112,7 +112,7 @@ const P1 = {
       brush.stroke([[x - 12, y - f], [x, y], [x + 12, y - f]], { type: 'pencil-hb', seed: 80 + i, w: 2.4, alpha: inv(1.8, 2.4, t), streaks: false }); }
     ctx.restore();
   },
-  overlay(t) { KIT.caption(t - 1.9, 'brush.hatch · charcoal', 1616, 660); },
+  overlay(t) { KIT.caption(t - 1.9, 'brush.hatch · charcoal', 1540, 660, { backing: true }); },
 };
 
 /* ---------- plate II · pens, markers and spray: a notebook diagram ---------- */
@@ -185,8 +185,8 @@ const P3 = {
       pen([[x - 13, y - f], [x, y], [x + 13, y - f]], { w: 2, seed: 90 + i, alpha: inv(1.5, 2, t) }); }
   },
   overlay(t) {
-    KIT.caption(t - 0.8, 'wash(poly, { bleed })', 520, 990);
-    KIT.caption(t - 2.0, 'brush.hatch · pencil-hb', 520, 1020);
+    KIT.caption(t - 0.8, 'wash(poly, { bleed })', 520, 990, { backing: true });
+    KIT.caption(t - 2.0, 'brush.hatch · pencil-hb', 520, 1020, { backing: true });
   },
 };
 
@@ -223,7 +223,7 @@ const EMBLEM = shape.blob(960, 400, 120, 90, 0.2, 40);
 const P5 = {
   dur: 5, dark: true, counter: false, focus: () => [960, 400], enter: { type: 'fade', dur: 1.0 },
   cam: t => ({ x: 960, y: 400, s: 1 + 0.05 * E.inOutSine(clamp(t / 5)), dx: 10 * Math.sin(t * 0.7) + 5 * t, dy: 6 * Math.sin(t * 0.5) - 3 * t }),
-  cues: [[0.4, 'chime', { f: 523 }], [1.2, 'scratch', { chars: 26, cps: 22 }]],
+  cues: [[0.4, 'chime', { f: 523 }], [1.2, 'readout', { chars: 26, cps: 22 }]],
   draw(t) {
     breathe(EMBLEM, t, 0, { seed: 91, color: PAL.cyan, bleed: 0.5, draw: E.out3(inv(0, 1.2, t)) }, 0.06, 1.8);
     for (let k = 0; k < 5; k++) { const q = (t * 0.5 + k / 5) % 1;
@@ -237,10 +237,11 @@ const P5 = {
   overlay(t) {
     const q = 'Every medium, drawn in code.', qo = { kind: 'display', size: 56, italic: true, color: PAL.nightInk, cps: 22 };
     dropText(q, 960 - measure(q, qo) / 2, 690, t - 0.6, qo);
-    const col = 'BRUSHES AFTER P5.BRUSH  ·  MIT', co = { kind: 'mono', size: 18, ls: 5, color: '#9fa0c8' };
+    const col = 'BRUSHES AFTER P5.BRUSH  ·  MIT', co = { kind: 'mono', size: 22, ls: 5, color: '#a9aacb' };
     text(typed(col, t - 1.0, 70), 960 - measure(col, co) / 2, 770, co);
   },
 };
 
-defineStory({ title: 'The Brush Set', stages: 4, music: { tonic: 247 }, plates: [P0, P1, P2, P3, P4, P5] });
+defineStory({ title: 'The Brush Set', stages: 4, music: { tonic: 247 }, plates: [P0, P1, P2, P3, P4, P5],
+  dynamics: [[0, -5], [3.8, -4], [8.4, -3], [13, -1], [14, 3], [22.5, 3], [24, 0], [28, -1]] });   // sound: a lift for the washes and night paper
 boot();

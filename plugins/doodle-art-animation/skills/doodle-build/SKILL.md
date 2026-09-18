@@ -96,6 +96,9 @@ node render.mjs film.html --strips --dir qa           # qa/strip_NN_type.jpg
 node render.mjs film.html --seams --dir qa            # qa/seam_NN_type.jpg, prints each seam's time
 node text_check.mjs film.html --json qa/text_check.json
 node speed_check.mjs film.html
+node legibility_check.mjs film.html --crops qa/legibility   # text over artwork, text below its size floor
+node story_check.mjs film.html                            # time runs forward, stages unique, one hero ID
+node cue_check.mjs film.html                              # no sound dominates or repeats identically
 touch qa/.complete                                    # last, and only if every line above succeeded
 ```
 
@@ -107,7 +110,7 @@ Keep the seam times and the `text_check` and `speed_check` output to hand on to 
 
 - **Plates:** one line each — file, seconds, what it draws, and whether its range sheet looked right.
 - **Sound:** whether `cues.md` exists and what went into the story.
-- **Build:** the `build.py` line, the `text_check` result line, the `speed_check` result line, and where `qa/` is.
+- **Build:** the `build.py` line, the result lines of `text_check`, `legibility_check`, `story_check`, `cue_check` and `speed_check`, and where `qa/` is.
 - **Open:** anything a lane could not do — a fact with no source, a seam that needs both plates changed, a shared-file change it asked for — and what you did about it.
 
 Then point the user at `/doodle-art-animation:doodle-qa` (it reuses `qa/`), and `/doodle-art-animation:doodle-render` once QA passes.

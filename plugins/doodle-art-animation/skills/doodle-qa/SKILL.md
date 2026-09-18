@@ -1,6 +1,6 @@
 ---
 name: doodle-qa
-description: Run every quality check on a doodle-art-animation film working folder (build, contact sheet, strips, seam sheets, text, speed, motion and audio checks, then the film-reviewer, seam-reviewer and audio-reviewer agents, and script-reviewer when a scene script is present) and summarise what to fix.
+description: Run every quality check on a doodle-art-animation film working folder (build, contact sheet, strips, seam sheets, text, legibility, story, sound-variety, speed, motion and audio checks, then the film-reviewer, seam-reviewer and audio-reviewer agents, and script-reviewer when a scene script is present) and summarise what to fix.
 disable-model-invocation: true
 argument-hint: "[story file] [working folder]"
 ---
@@ -43,6 +43,9 @@ node render.mjs <film>.html --strips           # qa/strip_NN_type.jpg
 node render.mjs <film>.html --seams            # qa/seam_NN_type.jpg, prints each transition time
 node text_check.mjs <film>.html --json qa/text_check.json
 node speed_check.mjs <film>.html               # engine values against the speed limits (skip if the folder has no speed_check.mjs)
+node legibility_check.mjs <film>.html --crops qa/legibility   # text over artwork, text below its role's size floor
+node story_check.mjs <film>.html                              # elapsed time, stage numbers and the hero's ID stay consistent
+node cue_check.mjs <film>.html                                # one effect dominating, identical repeats
 python3 smoke_test.py --stories <story> --work qa_smoke   # page errors, fonts, blank frames, and a short clip whose sound it checks
 touch qa/.complete                             # only once everything above succeeded
 ```
@@ -68,7 +71,7 @@ If step 1 found a scene script, also start `doodle-art-animation:script-reviewer
 Keep it short:
 
 - **Verdict:** ready to render / ready to deliver / fix first.
-- **Measurements:** the `motion_check` line, the `speed_check` result, the `audio_check` result line, the frame count against the film's frame count, and the `text_check` result line.
+- **Measurements:** the `motion_check` line, the `speed_check` result, the `audio_check` result line, the frame count against the film's frame count, and the result lines of `text_check`, `legibility_check`, `story_check` and `cue_check`.
 - **Scores:** the film-reviewer total out of 20, the lowest seam total out of 20, the audio-reviewer verdict and its FAIL lines, and the script-reviewer verdict if it ran, with any automatic fails.
 - **Fixes:** one merged list in order of importance, each with the time or plate and the concrete change. Drop duplicates between the reviews.
 - **Not checked:** anything you couldn't run (no MP4, a missing tool, no scene script). Note that audio-reviewer works from measurements and can't hear the film, so pass on its "needs a listen" items to the user.
@@ -82,10 +85,10 @@ If the user says yes: merge the reviews into one fix list, apply it, rebuild, an
 
 | The change | Re-run |
 |---|---|
-| Text edited, moved or retimed | `text_check`; if it moved, also render the frames around it and look — `text_check` sees text boxes, not text sitting over artwork |
+| Text edited, moved or retimed | `text_check` and `legibility_check`; if it moved, also render the frames around it and look — neither can tell text across a gauge face from text on a card |
 | A seam, transition or camera move changed | `speed_check`, `--seams` (and `--strips` for the plates either side), then `seam-reviewer` |
 | New art, a new beat, a plate retimed | that plate's `--sheet-range` sheet, `--sheet 1`, `text_check` (a retimed plate can cut a line short at its new end), `motion_check` after the next render, then `film-reviewer`; if the change reaches the plate's first or last seconds, also the adjacent seam sheets and `seam-reviewer`, since a hero moved at the boundary is a hand-off that no longer meets |
-| A cue, bed or `music` changed | `audio_check` after the next render, then `audio-reviewer` |
+| A cue, bed or `music` changed | `cue_check`, then `audio_check` after the next render, then `audio-reviewer` |
 | The scene script itself changed | `script-reviewer` |
 
 Apply each fix to its source — the plate file or `helpers.js` in a folder built by `/doodle-art-animation:doodle-build`, never `story.js`, which `assemble.sh` regenerates — then `sh assemble.sh` and a build (`python3 build.py`) come before any of them, and anything needing an MP4 waits for the next render. Repeat until the affected checks are clean, then report the same summary as above for what changed, and say which checks you did not re-run and why.

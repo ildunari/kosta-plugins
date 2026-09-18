@@ -66,6 +66,14 @@ globalThis.KIT = KIT;
   KIT.rot = (pts, a, cx = 0, cy = 0) => { const c = Math.cos(a), s = Math.sin(a); return pts.map(([x, y]) => [cx + (x - cx) * c - (y - cy) * s, cy + (x - cx) * s + (y - cy) * c]); };
   /** shadow(poly, dx, dy, a): a flat drop shadow for cards and windows on paper */
   KIT.shadow = (poly, dx = 5, dy = 6, a = 0.12) => flat(poly.map(([x, y]) => [x + dx, y + dy]), 'rgba(40,30,20,1)', a);
-  /** caption(t, s, x, y, o): a small mono caption that types on (FIG. labels, part names) */
-  KIT.caption = (t, s, x, y, o = {}) => text(typed(s, t, 40), x, y, { kind: 'mono', size: 14, ls: 2, color: KIT.mutedOf(o.dark), ...o });
+  /** labelOf(dark): the colour for secondary text (readable on the plate's paper); mutedOf is for lines */
+  KIT.labelOf = dark => dark ? PAL.nightLabel : PAL.label;
+  /**
+   * caption(t, s, x, y, o): a mono caption that types on (part names, scene labels). Role 'label', 22 px by default.
+   * o.screen: true keeps it 22 px on screen under any camera (screenText). o.backing: true gives it a glyph halo.
+   * o.role: 'decor' for a FIG. number or a marking that nobody needs to read.
+   */
+  KIT.caption = (t, s, x, y, o = {}) => { const lo = { kind: 'mono', size: 22, ls: 1, role: 'label', color: KIT.labelOf(o.dark), dark: o.dark, halo: !!o.backing, ...o };
+    const draw = o.screen ? screenText : o.backing ? haloText : text;   // o.backing: a glyph halo, for captions over busy art
+    return draw(typed(s, t, 40), x, y, lo); };
 })();

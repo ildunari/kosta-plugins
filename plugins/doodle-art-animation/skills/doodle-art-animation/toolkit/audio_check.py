@@ -6,6 +6,7 @@ Measures the audio track with ffmpeg and numpy and prints PASS / WARN / FAIL lin
             (warns outside -21.5..-17.5; outside -23..-16 it also says to adjust gains)
   peak      sample peak, target about -3 dB (warn above -1 or below -6)
   loudness  EBU R128 integrated loudness and true peak (reported; warn if true peak > 0 dBTP)
+  range     EBU R128 loudness range (LRA); below 6 LU warns: the film is flat from start to end, lift the climax
   clipping  runs of 6+ samples at full scale -> FAIL; runs of 3-5 -> WARN (decoding AAC near 0 dBFS
             can overshoot into a few full-scale samples without real clipping in the WAV)
   stereo    side/mid ratio; one channel, or channels the same (side/mid < -35 dB) -> FAIL, below -20 dB warns "nearly mono"
@@ -78,6 +79,9 @@ lufs, lra, tp = grab('I'), grab('LRA'), grab('Peak')
 if lufs is not None:
     line('WARN' if (tp or -99) > 0 else 'PASS', 'loudness', f'{lufs:.1f} LUFS integrated, range {lra} LU, true peak {tp} dBTP'
          + (' - true peak above 0 dBTP' if (tp or -99) > 0 else ''))
+if lra is not None:
+    line('PASS' if lra >= 6 else 'WARN', 'range', f'loudness range {lra:.1f} LU (target 6 or more)'
+         + ('' if lra >= 6 else ' - flat from start to end: give the climax a lift (sound.md, "Dynamics")'))
 
 # clipping: consecutive samples at full scale. 6+ is real clipping; 3-5 can be AAC decode overshoot near 0 dBFS.
 full = np.abs(x) >= 0.999

@@ -39,14 +39,14 @@ KIT.ai = (() => {
         if (act > 0.05) flat(shape.circle(x, y, r * 0.6, 20), PAL.aiSignal, act);
         if (o.dark) speckle(shape.circle(x, y, r * 0.9, 16), 4, { seed: seed + l * 10 + j, alpha: 0.35 });
       }));
-      if (o.labels) o.labels.forEach((s, l) => KIT.caption((draw - 0.6) * 5, s, l / (L - 1) * w, h + 30, { dark: o.dark, align: 'center', size: 13 }));
+      if (o.labels) o.labels.forEach((s, l) => KIT.caption((draw - 0.6) * 5, s, l / (L - 1) * w, h + 34, { dark: o.dark, align: 'center', backing: true }));
     });
   }
 
   function glyph(kind, x, y, o, t, on) {
     const c = on ? PAL.aiSignal : inkC(o), w = K.lw(o, 1.8), sd = o.seed + 300;
     if (kind === 'search') { ink(shape.circle(x - 2, y - 2, 7, 16), { closed: true, w, color: c, amp: 0.2, seed: sd }); ink([[x + 3, y + 3], [x + 9, y + 9]], { w: w * 1.3, color: c, amp: 0.1 }); }
-    else if (kind === 'code') text('</>', x, y + 5, { kind: 'mono', size: 15, weight: 600, align: 'center', color: c });
+    else if (kind === 'code') text('</>', x, y + 5, { kind: 'mono', size: 15, weight: 600, align: 'center', color: c, role: 'decor' });   // an icon
     else if (kind === 'files') ink([[x - 10, y - 7], [x - 3, y - 7], [x, y - 4], [x + 10, y - 4], [x + 10, y + 8], [x - 10, y + 8]], { closed: true, w, color: c, amp: 0.2, seed: sd + 1 });
     else if (kind === 'web') { ink(shape.circle(x, y, 9, 18), { closed: true, w, color: c, amp: 0.2, seed: sd + 2 }); ink(shape.ellipse(x, y, 4, 9, 0, 14), { closed: true, w: w * 0.8, color: c, amp: 0.1 }); ink([[x - 9, y], [x + 9, y]], { w: w * 0.8, color: c, amp: 0.1 }); }
     else if (kind === 'db') { ink(shape.ellipse(x, y - 6, 9, 3.5, 0, 16), { closed: true, w, color: c, amp: 0.1 }); ink([[x - 9, y - 6], [x - 9, y + 7]], { w, color: c, amp: 0.1 }); ink([[x + 9, y - 6], [x + 9, y + 7]], { w, color: c, amp: 0.1 }); ink(shape.arc(x, y + 7, 9, 0, Math.PI, 10).map(([a, b]) => [a, y + 7 + (b - y - 7) * 0.4]), { w, color: c, amp: 0.1 }); }
@@ -76,18 +76,18 @@ KIT.ai = (() => {
             const [cx, cy] = along(P.back, E.inOut3(rp)); ink(K.rrect(cx - 16, cy - 10, 32, 20, 5), { closed: true, w: K.lw(o, 1.4), fill: PAL.aiHot, color: o.dark ? PAL.night : PAL.ink, amp: 0.3, seed: seed + 22 });
             [0, 1].forEach(j => ink([[cx - 9, cy - 3 + j * 6], [cx + 9 - j * 6, cy - 3 + j * 6]], { w: K.lw(o, 1.4), color: PAL.ink, amp: 0.1 })); }
           const [mx, my] = along(P.out, 0.5);
-          text(typed('call()', (f - 0.05) * o.period, 30), mx, my - 16, { kind: 'mono', size: 13, align: 'center', color: K.mutedOf(o.dark) });
+          text(typed('call()', (f - 0.05) * o.period, 30), mx, my - 16, { kind: 'mono', size: 13, align: 'center', color: K.mutedOf(o.dark), role: 'decor' });   // flies past with the call: motion ornament
         });
       }
       tools.forEach((tl, i) => {
         const pop = K.pop(draw, 0.3 + i * 0.08, 0.6 + i * 0.08); if (pop <= 0) return;
         const on = live && i === k && f > 0.28 && f < 0.62, work = on ? Math.sin(Math.PI * inv(0.28, 0.62, f)) : 0;
         ctx.save(); ctx.translate(tl.x, tl.y); ctx.scale(pop * (1 + 0.06 * work), pop * (1 + 0.06 * work));
-        const cw = Math.max(122, measure(tl.name, { kind: 'mono', size: 15 }) + 64), card = K.rrect(-cw / 2, -26, cw, 52, 12);
+        const cw = Math.max(122, measure(tl.name, { kind: 'mono', size: 22, weight: 600 }) + 64), card = K.rrect(-cw / 2, -26, cw, 52, 12);
         if (work > 0) ink(K.rrect(-cw / 2 - 8, -34, cw + 16, 68, 16), { closed: true, w: K.lw(o, 2), color: PAL.aiSignal, alpha: work * 0.7, amp: 0.5, seed: seed + 40 + i });
         ink(card, { closed: true, w: K.lw(o, on ? 2.4 : 1.8), color: on ? PAL.aiSignal : ic, fill: o.dark ? PAL.aiCard : PAL.aiCardPaper, amp: 0.5, seed: seed + 30 + i });
         glyph(tl.icon, -cw / 2 + 24, 0, o, t, on);
-        text(tl.name, -cw / 2 + 44, 5, { kind: 'mono', size: 15, weight: 600, color: ic, alpha: live && i !== k ? 0.7 : 1 });
+        text(tl.name, -cw / 2 + 44, 7, { kind: 'mono', size: 22, weight: 600, color: ic, alpha: (live && i !== k ? 0.8 : 1) * clamp((pop - 0.8) * 5) });   // names show once the chip has popped
         ctx.restore();
       });
       const ap = K.pop(draw, 0, 0.4); if (ap <= 0) return;
@@ -98,7 +98,7 @@ KIT.ai = (() => {
       ink(core, { closed: true, w: K.lw(o, 2.6), color: ic, fill: fillN(o), amp: 0.6, seed: seed + 1, double: true });
       if (o.dark) speckle(core, 30, { seed: seed + 2, alpha: 0.3 });
       for (let j = 0; j < 3; j++) { const a = t * 2.2 + j * TAU / 3; flat(shape.circle(Math.cos(a) * 34, Math.sin(a) * 34 - 4, 3.6, 10), j ? PAL.aiSignal : PAL.aiHot); }
-      text(o.name, 0, 8, { kind: 'mono', size: 16, weight: 600, ls: 3, align: 'center', color: ic });
+      text(o.name, 0, 8, { kind: 'mono', size: 22, weight: 600, ls: 2, align: 'center', color: ic, alpha: clamp((ap - 0.8) * 5) });
       ctx.restore();
     });
   }
@@ -113,7 +113,7 @@ KIT.ai = (() => {
       on the right; the assistant shows typing dots, then its reply types on. After the last message the typing dots
       keep bouncing. The thread grows downward from (x, y); returns { h }, its full height (before scaling by s). */
   function chat(t, o) {
-    o = K.opts(o, { w: 520, t0: 0.4, size: 19, dark: true,
+    o = K.opts(o, { w: 520, t0: 0.4, size: 22, dark: true,
       msgs: [{ who: 'user', text: 'Can you find the failing test?' }, { who: 'ai', text: 'Found it: the date parser drops the timezone. Want a fix?' }, { who: 'user', text: 'Yes please' }] });
     return K.at(o, () => {
       const { w, size, dark } = o, pad = 14, lh = size * 1.32, ic = inkC(o);
@@ -154,7 +154,7 @@ KIT.ai = (() => {
       (the line slides left when it fills), each with its id underneath, and a small panel under the newest chip shows
       the candidate next tokens and their odds. loop: true repeats after a pause. */
   function tokens(t, o) {
-    o = K.opts(o, { w: 720, rate: 2.6, t0: 0.5, loop: true, size: 19, dark: true, words: ['The', ' cat', ' sat', ' on', ' the', ' warm', ' mat', '.'] });
+    o = K.opts(o, { w: 720, rate: 2.6, t0: 0.5, loop: true, size: 22, dark: true, words: ['The', ' cat', ' sat', ' on', ' the', ' warm', ' mat', '.'] });
     return K.at(o, () => {
       const { w, size, dark, words, seed } = o, n = words.length, ic = inkC(o), chips = dark ? PAL.aiChip : PAL.aiChipPaper;
       const G = K.memo(`a.tok|${words.join('|')}|${size}|${seed}`, () => ({ cw: words.map(s => measure(s.replace(/^ /, '·'), { kind: 'mono', size }) + 22),
@@ -169,24 +169,24 @@ KIT.ai = (() => {
         ctx.save(); ctx.beginPath(); ctx.rect(-6, -40, w + 12, 240); ctx.clip();
         ink([[-6, 64], [w, 64]], { w: K.lw(o, 1), color: PAL.peri, amp: 0.3, alpha: 0.4, seed: seed + 1 });
         xs.forEach(([x0, g], i) => { if (g <= 0) return;
-          const x = x0 - off, sc = E.outBack(g), fa = clamp((x + 6) / 50);
+          const x = x0 - off, sc = E.outBack(g), fa = clamp((x + 50) / 50);   // fades over the last 50 px as it scrolls out left (the first chip sat at x = 0, alpha 0.12)
           withAlpha(fa, () => {
             ctx.save(); ctx.translate(x + G.cw[i] / 2, 20); ctx.scale(sc, sc);
             ink(K.rrect(-G.cw[i] / 2, -20, G.cw[i], 40, 9), { closed: true, w: K.lw(o, 1.6), color: ic, fill: chips[i % chips.length], amp: 0.4, seed: seed + 10 + i });
-            text(words[i].replace(/^ /, '·'), 0, 7, { kind: 'mono', size, weight: 600, align: 'center', color: ic });
+            text(words[i].replace(/^ /, '·'), 0, 7, { kind: 'mono', size, weight: 600, align: 'center', color: ic, alpha: clamp((g - 0.6) / 0.3) });   // the word shows once its chip has popped
             ctx.restore();
-            text(String(G.ids[i]), x + G.cw[i] / 2, 86, { kind: 'mono', size: 12, align: 'center', color: K.mutedOf(dark), alpha: g });
+            text(String(G.ids[i]), x + G.cw[i] / 2, 86, { kind: 'mono', size: 12, align: 'center', color: K.mutedOf(dark), alpha: g, role: 'decor' });   // token ids: texture
           });
         });
         const cur = Math.floor(tg), ci = cur + 1, cf = tg - cur;     // the panel weighs up the token that comes next
         if (ci < n) {
-          const cx = Math.min(w - 170, right - off + 14), cand = G.cand[ci];
+          const cx = Math.min(w - 180, right - off + 14), cand = G.cand[ci];
           flat(shape.rect(cx - 8, 2, 3, 36), ic, Math.floor(t * 4) % 2 ? 0.2 : 0.9);
           withAlpha(E.out3(clamp(cf * 4)) * (1 - inv(0.8, 1, cf)), () => {
             ink([[cx - 6, 44], [cx + 10, 104]], { w: K.lw(o, 1.2), color: PAL.peri, amp: 0.3, alpha: 0.7 });
-            cand.forEach((s, j) => { const p = j === 0 ? 0.55 + 0.25 * hash3(ci, 3, seed) : (0.3 - j * 0.1) * (0.6 + 0.4 * hash3(ci, j, Math.floor(t * 6))), y = 114 + j * 22;
-              text(s.replace(/^ /, '·'), cx + 16, y + 5, { kind: 'mono', size: 13, color: j ? K.mutedOf(dark) : ic, weight: j ? 400 : 600 });
-              flat(shape.rect(cx + 76, y - 5, 90 * p * E.out3(clamp(cf * 3)), 9), j ? PAL.peri : PAL.aiHot, j ? 0.6 : 1); });
+            cand.forEach((s, j) => { const p = j === 0 ? 0.55 + 0.25 * hash3(ci, 3, seed) : (0.3 - j * 0.1) * (0.6 + 0.4 * hash3(ci, j, Math.floor(t * 6))), y = 118 + j * 30;
+              haloText(s.replace(/^ /, '·'), cx + 16, y + 7, { kind: 'mono', size: 22, dark, color: j ? K.labelOf(dark) : ic, weight: j ? 400 : 600 });
+              flat(shape.rect(cx + 92, y - 5, 80 * p * E.out3(clamp(cf * 3)), 10), j ? PAL.peri : PAL.aiHot, j ? 0.6 : 1); });
           });
         }
         ctx.restore();
@@ -206,15 +206,15 @@ KIT.ai = (() => {
       if (live) words.forEach((_, j) => { if (j === q) return; const wt = wts[j] / mx, x0 = xs[q], x1 = xs[j], hh = Math.min(170, Math.abs(x1 - x0) * 0.55 + 20);
         const arc = Array.from({ length: 25 }, (_, k) => { const u = k / 24; return [lerp(x0, x1, u), -12 - Math.sin(Math.PI * u) * hh]; });
         pen(arc, { w: K.lw(o, 1 + 7 * wt), color: wt > 0.6 ? (dark ? PAL.aiHot : '#b07a1c') : (dark ? PAL.aiSignal : PAL.sea), alpha: env * (0.25 + 0.75 * wt), draw: E.out3(inv(0, 0.35, f)), taper: 0.15, seed: seed + j });
-        if (wt === 1) text(wts[j].toFixed(2), (x0 + x1) / 2, -18 - hh, { kind: 'mono', size: 13, weight: 600, align: 'center', color: dark ? PAL.aiHot : '#b07a1c', alpha: env }); });
+        if (wt === 1) text(wts[j].toFixed(2), (x0 + x1) / 2, -18 - hh, { kind: 'mono', size: 13, weight: 600, align: 'center', color: dark ? PAL.aiHot : '#b07a1c', alpha: env, role: 'decor' }); });   // the weight rides the arc
       words.forEach((s, j) => {
         const pop = K.pop(draw, j / n * 0.6, j / n * 0.6 + 0.3); if (pop <= 0) return;
-        const isQ = live && j === q, bw = measure(s, { kind: 'mono', size: 17 }) + 18;
+        const isQ = live && j === q, bw = measure(s, { kind: 'mono', size: 22, weight: 600 }) + 18;
         ctx.save(); ctx.translate(xs[j], 0); ctx.scale(pop, pop);
-        ink(K.rrect(-bw / 2, -2, bw, 34, 8), { closed: true, w: K.lw(o, isQ ? 2.4 : 1.4), color: isQ ? PAL.accent : ic, fill: dark ? PAL.aiCard : PAL.aiCardPaper, amp: 0.4, seed: seed + 50 + j });
-        text(s, 0, 21, { kind: 'mono', size: 17, weight: isQ ? 600 : 400, align: 'center', color: ic });
-        if (live && !isQ) flat(shape.rect(-bw / 2 + 4, 40, (bw - 8) * (wts[j] / mx) * env, 5), dark ? PAL.aiHot : '#b07a1c', 0.85);
-        if (isQ) text('query', 0, 58, { kind: 'mono', size: 12, ls: 2, align: 'center', color: PAL.accent, alpha: env });
+        ink(K.rrect(-bw / 2, -2, bw, 38, 8), { closed: true, w: K.lw(o, isQ ? 2.4 : 1.4), color: isQ ? PAL.accent : ic, fill: dark ? PAL.aiCard : PAL.aiCardPaper, amp: 0.4, seed: seed + 50 + j });
+        text(s, 0, 25, { kind: 'mono', size: 22, weight: isQ ? 600 : 400, align: 'center', color: ic, alpha: clamp((pop - 0.8) * 5) });
+        if (live && !isQ) flat(shape.rect(-bw / 2 + 4, 44, (bw - 8) * (wts[j] / mx) * env, 5), dark ? PAL.aiHot : '#b07a1c', 0.85);
+        if (isQ) text('query', 0, 68, { kind: 'mono', size: 22, ls: 1, align: 'center', color: legible(PAL.accent, dark), alpha: env });
         ctx.restore();
       });
     });
@@ -234,7 +234,7 @@ KIT.ai = (() => {
         const [dx, dy] = wander(i, t, 14 * m.z, 0.5, seed), x = ((m.x + t * 38 * m.z * o.speed + dx) % (w + 40) + w + 40) % (w + 40) - 20, y = m.y + dy - t * 6 * m.z;
         const yy = ((y % h) + h) % h, s = 1.4 + 3.2 * m.z;
         if (m.k === 0) flat(shape.circle(x, yy, s, 10), m.c, a);
-        else if (m.k === 1) text(hash3(i, Math.floor(t * 2 + m.ph), seed) < 0.5 ? '0' : '1', x, yy, { kind: 'mono', size: Math.round(9 + 9 * m.z), color: m.c, alpha: a });
+        else if (m.k === 1) text(hash3(i, Math.floor(t * 2 + m.ph), seed) < 0.5 ? '0' : '1', x, yy, { kind: 'mono', size: Math.round(9 + 9 * m.z), color: m.c, alpha: a, role: 'decor' });   // a data speck: ornament
         else ink([[x - s * 2.5, yy], [x + s * 2.5, yy]], { w: 1 + m.z * 1.4, color: m.c, alpha: a, amp: 0.2, seed: seed + i });
       });
       ctx.restore();
