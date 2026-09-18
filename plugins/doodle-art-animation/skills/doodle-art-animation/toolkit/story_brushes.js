@@ -58,7 +58,7 @@ const P0 = {
   overlay(t) {
     const a = 1 - inv(3.4, 3.8, t);
     withAlpha(a, () => {
-      const k = 'A SPECIMEN SHEET', ko = { kind: 'mono', size: 21, ls: 9, color: PAL.inkSoft };
+      const k = 'A SPECIMEN SHEET', ko = { kind: 'mono', size: 22, ls: 8, color: PAL.inkSoft };
       text(typed(k, t - 0.3, 34), 960 - measure(k, ko) / 2, 380, ko);
       const ti = 'The Brush Set', to = { kind: 'display', size: 108, weight: 500 };
       dropText(ti, 960 - measure(ti, to) / 2, 520, t - 0.7, { ...to, cps: 14 });
@@ -112,7 +112,7 @@ const P1 = {
       brush.stroke([[x - 12, y - f], [x, y], [x + 12, y - f]], { type: 'pencil-hb', seed: 80 + i, w: 2.4, alpha: inv(1.8, 2.4, t), streaks: false }); }
     ctx.restore();
   },
-  overlay(t) { KIT.caption(t - 1.9, 'brush.hatch · charcoal', 1616, 660); },
+  overlay(t) { KIT.caption(t - 1.9, 'brush.hatch · charcoal', 1540, 660); },
 };
 
 /* ---------- plate II · pens, markers and spray: a notebook diagram ---------- */
@@ -237,7 +237,7 @@ const P5 = {
   overlay(t) {
     const q = 'Every medium, drawn in code.', qo = { kind: 'display', size: 56, italic: true, color: PAL.nightInk, cps: 22 };
     dropText(q, 960 - measure(q, qo) / 2, 690, t - 0.6, qo);
-    const col = 'BRUSHES AFTER P5.BRUSH  ·  MIT', co = { kind: 'mono', size: 18, ls: 5, color: '#9fa0c8' };
+    const col = 'BRUSHES AFTER P5.BRUSH  ·  MIT', co = { kind: 'mono', size: 22, ls: 5, color: '#a9aacb' };
     text(typed(col, t - 1.0, 70), 960 - measure(col, co) / 2, 770, co);
   },
 };

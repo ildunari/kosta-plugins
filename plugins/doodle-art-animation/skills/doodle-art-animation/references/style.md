@@ -18,11 +18,12 @@ Both worlds carry four large, smooth topographic loops that drift slowly (muted 
 | Paper | `#ebe2cc` | Accent (vermilion: reticles, active state, dial) | `#d8643a` |
 | Ink | `#1b1518` | Periwinkle (rules, rulers, leaders, ticks) | `#8487c6` |
 | Soft ink (subtitles) | `#4a3f35` | Sea | `#2f7f98` |
-| Muted label | `#8a8176` | Sun | `#e3a03c` |
+| Muted (lines, rules, ticks; not text) | `#8a8176` | Sun | `#e3a03c` |
+| Label text (`PAL.label`, `labelOf()`) | `#544b42` | Night label text (`PAL.nightLabel`) | `#9c9dc0` |
 | Card paper (92% opaque) | `#ece6d8` | Leaf and grass | `#6f9a58` |
 | Night | `#0b0a1e` | Soil | `#baa27e` |
 | Night ink | `#dcdcef` | Hydrogen pink | `#e8577a` |
-| Night muted | `#77789a` | Molecule navy | `#26336a` |
+| Night muted (lines, not text) | `#77789a` | Molecule navy | `#26336a` |
 | Gold (angles, highlights) | `#e6c65c` | Cyan / mint (series) | `#56c3d2` / `#53ba8b` |
 
 Keep subject colours muted and slightly warm. The accent orange means "look here", so reserve it for the reticle, the active state dot, the dial progress, and the hero's own chart mark.
@@ -32,13 +33,32 @@ Keep subject colours muted and slightly warm. The accent orange means "look here
 | Use | Face (closest free match) | Setting | Speed |
 |---|---|---|---|
 | Plate title | **Fraunces** 500, 64 px (title card 104–112 px) | Sentence case; each glyph pops in place | 17 glyphs/s |
-| Subtitle, notes | Fraunces *italic* 30 px (notes 24 px) | Lowercase, types on | 30 chars/s |
-| Kickers, HUD, labels | **IBM Plex Mono** 13–21 px | ALL CAPS, letter-spacing 3–9 px | 30–40 chars/s |
-| Callout title / sub | **Inter Tight** 600, 30 px / 400, 22 px | Lowercase; the sub is grey | 30 / 45 chars/s |
+| Subtitle, notes | Fraunces *italic* 30 px (stat notes 28 px) | Lowercase, types on | 30 chars/s |
+| Kickers, labels, axes | **IBM Plex Mono** 22 px | ALL CAPS, letter-spacing 1–8 px | 30–40 chars/s |
+| HUD (Journey Log, stage dial, hero tag) | **IBM Plex Mono** 18 px labels, 21 px values | ALL CAPS, letter-spacing 1–3 px | 40 chars/s |
+| Callout title / sub | **Inter Tight** 600, 32 px / 400, 28 px | Lowercase; the sub is the label tone | 30 / 45 chars/s |
 | Big numbers | Fraunces 500, 56–62 px, tracking −1 px | `≈` prefix, thousands separators, real units (`km³`, `µm`) | Count-up over 1.3 s |
 | Colophon | Plex Mono 20 px, spacing 6 | Centred on the end card | 60 chars/s |
 
 Use real subscripts and superscripts (`H₂O`, `km³`, `10²⁰`) with the `SUB()` and `SUP()` helpers. **Reading time:** a line needs `readTime(s)` = characters ÷ 12 + 0.8 s on screen before anything may replace it.
+
+## Text size and legibility
+
+A film is made at 1920×1080 but watched smaller: in a laptop browser window at about 0.75× and on a phone at about 0.44×. A 14 px label lands at about 6 px on a phone, which nobody can read, and grey text that looks quiet on a monitor disappears on a small, bright screen. So every line of text has a **role**, and each role has a floor measured on screen, after the camera:
+
+| Role | Floor | What it covers |
+|---|---|---|
+| `fact` | 28 px | Callout titles and subs, stat values and notes, any line that carries a fact the story depends on |
+| `label` | 22 px | The default: chart axes and ticks, legends, ruler marks, card titles, stat kickers, scene labels, captions |
+| `hud` | 18 px | Journey Log labels and values, the stage dial's text, the hero's ID tag |
+| `decor` | exempt | Frame counter, `FIG.` numbers, the `PLATE` kicker, marks written on an object (dial digits, hex codes on a paint chip, server tags) |
+
+Every role but `decor` also needs **contrast of at least 4.5:1** against what is actually behind it, measured on the pixels. Pass the role as `o.role` on `text()`; the engine's components already do, so `stat`, `callout`, `card`, the charts, the ruler and the HUD meet their floors by default. `toolkit/legibility_check.mjs` measures all of it. `decor` is for real ornament only: a line a viewer needs to read meets its floor instead of being exempted.
+
+- **Tone.** Secondary text uses `PAL.label` / `PAL.nightLabel` (`labelOf(dark)`), which stay warm and quiet but clear 4.5:1. `PAL.muted` and `PAL.nightMuted` are for lines and ticks, not text. For coloured text (a series name, a ruler mark), `legible(color, dark)` darkens the hue on paper or lightens it at night until it reads; `inkOn(bg)` picks ink or pale paper for a label written on a coloured surface.
+- **Backing.** Text on a night plate, or over busy art, sits on something readable. `callout`, `stat`, the plate header, the Journey Log and the hero tag draw a **halo** behind their words by default: a soft-edged patch of the plate's own paper (or night paper), like an eraser pass. Over empty paper it is invisible; over line art it fades the lines out behind the words. `backing: 'card'` swaps it for a torn scrap of the same paper with a pencil edge and a small shadow, and `backing: false` turns it off (for text deliberately written on a surface). Scene labels can call `backing(x0, y0, x1, y1, opts)` themselves, or use `KIT.caption(..., { backing: true })`. It is never a UI box: no flat fill, no rounded rectangle, no solid border.
+- **Camera.** Scene labels drawn in `draw()` scale with the camera: a 30 px label under a 0.5× pull-back lands at 15 px. Put labels that must stay readable in `overlay()`, or draw them with `screenText()` (or `KIT.caption(..., { screen: true })`), which keeps their on-screen size.
+- **Bigger type needs room.** A bottom card with a two-row ruler needs about 180 px of height; a chart needs about 40 px left of its axis and 70 px below it. Long credits and notes go on several short lines, so each line gets its own reading time.
 
 ## Line and texture
 
@@ -133,9 +153,9 @@ The Slow Squeeze failed on both: subtitles printed through gauge faces, a callou
 | Element | Where | What it shows |
 |---|---|---|
 | Plate header | Kicker at (90, 95), title baseline (88, 158), rule at y 180, subtitle baseline (90, 221) | `PLATE  III` / *Rising & Cooling* / *warm air climbs, expands and chills* |
-| Journey log | x 1518–1868, header at y 70, rows every 30 px from y 112 | `JOURNEY LOG · H₂O·01`, 2–3 rows, then a three-way STATE switch (`○ ICE ● LIQUID ○ VAPOUR`) |
+| Journey log | x 1518–1868 (wider to the left when a row needs it), header at y 70, rows every 34 px from y 114 | `JOURNEY LOG · H₂O·01`, 2–3 rows, then a three-way STATE switch (`○ ICE ● LIQUID ○ VAPOUR`) that wraps under the STATE label when it does not fit |
 | Stage dial | Card at (45, 900, 358×138) | Ring with 12 ticks, orange progress arc, `STAGE 02 / 11`, stage name. Stages group plates: 11 stages over 15 plates. |
 | Frame counter | Baseline (1868, 1046) | `EXP 0360    F 0720` |
 | Big stat | Around x 600–720, y 200–340 | Kicker, count-up number, italic note giving the assumption |
-| Bottom card | x 490 to about 1680 (keep the counter clear), y about 900, h about 140 | Distribution bar, log ruler, budget equation |
+| Bottom card | x 490 to about 1680 (keep the counter clear), y about 866, h about 180 | Distribution bar, log ruler, budget equation |
 | Side card | About x 1260–1870, y 300–940 | `FIG. 2` panels: charts, size series, cutaways |

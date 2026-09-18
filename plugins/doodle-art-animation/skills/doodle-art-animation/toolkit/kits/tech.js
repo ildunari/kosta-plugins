@@ -30,13 +30,13 @@ KIT.tech = (() => {
       '$ ' are typed commands; other lines print as output ('✓ …' green, '✗ …' or '! …' pink). The cursor blinks and the
       view scrolls when the lines overflow. loop: seconds before it starts again (optional). */
   function terminal(t, o) {
-    o = K.opts(o, { w: 620, h: 340, title: 'zsh — ~/project', cps: 24, t0: 0.7, loop: null, size: 18,
+    o = K.opts(o, { w: 620, h: 340, title: 'zsh — ~/project', cps: 24, t0: 0.7, loop: null, size: 22,
       lines: ['$ npm test', '  PASS  kits/earth.test.js', '  PASS  kits/tech.test.js', '✓ 42 tests passed', '$ git push'] });
     return K.at(o, () => {
       const { w, h, size } = o, lh = size * 1.5, bar = 34;
       windowFrame(o, w, h, bar, PAL.techScreen, PAL.techScreenBar, true);
       const ca = K.ph(o.draw, 0.55, 0.85); if (ca <= 0) return;
-      text(o.title, w / 2, bar / 2 + 5, { kind: 'mono', size: 13, align: 'center', color: PAL.techScreenMuted, alpha: ca });
+      text(o.title, w / 2, bar / 2 + 5, { kind: 'mono', size: 13, align: 'center', color: PAL.techScreenMuted, alpha: ca, role: 'decor' });   // window chrome
       const sch = K.memo(`t.term|${o.lines.join('\n')}|${o.cps}`, () => { let c = 0;
         return o.lines.map(s => { const cmd = s.startsWith('$ '), st = c; c += cmd ? (s.length - 2) / o.cps + 0.45 : 0.14; return { s, cmd, st }; }).concat([{ s: '$ ', cmd: true, st: c + 0.2, end: true }]); });
       let tt = t - o.t0; if (o.loop && tt > 0) tt %= o.loop;
@@ -52,7 +52,7 @@ KIT.tech = (() => {
           const y = bar + 14 + lh * (i + 1 - scroll) - lh * 0.3;
           if (l.cmd) {
             const body = typed(l.s.slice(2), tt - l.st, o.cps);
-            text('$', 20, y, { kind: 'mono', size, weight: 600, color: PAL.techPrompt });
+            text('$', 20, y, { kind: 'mono', size, weight: 600, color: PAL.techPrompt, role: 'decor' });
             text(body, 20 + cw * 2, y, { kind: 'mono', size, color: PAL.techScreenInk });
             if (i === last) cursor = [20 + cw * (2 + body.length), y, body.length < l.s.length - 2];
           } else {
@@ -81,7 +81,7 @@ KIT.tech = (() => {
       bar steps through the lines (hl: a line index, or t => index, to control it) and a caret blinks at its end.
       Returns { h }, the card's height (it follows the line count). */
   function code(t, o) {
-    o = K.opts(o, { w: 560, size: 17, title: 'agent.py', t0: 0.5, hl: null,
+    o = K.opts(o, { w: 560, size: 22, title: 'agent.py', t0: 0.5, hl: null,
       lines: ['def plan(goal):', '    steps = think(goal)', '    for step in steps:', '        result = act(step)', '        if result.ok:', '            log(result)', '    return summary(steps)'] });
     return K.at(o, () => {
       const { w, size, lines } = o, lh = size * 1.62, top = 52, h = top + lines.length * lh + 18;
@@ -96,7 +96,7 @@ KIT.tech = (() => {
       if (hv == null) { const [i, f] = K.cyc(Math.max(0, tt - 0.8), 1.3); hv = lerp(i % n, (i + 1) % n, E.inOut3(inv(0.72, 1, f))); }
       hv = clamp(hv, 0, n - 1);
       withAlpha(ca, () => {
-        text(o.title, 22, 32, { kind: 'mono', size: 13, weight: 600, ls: 2, color: dk ? '#b9b9d6' : PAL.inkSoft });
+        text(o.title, 22, 32, { kind: 'mono', size: 13, weight: 600, ls: 2, color: dk ? '#b9b9d6' : PAL.inkSoft, role: 'decor' });   // the file tab
         ink([[16, 44], [w - 16, 44]], { w: K.lw(o, 1.2), color: PAL.peri, amp: 0.3, alpha: 0.7, seed: o.seed + 4 });
         ink([[54, 50], [54, h - 12]], { w: K.lw(o, 1), color: PAL.peri, amp: 0.3, alpha: 0.5, seed: o.seed + 5 });
         const hy = top + hv * lh;
@@ -105,8 +105,8 @@ KIT.tech = (() => {
         toks.forEach((ts, i) => {
           const y = top + i * lh + lh * 0.7, shown = Math.floor(clamp((tt - i * 0.14) * 70, 0, lines[i].length));
           if (shown <= 0) return;
-          text(String(i + 1), 42, y, { kind: 'mono', size: size - 3, align: 'right', color: K.mutedOf(dk) });
-          ts.forEach(k => { if (k.col >= shown) return; text(k.s.slice(0, shown - k.col), 68 + k.col * cw, y, { kind: 'mono', size, color: CC[k.c], weight: k.bold ? 600 : 400 }); });
+          text(String(i + 1), 42, y, { kind: 'mono', size: size - 3, align: 'right', color: K.mutedOf(dk), role: 'decor' });
+          ts.forEach(k => { if (k.col >= shown) return; text(k.s.slice(0, shown - k.col), 68 + k.col * cw, y, { kind: 'mono', size, color: legible(CC[k.c], dk), weight: k.bold ? 600 : 400 }); });
         });
         const li = Math.round(hv); if (Math.abs(hv - li) < 0.05 && Math.floor(t * 2.4) % 2 === 0 && tt > 0.8)
           flat(shape.rect(68 + lines[li].length * cw + 3, top + li * lh + lh * 0.7 - size * 0.8, 2.4, size), CC.ink, 0.85);
@@ -129,12 +129,12 @@ KIT.tech = (() => {
         flat(shape.rect(84, bar - 2, 186, 5), PAL.techWindow);
         ctx.save(); ctx.translate(112, 27); ctx.rotate(t * 5);
         ink(shape.arc(0, 0, 7, 0, 4.4, 16), { w: K.lw(o, 2), color: PAL.accent, amp: 0 }); ctx.restore();
-        text(o.title, 128, 32, { kind: 'sans', size: 15, weight: 600, color: PAL.inkSoft });
+        text(o.title, 128, 32, { kind: 'sans', size: 15, weight: 600, color: PAL.inkSoft, role: 'decor' });   // browser chrome and page mock-up: marks on the object
         const field = K.rrect(16, 54, w - 32, 32, 16);
         ink(field, { closed: true, w: K.lw(o, 1.4), fill: PAL.techField, color: PAL.peri, amp: 0.4, seed: seed + 11 });
         ink(K.rrect(34, 64, 10, 9, 2), { closed: true, w: K.lw(o, 1.4), fill: PAL.inkSoft, amp: 0.2, seed: seed + 12 });
         ink(shape.arc(39, 64, 4, Math.PI, TAU, 10), { w: K.lw(o, 1.4), color: PAL.inkSoft, amp: 0.2 });
-        text(typed(o.url, (t - 0.8) * 1.2, 30), 54, 76, { kind: 'mono', size: 15, color: PAL.ink });
+        text(typed(o.url, (t - 0.8) * 1.2, 30), 54, 76, { kind: 'mono', size: 15, color: PAL.ink, role: 'decor' });
         const [, lf] = K.cyc(t, 2.6), lp = E.out3(inv(0, 0.8, lf));
         if (lp > 0) flat(shape.rect(16, 92, (w - 32) * lp, 3), PAL.accent, 1 - inv(0.8, 0.95, lf));
         // the page
@@ -143,7 +143,7 @@ KIT.tech = (() => {
         const p = (i) => K.ph(draw, 0.6 + i * 0.05, 0.9 + i * 0.05);
         withAlpha(p(0), () => {
           ink(shape.circle(40, 30, 11, 16), { closed: true, w: K.lw(o, 1.6), fill: PAL.ink, amp: 0.3, seed: seed + 20 });
-          text('doodle', 58, 36, { kind: 'display', size: 20, weight: 500, color: PAL.ink });
+          text('doodle', 58, 36, { kind: 'display', size: 20, weight: 500, color: PAL.ink, role: 'decor' });
           [0, 1, 2].forEach(i => pen([[w - 210 + i * 62, 30], [w - 170 + i * 62, 30]], { w: K.lw(o, 3), color: PAL.inkSoft, seed: seed + 21 + i, taper: 0.2 }));
           ink([[20, 54], [w - 20, 54]], { w: K.lw(o, 1), color: PAL.peri, amp: 0.3, alpha: 0.6 });
         });
@@ -154,7 +154,7 @@ KIT.tech = (() => {
           const bp = 1 + 0.04 * Math.sin(t * 3);
           ctx.save(); ctx.translate(92, 232); ctx.scale(bp, bp);
           ink(K.rrect(-60, -18, 120, 36, 18), { closed: true, w: K.lw(o, 1.8), fill: PAL.accent, amp: 0.4, seed: seed + 28 });
-          text('Start', 0, 6, { kind: 'sans', size: 16, weight: 600, align: 'center', color: '#fff8ee' }); ctx.restore();
+          text('Start', 0, 6, { kind: 'sans', size: 16, weight: 600, align: 'center', color: '#fff8ee', role: 'decor' }); ctx.restore();
         });
         withAlpha(p(2), () => {
           const ix = w * 0.52, iw = w - ix - 30, box = shape.rect(ix, 76, iw, 170);
@@ -199,7 +199,7 @@ KIT.tech = (() => {
         hatch(face, { color: PAL.techMetalDeep, alpha: 0.25, gap: 5, len: 8, angle: -0.5, seed: seed + 30 + i, keep: (px, py) => clamp((py - y) / (u - 6)) * 0.8 });
         for (let k = 0; k < 6; k++) ink([[w / 2 - 54 + k * 7, y + 8], [w / 2 - 54 + k * 7, y + u - 14]], { w: K.lw(o, 1.4), color: PAL.techMetalDeep, amp: 0.2, alpha: 0.7, seed: seed + 40 + i * 9 + k });
         ink(shape.rect(-w / 2 + 66, y + 9, 34, 13), { closed: true, w: K.lw(o, 1.1), fill: PAL.techMetalLight, amp: 0.3, seed: seed + 50 + i });
-        text(`SRV-${String(i + 1).padStart(2, '0')}`, -w / 2 + 106, y + 20, { kind: 'mono', size: 10, weight: 600, color: PAL.techMetalDeep });
+        text(`SRV-${String(i + 1).padStart(2, '0')}`, -w / 2 + 106, y + 20, { kind: 'mono', size: 10, weight: 600, color: PAL.techMetalDeep, role: 'decor' });
         const leds = [
           [PAL.techLedGreen, 0.75 + 0.25 * Math.sin(t * 2 + i)],
           [PAL.techLedAmber, hash3(i, 1, Math.floor(t * 9 + i * 3) + seed) > 0.45 ? 1 : 0],
@@ -265,9 +265,9 @@ KIT.tech = (() => {
           for (let i = 0; i < ns; i++) { const py = (i - (ns - 1) / 2) * (ch - 30) / Math.max(1, ns - 1); flat(shape.rect(sg > 0 ? cw / 2 : -cw / 2 - 15, py - 4, 15, 8), PAL.techMetalLight); } }
         ink(K.rrect(-cw / 2, -ch / 2, cw, ch, 6), { closed: true, w: K.lw(o, 2.2), fill: PAL.techChip, amp: 0.5, seed: seed + 100 });
         flat(shape.circle(-cw / 2 + 14, -ch / 2 + 14, 4, 12), '#6b6468');
-        text(o.label, 0, 8, { kind: 'mono', size: 20, weight: 600, ls: 3, align: 'center', color: PAL.techScreenInk });
+        text(o.label, 0, 8, { kind: 'mono', size: 20, weight: 600, ls: 3, align: 'center', color: PAL.techScreenInk, role: 'decor' });   // printed on the chip
         const pulse = 0.5 + 0.5 * Math.sin(t * 3);
-        text('0x1F·AI', 0, 30, { kind: 'mono', size: 11, ls: 2, align: 'center', color: PAL.techScreenMuted, alpha: 0.6 + 0.4 * pulse });
+        text('0x1F·AI', 0, 30, { kind: 'mono', size: 11, ls: 2, align: 'center', color: PAL.techScreenMuted, alpha: 0.6 + 0.4 * pulse, role: 'decor' });
       });
       ctx.restore();
     });

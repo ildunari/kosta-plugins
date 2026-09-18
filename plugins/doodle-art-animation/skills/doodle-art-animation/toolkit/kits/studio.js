@@ -131,8 +131,8 @@ KIT.studio = (() => {
         ink(blk, { color: ic, closed: true, w: K.lw(o, 1.4), fill: hex, amp: 0.4, seed: seed + 20 + i });
         hatch(blk, { color: '#1b1518', alpha: 0.22, gap: 5, len: 9, angle: -0.6, seed: seed + 40 + i, keep: (x, y) => clamp((x + y) / 160) * 0.8 });
         pen([[14, 18], [30, 14]], { w: K.lw(o, 2.4), color: '#ffffff', alpha: 0.6, taper: 0.4, seed: seed + 60 + i });
-        text(name, 10, 112, { kind: 'sans', size: 14, weight: 600, color: PAL.ink });
-        text(hex.toUpperCase(), 10, 129, { kind: 'mono', size: 12, color: PAL.muted });
+        text(name, 10, 112, { kind: 'sans', size: 14, weight: 600, color: PAL.ink, role: 'decor' });   // printed on the paint chip
+        text(hex.toUpperCase(), 10, 129, { kind: 'mono', size: 12, color: PAL.muted, role: 'decor' });
         if (lift > 0) ink(K.rrect(-5, -5, cw + 10, ch + 10, 9), { closed: true, w: K.lw(o, 2.6), color: PAL.studioSelect, alpha: clamp(lift), amp: 0.5, seed: seed + 80 });
         ctx.restore();
       });
@@ -163,7 +163,7 @@ KIT.studio = (() => {
       const board = shape.rect(0, 0, w, h);
       if (!o.dark) K.shadow(board, 6, 8, 0.12 * K.ph(draw, 0.1, 0.4));
       ink(board, { color: ic, closed: true, w: K.lw(o, 2), fill: PAL.studioBoard, fillReveal: 'sweep', amp: 0.5, seed: seed + 1, draw: K.ph(draw, 0, 0.4) });
-      KIT.caption((draw - 0.2) * 4, o.label, 0, -12, { size: 12, dark: o.dark });
+      KIT.caption((draw - 0.2) * 4, o.label, 0, -12, { size: 12, dark: o.dark, role: 'decor' });   // the artboard's name tab
       const ga = K.ph(draw, 0.3, 0.6);
       withAlpha(ga, () => { for (let c = 0; c < 12; c++) flat(shape.rect(cx(c), 0, colw, h), PAL.studioGuide, 0.07);
         for (let y = 24; y < h; y += 24) ink([[0, y], [w, y]], { w: K.lw(o, 0.8), color: PAL.peri, alpha: 0.18, amp: 0 }); });
@@ -187,12 +187,12 @@ KIT.studio = (() => {
       const order = [1, 2, 3, 4, 5, 0], [ci, f] = K.cyc(t, o.period), A = rectOf(BLOCKS[order[ci % 6]]), B = rectOf(BLOCKS[order[(ci + 1) % 6]]);
       const e = E.inOut3(inv(0.62, 1, f)), [x, y, bw, bh] = A.map((v, k) => lerp(v, B[k], e));
       ink([[0, y + bh / 2], [x, y + bh / 2]], { w: K.lw(o, 1.4), color: PAL.studioGuide, dash: [4, 4], amp: 0.2, alpha: x > 20 ? 0.9 : 0 });
-      if (x > 30) text(String(Math.round(x)), x / 2, y + bh / 2 - 6, { kind: 'mono', size: 11, weight: 600, align: 'center', color: PAL.studioGuide });
+      if (x > 30) text(String(Math.round(x)), x / 2, y + bh / 2 - 6, { kind: 'mono', size: 11, weight: 600, align: 'center', color: PAL.studioGuide, role: 'decor' });
       ink(shape.rect(x, y, bw, bh), { closed: true, w: K.lw(o, 2.4), color: PAL.studioSelect, amp: 0.4, seed: seed + 60 });
       [[0, 0], [0.5, 0], [1, 0], [1, 0.5], [1, 1], [0.5, 1], [0, 1], [0, 0.5]].forEach(([u, v], k) => ink(shape.rect(x + u * bw - 5, y + v * bh - 5, 10, 10), { closed: true, w: K.lw(o, 1.6), color: PAL.studioSelect, fill: '#ffffff', amp: 0.1, seed: seed + 70 + k }));
       const lab = `${Math.round(bw * 2)} × ${Math.round(bh * 2)}`, lw = measure(lab, { kind: 'mono', size: 12 }) + 16;
       ink(K.rrect(x + bw / 2 - lw / 2, y + bh + 10, lw, 22, 6), { color: ic, closed: true, w: 0, fill: PAL.studioSelect });
-      text(lab, x + bw / 2, y + bh + 25, { kind: 'mono', size: 12, weight: 600, align: 'center', color: '#fff8ee' });
+      text(lab, x + bw / 2, y + bh + 25, { kind: 'mono', size: 12, weight: 600, align: 'center', color: '#fff8ee', role: 'decor' });   // the design tool's size badge
     });
   }
 

@@ -218,9 +218,9 @@ KIT.earth = (() => {
       grass(g.R[0], { every: 22, h: 14, seed: seed + 25, sway: 3 });
       pen(g.R[0], { w: K.lw(o, 3.6), color: K.inkOf(o.dark), seed: seed + 24, taper: 0.02 });
       if (o.labels) [['TOPSOIL', 0.14, PAL.ink, PAL.earthSoil], ['GRAVEL', 0.36, PAL.ink, PAL.earthGravel], ['AQUIFER', 0.6, PAL.earthFoam, PAL.earthAquifer], ['BEDROCK', 0.88, '#e4d9bd', PAL.earthBedrock]].forEach(([s, v, c, bg], i) => {
-        const a = clamp((draw - 0.5 - i * 0.08) * 4), lw = measure(s, { kind: 'mono', size: 13, weight: 600, ls: 3 });   // a patch of the layer's own colour keeps the name legible
-        if (a > 0) flat(K.rrect(w - 22 - lw, h * v - 11, lw + 16, 22, 5), bg, 0.9 * a);
-        text(typed(s, (draw - 0.5 - i * 0.08) * 4, 12), w - 14, h * v + 5, { kind: 'mono', size: 13, weight: 600, ls: 3, align: 'right', color: c });
+        const a = clamp((draw - 0.5 - i * 0.08) * 4), lo = { kind: 'mono', size: 22, weight: 600, ls: 2 }, lw = measure(s, lo);   // a patch of the layer's own colour keeps the name legible
+        if (a > 0) flat(K.rrect(w - 24 - lw, h * v - 17, lw + 20, 32, 6), bg, 0.95 * a);
+        text(typed(s, (draw - 0.5 - i * 0.08) * 4, 12), w - 14, h * v + 8, { ...lo, align: 'right', color: inkOn(bg) });
       });
       ctx.restore();
     });

@@ -367,7 +367,7 @@ KIT.life = (() => {
       return; }
     if (kind === 'sign') { pen([[x, y + 30], [x, y - 60]], { w: K.lw(o, 3.4), color: PAL.lifePole, seed: o.seed + 320, taper: 0.05 });
       const b = shape.rect(x - 42, y - 96, 84, 44); ink(b, { closed: true, w: K.lw(o, 2.2), color: ic, fill: '#f3efe4', amp: 0.6, seed: o.seed + 321 });
-      if (o.label) text(o.label, x, y - 67, { kind: 'mono', size: 15, weight: 600, ls: 2, align: 'center', color: PAL.ink }); return; }
+      if (o.label) text(o.label, x, y - 66, { kind: 'mono', size: 22, weight: 600, ls: 0, align: 'center', color: PAL.ink }); return; }
     if (kind === 'ball') { const b = shape.circle(x, y - 14 + 2 * Math.sin(t * 3), 13, 18); ink(b, { closed: true, w: K.lw(o, 2), color: ic, fill: PAL.accent, amp: 0.4, seed: o.seed + 330 });
       shade(b, { color: PAL.accentDeep, alpha: 0.5, seed: o.seed + 331, gap: 3.5, len: 5 }); }
   }

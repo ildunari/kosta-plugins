@@ -108,7 +108,7 @@ const T0 = {
   },
   overlay(t) {
     sun(1720, 170, t, inv(0.5, 1.5, t));
-    text(typed('A FIELD STUDY IN 5 PLATES', t - 0.6, 34), 1000, 300, { kind: 'mono', size: 21, ls: 9, color: PAL.inkSoft });
+    text(typed('A FIELD STUDY IN 5 PLATES', t - 0.6, 34), 1000, 300, { kind: 'mono', size: 22, ls: 8, color: PAL.inkSoft });
     dropText('One Drop', 992, 420, t - 1.0, { kind: 'display', size: 112, weight: 500, cps: 13 });
     text(typed('the journey of one raindrop', t - 2.4, 26), 996, 486, { kind: 'display', size: 44, italic: true, color: PAL.inkSoft });
   },
@@ -187,10 +187,10 @@ const P3 = {
   },
   overlay(t) {
     stat(t - 1.8, { x: 1280, y: 420, kicker: 'A TYPICAL CLOUD DROPLET', value: u => '≈ ' + countUp(20, u, 1.2) + ' µm', note: 'about 70,000 molecules across', dark: true, size: 54 });
-    const k = card(t - 2.9, { x: 470, y: 890, w: 980, h: 150, dark: true, title: 'SIZE LADDER', fig: 'LOG SCALE' });
+    const k = card(t - 2.9, { x: 470, y: 858, w: 980, h: 182, dark: true, title: 'SIZE LADDER', fig: 'LOG SCALE' });   // room for two rows of 22 px marks
     if (k > 0) logRuler(t - 3.4, { x: 510, y: 985, w: 900, min: 1e-10, max: 1e-2, dark: true,
       ticks: [[1e-9, '1 nm'], [1e-6, '1 µm'], [1e-3, '1 mm']],
-      marks: [{ v: 2.8e-10, label: 'MOLECULE', t0: 0.5 }, { v: 2e-5, label: 'CLOUD DROPLET', color: PAL.accent, t0: 0.9 }, { v: 2e-3, label: 'RAINDROP', t0: 1.3 }] });
+      marks: [{ v: 2.8e-10, label: 'MOLECULE', t0: 0.5 }, { v: 2e-5, label: 'CLOUD DROPLET', color: PAL.accent, t0: 0.9 }, { v: 2e-3, label: 'RAINDROP', t0: 1.3, row: 1 }] });
   },
 };
 /* ---------- plate IV · a raindrop (shape reveal): the drop wobbles while the world scrolls up past it ---------- */
@@ -273,17 +273,19 @@ const P5 = {
     journeyPath(ROUTE, { draw: routeU(t), waypoints: [{ u: 0.02, label: 'II · III', dx: -70 }, { u: 0.14, label: 'IV', dx: -34 }, { u: 0.42, label: 'I' }, { u: 0.8, label: 'V', dy: 30 }] });
   },
   overlay(t) {
-    const c = P5.cam(t), lab = (s, x, y, k, o = {}) => withAlpha(E.out3(inv(1.8 + k * 0.5, 2.4 + k * 0.5, t)), () => text(s, x, y, { kind: 'mono', size: 15, weight: 600, ls: 3, color: PAL.inkSoft, ...o }));
-    if (c.s < 1.02) { lab('EVAPORATION', 1745, 560, 0); lab('RAIN', 560, 470, 1); lab('RUNOFF', 1000, 720, 2, { color: '#1f3f48' }); lab('GROUNDWATER', 800, 852, 3, { color: '#e8f3f5' }); }
+    const c = P5.cam(t), lab = (s, x, y, k, o = {}) => withAlpha(E.out3(inv(1.8 + k * 0.5, 2.4 + k * 0.5, t)), () => { const lo = { kind: 'mono', size: 22, weight: 600, ls: 2, color: PAL.inkSoft, ...o }, b = textBox(s, x, y, lo);
+      backing(b[0], b[1], b[2], b[3], { pad: 8, feather: 10, seed: 180 + k }); text(s, x, y, lo); });   // labels written over rain and flow sit on a paper halo
+    if (c.s < 1.02) { lab('EVAPORATION', 1700, 560, 0); lab('RAIN', 560, 470, 1); lab('RUNOFF', 1000, 720, 2, { color: '#1f3f48' }); lab('GROUNDWATER', 800, 852, 3); }
     withAlpha(beat(t, 3.2), () => stat(t - 3.2, { x: 820, y: 330, kicker: 'WATER VAPOUR STAYS ALOFT', value: u => '≈ ' + countUp(9, u, 1.2) + ' days', note: 'on average, before it rains out' }));
-    const k = card(t - 5.6, { x: 470, y: 890, w: 980, h: 150, title: 'WHERE A YEAR OF VALLEY RAIN GOES', fig: 'ILLUSTRATIVE SPLIT' });
+    const k = card(t - 5.6, { x: 470, y: 876, w: 980, h: 166, title: 'WHERE A YEAR OF VALLEY RAIN GOES', fig: 'ILLUSTRATIVE SPLIT' });
     if (k > 0) {
       const segs = [[0.5, '#9a9ad4', 'BACK TO THE AIR · 600 MM'], [1 / 3, PAL.sea, 'RUNS OFF · 400 MM'], [1 / 6, PAL.soilTop, 'SOAKS IN · 200 MM']];
       let x = 500;
       segs.forEach(([f, col, label], i) => { const g = E.out3(inv(0.2 + i * 0.35, 0.7 + i * 0.35, t - 5.6)), w = 920 * f;
         if (g <= 0) { x += w; return; }
-        const r = shape.rect(x, 950, w * g, 26); ink(r, { closed: true, w: 1.6, fill: col, amp: 0.4, seed: 170 + i }); hatch(r, { alpha: 0.25, gap: 6, len: 9, seed: 175 + i });
-        text(label, x + w / 2, 1010, { kind: 'mono', size: 14, weight: 600, ls: 2, align: 'center', color: PAL.inkSoft, alpha: g });
+        const r = shape.rect(x, 936, w * g, 26); ink(r, { closed: true, w: 1.6, fill: col, amp: 0.4, seed: 170 + i }); hatch(r, { alpha: 0.25, gap: 6, len: 9, seed: 175 + i });
+        const lo = { kind: 'mono', size: 22, weight: 600, ls: 1, color: PAL.inkSoft, alpha: g }, last = i === segs.length - 1;   // 22 px labels on two rows; the last one ends at the card edge
+        text(label, last ? 1426 : x + w / 2, i % 2 ? 1026 : 994, { ...lo, align: last ? 'right' : 'center' });
         x += w; });
     }
   },
@@ -303,10 +305,10 @@ const END = {
     const q = 'Every drop is on its way somewhere.', qo = { kind: 'display', size: 56, italic: true, color: PAL.nightInk, cps: 22 };
     dropText(q, 960 - measure(q, qo) / 2, 640, t - 1.4, qo);
     const rl = E.out3(inv(3.0, 3.7, t)); if (rl > 0) pen([[960 - 300 * rl, 676], [960 + 300 * rl, 676]], { w: 1.4, color: PAL.peri, taper: 0.3 });
-    const col = `ONE DROP  ·  5 PLATES  ·  ${fmt(TOTAL_F)} FRAMES  ·  DRAWN IN CODE`, co = { kind: 'mono', size: 20, ls: 6, color: '#9fa0c8' };
+    const col = `ONE DROP  ·  5 PLATES  ·  ${fmt(TOTAL_F)} FRAMES  ·  DRAWN IN CODE`, co = { kind: 'mono', size: 22, ls: 5, color: '#a9aacb' };
     text(typed(col, t - 3.0, 60), 960 - measure(col, co) / 2, 724, co);
-    const src = 'NOTES  ·  ROUNDED VALUES  ·  THE VALLEY SPLIT IS ILLUSTRATIVE  ·  VAPOUR STAY: VAN DER ENT & TUINENBURG 2017', so = { kind: 'mono', size: 14, ls: 4, color: PAL.nightMuted };
-    text(typed(src, t - 3.8, 70), 960 - measure(src, so) / 2, 930, so);
+    const so = { kind: 'mono', size: 22, ls: 1, color: PAL.nightLabel };   // two short lines: each gets its own reading time
+    ['NOTES  ·  ROUNDED VALUES  ·  THE VALLEY SPLIT IS ILLUSTRATIVE', 'VAPOUR STAY: VAN DER ENT & TUINENBURG 2017'].forEach((src, k) => text(typed(src, t - 3.8 - k * 0.4, 70), 960 - measure(src, so) / 2, 912 + k * 36, so));
   },
 };
 defineStory({ title: 'One Drop', stages: 5, music: { tonic: 220 }, plates: [T0, P1, P2, P3, P4, P5, END] });
