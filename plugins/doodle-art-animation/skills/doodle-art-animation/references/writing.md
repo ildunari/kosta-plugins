@@ -83,6 +83,11 @@ Write this before coding, and save it as `script.md` in the film folder. Say wha
 
 The `#` column reads as a field guide does — `0`, `I`, `II`, … `End` — but build lanes and their files are numbered by position, from 0: plate `I` is `plate_1_<slug>.js` and `P1`, `End` is the last index. Say that mapping once in the script so no lane has to guess it.
 
+Two things the table gets wrong more often than anything else:
+
+- **A state or a log value that changes is written as a change**: `FLYING → LANDED at 6.3`, `T+ 4.6→11`, not a single value. A cell holding one value becomes `state: 2` in the plate, and the HUD then says LANDED over a dart that is still visibly flying.
+- **Beat windows must include what the component itself spends.** A `stat` starts its note 1.2 s in, so its window needs 1.5 s + `readTime(note)`; a `callout` starts its sub at 0.7 s, so it needs 1.0 s + `readTime(sub)`; and a line that has to finish before the plate ends needs its whole reading time inside `dur`. Windows written without that arithmetic look generous in the table and fail `text_check` as soon as they are built, and by then `dur` is fixed and the only lever left is starting the line earlier.
+
 | # | Plate (world) | Dur | Enter | Camera | Header: title / subtitle | Hero route | Beats (start→end) | Journey log | Stage | Sound |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 0 | Title (paper) | 6.5 | – | settle s 1.05→1, then push to 1.14 on the landing ripple | *The Long Release* / *the journey of one nanoparticle* | drop forms 1.0, falls 2.05–2.55, lands; NP·01 appears in the ripple | 0 frame lines draw · 0.25 blood floods in · 0.5→6.45 title types · 2.0 ruler Ø 150 nm · ripples keep spreading | – | – | noise sweep, plink, chime 2.6 |
