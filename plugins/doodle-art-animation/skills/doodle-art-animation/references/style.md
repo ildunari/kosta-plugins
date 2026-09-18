@@ -148,6 +148,8 @@ The Slow Squeeze failed on both: subtitles printed through gauge faces, a callou
 
 `legibility_check.mjs` enforces the result on the rendered frames: it flags text whose contrast or background busyness fails, and its crops show where. A clean `text_check` is not enough, because text boxes can be clear of each other and still sit on art. Fix every `CLASH` line it prints before Gate 2.
 
+
+**What the check cannot see.** `legibility_check` judges whether a line can be read. It cannot judge whether the line belongs where it is: a subtitle whose glyph halo keeps it perfectly readable can still run across a gauge face and nibble the ticks that give the gauge its meaning, and that passes. Text over something whose own marks carry meaning — a gauge, a clock, a chart, a ruler — is a composition fault, and it is yours and the film reviewer's to catch by looking.
 ## Plate furniture
 
 The first four rows are drawn by the engine in fixed places, so they are facts to design around. The last three are yours to place: they are described by where they sit relative to the scene and the HUD, not by coordinates, because the right spot depends on what the plate is drawing ("Layout: bands and clearances").
