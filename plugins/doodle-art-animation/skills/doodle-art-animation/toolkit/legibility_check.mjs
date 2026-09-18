@@ -5,13 +5,20 @@
 // pink chain. This check looks at the pixels. It wraps the engine's text() in the page (engine.js and the story are
 // untouched), and every --step seconds (skipping frames inside transitions, where text is legitimately mid-wipe) it
 // renders the frame twice: once as the film shows it, recording every text line drawn on the main canvas, and once
-// with all text drawn at alpha 0 and the film grain off, which is the background each line is printed on. For every
-// line whose role is not 'decor' it measures:
+// with only the glyph FILL hidden (text() draws at alpha 0) and the film grain off. Anything the engine draws around
+// the letters stays in that second render — haloText()'s paper-coloured stroke, a card, a backing — so it is the frame
+// as the viewer sees it minus the letters themselves. For every line whose role is not 'decor' it measures:
 //   size      the em size on screen, after the camera and every other canvas transform (size x scale)
-//   contrast  WCAG contrast of the text colour (blended by its alpha) against the mean luminance under its box
-//   busy      edge density of that background: the share of pixels whose grey-level gradient |dx|+|dy| > 40, inside
-//             the text box plus a small margin. A card or panel reads 0.00-0.01, plain paper 0.00-0.04; line art,
-//             hatching, gauges and chains read 0.07-0.50 (calibration below).
+//   ring      the line's glyphs alone (same font, transform, letter-spacing) as a mask, dilated by 0.12 em (at least
+//             2 px), minus the glyph mask: the band a reader's eye sees right around each letter. Art between two
+//             lines or behind a word gap is outside it and does not count.
+//   contrast  WCAG contrast of the text colour (blended by its alpha) against the mean luminance of the ring
+//   busy      edge density in the ring: the share of ring pixels whose grey-level gradient |dx|+|dy| > 40 (both
+//             neighbours in the ring too). Paper and cards read 0.00-0.03; a glyph halo reads 0.00-0.06 over any art;
+//             line art touching unhaloed letters reads 0.07-0.45 (calibration below).
+//             Why 0.12 em: haloText's stroke is 0.25 em wide, so it clears 0.125 em around each letter. A wider ring
+//             reaches past the halo and counts the halo's own clean edge against the art as clutter (at 0.15 em and
+//             above 18-20 haloed lines on four bundled stories fail at contrast 4.6-12 although they read cleanly).
 // and reports, grouped per line (the same text in the same plate, role and font; typewriter prefixes and ticking
 // numbers fold into their line) with its time span:
 //   SMALL   em size below the role's floor: fact 28 px, label 22 px (the default when a call gives no role), hud 18 px
@@ -27,18 +34,21 @@
 // --crops DIR writes a JPEG close-up of every finding at its worst sample (the box plus margin, full resolution, text
 // visible) so a reviewer can see it. --json writes every finding and every checked line with its numbers.
 // Exit codes: 0 clean; 1 on any SMALL or CLASH; 2 on a setup error (missing file, page error, no playwright).
-// Speed: one page, two renders per sample; a 172 s film at --step 0.5 took 26 s (306 frames).
+// Speed: one page, two renders per sample; a 172 s film at --step 0.5 took 26-32 s (306 frames).
 //
-// Calibration (v0.15, on "The Slow Squeeze", the v0.13 Cowork film whose review failed all ten plates while
-// text_check said CLEAN; --step 0.5; 350 lines, 192 CLASH and 254 SMALL):
-//   flagged, as the review found: plate IV callout sub "10,000 lb at about 20 °C, 5 minutes" on the platen (contrast
-//   2.01, busy 0.081); the Journey Log labels SITE / MESOPHASE / STATE on the pink chains (contrast 1.66-3.1, busy
-//   0.13-0.25); the drug names MELOXICAM / DOLUTEGRAVIR / DEXAMETHASONE on the wood (contrast 1.45-1.47); "chains
-//   stacked neat — no room to pass" over the chains (contrast 3.34, busy 0.128); all 13-16 px story and HUD text (SMALL).
-//   closest to the busy line: "out in a moment" at 0.067, crossed by two chain strokes in its crop (a real clash).
-//   not flagged for busy: card notes and chart legends (busy <= 0.01), plate titles on paper (busy <= 0.04).
+// Calibration (v0.15, ring measure, --step 0.5):
+//   "The Slow Squeeze", v0.13 build (no halos; the film whose review failed all ten plates while text_check said
+//   CLEAN): 350 lines, 190 CLASH and 254 SMALL (the earlier whole-box measure: 192 and 254). Flagged, as the review
+//   found: plate IV callout sub "10,000 lb at about 20 °C, 5 minutes" on the platen (contrast 2.01, busy 0.076); the
+//   Journey Log labels SITE / MESOPHASE / STATE on the pink chains (contrast 1.43-3.06, busy 0.09-0.24); the drug
+//   names MELOXICAM / DOLUTEGRAVIR / DEXAMETHASONE on the wood (contrast 1.45-1.47); "chains stacked neat — no room
+//   to pass" (contrast 3.31, busy 0.113); all 13-16 px story and HUD text (SMALL). Closest to the busy line: "out in a
+//   moment" at 0.068, crossed by chain strokes in its crop (a real clash).
+//   The same story rebuilt on the v0.15 engine: 72 CLASH and 83 SMALL, all from the story's own text() calls (overlay
+//   and draw); none from the engine's components.
+//   Every bundled story*.js exits 0; the most crowded haloed line there reads busy 0.054 (the NP·01 tag on a cell).
 //   The fixture tests/doodle-art-animation/fixtures/story_clash.js must exit 1 with CLASH (its hatched line reads
-//   contrast 1.57, busy 0.51) and its card line must not be listed.
+//   contrast 1.57, busy 0.45) and its card line must not be listed.
 import { createRequire } from 'module';
 import { pathToFileURL } from 'url';
 import fs from 'fs'; import path from 'path'; import { execFileSync } from 'child_process';
@@ -60,7 +70,7 @@ if (!(from >= 0) || !(to > from)) { console.error('legibility_check: --from/--to
 if (!fs.existsSync(file)) { console.error(`legibility_check: ${file} not found`); process.exit(2); }
 
 // thresholds (see the header): role floors in on-screen px, contrast, edge density
-const FLOOR = { fact: 28, label: 22, hud: 18 }, MIN_CR = 4.5, MAX_BUSY = 0.06, GRAD = 40;
+const FLOOR = { fact: 28, label: 22, hud: 18 }, MIN_CR = 4.5, MAX_BUSY = 0.06, GRAD = 40, RING = 0.12;
 
 const browser = await chromium.launch({ args: ['--font-render-hinting=none'] });
 let pageErrors = 0;
@@ -72,7 +82,7 @@ await page.goto(pathToFileURL(file).href + '?render=1', { waitUntil: 'networkidl
 try { await page.waitForFunction(() => window.__ready === true, null, { timeout: 90000, polling: 250 }); }
 catch { await bail('legibility_check: the film never became ready (window.__ready); open it in a browser and look at the console'); }
 
-const info = await page.evaluate(({ GRAD }) => {
+const info = await page.evaluate(({ GRAD, RING }) => {
   const main = cvs.getContext('2d'), orig = window.text;
   const nc = document.createElement('canvas').getContext('2d');
   const rgba = c => { nc.fillStyle = '#000'; nc.fillStyle = c; const s = nc.fillStyle;
@@ -99,11 +109,26 @@ const info = await page.evaluate(({ GRAD }) => {
     const pts = [[x - m.actualBoundingBoxLeft, y - m.actualBoundingBoxAscent], [x + m.actualBoundingBoxRight, y - m.actualBoundingBoxAscent],
       [x - m.actualBoundingBoxLeft, y + m.actualBoundingBoxDescent], [x + m.actualBoundingBoxRight, y + m.actualBoundingBoxDescent]].map(([px, py]) => [T.a * px + T.c * py + T.e, T.b * px + T.d * py + T.f]);
     const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]), col = typeof color === 'string' ? rgba(color) : [0, 0, 0, 1];
-    rec.push({ s: str, role, via: via(), font: `${kind} ${size} w${weight}${italic ? 'i' : ''}`, em: size * sc, ax: T.a * x + T.c * y + T.e, ay: T.b * x + T.d * y + T.f,
+    rec.push({ s: str, x, y, M: [T.a, T.b, T.c, T.d, T.e, T.f], draw: { font: `${italic ? 'italic ' : ''}${weight} ${size}px ${FONT[kind]}`, ls, align, base },
+      role, via: via(), font: `${kind} ${size} w${weight}${italic ? 'i' : ''}`, em: size * sc, ax: T.a * x + T.c * y + T.e, ay: T.b * x + T.d * y + T.f,
       box: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)], a: ctx.globalAlpha * alpha * col[3], col: col.slice(0, 3) });
     return w;
   };
   const plateAt = T => { const i = STORY.plates.findIndex(p => T < p.start + p.dur); return i < 0 ? STORY.plates.length - 1 : i; };
+  // mask(r, x0, y0, w, h, grow): the line's glyphs alone (same font, transform, letter-spacing) drawn into a w x h
+  // screen-pixel window at (x0, y0); grow > 0 also strokes them with a round join 2*grow px wide (a dilation by grow px)
+  const MC = document.createElement('canvas'), mg = MC.getContext('2d', { willReadFrequently: true });
+  const mask = (r, x0, y0, w, h, grow) => {
+    if (MC.width < w || MC.height < h) { MC.width = Math.max(MC.width, w); MC.height = Math.max(MC.height, h); }
+    mg.setTransform(1, 0, 0, 1, 0, 0); mg.globalAlpha = 1; mg.clearRect(0, 0, w, h);
+    const [a, b, c, d, e, f] = r.M, sc = Math.hypot(a, b) || 1;
+    mg.setTransform(a, b, c, d, e - x0, f - y0); mg.font = r.draw.font; mg.letterSpacing = r.draw.ls + 'px'; mg.textAlign = r.draw.align; mg.textBaseline = r.draw.base;
+    mg.fillStyle = '#fff'; mg.fillText(r.s, r.x, r.y);
+    if (grow > 0) { mg.strokeStyle = '#fff'; mg.lineWidth = 2 * grow / sc; mg.lineJoin = 'round'; mg.lineCap = 'round'; mg.strokeText(r.s, r.x, r.y); }
+    const px = mg.getImageData(0, 0, w, h).data, out = new Uint8Array(w * h);
+    for (let i = 0; i < w * h; i++) out[i] = px[i * 4 + 3] > 127 ? 1 : 0;
+    return out;
+  };
   window.__legibility = f => {
     hide = false; rec = []; renderFrame(f);
     const T = S.T, trans = !!S.trans, plate = plateAt(T), recs = rec; rec = [];
@@ -113,20 +138,24 @@ const info = await page.evaluate(({ GRAD }) => {
     const out = [];
     for (const r of recs) {
       if (r.a < 0.3) continue;
-      const hgt = r.box[3] - r.box[1], pad = Math.max(3, Math.round(hgt * 0.12));
+      // the ring: the glyphs dilated by RING em (at least 2 px), minus the glyphs themselves, in screen pixels
+      const dil = Math.max(2, RING * r.em), pad = Math.ceil(dil) + 2;
       const bx0 = Math.floor(r.box[0] - pad), by0 = Math.floor(r.box[1] - pad), bx1 = Math.ceil(r.box[2] + pad), by1 = Math.ceil(r.box[3] + pad);
       const x0 = Math.max(0, bx0), y0 = Math.max(0, by0), x1 = Math.min(W, bx1), y1 = Math.min(H, by1), w = x1 - x0, h = y1 - y0;
       if (w < 4 || h < 4 || w * h < 0.5 * (bx1 - bx0) * (by1 - by0)) continue;   // mostly off-frame: text_check's EDGE, not ours
+      const glyph = mask(r, x0, y0, w, h, 0), grown = mask(r, x0, y0, w, h, dil);
       const d = main.getImageData(x0, y0, w, h).data, n = w * h, Y = new Float32Array(n);
-      let sl = 0, sr = 0, sg = 0, sb = 0;
-      for (let i = 0; i < n; i++) { const R = d[i * 4], G = d[i * 4 + 1], B = d[i * 4 + 2];
-        Y[i] = 0.299 * R + 0.587 * G + 0.114 * B; sl += lum(R, G, B); sr += R; sg += G; sb += B; }
-      let edge = 0, m = 0;
-      for (let yy = 1; yy < h; yy++) for (let xx = 1; xx < w; xx++) { const i = yy * w + xx; if (Math.abs(Y[i] - Y[i - 1]) + Math.abs(Y[i] - Y[i - w]) > GRAD) edge++; m++; }
-      const bg = [sr / n, sg / n, sb / n], a = Math.min(1, r.a), c = r.col.map((v, k) => v * a + bg[k] * (1 - a));   // the colour actually on screen
-      const lt = lum(...c), lb = sl / n, cr = (Math.max(lt, lb) + 0.05) / (Math.min(lt, lb) + 0.05);
+      for (let i = 0; i < n; i++) Y[i] = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2];
+      let sl = 0, sr = 0, sg = 0, sb = 0, edge = 0, m = 0;
+      for (let yy = 1; yy < h; yy++) for (let xx = 1; xx < w; xx++) { const i = yy * w + xx;
+        if (!grown[i] || glyph[i]) continue;
+        const R = d[i * 4], G = d[i * 4 + 1], B = d[i * 4 + 2]; sl += lum(R, G, B); sr += R; sg += G; sb += B; m++;
+        if (grown[i - 1] && grown[i - w] && Math.abs(Y[i] - Y[i - 1]) + Math.abs(Y[i] - Y[i - w]) > GRAD) edge++; }   // both neighbours inside the ring too
+      if (m < 8) continue;
+      const bg = [sr / m, sg / m, sb / m], a = Math.min(1, r.a), c = r.col.map((v, k) => v * a + bg[k] * (1 - a));   // the colour actually on screen
+      const lt = lum(...c), lb = sl / m, cr = (Math.max(lt, lb) + 0.05) / (Math.min(lt, lb) + 0.05);
       out.push({ s: r.s, role: r.role, via: r.via, font: r.font, em: +r.em.toFixed(1), a: +r.a.toFixed(2), ax: r.ax, ay: r.ay,
-        box: r.box.map(Math.round), cr: +cr.toFixed(2), busy: +(edge / Math.max(1, m)).toFixed(3) });
+        box: r.box.map(Math.round), cr: +cr.toFixed(2), busy: +(edge / m).toFixed(3) });
     }
     return { T, plate, trans, recs: out };
   };
@@ -139,7 +168,7 @@ const info = await page.evaluate(({ GRAD }) => {
   };
   return { ...window.__story, plates: STORY.plates.map((p, i, all) => ({ start: p.start, dur: p.dur,
     name: p.header ? `plate ${p.header.num != null ? ROMAN(p.header.num) || p.header.num : i + 1} "${p.header.title}"` : i === 0 ? 'opening' : i === all.length - 1 ? 'end card' : `plate ${i + 1} of ${all.length}` })) };
-}, { GRAD });
+}, { GRAD, RING });
 if (pageErrors) await bail('legibility_check: the page threw while loading; fix the film first');
 
 const t0 = Date.now(), fps = info.fps, dur = info.frames / fps, last = Math.min(dur, to);

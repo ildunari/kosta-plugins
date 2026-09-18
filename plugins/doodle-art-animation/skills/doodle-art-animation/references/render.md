@@ -20,23 +20,29 @@
 
 Two checks read the built film rather than a render. Both load `film.html` in headless Chromium the way `render.mjs` does, need `playwright` in the film folder, and exit 0 when clean, 1 on a finding and 2 on a setup error (missing file, page error, no playwright).
 
-**`node legibility_check.mjs film.html [--step 0.5] [--json out.json] [--crops DIR] [--from s --to s]`** checks the text on pixels. `text_check` compares text boxes with each other, so it can't see grey type printed across line art. This check can. Every `--step` seconds, skipping frames inside transitions, it renders the frame twice: once as the film shows it, and once with all text at alpha 0 and the film grain off. The second render is the background each line sits on. Then, for every line whose role isn't `decor`, it measures three things. **Size** is the em size on screen after the camera. **Contrast** is WCAG contrast of the text colour, blended by its alpha, against the mean luminance under its box. **Busy** is the share of background pixels, inside the box plus a small margin, whose grey-level gradient is above 40.
+**`node legibility_check.mjs film.html [--step 0.5] [--json out.json] [--crops DIR] [--from s --to s]`** checks the text on pixels. `text_check` compares text boxes with each other, so it can't see grey type printed across line art. This check can. Every `--step` seconds, skipping frames inside transitions, it renders the frame twice: once as the film shows it, and once with only the letters' fill hidden and the film grain off. Whatever the engine draws around the letters stays in that second render: the glyph halo of `haloText()`, a card or a backing. So it shows the frame as the viewer sees it, minus the letters themselves. Then, for every line whose role isn't `decor`, it measures three things.
+- **Size** is the em size on screen after the camera.
+- **The ring** is where contrast and busy are measured. The line's glyphs are drawn alone as a mask (same font, transform and letter-spacing), grown by 0.12 em (at least 2 px), and the glyphs themselves are subtracted. What's left is the band right around each letter. Art between two lines, or behind a word gap, is outside it. The width is set by the halo: `haloText` clears 0.125 em around each letter, and a wider ring would count the halo's own clean edge against the art as clutter.
+- **Contrast** is WCAG contrast of the text colour, blended by its alpha, against the mean luminance of the ring.
+- **Busy** is the share of ring pixels whose grey-level gradient is above 40.
 - `SMALL`: the size is below the role's floor. The floors are `fact` 28 px, `label` 22 px (the default when a `text()` call gives no `role`) and `hud` 18 px.
-- `CLASH`: contrast is below 4.5, or busy is above 0.06, meaning the text is printed over artwork. A card or panel behind the text reads 0.00–0.01 and plain paper about 0.00–0.02. Line art, hatching, gauges and chains read 0.07–0.50.
+- `CLASH`: contrast is below 4.5, or busy is above 0.06, meaning art touches the letters. Paper and cards read 0.00–0.03, and a glyph halo reads 0.00–0.06 over any art. Line art touching letters without a halo reads 0.07–0.45.
 - Repeats of a line (same plate, role, font and calling component) are grouped into one finding with its time span. Typewriter prefixes fold into the full line, and so do ticking numbers. A sample is judged only when the line is at full opacity and full size. A line fails when two of its samples fail, or when it has only one sample and that fails.
 - Each finding line gives the time span, plate, role, the component that drew it (`journeyLog`, `callout < overlay`, `draw`, …), the text and the numbers. `--crops DIR` writes a full-resolution JPEG close-up of each finding at its worst sample. Open them, because a number is not a picture.
-- Text written on an opaque card passes. That is how legitimate overlap is allowed: writing on the surface it belongs to, or a card over the art. To fix a `CLASH`, move the line into clear space, re-sequence it so the art isn't there yet, put it on a card or halo, or darken or enlarge it. To fix a `SMALL`, enlarge the line, or give it the right role.
-- Speed: a 172 s film at `--step 0.5` took 26 s (306 frames, two renders each).
-- Calibration, on "The Slow Squeeze" (the v0.13 Cowork film whose review failed all ten plates while `text_check` said CLEAN; 350 lines, 192 CLASH and 254 SMALL findings):
+- Text on a card, or with the engine's glyph halo, passes where its surround is clean. That is how legitimate overlap is allowed. To fix a `CLASH`, move the line into clear space, re-sequence it so the art isn't there yet, draw it with `haloText` or on a card, or darken or enlarge it. To fix a `SMALL`, enlarge the line, or give it the right role.
+- Speed: a 172 s film at `--step 0.5` took 26–32 s (306 frames, two renders each).
+- Calibration, on "The Slow Squeeze", v0.13 build (the film whose review failed all ten plates while `text_check` said CLEAN; no halos; 350 lines, 190 CLASH and 254 SMALL):
 
   | Line | Where | Contrast | Busy |
   |---|---|---|---|
-  | Plate IV callout sub "10,000 lb at about 20 °C, 5 minutes" | on the platen | 2.01 | 0.081 |
-  | Journey Log labels SITE / MESOPHASE / STATE | on the pink chains | 1.66–3.1 | 0.13–0.25 |
+  | Plate IV callout sub "10,000 lb at about 20 °C, 5 minutes" | on the platen | 2.01 | 0.076 |
+  | Journey Log labels SITE / MESOPHASE / STATE | on the pink chains | 1.43–3.06 | 0.09–0.24 |
   | Drug names MELOXICAM / DOLUTEGRAVIR / DEXAMETHASONE | on the wood | 1.45–1.47 | 0.00 |
-  | "chains stacked neat — no room to pass" | over the chains | 3.34 | 0.128 |
+  | "chains stacked neat — no room to pass" | over the chains | 3.31 | 0.113 |
 
-  The review's 13–16 px story and HUD text all came out `SMALL`. The closest busy value to the line was a sub on dark art: "out in a moment", busy 0.067. The crop shows it crossed by two chain strokes, so it is a real clash. Card notes and chart legends measured busy ≤ 0.01. Plate titles on plain paper measured busy ≤ 0.04.
+  The review's 13–16 px story and HUD text all came out `SMALL`. The closest busy value to the line was "out in a moment", busy 0.068. The crop shows chain strokes crossing it, so it is a real clash.
+- The same story rebuilt on the v0.15 engine gives 72 CLASH and 83 SMALL. All of them come from the story's own `text()` calls, none from the engine's components.
+- Every bundled `story*.js` exits 0. The most crowded haloed line there is the NP·01 tag on a cell, at busy 0.054.
 
 **`node story_check.mjs film.html [--json out.json]`** checks that the story keeps its own facts straight. It needs no render. For every plate it reads `header` and `stage`, and samples `log(t)` every 0.25 s.
 - `TIME`: elapsed time runs backwards, inside a plate or from one plate to the next. Elapsed time is any log value starting `T+`. `T+ 3 h 20 min` sums its parts, and a bare `T+ 0` is 0. The units are s, sec, min, h, hr, hour(s), d, day(s), week(s), month(s) and year(s).
