@@ -93,7 +93,7 @@
       "name": "doodle-art-animation",
       "source": "./plugins/doodle-art-animation",
       "description": "Hand-inked, notebook-style explainer films drawn entirely in canvas code, from any topic, dataset or source, rendered to MP4 with synthesized sound.",
-      "version": "0.14.0",
+      "version": "0.15.0",
       "license": "MIT",
       "category": "creative",
       "tags": [

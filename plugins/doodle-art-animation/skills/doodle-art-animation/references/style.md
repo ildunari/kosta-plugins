@@ -148,7 +148,9 @@ The Slow Squeeze failed on both: subtitles printed through gauge faces, a callou
 
 `legibility_check.mjs` enforces the result on the rendered frames: it flags text whose contrast or background busyness fails, and its crops show where. A clean `text_check` is not enough, because text boxes can be clear of each other and still sit on art. Fix every `CLASH` line it prints before Gate 2.
 
-## Plate furniture (fixed positions on a 1920×1080 frame)
+## Plate furniture
+
+The first four rows are drawn by the engine in fixed places, so they are facts to design around. The last three are yours to place: they are described by where they sit relative to the scene and the HUD, not by coordinates, because the right spot depends on what the plate is drawing ("Layout: bands and clearances").
 
 | Element | Where | What it shows |
 |---|---|---|
@@ -156,6 +158,6 @@ The Slow Squeeze failed on both: subtitles printed through gauge faces, a callou
 | Journey log | x 1518–1868 (wider to the left when a row needs it), header at y 70, rows every 34 px from y 114 | `JOURNEY LOG · H₂O·01`, 2–3 rows, then a three-way STATE switch (`○ ICE ● LIQUID ○ VAPOUR`) that wraps under the STATE label when it does not fit |
 | Stage dial | Card at (45, 900, 358×138) | Ring with 12 ticks, orange progress arc, `STAGE 02 / 11`, stage name. Stages group plates: 11 stages over 15 plates. |
 | Frame counter | Baseline (1868, 1046) | `EXP 0360    F 0720` |
-| Big stat | Around x 600–720, y 200–340 | Kicker, count-up number, italic note giving the assumption |
-| Bottom card | x 490 to about 1680 (keep the counter clear), y about 866, h about 180 | Distribution bar, log ruler, budget equation |
-| Side card | About x 1260–1870, y 300–940 | `FIG. 2` panels: charts, size series, cutaways |
+| Big stat | In open paper near the top of the scene, clear of the header band and the Journey Log, and on the side of the frame the subject is not | Kicker, count-up number, italic note giving the assumption |
+| Bottom card | Along the bottom edge, between the stage dial and the frame counter, below anything the scene needs the viewer to watch | Distribution bar, log ruler, budget equation |
+| Side card | Beside the subject, below the Journey Log, on whichever side the scene leaves empty | `FIG. 2` panels: charts, size series, cutaways |
