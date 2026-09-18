@@ -306,7 +306,9 @@ for (const [k, recs] of byPlate) {
   for (const r of recs) {
     // (in place, or a moment later and nearby: a callout typing on while it follows the hero)
     const longer = recs.find(q => q.s.length > r.s.length && q.s.startsWith(r.s) && q.T >= r.T && (Math.hypot(q.ax - r.ax, q.ay - r.ay) < 12
-      || (q.T > r.T && q.T - r.T <= 3 * step + 1e-6 && Math.hypot(q.ax - r.ax, q.ay - r.ay) < 200)));
+      || (q.T > r.T && q.T - r.T <= 3 * step + 1e-6 && Math.hypot(q.ax - r.ax, q.ay - r.ay) < 200
+          // ...unless the short text is still on screen at that later moment: then it is a label of its own ('1' beside '10')
+          && !recs.some(z => z.T === q.T && z.s === r.s))));
     if (longer) continue;   // a partial: judged as the full line
     const key = `${k}|${norm(r.s)}`, L = lines.get(key) || lines.set(key, { plate: r.plate, role: r.role, via: r.via, font: r.font, text: r.s, recs: [] }).get(key);
     L.recs.push(r); if (r.s.length >= L.text.length) L.text = r.s;

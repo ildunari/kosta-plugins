@@ -70,7 +70,8 @@ try {
     let depth = 0, role = null, parent = null;
     const plates = STORY.plates.map(p => ({ start: p.start, dur: p.dur, dark: !!p.dark, pen: p.pen, hd: p.header ? p.start + headerDelay(p) : null, title: p.header ? p.header.title : null }));
     const plateAt = t => { let k = 0; plates.forEach((p, i) => { if (t >= p.start - 1e-6) k = i; }); return k; };
-    const clean = o => { try { return JSON.stringify(o || {}, (k, v) => typeof v === 'function' ? 'fn' : typeof v === 'number' ? +v.toFixed(4) : v); } catch { return '{}'; } };
+    const clean = o => { try { return JSON.stringify(o || {}, (k, v) => typeof v === 'function' ? 'fn' : typeof v === 'number' ? +v.toFixed(4)
+      : v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map(q => [q, v[q]])) : v); } catch { return '{}'; } };   // keys sorted: {f, g} and {g, f} are the same sound
     const guess = (k, t) => {                                    // an engine without AUDIO.tag: tell the layers apart by time
       if (k === 'riser') return 'riser';
       if (k === 'scratch') { const p = plates[plateAt(t + 0.36)]; if (p.hd != null && [0, 0.15, 0.7].some(d => Math.abs(t - p.hd - d) < 1e-4)) return 'header'; }
@@ -82,16 +83,21 @@ try {
         L.push({ k: prefix + k, t: +(+t).toFixed(3), tag, depth, parent, o: clean(o), seeded: !!(o && o.seed != null), plate: plateAt(+t + 1e-6) });
         const pp = parent; if (depth === 0) parent = prefix + k; depth++;
         try { return f.apply(this, arguments); } finally { depth--; parent = pp; } }; } };
+    const BED0 = typeof BED === 'object' ? { ...BED } : {}, BEDS = [];
     wrap(SFX, ''); if (typeof BED === 'object') wrap(BED, 'BED.');
     for (const k of Object.keys(TRANS_SFX)) { const f = TRANS_SFX[k];
       TRANS_SFX[k] = function (ac, o, t, d, tr) { L.push({ k: 'TRANS:' + k, t: +(+t).toFixed(3), tag: 'transition', depth: 0, parent: null, o: clean({ dur: d, dir: tr && tr.dir }), seeded: false, plate: plateAt(t + 1e-6), trans: true });
         const r0 = role, p0 = parent; role = 'transition'; parent = 'TRANS:' + k; depth++;
         try { return f.apply(this, arguments); } finally { depth--; role = r0; parent = p0; } }; }
-    const bedWrap = f => function (ac, out, t0, dur) { const r0 = role; role = 'bed'; try { return f.apply(this, arguments); } finally { role = r0; } };
+    // a plate holds the bed function it was given (BED.rain itself, or a BED.mix closure) from before the wrap above,
+    // and the built-in beds synthesize without going through SFX, so record each bed where the plate starts it
+    const bedName = new Map(typeof BED === 'object' ? Object.entries(BED0).map(([k, v]) => [v, 'BED.' + k]) : []);
+    const bedWrap = f => function (ac, out, t0, dur) { BEDS.push({ k: bedName.get(f) || f.name || 'custom bed', t: +(+t0).toFixed(3), dur: +(+dur).toFixed(2), plate: plateAt(t0 + 1e-6) });
+      const r0 = role; role = 'bed'; try { return f.apply(this, arguments); } finally { role = r0; } };
     STORY.plates.forEach(p => { if (typeof p.bed === 'function') p.bed = bedWrap(p.bed); });
     if (typeof autoBed === 'function') { const ab = autoBed; window.autoBed = p => { const b = ab(p); return b ? bedWrap(b) : b; }; }
     await renderAudio();
-    return { L, plates, varied, hasTag, title: STORY.title, total: TOTAL_T };
+    return { L, BEDS, plates, varied, hasTag, title: STORY.title, total: TOTAL_T };
   });
 } catch (e) { console.error('cue_check:', e.message); await browser.close(); process.exit(2); }
 await browser.close();
@@ -152,7 +158,8 @@ for (const s of serves) console.log(`WARN    serves: ${s.k} plays as a cue (${s.
 if (pen.length) console.log(`WARN    pen: scratch cue on a night plate (no pen there) at ${pen.slice(0, 8).map(e => fmt(e.t)).join(', ')} s`);
 const fail = failShare || failRep;
 console.log(`result: ${fail ? 'FAIL' : serves.length || pen.length ? 'WARN' : 'PASS'}`);
-if (jsonOut) fs.writeFileSync(path.resolve(jsonOut), JSON.stringify({ title: res.title, events: top, counts: Object.fromEntries(types), byTag,
+if (res.BEDS && res.BEDS.length) console.log('BEDS    ' + res.BEDS.map(b => `${b.k} ${fmt(b.t)} s (${b.plate})`).join(', '));
+if (jsonOut) fs.writeFileSync(path.resolve(jsonOut), JSON.stringify({ title: res.title, beds: res.BEDS || [], events: top, counts: Object.fromEntries(types), byTag,
   headers: Object.fromEntries(tally(headers)), pulses: Object.fromEntries(tally(pulses)), dominant: { type: domType, n: domN, of: judged.length, share, limit: domLimit },
   repeats: { total: repeats, share: repShare, groups: same }, serves, pen, beds: bedAll.length, limits: { MAX_SHARE, SLACK, MIN_DOM, MAX_SAME, MAX_REPEAT_SHARE } }, null, 1));
 process.exit(fail ? 1 : 0);

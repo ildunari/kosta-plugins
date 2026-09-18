@@ -138,6 +138,13 @@ for (const p of data) {
   p.summary = { header: p.header && p.header.num != null ? String(p.header.num) : '-', stage: p.stage ? `${p.stage.n}${p.stage.name ? ' ' + p.stage.name : ''}` : '-',
     id: [...new Set([...hid, ...pid])].join('/') || '-', elapsed: sums.join(', ') || '-' };
 }
+// both sources in film order, as one identity: a log-only plate followed by a hero-only plate must still agree
+const anyIds = [];
+for (const p of data) { const ids = [...logIds, ...heroIds].filter(x => x.plate === p.name); if (!ids.length) continue;
+  anyIds.push({ plate: p.name, first: ids[0].first, id: ids[ids.length - 1].id }); }
+for (let k = 1; k < anyIds.length; k++) if (anyIds[k].first !== anyIds[k - 1].id
+    && !fails.some(f => f.kind === 'HERO' && f.plate === anyIds[k].plate))
+  fails.push({ kind: 'HERO', plate: anyIds[k].plate, msg: `hero identity changes: ${anyIds[k - 1].id} (${anyIds[k - 1].plate}) -> ${anyIds[k].first}` });
 for (const [what, ids] of [['the log title', logIds], ['hero() label', heroIds]])
   for (let k = 1; k < ids.length; k++) if (ids[k].first !== ids[k - 1].id)
     fails.push({ kind: 'HERO', plate: ids[k].plate, msg: `hero ID in ${what} changes: ${ids[k - 1].id} (${ids[k - 1].plate}) -> ${ids[k].first}` });
