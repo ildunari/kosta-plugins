@@ -22,12 +22,14 @@ plugins/doodle-art-animation/       the plugin
   agents/script-reviewer.md         reviews the scene script and seam list before any drawing
   agents/sound-designer.md          turns a reviewed script into a sound plan and cue sheet
   agents/audio-reviewer.md          checks the rendered audio against the picture, from measurements
-  skills/doodle-qa/                 /doodle-art-animation:doodle-qa, runs every check and the reviewers
+  skills/doodle-plan/               /doodle-art-animation:doodle-plan, phases 0-Gate 1 (intake, research, script)
+  skills/doodle-build/              /doodle-art-animation:doodle-build, phases 3-5 (sound, scene lanes, assembly)
+  skills/doodle-qa/                 /doodle-art-animation:doodle-qa, Gate 2: every check and the reviewers
   skills/doodle-render/             /doodle-art-animation:doodle-render, final MP4 plus checks
   skills/doodle-art-animation/
     SKILL.md                        workflow and the most important rules (keep it under ~500 lines)
     references/                     style, motion, writing, film-grammar, animation-principles,
-                                    intake, sound, api, render, components
+                                    intake, build-lanes, sound, api, render, components
     toolkit/                        engine.js, shell.html, build.py, render.mjs,
                                     motion_check.py, speed_check.mjs, audio_check.py, text_check.mjs,
                                     smoke_test.py, story_example.js (The Long Release), story_one_drop.js,
@@ -121,6 +123,10 @@ CI: `.github/workflows/doodle-smoke.yml` runs it on ubuntu-latest for pushes to 
   in `window.__brushProbe`, an entry in `references/api.md` and a specimen in `story_brushes.js`.
 - Speed: `speed_check.mjs` reads transition and camera speed from the engine's values through `window.__seamProbe`
   and `window.__camProbe`. Its `FAST` verdict is advice (a film may choose its own pace); `SNAP` is a failure.
+- The workflow is a phase table with two gates (SKILL.md, "Phases and gates"): nothing starts before its input
+  exists, every agent guards its own preconditions, phase 4 fans out one agent per scene
+  (`references/build-lanes.md`), phase 5 renders one shared `qa/` set the reviewers reuse, and Gate 2's fix loop
+  re-runs only the checks a change affects. If you add a phase or an agent, add its row and its preconditions.
 - Stories never edit `engine.js`; they override `PAL` and add helpers. If the engine changes, re-run the example and the reel.
 
 ## Conventions
