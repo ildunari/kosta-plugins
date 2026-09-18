@@ -172,8 +172,9 @@ const C5 = {
   overlay(t) {
     withAlpha(beat(t, 1.0), () => callout(t - 1.0, { ax: 1760, ay: 690, ex: 1800, ey: 860, x2: 1850, title: 'a right-edge callout with a long title', sub: 'it should turn around instead of leaving the frame' }));
     withAlpha(beat(t, 2.2), () => callout(t - 2.2, { ax: 160, ay: 660, ex: 120, ey: 520, x2: 80, align: 'right', title: 'left-edge callout, right-aligned', sub: 'same problem on the other side' }));
-    const k = card(t - 3.0, { x: 620, y: 300, w: 560, h: 110, title: 'A VERY LONG CARD TITLE THAT MEETS ITS FIGURE LABEL', fig: 'FIG. 3 · SUPPLEMENTARY' });
-    if (k > 0) text('card content', 650, 384, { kind: 'mono', size: 22, color: PAL.inkSoft, alpha: k });
+    // a title too long for one line wraps onto a second (22 px floor), so the card is 26 px taller than a one-line card
+    const k = card(t - 3.0, { x: 620, y: 290, w: 560, h: 136, title: 'A VERY LONG CARD TITLE THAT MEETS ITS FIGURE LABEL', fig: 'FIG. 3 · SUPPLEMENTARY' });
+    if (k > 0) text('card content', 650, 400, { kind: 'mono', size: 22, color: PAL.inkSoft, alpha: k });
   },
 };
 

@@ -1324,7 +1324,16 @@ function card(t, { x, y, w, h, dark = S.dark, fig, title }) {
   else { flat(shape.rect(x + 4, y + 4, ww, h), 'rgba(40,30,20,0.12)'); ink(shape.rect(x, y, ww, h), { closed: true, w: 2, color: PAL.panelEdge, fill: PAL.panel, fillAlpha: Math.max(0.95, PAL.panelAlpha), amp: 0.6, seed: 77, double: true }); }
   let to = { kind: 'mono', size: 22, weight: 600, ls: 4, role: 'label' };
   if (title && measure(title, to) > w - 48) to = { ...to, ls: 1 };
-  if (title) text(typed(title, t - 0.45, 40), x + 24, y + 40, { ...to, color: inkOf(dark) });
+  if (title) {
+    // a title that does not fit even at the tightest tracking wraps onto more lines rather than running off the card:
+    // the floor is 22 px, so it never shrinks (a wrapped title takes 26 px more height per line; leave room for it)
+    const words = title.split(' '), lines = [];
+    for (const wd of words) { const cur = lines.length ? lines[lines.length - 1] + ' ' + wd : wd;
+      if (lines.length && measure(cur, to) > w - 48) lines.push(wd); else if (lines.length) lines[lines.length - 1] = cur; else lines.push(wd); }
+    let shown = typed(title, t - 0.45, 40).length;
+    lines.forEach((ln, i) => { const part = ln.slice(0, Math.max(0, shown)); shown -= ln.length + 1;
+      if (part) text(part, x + 24, y + 40 + i * 26, { ...to, color: inkOf(dark) }); });
+  }
   if (fig) { const fo = { kind: 'mono', size: 16, ls: 3, role: 'decor' }, clash = title && measure(title, to) + measure(fig, fo) + 72 > w;
     text(typed(fig, t - 0.45, 30), x + w - 24, clash ? y + h - 18 : y + 36, { ...fo, align: 'right', color: mutedOf(dark) }); }   // a long title pushes the figure label to the bottom corner
   return inv(0.4, 0.6, t);
@@ -2062,6 +2071,7 @@ const saltOf = s => { let h = 7; for (let i = 0; i < s.length; i++) h = Math.imu
 /** rng for one sound: mulberry seeded by opts.seed, or by (plate, time within the plate, name, repeat at that instant) */
 const sfxRng = (o, t, name) => {
   if (o && o.seed != null) return mulberry(Math.imul(o.seed | 0, 7919) ^ saltOf(name));
+  VARIED.add(name);   // a story's own effect built on sfxRng varies too: cue_check reads this set after rendering
   const ms = Math.round((t - AUDIO.t0) * 1000), key = AUDIO.plate + '|' + ms + '|' + name, k = AUDIO.seen.get(key) || 0; AUDIO.seen.set(key, k + 1);
   return mulberry((hash3(ms, AUDIO.plate + 1, k) * 4294967296 | 0) ^ saltOf(name));
 };

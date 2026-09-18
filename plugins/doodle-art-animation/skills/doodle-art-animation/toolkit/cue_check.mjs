@@ -97,7 +97,9 @@ try {
     STORY.plates.forEach(p => { if (typeof p.bed === 'function') p.bed = bedWrap(p.bed); });
     if (typeof autoBed === 'function') { const ab = autoBed; window.autoBed = p => { const b = ab(p); return b ? bedWrap(b) : b; }; }
     await renderAudio();
-    return { L, BEDS, plates, varied, hasTag, title: STORY.title, total: TOTAL_T };
+    // read the varied set after rendering: a story's own effects built on sfxRng register themselves as they play
+    const variedNow = typeof VARIED === 'object' ? [...VARIED] : varied;
+    return { L, BEDS, plates, varied: variedNow, hasTag, title: STORY.title, total: TOTAL_T };
   });
 } catch (e) { console.error('cue_check:', e.message); await browser.close(); process.exit(2); }
 await browser.close();
@@ -159,7 +161,7 @@ if (pen.length) console.log(`WARN    pen: scratch cue on a night plate (no pen t
 const fail = failShare || failRep;
 console.log(`result: ${fail ? 'FAIL' : serves.length || pen.length ? 'WARN' : 'PASS'}`);
 if (res.BEDS && res.BEDS.length) console.log('BEDS    ' + res.BEDS.map(b => `${b.k} ${fmt(b.t)} s (${b.plate})`).join(', '));
-if (jsonOut) fs.writeFileSync(path.resolve(jsonOut), JSON.stringify({ title: res.title, beds: res.BEDS || [], events: top, counts: Object.fromEntries(types), byTag,
+if (jsonOut) fs.writeFileSync(path.resolve(jsonOut), JSON.stringify({ title: res.title, bedLayers: res.BEDS || [], events: top, counts: Object.fromEntries(types), byTag,
   headers: Object.fromEntries(tally(headers)), pulses: Object.fromEntries(tally(pulses)), dominant: { type: domType, n: domN, of: judged.length, share, limit: domLimit },
   repeats: { total: repeats, share: repShare, groups: same }, serves, pen, beds: bedAll.length, limits: { MAX_SHARE, SLACK, MIN_DOM, MAX_SAME, MAX_REPEAT_SHARE } }, null, 1));
 process.exit(fail ? 1 : 0);
