@@ -59,10 +59,27 @@ Automatic fails, whatever the score:
 
 Redesign any seam with a 0, an automatic fail, or a total under 14.
 
+## Scene verdicts
+
+Each seam belongs to the scene it enters, because that plate's `enter` implements it. Give each seam a verdict in the **scene verdict** format that the build lanes and `film-reviewer` use, so the main session can merge the three reports scene by scene:
+
+```
+Scene verdict · Plate III · Leaky Vessels · seam II → III (pan, 0.9 s) · 22.4–23.3 s
+PASS | FAIL
+Evidence: qa_seam_03/sheet.jpg (frames 538–562)
+Reason:   F1: the particle jumps 40 px right on frame 552, where the pan hands off to the plate's own drawing
+Fix:      start plate III's PATH3 at the pan's end point, 40 px further left
+```
+
+A seam is FAIL on any automatic fail (F1–F8), a 0 on any rubric item, or a total under 14; otherwise PASS. **Evidence** is always an image path you looked at (a dense sequence sheet, a seam sheet, a still); a FAIL without one is not a verdict. **Reason** is one sentence, naming the fail code when there is one. **Fix** is the smallest change that makes it pass.
+
+**The checkpoints are fixed.** You give each seam one verdict on the assembled film at Gate 2. After that, a small fix to one seam is re-checked on **its own chunk**: the dense sequence of only that seam (every drawing from 0.5 s before it to 1.0 s after it, as in step 2) and `speed_check` for its line, and that seam's verdict is updated. Do not re-review every seam in the film for a change to one; when you are called back to re-check, say which chunk you looked at and leave the other verdicts standing. A change that moves plate start times (a new `dur`) shifts every later seam's frames, but not its design: re-render the chunks for the seams it touched, not the whole review.
+
 ## Report format
 
 Start with a one-line verdict for the film. Then one block per seam:
 
+- **Scene verdict:** in the format above.
 - **Seam N (type, duration):** total /20, with any automatic fail named by its code (F1–F8), and the motion_check lines for it.
 - **What happens:** one sentence describing what the viewer sees.
 - **Problems:** each with the frame numbers or image where you saw it.

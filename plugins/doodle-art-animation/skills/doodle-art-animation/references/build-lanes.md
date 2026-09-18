@@ -35,7 +35,7 @@ A lane starts with no memory of the conversation that produced the script, so it
 
 | Given | Why the lane cannot work without it |
 |---|---|
-| Its row of the scene script | Duration, world, camera, header, hero route, every beat with its start→end, journey log, stage, sound — the whole specification of the plate |
+| Its row of the scene script | Duration, world, camera, header, hero route, every beat with its start→end, journey log, stage, what visibly changes, sound — the whole specification of the plate |
 | **Both** its seams, in full | See below: each seam is written by one lane and depended on by the other |
 | The brief from intake (`brief.md`) | Length, hero, audience, tone, audio choice, ending — the decisions the plate has to be consistent with |
 | The facts it puts on screen, with sources (`facts.md`) | Numbers are researched once, in the research phase. A lane that researches its own numbers produces a film whose plates disagree with each other |
@@ -91,9 +91,31 @@ The lane reports:
 - **`node text_check.mjs probe_<n>.html`** if the plate has text, which every plate with a header has. `READ`, `EDGE` and `OVERLAP` lines are the lane's to fix before it reports.
 - **Not `speed_check`.** A probe holds one plate, and both `speed_check.mjs` and the engine skip the first plate's `enter`, so a probe reports no seams at all — a clean exit that measured nothing, which is worse than no check. Seams are measured once, on the assembled film, by the main session. A lane that wants reassurance about its own move watches it in its range sheet, drawing by drawing.
 - **Every number it put on screen, with its source**, copied from the facts it was given. If the lane changed a number, rounded one, or derived one by arithmetic, it shows the arithmetic.
+- **`node legibility_check.mjs probe_<n>.html --crops qa/plate_<n>/legibility`**, which checks what `text_check` cannot: text sitting on art it cannot be read against (`CLASH`) and story text under its size floor (`SMALL`). Fix both before reporting, with the moves in `references/style.md`, "Layout: bands and clearances".
+- **The plate's `Changes` row, seen on the sheet**: the object the script says changes, at the start and at the end of its action, with the frames where the difference shows. A pressed thing that comes out the same, or a gauge that disagrees with the press, is the lane's to fix (`references/animation-principles.md`, "Things that are acted on change").
 - **An honest note on what it could not get right**: a beat that does not read, a texture that crawls, a callout it had to move, a helper it wants shared, a place where the script asks for something the plate cannot show. This is the most valuable part of the report. A lane that reports "done, looks good" has told the main session nothing, and the problem surfaces at Gate 2 instead, where it costs a re-render.
+- **A scene verdict**, last, in the format below.
 
 A probe is not the film. Its camera has no momentum carried in from a previous plate, its entry seam has nothing real to come from, and none of its seams are measured at all. The lane's evidence says the plate works; only the assembled film says the plate fits.
+
+### The scene verdict
+
+The lane, `film-reviewer` and `seam-reviewer` all report in one format, so the main session can put the three side by side for each scene and merge them without translating:
+
+```
+Scene verdict · Plate II · The Corona · 0–10 s (probe)
+PASS | FAIL
+Evidence: qa/plate_2/range_0-10.jpg, qa/plate_2/legibility/clash_0144.jpg
+Reason:   the PEG callout's sub crosses the backbone schematic at 6.0 s (CLASH)
+Fix:      re-sequenced it to start at 7.2 s, after the schematic has faded; legibility_check now clean
+```
+
+- **PASS or FAIL.** A lane reports FAIL when something in its plate is still wrong that it could not fix without breaking the contract (a `dur` it cannot change, a helper it needs shared, a seam it cannot meet); otherwise PASS. Reporting FAIL honestly is not a lane failing; hiding it is.
+- **Evidence**: the image paths the verdict rests on — the range sheet, the crops — which the lane has looked at itself. No image, no verdict.
+- **Reason**: one sentence of what is wrong, or for a PASS, what the lane checked it against.
+- **Fix**: what the lane did, or for a FAIL, the change it needs from the main session.
+
+**The checkpoints are fixed, and there are three.** A lane gives its scene a verdict when it finishes. Gate 2 gives each scene one verdict on the assembled film (`film-reviewer` and `seam-reviewer`). After that, a small fix is re-checked on **its own chunk**: a range sheet of only that scene in the assembled film (`node render.mjs film.html --sheet-range <start>-<end> --fps 6 --dir qa_fix/plate_<n>`, in film seconds now, not the probe's), plus the one check the fix touched, and that scene's verdict is updated. A one-scene fix does not buy a fresh review of the whole film; micro-checking every frame after every edit is what makes a build crawl. The exceptions are changes that reach beyond their scene: a new `dur` shifts every later seam, a changed helper is drawn in every plate that uses it, and those need the scenes they touch re-checked.
 
 ## How drift is prevented
 
