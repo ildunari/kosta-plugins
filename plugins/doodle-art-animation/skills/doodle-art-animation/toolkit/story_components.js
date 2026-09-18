@@ -105,7 +105,7 @@ const C2 = {
   },
   overlay(t) {
     withAlpha(beat(t, 1.4, 5.6), () => stat(t - 1.4, { x: 1820, y: 400, align: 'right', kicker: 'FLOW RATE', value: u => '≈ ' + countUp(3.4, u, 1.3, 1) + ' m³/s', note: 'right-aligned near the edge' }));
-    const k = card(t - 3.0, { x: 420, y: 860, w: 1460, h: 170, title: 'PARTICLE SIZE IN THE RIVER', fig: 'LOG SCALE' });
+    const k = card(t - 3.0, { x: 420, y: 830, w: 1460, h: 200, title: 'PARTICLE SIZE IN THE RIVER', fig: 'LOG SCALE' });   // room for two rows of 22 px marks
     if (k > 0) logRuler(t - 3.4, { x: 460, y: 960, w: 1360, min: 1e-7, max: 1, ticks: [[1e-6, '1 µm'], [1e-4, '100 µm'], [1e-2, '1 cm'], [1, '1 m']],
       marks: [{ v: 2e-6, label: 'CLAY' }, { v: 3e-4, label: 'SAND', color: PAL.accent }, { v: 0.05, label: 'PEBBLE' }, { v: 0.6, label: 'BOULDER, NEAR THE END', row: 1 }] });
   },
@@ -173,7 +173,7 @@ const C5 = {
     withAlpha(beat(t, 1.0), () => callout(t - 1.0, { ax: 1760, ay: 690, ex: 1800, ey: 860, x2: 1850, title: 'a right-edge callout with a long title', sub: 'it should turn around instead of leaving the frame' }));
     withAlpha(beat(t, 2.2), () => callout(t - 2.2, { ax: 160, ay: 660, ex: 120, ey: 520, x2: 80, align: 'right', title: 'left-edge callout, right-aligned', sub: 'same problem on the other side' }));
     const k = card(t - 3.0, { x: 620, y: 300, w: 560, h: 110, title: 'A VERY LONG CARD TITLE THAT MEETS ITS FIGURE LABEL', fig: 'FIG. 3 · SUPPLEMENTARY' });
-    if (k > 0) text('card content', 650, 380, { kind: 'mono', size: 16, color: PAL.inkSoft, alpha: k });
+    if (k > 0) text('card content', 650, 384, { kind: 'mono', size: 22, color: PAL.inkSoft, alpha: k });
   },
 };
 

@@ -6,7 +6,7 @@ const DUR = 6;
 /** draw-on for the k-th component on a plate: staggered, eased */
 const DR = (t, k) => E.inOut2(inv(0.35 + k * 0.28, 1.9 + k * 0.28, t));
 /** a FIG caption that types on after its component */
-const FIG = (t, k, name, x, y, dark = false, o = {}) => KIT.caption(t - 1.2 - k * 0.28, `FIG. ${k + 1}  ·  ${name}`, x, y, { dark, ...o });
+const FIG = (t, k, name, x, y, dark = false, o = {}) => KIT.caption(t - 1.2 - k * 0.28, `FIG. ${k + 1}  ·  ${name}`, x, y, { dark, size: 15, ls: 2, role: 'decor', ...o });   // specimen FIG. labels: ornament (role decor)
 const header = (num, title, sub) => ({ num, title, sub });
 /** a slow hand-held float, so the specimen sheet never sits dead still */
 const FLOAT = k => t => ({ x: W / 2, y: H / 2, s: 1.02 + 0.02 * E.inOutSine(clamp(t / DUR)), dx: 24 * Math.sin(t * 1.0 + k), dy: 14 * Math.sin(t * 0.8 + k * 2) });
@@ -30,12 +30,12 @@ const TECH = {
   draw(t) {
     KIT.tech.browser(t, { x: 70, y: 290, w: 620, h: 560, draw: DR(t, 0), seed: 11 });
     KIT.tech.terminal(t, { x: 760, y: 70, w: 520, h: 320, draw: DR(t, 1), seed: 12, t0: 1.2,
-      lines: ['$ npm run build', '  bundling 6 kits…', '✓ gallery.html  412 KB', '$ node render.mjs gallery.html --sheet 1', '  wrote 36 stills', '$ git status'] });
-    KIT.tech.code(t, { x: 760, y: 470, w: 520, size: 18, draw: DR(t, 2), seed: 13, t0: 1.4 });
+      lines: ['$ npm run build', '  bundling 6 kits…', '✓ gallery.html  412 KB', '$ node render.mjs --sheet 1', '  wrote 36 stills', '$ git status'] });
+    KIT.tech.code(t, { x: 760, y: 470, w: 520, draw: DR(t, 2), seed: 13, t0: 1.4 });
     KIT.tech.circuit(t, { x: 1340, y: 70, w: 490, h: 330, draw: DR(t, 3), seed: 14 });
     KIT.tech.rack(t, { x: 1600, y: 925, s: 1.05, units: 8, draw: DR(t, 4), seed: 15 });
     KIT.tech.cursor(t, { x: 0, y: 0, path: [[165, 555], [380, 700], [560, 440], [240, 700]], period: 1.2, draw: DR(t, 5), seed: 16 });
-    [['tech.browser  + tech.cursor', 70, 888], ['tech.terminal', 760, 426], ['tech.code', 760, 790], ['tech.circuit', 1340, 438], ['tech.rack', 1480, 972]]
+    [['tech.browser  + tech.cursor', 70, 888], ['tech.terminal', 760, 426], ['tech.code', 760, 850], ['tech.circuit', 1340, 438], ['tech.rack', 1480, 972]]
       .forEach(([s, x, y], k) => FIG(t, k, s, x, y));
   },
 };
@@ -48,8 +48,8 @@ const AI = {
     KIT.ai.agent(t, { x: 230, y: 640, R: 290, tools: ['search', 'code', 'files', { name: 'db', icon: 'db' }], draw: DR(t, 1), seed: 22 });
     KIT.ai.chat(t, { x: 780, y: 500, w: 500, draw: DR(t, 2), seed: 23, t0: 1.2 });
     KIT.ai.tokens(t, { x: 1380, y: 100, w: 430, draw: DR(t, 3), seed: 24, t0: 1.4 });
-    KIT.ai.attention(t, { x: 1350, y: 760, w: 450, words: ['the', 'agent', 'read', 'it', 'then', 'wrote'], draw: DR(t, 4), seed: 25 });
-    [['ai.network', 800, 460], ['ai.agent', 70, 900], ['ai.chat', 780, 960], ['ai.tokens', 1380, 330], ['ai.attention', 1350, 870], ['ai.motes  (the backdrop)', 70, 300]]
+    KIT.ai.attention(t, { x: 1290, y: 760, w: 520, words: ['the', 'agent', 'read', 'it', 'then', 'wrote'], draw: DR(t, 4), seed: 25 });
+    [['ai.network', 800, 460], ['ai.agent', 70, 900], ['ai.chat', 780, 960], ['ai.tokens', 1380, 330], ['ai.attention', 1310, 870], ['ai.motes  (the backdrop)', 70, 300]]
       .forEach(([s, x, y], k) => FIG(t, k, s, x, y, true));
   },
 };

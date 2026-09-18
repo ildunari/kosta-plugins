@@ -212,7 +212,7 @@ const P3 = {
     ladybug(bx, by, t, { s: 0.95, hd: lerp(-0.25, -0.1, land), open: 1 - E.inOut3(land) });
   },
   overlay(t) {
-    withAlpha(beat(t, 0.9, 3.2), () => stat(t - 0.9, { x: 480, y: 330, kicker: 'A LADYBIRD EATS, PER DAY', value: u => 'up to ≈ ' + countUp(50, u, 1.0), note: 'aphids, as an adult (illustrative)' }));
+    withAlpha(beat(t, 0.9, 3.2), () => stat(t - 0.9, { x: 480, y: 330, kicker: 'AN ADULT LADYBIRD EATS, PER DAY', value: u => 'up to ≈ ' + countUp(50, u, 1.0) + ' aphids' }));   // no note: a 3.3 s plate has no time to read one
   },
 };
 /* ---------- plate IV · the notebook: a pencil sketch of the same ladybug, drawn where the real one sat ---------- */
@@ -247,7 +247,7 @@ const P5 = {
     ladybug(960, 420, t, { s: 0.7, hd: -Math.PI / 2 + 0.2 * Math.sin(t), walk: 1 });
     const q = 'From a pencil to a ladybug, and back.', qo = { kind: 'display', size: 52, italic: true, color: PAL.nightInk, cps: 24 };
     dropText(q, 960 - measure(q, qo) / 2, 640, t - 0.6, qo);
-    const col = 'A SEAM DESIGN EXAMPLE  ·  DRAWN IN CODE', co = { kind: 'mono', size: 18, ls: 6, color: '#9fa0c8' };
+    const col = 'A SEAM DESIGN EXAMPLE  ·  DRAWN IN CODE', co = { kind: 'mono', size: 22, ls: 5, color: '#a9aacb' };
     text(typed(col, t - 2.0, 60), 960 - measure(col, co) / 2, 720, co);
   },
 };

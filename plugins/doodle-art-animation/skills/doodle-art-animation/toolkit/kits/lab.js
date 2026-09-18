@@ -45,8 +45,8 @@ KIT.lab = (() => {
         pen(G.hl, { w: K.lw(o, 3.2), color: '#ffffff', alpha: 0.85, taper: 0.4, seed: seed + 4 });           // the highlight follows each glass's own wall
         if (G.ticks) [0.25, 0.5, 0.75].forEach((v, i) => { const y = bottom - full * v;
           ink([[G.half - 22, y], [G.half - 6, y]], { color: ic, w: K.lw(o, 1.4), amp: 0.2, seed: seed + 5 + i });
-          text(String((i + 1) * 100), G.half - 26, y + 4, { kind: 'mono', size: 11, align: 'right', color: o.dark ? '#b9b9d6' : PAL.inkSoft }); });
-        if (o.label) text(o.label, 0, bottom - full * 0.2, { kind: 'mono', size: 13, weight: 600, ls: 2, align: 'center', color: ic });
+          text(String((i + 1) * 100), G.half - 26, y + 4, { kind: 'mono', size: 11, align: 'right', color: o.dark ? '#b9b9d6' : PAL.inkSoft, role: 'decor' }); });   // graduations on the glass
+        if (o.label) text(o.label, 0, bottom - full * 0.2, { kind: 'mono', size: 22, weight: 600, ls: 1, align: 'center', color: ic });
       });
       if (o.steam && draw >= 1) for (let k = 0; k < 3; k++) {
         const u = (t * 0.45 + k / 3) % 1, pts = Array.from({ length: 14 }, (_, i) => { const v = i / 13; return [(k - 1) * 16 + 7 * Math.sin(v * 7 + t * 2 + k), G.top - 14 - v * 90]; });
@@ -139,7 +139,7 @@ KIT.lab = (() => {
         ink(d, { closed: true, w: K.lw(o, 2.2), color: dark && p.el !== 'H' ? PAL.nightInk : PAL.ink, fill, amp: 0.4, seed: seed + 50 + it.i });
         shade(d, { color: p.el === 'H' ? PAL.muted : '#1b1518', alpha: p.el === 'C' ? 0.25 : 0.5, gap: 3.5, len: 6, seed: seed + 60 + it.i });
         pen(shape.arc(p.x, p.y, R * 0.68, Math.PI * 1.1, Math.PI * 1.45, 8), { w: K.lw(o, 2.6), color: '#ffffff', alpha: p.el === 'H' ? 0.9 : 0.75, taper: 0.4, seed: seed + 70 + it.i });
-        if (o.labels && p.el !== 'H' && R > 18) text(p.el, p.x, p.y + 6, { kind: 'mono', size: Math.round(R * 0.6), weight: 600, align: 'center', color: p.el === 'C' ? PAL.paper : '#fff8ee' });
+        if (o.labels && p.el !== 'H' && R > 18) text(p.el, p.x, p.y + 6, { kind: 'mono', size: Math.round(R * 0.6), weight: 600, align: 'center', color: p.el === 'C' ? PAL.paper : '#fff8ee', role: 'decor' });
       });
     });
   }

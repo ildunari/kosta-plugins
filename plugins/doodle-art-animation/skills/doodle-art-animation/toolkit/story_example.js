@@ -164,9 +164,9 @@ const P0 = {
   overlay(t) {
     const fl = E.out3(inv(0, 0.9, t)), c = { w: 1.2, color: PAL.peri, amp: 0, alpha: 0.55 };
     ink([[34, 34], [lerp(34, W - 34, fl), 34]], c); ink([[W - 34, 34], [W - 34, lerp(34, H - 34, fl)]], c); ink([[34, 34], [34, lerp(34, H - 34, fl)]], c);
-    text(typed('Ø 150 nm', t - 2.0, 20), TIP[0] - 96, 500, { kind: 'mono', size: 18, align: 'right', color: PAL.peri });
+    text(typed('Ø 150 nm', t - 2.0, 20), TIP[0] - 96, 500, { kind: 'mono', size: 22, align: 'right', color: legible(PAL.peri, false) });
     withAlpha(1 - inv(5.95, 6.45, t), () => {                                  // the title clears just before the dive
-      text(typed('A FIELD STUDY IN 4 PLATES', t - 0.5, 34), 922, 392, { kind: 'mono', size: 21, ls: 9, color: PAL.inkSoft });
+      text(typed('A FIELD STUDY IN 4 PLATES', t - 0.5, 34), 922, 392, { kind: 'mono', size: 22, ls: 8, color: PAL.inkSoft });
       dropText('The Long Release', 914, 508, t - 0.95, { kind: 'display', size: 112, weight: 500, cps: 13 });
       const ul = E.out3(inv(2.0, 2.8, t));
       if (ul > 0) { ink([[918, 548], [lerp(918, 1800, ul), 548]], { w: 1.6, color: PAL.peri, amp: 0 });
@@ -225,11 +225,11 @@ const P1 = {
     const cp = withCard(t, 6.0);
     if (cp) logRuler(t - 6.4, { x: 540, y: 1000, w: 1060, min: 1e-8, max: 1e-3,
       ticks: [[1e-8, '10 nm'], [1e-7, '100 nm'], [1e-6, '1 µm'], [1e-5, '10 µm'], [1e-4, '100 µm'], [1e-3, '1 mm']],
-      marks: [{ v: 1.5e-7, label: 'NP·01 · 150 nm', color: PAL.accent }, { v: 1e-6, label: 'bacterium · ~1 µm', row: 1 },
-        { v: 7.5e-6, label: 'red cell · 7.5 µm' }, { v: 7e-5, label: 'hair · ~70 µm', row: 1 }] });
+      marks: [{ v: 1.5e-7, label: 'NP·01 150 nm', color: PAL.accent }, { v: 1e-6, label: 'bacterium', row: 1 },   // rows chosen so no stem crosses a 22 px label
+        { v: 7.5e-6, label: 'red cell · 7.5 µm', row: 1 }, { v: 7e-5, label: 'hair · ~70 µm' }] });
   },
 };
-const withCard = (t, t0) => card(t - t0, { x: 490, y: 902, w: 1180, h: 142, title: 'SIZE LADDER · LOG SCALE', fig: 'FIG. 1' }) > 0;
+const withCard = (t, t0) => card(t - t0, { x: 490, y: 866, w: 1180, h: 180, title: 'SIZE LADDER · LOG SCALE', fig: 'FIG. 1' }) > 0;   // tall enough for two rows of 22 px marks
 
 /* ---------- PLATE II · the corona: a slow push and turn while the protein coat builds ---------- */
 const C2 = [960, 600], R2 = 200;
@@ -265,15 +265,16 @@ const P2 = {
   },
   overlay(t) {
     withAlpha(beat(t, 1.2, 9.6), () => { const lt = t - 1.2;                  // backbone schematic, left
-      text(typed('PLGA  ·  50 : 50', lt, 30), 250, 430, { kind: 'mono', size: 18, ls: 5, align: 'center', color: '#b9b9d6' });
+      backing(60, 404, 440, 630, { dark: true, alpha: clamp(lt * 4), seed: 31, pad: 12 });   // on a patch of night paper, so drifting proteins never pass under its words
+      text(typed('PLGA  ·  50 : 50', lt, 30), 250, 430, { kind: 'mono', size: 22, ls: 4, align: 'center', color: '#b9b9d6' });
       const beads = Array.from({ length: 6 }, (_, i) => [130 + i * 48, 520 + (i % 2 ? 18 : -18) + 3 * Math.sin(t * 1.4 + i)]);
       ink(beads, { w: 2, color: '#b9b9d6', amp: 0, draw: E.out3(clamp(lt / 0.9)) });
       beads.forEach(([x, y], i) => { const s = E.outBack(clamp((lt - i * 0.12) * 4)); if (s <= 0) return;
         ink(shape.circle(x, y, 15 * s, 24), { closed: true, w: 2, color: '#f0eef8', fill: [0, 1, 1, 0, 1, 0][i] ? PAL.pink : PAL.drug, amp: 0.3, seed: 70 + i });   // a random-ish copolymer, not strictly alternating
         if (i % 2 === 0) ink([[x, y - 15 * s], [x - 6, y - 32 * s]], { w: 2, color: '#f0eef8', amp: 0 });
         if (i < 5) { ctx.beginPath(); ctx.arc((x + beads[i + 1][0]) / 2, (y + beads[i + 1][1]) / 2, 3.5 * s, 0, TAU); ctx.fillStyle = PAL.accent; ctx.fill(); } });
-      text(typed('lactide  ·  glycolide', lt - 1.0, 30), 250, 580, { kind: 'mono', size: 15, align: 'center', color: PAL.nightMuted });
-      text(typed('schematic · ester bonds hold it together', lt - 1.4, 30), 250, 616, { kind: 'display', size: 22, italic: true, align: 'center', color: '#9d9dbd' }); });
+      text(typed('lactide  ·  glycolide', lt - 1.0, 30), 250, 584, { kind: 'mono', size: 22, align: 'center', color: PAL.nightLabel });
+      text(typed('schematic · ester bonds hold it together', lt - 1.4, 30), 250, 622, { kind: 'display', size: 24, italic: true, align: 'center', color: '#a9aacb' }); });
     withAlpha(beat(t, 1.5, 7.2), () => stat(t - 1.5, { x: 1330, y: 580, kicker: 'PLASMA PROTEIN', value: u => '≈ ' + countUp(70, u, 1.2) + ' g per litre', note: 'a coat forms in under a minute', dark: true, size: 56 }));
     const [sx, sy] = edgeII(0.5, 22, t);
     withAlpha(beat(t, 3.8, 9.9), () => callout(t - 3.8, { ax: sx, ay: sy, ex: 1270, ey: 800, x2: 1330, title: 'protein corona', sub: 'the body now sees the coat, not the particle', dark: true }));
@@ -282,7 +283,7 @@ const P2 = {
     const sb = E.out3(inv(0.8, 1.4, t));
     ink([[1627, 1000], [lerp(1627, 1760, sb), 1000]], { w: 2, color: PAL.nightInk, amp: 0 });
     if (sb >= 1) { ink([[1627, 992], [1627, 1008]], { w: 2, color: PAL.nightInk, amp: 0 }); ink([[1760, 992], [1760, 1008]], { w: 2, color: PAL.nightInk, amp: 0 });
-      text(`${Math.round(50 / camII(t).s)} nm`, 1693, 985, { kind: 'mono', size: 15, align: 'center', color: PAL.nightInk }); }   // the scale bar follows the zoom
+      text(`${Math.round(50 / camII(t).s)} nm`, 1693, 982, { kind: 'mono', size: 22, align: 'center', color: PAL.nightInk }); }   // the scale bar follows the zoom
   },
 };
 
@@ -337,8 +338,8 @@ const P3 = {
     }
     ink([[960, 250], [960, 900]], { w: 1.6, color: PAL.peri, amp: 0, dash: [10, 8], alpha: E.out3(inv(0.3, 1, t)) });
     withAlpha(inv(7.2, 8.2, t), () => {                                         // side labels only once the wide view is back
-      text(typed('HEALTHY', t - 7.2, 20), 930, 322, { kind: 'mono', size: 17, ls: 6, align: 'right', color: PAL.muted });
-      text(typed('TUMOUR', t - 7.2, 20), 990, 322, { kind: 'mono', size: 17, ls: 6, color: PAL.muted }); });
+      screenText(typed('HEALTHY', t - 7.2, 20), 930, 322, { kind: 'mono', size: 22, ls: 5, align: 'right', color: PAL.label });   // scene labels: 22 px on screen under the pull-back
+      screenText(typed('TUMOUR', t - 7.2, 20), 990, 322, { kind: 'mono', size: 22, ls: 5, color: PAL.label }); });
     const lp = E.out3(inv(1.2, 2.2, t));
     if (lp > 0) { const tube = [[430, 918], [lerp(430, 920, lp), 918], [lerp(430, 920, lp), 958], [430, 958]];
       ink(tube, { closed: true, w: 2.4, fill: '#e7eef0', seed: 88 });
@@ -352,9 +353,9 @@ const P3 = {
     const [jx, jy] = at([760, 505]);                                           // a junction the particle passes while the label is up
     withAlpha(beat(t, 1.4, 6.7), () => callout(t - 1.4, { ax: jx, ay: jy, ex: 520, ey: 760, x2: 580, title: 'tight junctions', sub: 'healthy walls leave only tiny clefts' }));   // the label stays put; only its leader follows the camera
     const [gx, gy] = at([1282, 505]);
-    withAlpha(beat(t, 5.2, 12.6), () => callout(t - 5.2, { ax: gx, ay: gy, ex: 1380, ey: 240, x2: 1430, title: 'EPR effect', sub: 'leaky walls, poor drainage · clearest in mice' }));
+    withAlpha(beat(t, 5.2, 12.6), () => callout(t - 5.2, { ax: gx, ay: gy, ex: 1220, ey: 250, x2: 1280, title: 'EPR effect', sub: 'leaky walls, poor drainage · clearest in mice' }));
     withAlpha(beat(t, 8.3, 12.6), () => { const [lx, ly] = at([432, 1045]);   // once the wide view is back; below the cells
-      text(typed('lymph drains fluid away', t - 8.3, 30), lx, ly, { kind: 'mono', size: 16, color: PAL.inkSoft });
+      text(typed('lymph drains fluid away', t - 8.3, 30), lx, ly, { kind: 'mono', size: 22, color: PAL.inkSoft });
       text(typed('no drainage: particles stay put', t - 8.6, 30), at([1000, 1045])[0], ly, { kind: 'display', size: 24, italic: true, color: PAL.inkSoft }); });
   },
 };
@@ -407,19 +408,20 @@ const P4 = {
     const [hx, hy] = at(-0.7);
     withAlpha(beat(t, 2.2, 7.6), () => callout(t - 2.2, { ax: hx, ay: hy, ex: 930, ey: 290, x2: 990, title: 'ester hydrolysis', sub: 'water splits the polyester backbone', dark: true }));
     const [dx, dy] = at(0.95);
-    withAlpha(beat(t, 6.6, 11.9), () => callout(t - 6.6, { ax: dx, ay: dy, ex: 870, ey: 895, x2: 930, title: 'drug diffuses out', sub: 'slowly, over days to weeks', dark: true }));
-    const cp = card(t - 1.7, { x: 1262, y: 380, w: 608, h: 560, dark: true, title: 'CUMULATIVE RELEASE', fig: 'FIG. 2' });
+    withAlpha(beat(t, 6.6, 11.9), () => callout(t - 6.6, { ax: dx, ay: dy, ex: 840, ey: 895, x2: 900, title: 'drug diffuses out', sub: 'slowly, over days to weeks', dark: true }));
+    const cp = card(t - 1.7, { x: 1262, y: 360, w: 608, h: 600, dark: true, title: 'CUMULATIVE RELEASE', fig: 'FIG. 2' });
     if (cp > 0) {
       const draw = inv(2.0, 11.5, t), day = lerp(0, 28, draw);
       const pts = Array.from({ length: 113 }, (_, i) => [i / 4, rel(i / 4)]).filter(([d]) => d <= Math.max(day, 0.01));
-      const g = lineChart(t - 2.0, { x: 1340, y: 470, w: 480, h: 340, xr: [0, 28], yr: [0, 100], xticks: [0, 7, 14, 21, 28], yticks: [0, 25, 50, 75, 100], xlab: 'DAYS', ylab: '% OF DRUG RELEASED', dark: true,
+      const g = lineChart(t - 2.0, { x: 1350, y: 462, w: 470, h: 318, xr: [0, 28], yr: [0, 100], xticks: [0, 7, 14, 21, 28], yticks: [0, 25, 50, 75, 100], xlab: 'DAYS', ylab: '% OF DRUG RELEASED', dark: true,
         series: [{ pts: pts.length > 1 ? pts : [[0, 0], [0.01, 0]], color: PAL.accent, draw: 1, w: 3.4 }] });
       const [ex, ey] = [g.X(day), g.Y(rel(day))];
       if (draw > 0) { ctx.beginPath(); ctx.arc(ex, ey, 7, 0, TAU); ctx.fillStyle = PAL.nightInk; ctx.fill();
-        text(`${Math.round(rel(day))}%`, ex + 12, ey - 12, { kind: 'mono', size: 16, weight: 600, color: PAL.nightInk }); }
+        text(`${Math.round(rel(day))}%`, ex + 12, ey - 12, { kind: 'mono', size: 22, weight: 600, color: PAL.nightInk }); }
       if (day > 2) text(typed('burst', (day - 2) / 3, 20), g.X(1.5), g.Y(30), { kind: 'display', size: 24, italic: true, color: PAL.gold });
       if (day > 13) text(typed('sustained', (day - 13) / 3, 20), g.X(15), g.Y(56), { kind: 'display', size: 24, italic: true, color: PAL.gold });
-      text(typed('illustrative profile · shape depends on Mw, LA:GA, size', t - 3.2, 40), 1286, 918, { kind: 'mono', size: 13, color: PAL.nightMuted });
+      text(typed('illustrative profile ·', t - 3.2, 40), 1286, 892, { kind: 'mono', size: 22, color: PAL.nightLabel });   // a caveat is read, so it gets label size
+      text(typed('shape depends on Mw, LA:GA, size', t - 3.8, 40), 1286, 924, { kind: 'mono', size: 22, color: PAL.nightLabel });
     }
   },
 };
@@ -468,7 +470,7 @@ const P5 = {
       ink(shape.circle(x, y, 6, 16), { closed: true, w: 1.6, color: g > 0 ? PAL.accent : PAL.peri, fill: g > 0 ? PAL.accent : PAL.night, amp: 0, alpha: o });
       if (g > 0 && g < 1) ink(shape.circle(x, y, 6 + 22 * E.out3(g), 24), { closed: true, w: 1.6, color: PAL.accent, amp: 0, alpha: 1 - g });
       const nx = cx + Math.cos(an) * 131, ny = cy + Math.sin(an) * 131, s = E.outBack(g);
-      if (s > 0) { ctx.save(); ctx.translate(nx, ny); ctx.scale(s, s); text(ROMAN(k + 1), 0, 0, { kind: 'mono', size: 15, weight: 600, align: 'center', base: 'middle', color: PAL.nightInk, alpha: clamp(g * 3) }); ctx.restore(); } });
+      if (s > 0) { ctx.save(); ctx.translate(nx, ny); ctx.scale(s, s); text(ROMAN(k + 1), 0, 0, { kind: 'mono', size: 15, weight: 600, align: 'center', base: 'middle', color: PAL.nightInk, alpha: clamp(g * 3), role: 'decor' }); ctx.restore(); } });
     if (u > 0 && t < LOOP5[1] + 0.3) { const mx = cx + Math.cos(am) * LOOPR, my = cy + Math.sin(am) * LOOPR, fade = 1 - inv(LOOP5[1], LOOP5[1] + 0.3, t);
       for (let j = 1; j <= 5; j++) { const aj = am - j * 0.05 * Math.min(1, u * 8); ctx.beginPath(); ctx.arc(cx + Math.cos(aj) * LOOPR, cy + Math.sin(aj) * LOOPR, 6 - j * 0.8, 0, TAU); ctx.fillStyle = `rgba(216,100,58,${(0.5 - j * 0.08) * fade})`; ctx.fill(); }
       ink(shape.circle(mx, my, 8, 16), { closed: true, w: 1.6, color: '#f6e7dc', fill: PAL.accent, amp: 0, alpha: fade }); }
@@ -490,13 +492,14 @@ const P5 = {
     const cx = 960, q = 'Every dose is a slow journey.', qo = { kind: 'display', size: 60, italic: true, color: PAL.nightInk, cps: 20 };
     dropText(q, cx - measure(q, qo) / 2, 650, t - 1.5, qo);
     const rl = E.out3(inv(2.8, 3.6, t)); if (rl > 0) ink([[cx - 320 * rl, 690], [cx + 320 * rl, 690]], { w: 1.2, color: PAL.peri, amp: 0, alpha: 0.7 });
-    const col = `THE LONG RELEASE  ·  4 PLATES  ·  ${fmt(TOTAL_F)} FRAMES  ·  DRAWN IN CODE`, co = { kind: 'mono', size: 20, ls: 6, color: '#9fa0c8' };
+    backing(340, 712, 1580, 1016, { dark: true, alpha: clamp((t - 2.4) * 3), seed: 51, pad: 12, feather: 24 });   // the drifting dust never crosses the credits
+    const col = `THE LONG RELEASE  ·  4 PLATES  ·  ${fmt(TOTAL_F)} FRAMES  ·  DRAWN IN CODE`, co = { kind: 'mono', size: 22, ls: 5, color: '#a9aacb' };
     text(typed(col, t - 2.5, 60), cx - measure(col, co) / 2, 740, co);
-    const src = 'NOTES  ·  VALUES ARE ROUNDED AND ILLUSTRATIVE  ·  EPR IS VARIABLE IN PATIENTS  ·  NOT A SPECIFIC FORMULATION', so = { kind: 'mono', size: 15, ls: 5, color: PAL.nightMuted };
-    text(typed(src, t - 2.9, 60), cx - measure(src, so) / 2, 930, so);
-    const refs = ['SOURCES  ·  PROTEIN CORONA: TENZER ET AL., NAT. NANOTECHNOL. 2013  ·  TUMOUR PORES: HOBBS ET AL., PNAS 1998',
-      'TUMOUR DELIVERY: WILHELM ET AL., NAT. REV. MATER. 2016  ·  PLASMA PROTEIN: CLINICAL REFERENCE RANGE'], ro = { kind: 'mono', size: 14, ls: 3, color: PAL.nightMuted };
-    refs.forEach((l, k) => text(typed(l, t - 3.7 - k * 0.5, 70), cx - measure(l, ro) / 2, 966 + k * 26, ro));
+    // notes and sources at label size, one short line each, so every line gets its own reading time
+    const notes = ['NOTES  ·  VALUES ARE ROUNDED AND ILLUSTRATIVE', 'EPR IS VARIABLE IN PATIENTS  ·  NOT A SPECIFIC FORMULATION',
+      'SOURCES  ·  PROTEIN CORONA: TENZER ET AL., NAT. NANOTECHNOL. 2013', 'TUMOUR PORES: HOBBS ET AL., PNAS 1998',
+      'TUMOUR DELIVERY: WILHELM ET AL., NAT. REV. MATER. 2016', 'PLASMA PROTEIN: CLINICAL REFERENCE RANGE'], so = { kind: 'mono', size: 22, ls: 0, color: '#8a8bb0' };   // quieter than the colophon, still > 5:1
+    notes.forEach((l, k) => text(typed(l, t - 2.9 - k * 0.15, 90), cx - measure(l, so) / 2, 860 + k * 31, so));
   },
 };
 
