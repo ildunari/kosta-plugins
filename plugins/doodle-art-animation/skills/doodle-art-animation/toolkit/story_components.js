@@ -160,7 +160,7 @@ const C4 = {
 const C5 = {
   dur: 6.5, dark: false, enter: { type: 'page' },
   header: { num: 5, title: 'Edges', sub: 'labels near the frame must stay inside it' }, stage: { n: 6, name: 'EDGES' },
-  hero: t => ({ x: 1760, y: 640 + 10 * Math.sin(t * 2), label: 'EDGE·PROBE·LONG', r: 44 }),
+  hero: t => ({ x: 1760, y: 640 + 10 * Math.sin(t * 2), label: HERO, r: 44 }),   // the same probe: its tag rides the right edge
   cues: [[1.2, 'pop'], [2.4, 'pop']],
   draw(t) {
     ground(t, { y: 780, seed: 23 });

@@ -394,7 +394,8 @@ NEW_SFX = ['crunch', 'creak', 'pump', 'relay', 'hiss', 'plop', 'slosh', 'shaker'
 
 if want('V1'):
     check('V1', 'toolkit/legibility_check.mjs exists', os.path.isfile(os.path.join(TK, 'legibility_check.mjs')))
-    check('V1', 'fixture story_clash.js exists', os.path.isfile(os.path.join(FIX, 'story_clash.js')))
+    for fx in ('story_clash.js', 'story_legmiss.js'):
+        check('V1', f'fixture {fx} exists', os.path.isfile(os.path.join(FIX, fx)))
 if want('V2'):
     fl = section(STYLE, r'^## (Text size|Legibility|Text floors)')
     check('V2', 'style.md states the text floors and why', bool(fl) and all(n in fl for n in ('28', '22', '18', '4.5')),
@@ -440,7 +441,8 @@ if want('V7'):
     check('V7', 'a small fix is re-checked on its own chunk', all(re.search(r'(its own chunk|only that (scene|plate|chunk))', t, re.I) for t in fmt.values()))
 if want('V8'):
     check('V8', 'toolkit/story_check.mjs exists', os.path.isfile(os.path.join(TK, 'story_check.mjs')))
-    check('V8', 'fixture story_drift.js exists', os.path.isfile(os.path.join(FIX, 'story_drift.js')))
+    for fx in ('story_drift.js', 'story_drift2.js'):
+        check('V8', f'fixture {fx} exists', os.path.isfile(os.path.join(FIX, fx)))
 
 if want('REL'):
     pj = json.loads(read(os.path.join(PLUG, '.claude-plugin', 'plugin.json')) or '{}')
@@ -501,8 +503,8 @@ if a.full:
                 rc, out = run(['node', 'speed_check.mjs', h], cwd=work)
                 check('L3', 'speed_check fails the snap fixture with SNAP', rc == 1 and 'SNAP' in out, f'rc={rc} {out[-300:]}')
 
-    def gate(item, tool, fixture=None, word=None):
-        """a tool must pass every bundled story, and fail its fixture"""
+    def gate(item, tool, fixtures=(), word=None):
+        """a tool must pass every bundled story, and fail every one of its fixtures"""
         if not os.path.isfile(os.path.join(work, tool)):
             skip(item, f'{tool} runs', f'{tool} missing'); return
         bundled = sorted(os.path.basename(p) for p in glob.glob(os.path.join(TK, 'story*.js')))
@@ -510,15 +512,17 @@ if a.full:
             h = build(story)
             rc, out = run(['node', tool, h], cwd=work, timeout=3600) if h else (9, 'build failed')
             check(item, f'{tool} passes {story}', rc == 0, out[-400:])
-        if fixture:
+        for fixture in fixtures:
             h = build(fixture)
             if not h: check(item, f'{fixture} builds', False, f'tests/doodle-art-animation/fixtures/{fixture} missing or broken')
             else:
                 rc, out = run(['node', tool, h], cwd=work, timeout=3600)
                 check(item, f'{tool} fails {fixture}', rc == 1 and (not word or word in out), f'rc={rc} {out[-300:]}')
-    if want('V1'): gate('V1', 'legibility_check.mjs', 'story_clash.js', 'CLASH')
+    # story_legmiss / story_drift2: the v0.15 final review's probes (faint ink, half a line on a block, halos in
+    # hatching, glyph-by-glyph text, a gradient fill; clocks, hero labels, headers and stages that drift)
+    if want('V1'): gate('V1', 'legibility_check.mjs', ('story_clash.js', 'story_legmiss.js'), 'CLASH')
     if want('V6'): gate('V6', 'cue_check.mjs')
-    if want('V8'): gate('V8', 'story_check.mjs', 'story_drift.js')
+    if want('V8'): gate('V8', 'story_check.mjs', ('story_drift.js', 'story_drift2.js'))
 
     if want('L8'):
         bh = build('story_brushes.js')
