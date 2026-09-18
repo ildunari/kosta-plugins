@@ -8,9 +8,10 @@ The rule that makes it work: **the plan is fixed before the lanes start, and no 
 
 One lane, one plate, one file.
 
-- The file is `plate_<n>_<slug>.js` in the working folder: `plate_2_corona.js`, `plate_3_leaky_vessels.js`. `<n>` is the plate's index in the film, so the files sort into story order. The plate object inside it is named after the file: `plate_2_corona.js` defines `const P2_CORONA`, because assembly concatenates the files and lists those names in `defineStory`. Each lane renders into its own `qa/plate_<n>/`, or two lanes covering the same seconds overwrite each other's `range_A-B.jpg`.
-- It holds **one plate object** in the shape `story_example.js` uses: `dur`, `dark`, `enter`, `header`, `stage`, `cam`, `draw(t)`, `overlay(t)`, `cues`, `bed`, plus the optional `hero`, `focus`, `log`, `drift`, `counter` and `marks` (`references/api.md`, "Plate fields"). It may also hold the drawing helpers that only this plate uses.
-- The lane **never edits** `engine.js`, the files in `kits/`, `helpers.js`, `story.js`, another lane's plate file, or anything else in the toolkit. If the plate needs something the engine does not do, the lane says so in its report and works around it; it does not patch the engine. An engine change is a plugin change, and the whole film would have to be rebuilt on it.
+- The file is `plate_<n>_<slug>.js` in the working folder: `plate_2_corona.js`, `plate_3_leaky_vessels.js`. `<n>` is the plate's index in the film, so the files sort into story order.
+- It holds **one plate object, named `P<n>`** — `const P2 = { … }` in `plate_2_corona.js` — in the shape `story_example.js` uses: `dur`, `dark`, `enter`, `header`, `stage`, `cam`, `draw(t)`, `overlay(t)`, plus the optional `hero`, `focus`, `log`, `drift`, `counter` and `marks` (`references/api.md`, "Plate fields"). `P<n>` is the name assembly concatenates and lists in `plates`, so it must be exactly that. One plate object per file and no second one; the drawing helpers only this plate uses may sit beside it, under prefixed names.
+- **`cues` and `bed` are not the lane's.** The sound plan (`cues.md`) is written in parallel with the lanes and pasted into the plates at assembly, so a lane leaves both fields out rather than inventing sound for its own plate.
+- The lane **never edits** `engine.js`, `shell.html`, `build.py`, the files in `kits/`, `helpers.js`, `story.js`, another lane's plate file, or anything else in the toolkit. If the plate needs something the engine does not do, the lane says so in its report and works around it; it does not patch the engine. An engine change is a plugin change, and the whole film would have to be rebuilt on it.
 - It does not add a plate, drop a plate, change its own `dur`, or change the transition the seam list gave it. Those are script decisions, and the script passed Gate 1. If the plate genuinely cannot be drawn as written, the lane stops and reports rather than quietly redesigning it.
 
 Name every top-level identifier in the file after the plate. All the plate files end up concatenated into one `<script>`, sharing one scope, so two lanes that both write `const GROUND = 640` produce `SyntaxError: Identifier 'GROUND' has already been declared` and a blank film — a failure that appears only at assembly, in the main session, far from the lane that caused it. Prefix instead:
@@ -23,10 +24,10 @@ function cell(x, y) { … }
 // do: named for the plate, so nothing can collide at assembly
 const CORONA_GROUND = 640, CORONA_R = 180;
 function coronaCell(x, y) { … }
-const P2_CORONA = { dur: 10, dark: true, … };
+const P2 = { dur: 10, dark: true, … };          // the plate object keeps the plain P<n> name
 ```
 
-The plate object's own name follows the file: `plate_2_corona.js` defines `P2_CORONA`. The main session needs that name to build the `plates` array.
+The plate object itself is the one exception, and it needs no prefix: `P<n>` is already unique because each lane owns a different `n`.
 
 ## What the lane is given
 
@@ -37,7 +38,7 @@ A lane starts with no memory of the conversation that produced the script, so it
 | Its row of the scene script | Duration, world, camera, header, hero route, every beat with its start→end, journey log, stage, sound — the whole specification of the plate |
 | **Both** its seams, in full | See below: each seam is written by one lane and depended on by the other |
 | The brief from intake (`brief.md`) | Length, hero, audience, tone, audio choice, ending — the decisions the plate has to be consistent with |
-| The facts it puts on screen, with sources | Numbers are researched once, in the research phase. A lane that researches its own numbers produces a film whose plates disagree with each other |
+| The facts it puts on screen, with sources (`facts.md`) | Numbers are researched once, in the research phase. A lane that researches its own numbers produces a film whose plates disagree with each other |
 | `helpers.js` | The house helpers for this film (below) |
 | `references/style.md`, `references/motion.md`, `references/animation-principles.md`, `references/api.md`, `references/components.md` | The fixed look, the motion it must keep alive, the primitives it draws with |
 | The hero's ID tag and how it appears in this plate | `NP·01` must be the same object, tagged the same way, in every plate |
@@ -60,27 +61,29 @@ Anything more than one plate needs goes in `helpers.js` in the working folder: t
 
 **The main session owns `helpers.js`. Lanes read it and may not edit it.** A lane that wants a new shared helper asks for it in its report and draws its own local version in the meantime. This is not bureaucracy: two lanes inventing the same helper is the single biggest source of drift in these films. Two `rbc()` functions with slightly different ellipse ratios and hatch angles give you two kinds of red blood cell in one film, and nobody notices until the whole thing is assembled and playing. Palette keys are worse, because they collide silently: `Object.assign(PAL, { plasma: '#efd8b0' })` in one plate and `{ plasma: '#e8d4a8' }` in another do not error, they just make the last one win and the other plate wrong.
 
-If the main session adds a helper mid-build, it says so to every running lane. A lane that has already drawn its own local version leaves it alone rather than refactoring — the duplicate costs a few lines; a half-applied refactor across parallel lanes costs the build.
+This is why `helpers.js` is finished **before** the lanes start: a helper added once they are running reaches nobody, because no lane re-reads it mid-build. When a lane asks for one, the main session adds it at assembly and points the plates at it then. A lane that has already drawn its own local version leaves it alone rather than refactoring — the duplicate costs a few lines; a half-applied refactor across parallel lanes costs the build.
 
 ## Evidence a lane must return
 
 **A lane that has not looked at its own frames is not finished.** Code that builds is not a plate that works, and the main session cannot check every plate by reading JavaScript — that is precisely the context it is trying not to spend.
 
-Each lane builds a probe of its own plate and renders it. Concatenate `helpers.js` and the plate file, append a one-plate `defineStory` and `boot()`, and build:
+Each lane builds a **probe story of its own plate** and renders it. Concatenate `helpers.js` and the plate file, append a one-plate `defineStory` and `boot()`, and build:
 
 ```bash
 cat helpers.js plate_2_corona.js > probe_2.js
-printf "\ndefineStory({ title: 'probe 2', stages: 4, plates: [P2_CORONA] });\nboot();\n" >> probe_2.js
+printf "defineStory({ title: 'probe 2', stages: 1, plates: [P2] });\nboot();\n" >> probe_2.js
 python3 build.py probe_2.js probe_2.html
 node render.mjs probe_2.html --sheet-range 0-10 --fps 6 --dir qa/plate_2
 ```
 
-(`build.py` needs a `defineStory({ title: '...' })` with a single-quoted title, and it picks the kits by scanning the story text for `KIT.<name>`, so the probe must be the concatenated file, not the plate file on its own. Keep `stages` the same as the finished film's, so the stage dial reads as it will in the film.)
+Everything in those four lines is named after the plate, and that is the point: lanes run at the same time in the same folder. `--dir qa/plate_<n>` is not decoration — `render.mjs` names a range sheet after its seconds, so two lanes rendering `--sheet-range 0-10` into the same directory both write `qa/range_0-10.jpg` and the second silently destroys the first's evidence. Give every lane its own `probe_<n>.js`, `probe_<n>.html` and `--dir qa/plate_<n>`.
+
+`build.py` needs a `defineStory({ title: '...' })` with a single-quoted title, and it picks the kits by scanning the story text for `KIT.<name>`, so the probe must be the concatenated file — the plate file alone has neither.
 
 The lane reports:
 
-- **A range sheet of the whole plate** (`--sheet-range <start>-<end> --fps 6`), in several sheets if the plate is long, plus **close-up crops** (`--crop x,y,w,h` on the same range) for fine detail: small labels, a texture, the moment of a hand-off. The lane says what it saw in them, against the cohesive-scene checklist in `references/animation-principles.md`.
-- **`node text_check.mjs probe_2.html`** if the plate has text — every plate with a header has text — and **`node speed_check.mjs probe_2.html`** if it owns a seam, which every plate but the first does. `READ`, `EDGE` and `OVERLAP` lines and any `SNAP` are the lane's to fix before it reports. `FAST` is advice and may be left with a reason.
+- **A range sheet of the whole plate** (`qa/plate_<n>/range_<start>-<end>.jpg`), in several sheets if the plate is long, plus **close-up crops** (`--crop x,y,w,h` on the same range) for fine detail: small labels, a texture, the moment of a hand-off. The lane says what it saw in them, against the cohesive-scene checklist in `references/animation-principles.md`.
+- **`node text_check.mjs probe_<n>.html`** if the plate has text — every plate with a header has text — and **`node speed_check.mjs probe_<n>.html`** if it owns a seam, which every plate but the first does. `READ`, `EDGE` and `OVERLAP` lines and any `SNAP` are the lane's to fix before it reports. `FAST` is advice and may be left with a reason.
 - **Every number it put on screen, with its source**, copied from the facts it was given. If the lane changed a number, rounded one, or derived one by arithmetic, it shows the arithmetic.
 - **An honest note on what it could not get right**: a beat that does not read, a texture that crawls, a callout it had to move, a helper it wants shared, a place where the script asks for something the plate cannot show. This is the most valuable part of the report. A lane that reports "done, looks good" has told the main session nothing, and the problem surfaces at Gate 2 instead, where it costs a re-render.
 
@@ -105,22 +108,18 @@ Assembly is not parallel work and is not delegated. The main session owns it.
 ```bash
 cat helpers.js plate_0_title.js plate_1_blood.js plate_2_corona.js \
     plate_3_vessels.js plate_4_release.js plate_5_end.js > story.js
+printf "defineStory({ title: 'The Long Release', stages: 4, plates: [P0, P1, P2, P3, P4, P5] });\nboot();\n" >> story.js
+python3 build.py story.js film.html
 ```
 
-then append the story's tail by hand, in plate order:
+Four things the main session does here, because no lane can:
 
-```js
-defineStory({ title: 'The Long Release', stages: 4, plates: [P0_TITLE, P1_BLOOD, P2_CORONA, P3_VESSELS, P4_RELEASE, P5_END] });
-boot();
-```
-
-and build once: `python3 build.py story.js film.html`.
-
-Three things the main session sets, because no lane can:
-
-- **Plate order** is the order in the `plates` array, and it must match the order the files were concatenated in only in the sense that every plate object has to be declared before `defineStory` runs. Get the array order right against the script; a mis-ordered array builds cleanly and plays the film wrong.
-- **`stages`** is the count of numbered stages in the film, and it has to agree with every plate's `stage: { n, name, prevN }`. Lanes fill in their own `n`, `name` and `prevN` from the script; the main session checks the chain runs 1, 2, 3… with each `prevN` matching the previous plate's `n`, and sets `stages` to the last one.
+- **Plate order** is the order in the `plates` array. Concatenation order only has to put every plate object before `defineStory`; it is the array that plays. Get it right against the script, since a mis-ordered array builds cleanly and plays the film wrong.
+- **Paste the sound in.** Each plate's `cues` and `bed` come from `cues.md` now, along with `defineStory({ music: … })` if the sound plan asks for one. The lanes deliberately left these out.
+- **`stages`** counts only the numbered plates — not the title plate or the end card. `story_example.js` has six plates and `stages: 4`. It has to agree with every plate's `stage: { n, name, prevN }`: lanes fill in their own `n`, `name` and `prevN` from the script, and the main session checks the chain runs 1, 2, 3… with each `prevN` matching the previous numbered plate's `n`.
 - **Kit selection happens on the assembled text.** `build.py` scans `story.js` for `KIT.<name>` and inlines only those kits, so a plate that is missing from `story.js` also silently loses its kit. Check the `kits:` line `build.py` prints against what the plates actually use. If it prints `all`, something in the story refers to `KIT` in a way the scan cannot read, which only costs file size.
+
+Fix every `PAGE ERROR` before going further; a page error means the film is not built.
 
 Then **re-check the seam list against the built film**, because seams are the one thing no lane could verify: `node render.mjs film.html --seams` and `--strips`, and `node speed_check.mjs film.html` over the whole film. Every seam's exit and entry should line up in the overlay, motion should keep its direction across the cut, and the pace should vary from seam to seam. This is also where momentum first exists — a probe has none — so a seam that read fine in a lane's probe can still stall or lurch here.
 
@@ -140,7 +139,7 @@ Fanning out costs a brief per lane, an assembly pass, and a class of bug (collis
 
 - **Short films.** One or two plates, or anything under about 30 seconds. The briefing costs more than the drawing.
 - **One continuous scene or camera.** A film that is a single unbroken push through one landscape, or one long camera move across a diagram, has no seams to divide it at. Its plates share geometry, and two lanes drawing halves of one continuous world will not meet in the middle.
-- **Plates too interdependent to draw alone.** A film where plate III is plate II redrawn from another angle, or where each scene is a step of one diagram that accumulates on screen, gives a lane nothing it can draw without the others in front of it.
+- **Plates too interdependent to draw alone.** Both halves of a custom morph seam, where one object has to become another and neither drawing can be settled without the other. A recap that redraws earlier art. A film where plate III is plate II from another angle, or where each scene is a step of one diagram accumulating on screen. A lane needs something it can draw without the other plates in front of it.
 - **A film whose look is still being found.** If the first plate is also the experiment that settles how this film's subject gets drawn, build that plate in the main session first and fan out the rest once there is something for the lanes to match.
 
 A good middle path when only part of the film is independent: build the plates that set the look serially, then fan out the run of interchangeable middle scenes. Fan-out is a tool for the parts of a film that are genuinely parallel, not a mode the whole build has to be in.

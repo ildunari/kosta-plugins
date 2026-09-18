@@ -90,20 +90,20 @@ a film may not cross, except snaps, determinism and reading time.
   plugin change when something goes wrong that the plugin should have prevented.
 
 ## L11 · Scene script and a short summary for the user
-- [auto] Workflow step 3 says `scene script` and asks for a short summary for films over about a minute, not
-  the full table.
+- [auto] The workflow step that authors the plan says `scene script`, and the user sees a short summary
+  (at Gate 1 since v0.14), never the full table.
 
 ## L12 · Continuity and flow
 - [auto] `references/animation-principles.md` exists and covers overlapping action, follow-through, staggered
   starts, hand-offs, moving holds, arcs, anticipation, and one main motion with supporting motion, with
   do / don't examples in engine terms.
-- [auto] SKILL.md step 3 and the key rules point to it.
+- [auto] The script-authoring step and the key rules point to it.
 - [eye] It reads as practical guidance a model can act on, not a list of terms.
 
 ## L13 · Frame sheets for a time range
 - [auto] `node render.mjs film.html --sheet-range 2-4 --fps 6 --dir D` writes `D/range_2-4.jpg`, a grid of
   frames from that range.
-- [auto] Workflow step 5 requires a range sheet per scene (and close-up crops for detail) and names `--sheet-range`.
+- [auto] The build step requires a range sheet per scene (and close-up crops for detail) and names `--sheet-range`.
 
 ## L15 / L16 · New agents
 - [auto] `plugins/doodle-art-animation/agents/` has `script-reviewer.md`, `sound-designer.md` and

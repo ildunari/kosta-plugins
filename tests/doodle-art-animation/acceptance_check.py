@@ -76,6 +76,15 @@ COMP = read(os.path.join(REF, 'components.md')) or ''
 WRITING = read(os.path.join(REF, 'writing.md')) or ''
 ENGINE = read(os.path.join(TK, 'engine.js')) or ''
 RULES = section(SKILL, r'^## The rules that matter most')
+_WF = section(SKILL, r'^## Workflow')
+def _step(pat):
+    for m in re.finditer(r'^(?:\d+|Gate \d+)[.)] (.*?)(?=^(?:\d+|Gate \d+)[.)] |\Z)', _WF, re.M | re.S):
+        if re.search(pat, m.group(1), re.I): return m.group(1)
+    return ''
+LSCRIPT = _step(r'scene script')            # the step that authors the plan
+LGATE1 = _step(r'script-reviewer')          # the review gate
+LBUILD = _step(r'build-lanes\.md')          # the step that builds the plates
+LASSEMBLE = _step(r'--sheet-range')
 STROKES = ['pencil-2b', 'pencil-hb', 'pencil-2h', 'cpencil', 'charcoal', 'marker', 'marker-2', 'techpen', 'spray']
 LIFE = ['quadruped', 'fishSchool', 'insect', 'flock', 'figure', 'crowd']
 SETTLE = ['house', 'hut', 'tent', 'tower', 'village', 'skyline', 'road', 'bridge', 'ship', 'cart', 'fields', 'market', 'map', 'ruins']
@@ -174,9 +183,9 @@ if want('L10'):
     check('L10', 'SKILL.md says to suggest a plugin change', has(SKILL, 'plugin change'))
 
 if want('L11'):
-    s3 = workflow_step(SKILL, 3)
-    check('L11', 'step 3 says "scene script"', has(s3, 'scene script'))
-    check('L11', 'step 3 asks for a short summary, not the full script', has(s3, 'summary') and 'show the script to the user' not in s3)
+    check('L11', 'a step authors the scene script', bool(LSCRIPT) and has(LSCRIPT, 'scene script'))
+    check('L11', 'the user gets a short summary, not the full script',
+          has(LGATE1 or LSCRIPT, 'summary') and 'show the script to the user' not in SKILL)
 
 if want('L12'):
     ap_ = read(os.path.join(REF, 'animation-principles.md'))
@@ -186,13 +195,13 @@ if want('L12'):
     check('L12', 'principles file covers the agreed principles', not miss, 'missing ' + ', '.join(miss))
     check('L12', 'principles file has do / don\'t examples in engine terms',
           bool(ap_) and bool(re.search(r"\bdon[’']t\b", ap_, re.I)) and bool(re.search(r'`(kf|inv|E\.\w+|along|draw|overlay)', ap_ or '')))
-    check('L12', 'step 3 points to animation-principles.md', 'animation-principles.md' in workflow_step(SKILL, 3))
+    check('L12', 'the script step points to animation-principles.md', 'animation-principles.md' in LSCRIPT)
 
 if want('L13'):
     rm = read(os.path.join(TK, 'render.mjs')) or ''
     check('L13', 'render.mjs supports --sheet-range', 'sheet-range' in rm)
-    s5 = workflow_step(SKILL, 5)
-    check('L13', 'step 5 requires range sheets and detail crops', '--sheet-range' in s5 and has(s5, 'crop'))
+    lb = LBUILD or LASSEMBLE
+    check('L13', 'the build step requires range sheets and detail crops', '--sheet-range' in lb and has(lb, 'crop'))
 
 if want('L15') or want('L16'):
     for n in AGENTS_NEW:
@@ -271,7 +280,7 @@ if want('W4'):
     check('W4', 'the build step points to build-lanes.md', 'build-lanes.md' in WF)
 
 if want('W5'):
-    qa = wstep(r'qa/|contact sheet')
+    qa = wstep(r'--sheet 1')   # the phase that renders the shared set
     check('W5', 'QA step renders the sheets once and the reviewers reuse qa/',
           bool(qa) and has(qa, 'reuse') and has(qa, 'qa/'), 'the QA step must say the reviewers reuse qa/')
 

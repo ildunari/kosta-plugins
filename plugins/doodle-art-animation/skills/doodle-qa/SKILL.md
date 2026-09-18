@@ -9,7 +9,7 @@ argument-hint: "[story file] [working folder]"
 
 Check a film before the final render, or check a render before delivery. Don't edit the story during this command; report, then offer to fix.
 
-The plugin has five agents. Three review a built film and run here: `film-reviewer` (the whole film), `seam-reviewer` (transitions and camera) and `audio-reviewer` (the sound against the picture, from measurements). Two belong to planning, before anything is drawn: `script-reviewer` checks the scene script and seam list against the user's request, and `sound-designer` turns a reviewed script into a cue sheet in the engine's audio API. This command runs `script-reviewer` only when the folder holds a scene script (see step 3); it never runs `sound-designer`, but suggests it when the film has little or no designed sound.
+The plugin has five agents. Three review a built film and run here: `film-reviewer` (the whole film), `seam-reviewer` (transitions and camera) and `audio-reviewer` (the sound against the picture, from measurements). Two belong to planning, before anything is drawn: `script-reviewer` checks the scene script and seam list against the user's request, and `sound-designer` turns a reviewed script into a cue sheet in the engine's audio API. `/doodle-art-animation:doodle-plan` owns `script-reviewer` at Gate 1, before anything is drawn; this command re-runs it only when the folder holds a scene script (see step 3), to check that the built film still matches its plan. It never runs `sound-designer`, but suggests it when the film has little or no designed sound.
 
 ## 1. Find the folder and the files
 

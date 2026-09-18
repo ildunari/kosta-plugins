@@ -42,12 +42,12 @@ Each lane gets: the absolute working folder, its own row from the plate table, t
 
 Each lane:
 
-- writes exactly one file, `plate_<n>_<slug>.js`, holding one plate object named after the file (`plate_3_corona.js` defines `const P3_CORONA`) and nothing else;
+- writes exactly one file, `plate_<n>_<slug>.js`, holding one plate object named `P<n>` (`plate_3_corona.js` defines `const P3`) and nothing else;
 - builds and renders only to check its own plate, with its own probe story so the lanes don't collide:
 
 ```
 cat helpers.js plate_3_corona.js > probe_3.js
-printf "defineStory({ title: 'probe 3', stages: <the film's stages>, plates: [P3_CORONA] });\nboot();\n" >> probe_3.js
+printf "defineStory({ title: 'probe 3', stages: 1, plates: [P3] });\nboot();\n" >> probe_3.js
 python3 build.py probe_3.js probe_3.html
 node render.mjs probe_3.html --sheet-range 0-10 --fps 6 --dir qa/plate_3
 ```
@@ -63,7 +63,7 @@ Concatenate the plates in plate order, then append the story tail:
 
 ```
 cat helpers.js plate_0_title.js plate_1_*.js plate_2_*.js plate_3_*.js plate_4_end.js > story.js
-printf "defineStory({ title: '<title>', stages: <n>, plates: [P0_TITLE, P1_..., P2_..., P3_..., P4_END] });\nboot();\n" >> story.js
+printf "defineStory({ title: '<title>', stages: <n>, plates: [P0, P1, P2, P3, P4] });\nboot();\n" >> story.js
 python3 build.py story.js film.html
 ```
 
