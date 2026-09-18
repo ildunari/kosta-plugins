@@ -1,11 +1,11 @@
 # doodle-art-animation — acceptance (go / no-go)
 
-v0.13 items are L1–L17; v0.14's workflow items are W1–W9 at the end of this file.
+v0.13's film and toolkit items are L1–L17; v0.14's workflow items are W1–W9 at the end of this file. Both are in force.
 
 The ledger agreed with Kosta on 2026-09-17, turned into checks. `tests/doodle-art-animation/acceptance_check.py`
-runs every **[auto]** item (`--static` for the text and file checks, add `--full` for builds, renders and timing).
+runs every **[auto]** item: with no flags it does the text and file checks, and `--full` adds builds, page probes, renders and timing.
 **[eye]** items need evidence (a named frame sheet or clip) looked at by a person or the final reviewer.
-v0.13 ships only when every auto item passes, every eye item has evidence, and the existing gates still pass
+A version ships only when every auto item passes, every eye item has evidence, and the existing gates still pass
 (`smoke_test.py`, marketplace validation in CI, `text_check` CLEAN on the example films).
 
 Paths below are relative to `plugins/doodle-art-animation/skills/doodle-art-animation/` unless they start with
@@ -91,7 +91,7 @@ a film may not cross, except snaps, determinism and reading time.
 
 ## L11 · Scene script and a short summary for the user
 - [auto] The workflow step that authors the plan says `scene script`, and the user sees a short summary
-  (at Gate 1 since v0.14), never the full table.
+  (at Gate 1), never the full table.
 
 ## L12 · Continuity and flow
 - [auto] `references/animation-principles.md` exists and covers overlapping action, follow-through, staggered
@@ -116,9 +116,9 @@ a film may not cross, except snaps, determinism and reading time.
 - [auto] `references/intake.md` exists and covers: asking permission first; 3–7 questions; up to four options
   with the recommended one first and marked `(Recommended)`; an `Other` answer; the question tool when present
   and plain text otherwise; skipping on "just make it".
-- [auto] SKILL.md workflow has an intake step 0 that points to it.
+- [auto] The workflow's intake step points to it.
 
-# v0.14 — workflow ledger (W1–W9)
+## v0.14 — workflow ledger (W1–W9)
 
 Agreed with Kosta on 2026-09-17 after a real Cowork run fired `script-reviewer` and then `sound-designer`
 before a script existed, wrote the script afterwards, and then built with the reviews already stale.
@@ -132,8 +132,7 @@ The v0.13 items above stay in force; these add the phase and gate structure.
 
 ## W2 · Every agent refuses to start without its input
 - [auto] Each of the five agent files has a `## Preconditions` section naming the file or artefact it needs and
-  saying to stop and report when it is missing: `script-reviewer` a script file, `sound-designer` a reviewed
-  script, `film-reviewer` and `seam-reviewer` a built film, `audio-reviewer` an MP4 with audio.
+  saying to stop and report when it is missing: `script-reviewer` a script file, `sound-designer` a reviewed script, `film-reviewer` and `seam-reviewer` a built film, `audio-reviewer` an MP4 with audio.
 
 ## W3 · A phase table, not prose
 - [auto] SKILL.md has a `## Phases and gates` table whose header names what each phase **needs**, what it
@@ -163,11 +162,12 @@ The v0.13 items above stay in force; these add the phase and gate structure.
 - [auto] No agent description says "use proactively". Each description names the command or phase that owns it
   (`doodle-plan`, `doodle-build` or `doodle-qa`).
 
-## W9 · Gate 1 is a timed card
-- [auto] `references/intake.md` has a `## Timed plan approval` section: the summary carries an explicit wait
-  (10 minutes by default), silence counts as approval, the deadline is stated up front, and it says what stays
-  editable afterwards (the script and seams, until the final render).
-- [auto] SKILL.md's Gate 1 step says the same, and says which work may start during the wait.
+## W9 · Gate 1 never blocks and never fakes a clock
+- [auto] `references/intake.md` has a `## Timed plan approval` section which says a model cannot run a timer and
+  a reply cannot arrive mid-turn; that the wait is bounded by the work the plan does not govern; that the run
+  carries on rather than stalling; and what stays editable afterwards (the script and seams, until the final
+  render). It must not instruct the model to wait a number of minutes as its only mechanism.
+- [auto] SKILL.md's Gate 1 step says the same, and says which work may start while the card stands.
 
 ## Release
 - [auto] `plugin.json` and the marketplace entry say `0.14.0`.

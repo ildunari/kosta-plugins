@@ -61,6 +61,8 @@ Anything more than one plate needs goes in `helpers.js` in the working folder: t
 
 **The main session owns `helpers.js`. Lanes read it and may not edit it.** A lane that wants a new shared helper asks for it in its report and draws its own local version in the meantime. This is not bureaucracy: two lanes inventing the same helper is the single biggest source of drift in these films. Two `rbc()` functions with slightly different ellipse ratios and hatch angles give you two kinds of red blood cell in one film, and nobody notices until the whole thing is assembled and playing. Palette keys are worse, because they collide silently: `Object.assign(PAL, { plasma: '#efd8b0' })` in one plate and `{ plasma: '#e8d4a8' }` in another do not error, they just make the last one win and the other plate wrong.
 
+**Seam anchors belong here too.** Any constant an adjacent plate's `enter` reads — the point where a drop landed, the position a shape hands off from — is declared in `helpers.js` before the lanes start, because a plate object evaluates its `enter` the moment the file loads. A lane that reaches into another lane's file for it gets a `ReferenceError` on its own probe; `build.py` still exits 0, because it only splices text, so the only symptom is a render that waits 90 seconds for a page that never becomes ready. The seam list names every one of these.
+
 This is why `helpers.js` is finished **before** the lanes start: a helper added once they are running reaches nobody, because no lane re-reads it mid-build. When a lane asks for one, the main session adds it at assembly and points the plates at it then. A lane that has already drawn its own local version leaves it alone rather than refactoring — the duplicate costs a few lines; a half-applied refactor across parallel lanes costs the build.
 
 ## Evidence a lane must return
@@ -83,11 +85,12 @@ Everything in those four lines is named after the plate, and that is the point: 
 The lane reports:
 
 - **A range sheet of the whole plate** (`qa/plate_<n>/range_<start>-<end>.jpg`), in several sheets if the plate is long, plus **close-up crops** (`--crop x,y,w,h` on the same range) for fine detail: small labels, a texture, the moment of a hand-off. The lane says what it saw in them, against the cohesive-scene checklist in `references/animation-principles.md`.
-- **`node text_check.mjs probe_<n>.html`** if the plate has text — every plate with a header has text — and **`node speed_check.mjs probe_<n>.html`** if it owns a seam, which every plate but the first does. `READ`, `EDGE` and `OVERLAP` lines and any `SNAP` are the lane's to fix before it reports. `FAST` is advice and may be left with a reason.
+- **`node text_check.mjs probe_<n>.html`** if the plate has text, which every plate with a header has. `READ`, `EDGE` and `OVERLAP` lines are the lane's to fix before it reports.
+- **Not `speed_check`.** A probe holds one plate, and both `speed_check.mjs` and the engine skip the first plate's `enter`, so a probe reports no seams at all — a clean exit that measured nothing, which is worse than no check. Seams are measured once, on the assembled film, by the main session. A lane that wants reassurance about its own move watches it in its range sheet, drawing by drawing.
 - **Every number it put on screen, with its source**, copied from the facts it was given. If the lane changed a number, rounded one, or derived one by arithmetic, it shows the arithmetic.
 - **An honest note on what it could not get right**: a beat that does not read, a texture that crawls, a callout it had to move, a helper it wants shared, a place where the script asks for something the plate cannot show. This is the most valuable part of the report. A lane that reports "done, looks good" has told the main session nothing, and the problem surfaces at Gate 2 instead, where it costs a re-render.
 
-A probe is not the film. Its camera has no momentum carried in from a previous plate, its entry seam has nothing real to come from, and `speed_check` sees one seam in isolation. The lane's evidence says the plate works; only the assembled film says the plate fits.
+A probe is not the film. Its camera has no momentum carried in from a previous plate, its entry seam has nothing real to come from, and none of its seams are measured at all. The lane's evidence says the plate works; only the assembled film says the plate fits.
 
 ## How drift is prevented
 
@@ -137,7 +140,7 @@ After the fixes, build once more and take **one shared QA render into `qa/`** fo
 
 Fanning out costs a brief per lane, an assembly pass, and a class of bug (collisions, duplicated helpers, seams that only meet at assembly) that a serial build simply does not have. It is worth it for a long film of independent scenes. It is not worth it for:
 
-- **Short films.** One or two plates, or anything under about 30 seconds. The briefing costs more than the drawing.
+- **Short films.** One or two plates, or a film of about 30 seconds or less: fan out from three scenes up. The briefing costs more than the drawing.
 - **One continuous scene or camera.** A film that is a single unbroken push through one landscape, or one long camera move across a diagram, has no seams to divide it at. Its plates share geometry, and two lanes drawing halves of one continuous world will not meet in the middle.
 - **Plates too interdependent to draw alone.** Both halves of a custom morph seam, where one object has to become another and neither drawing can be settled without the other. A recap that redraws earlier art. A film where plate III is plate II from another angle, or where each scene is a step of one diagram accumulating on screen. A lane needs something it can draw without the other plates in front of it.
 - **A film whose look is still being found.** If the first plate is also the experiment that settles how this film's subject gets drawn, build that plate in the main session first and fan out the rest once there is something for the lanes to match.

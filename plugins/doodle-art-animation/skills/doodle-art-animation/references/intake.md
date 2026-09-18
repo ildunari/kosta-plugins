@@ -69,23 +69,31 @@ Reply compactly, e.g. "1a 2b 3: my own answer". Anything you skip, I'll decide.
 
 ## Timed plan approval
 
-At Gate 1 the script has been written and `script-reviewer` has passed it, and the user gets a short summary of the plan before the expensive drawing starts. That is the last cheap moment to change the film — and also the moment a run most often stalls, because the user asked for a film and walked away. A film that waits four hours for a reply is worse than a film built from a reviewed plan, so the gate is timed.
+At Gate 1 the script has been written and `script-reviewer` has passed it, and the user gets a short summary of the plan before the expensive drawing starts. That is the last cheap moment to change the film — and also the moment a run most often stalls, because the user asked for a film and walked away. A film that waits four hours for a reply is worse than a film built from a reviewed plan, so this gate never blocks.
 
-### Post the summary with its deadline in the same message
+### You cannot run a clock, so don't pretend to
 
-Say when you will start, in the message that asks. Never post a summary that just waits, and never start a silent timer the user cannot see.
+A model has no timer, and a reply typed while you are working does not reach you until your turn ends. So "wait ten minutes" is not something you can do. What you can do is bound the wait by work — the work is the wait:
 
-> I'll start building in 10 minutes unless you'd rather change something.
+1. Post the summary with the plan and say plainly what happens next (below).
+2. Do everything the plan does not govern: the working folder, the toolkit copy, `helpers.js`, the sound plan, any fact still missing. That work **is** the wait.
+3. Then end your turn on the handoff line. The user's next message is the answer: a change to make, or `/doodle-art-animation:doodle-build` to carry on. Either way nothing is stalled and nothing was drawn on an unapproved plan.
 
-**10 minutes is the default.** Give longer when the build is long or expensive — a four-minute film, a topic that needs unusual research, anything that will take an hour of rendering — and say why in the same line ("this one's about 20 minutes of drawing, so I'll wait 20"). If the user has set their own wait ("always give me an hour", "don't wait, just go"), that wins over both.
+If the harness you are running in can genuinely pause and resume you — a scheduled wake-up, a monitor, a supervisor that re-invokes you — use it, hold for about ten minutes, and then continue on the reviewed plan. Most runs have nothing of the kind, and the work-bounded wait above is the honest version.
 
-### Silence counts as approval
+**Carry straight on without waiting at all** when the user said to just make it, when they asked for an unattended run, when the request already settles everything the summary would ask about, or when there is no way to reach them (a scheduled or non-interactive run). Post the card anyway, for the record, and keep going.
 
-When the deadline passes with no reply, build the reviewed plan. Say so in one line as you start, so the user can see what happened when they come back:
+### Say what happens next, in the same message
 
-> No reply by the deadline, so I'm building the plan above. The script and seams stay editable until the final render.
+The summary ends with one line the user can act on without reading anything else:
 
-Don't re-ask, don't extend the wait on your own, and don't post a second summary. One card, one deadline, then work.
+> That's the plan. Reply with anything you'd like changed — otherwise run `/doodle-art-animation:doodle-build` and I'll draw it. I'm setting up the folder and the sound plan meanwhile.
+
+If you are continuing in the same run rather than handing off, say that instead:
+
+> Starting on the plan above. The script and seams stay editable until the final render, so a later change is still cheap.
+
+Don't re-ask, don't post a second summary, and don't invent a deadline you cannot keep. One card, then work.
 
 ### What the summary contains
 
@@ -114,9 +122,9 @@ A late answer should not be wasted, so say what is still changeable. The script 
 
 So a reply that arrives during the build is usually still worth acting on; a reply that arrives after the final render is worth acting on only for the cheap rows. When a late reply lands, apply it, say in one line what it changed and what had to be rebuilt, and carry on.
 
-### What may start during the wait
+### What may start once the card is posted
 
-The wait is not idle time. Everything the plan does not govern can begin as soon as the summary is posted:
+Everything the plan does not govern can begin as soon as the summary is posted — this is the work that stands in for the wait:
 
 - Setting up the working folder and copying the toolkit into it.
 - Writing `helpers.js`: this film's palette additions, the shared drawings, the bed generators.

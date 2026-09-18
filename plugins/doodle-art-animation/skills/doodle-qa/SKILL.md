@@ -22,7 +22,7 @@ The plugin has five agents. Three review a built film and run here: `film-review
 
 ## 2. Run the checks
 
-`/doodle-art-animation:doodle-build` already rendered the shared set into `qa/` (contact sheet, strips, seam sheets, `qa/text_check.json`) at the end of the build. Reuse it: re-run only what is missing, or stale because the story or the build is newer than the file (`ls -l` the story, the HTML and `qa/`). If the folder was built by hand and has no `qa/`, run the whole set.
+`/doodle-art-animation:doodle-build` already rendered the shared set into `qa/` (contact sheet, strips, seam sheets, `qa/text_check.json`) at the end of the build. Reuse it: re-run only what is missing, or stale because the **story file** is newer than the sheets (`ls -l` the story and `qa/`). Judge staleness against the story, not the HTML — the build below rewrites the HTML every time, and comparing against it would make the whole set look stale and undo the saving. Rebuild the HTML only when the story is newer than it. If the folder was built by hand and has no `qa/`, run the whole set.
 
 Run these from the working folder, in order, and keep each command's key output:
 
@@ -77,3 +77,5 @@ If the user says yes: merge the reviews into one fix list, apply it, rebuild, an
 | The scene script itself changed | `script-reviewer` |
 
 A build (`python3 build.py`) comes before any of them, and anything needing an MP4 waits for the next render. Repeat until the affected checks are clean, then report the same summary as above for what changed, and say which checks you did not re-run and why.
+
+**Three rounds, then stop.** If a check is still failing after three passes, don't keep going round: report what is failing, what you tried, and what you think it would take — a story change the user should weigh, a target that is wrong for this film, or a plugin fault. A check that two fixes could not satisfy is usually a disagreement about the film, not a bug in the film.

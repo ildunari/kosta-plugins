@@ -14,7 +14,7 @@ Do the phases in this order. A review of a script that isn't written yet is a re
 ## 1. Set up and read
 
 - Arguments given: `$ARGUMENTS` (both optional: first the topic, question or source file, then the working folder). If the topic is missing, ask for it in one line.
-- The working folder is the second argument, otherwise a new folder named after the film beside the user's source (or the current directory if they gave one). `mkdir -p <folder>`, `cd` into it, confirm with `pwd`. Only `brief.md`, `facts.md`, `script.md` and notes go here in this command; the toolkit copy belongs to the build.
+- The working folder is the second argument, otherwise a new folder named after the film beside the user's source (or the current directory if they gave one). `mkdir -p <folder>`, `cd` into it, confirm with `pwd`. `brief.md`, `facts.md` and `script.md` are written here; the toolkit is copied in at step 6, once the plan card is up.
 - The skill lives at `${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation`. If that path was not filled in, use `${CLAUDE_SKILL_DIR}/../doodle-art-animation`.
 - Read before writing anything: `references/intake.md`, `references/writing.md`, `references/style.md`, `references/motion.md`, `references/animation-principles.md`, `references/film-grammar.md`. Skim the seam list at the top of `toolkit/story_example.js` to see what a finished script turns into.
 
@@ -56,15 +56,17 @@ Apply every must-fix. For the rest, either apply it or say in one line why you k
 
 ## 6. The plan card
 
-Post the plan card as `references/intake.md` describes under "Timed plan approval": one or two lines per scene, the hero's journey, the length, the sound idea, and the deadline stated up front (10 minutes by default). Silence counts as approval, so say that in the card, and say what stays editable afterwards — the script and the seams, up to the final render.
+Post the plan card as `references/intake.md` describes under "Timed plan approval": one or two lines per scene, the hero's journey, the length, the sound idea, and the assumptions the intake left open. End it with the line that says what happens next — reply to change anything, otherwise run the build — and say what stays editable afterwards (the script and the seams, up to the final render).
 
-While the clock runs, this work may start, because none of it depends on the approval:
+There is no clock to run: you cannot time ten minutes, and a reply typed now would not reach you until this turn ends. So the card is followed by the work the plan does not govern, and then by the handoff. That work is the wait:
 
-- creating the working folder and copying the toolkit in;
-- the house helpers for the film (palette, the hero function, shared shapes);
+- the working folder already exists from step 1; copy the toolkit into it now (`cp -R "${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation/toolkit/." .`);
+- `helpers.js`: the film's palette names, the hero function and its ID tag, shared shapes, and **any constant a seam anchors to** (a landing point, a hand-off position) — the seam list names those, and a plate whose `enter` reads one from another plate's file cannot build on its own;
 - the sound plan: `doodle-art-animation:sound-designer` on the reviewed `script.md`, saved as `cues.md`.
 
-This may **not** start: any art lane, any `plate_*.js`, any build. If the user comes back with changes, a drawn plate is wasted work.
+This may **not** start: any art lane, any `plate_*.js`, any build of the film. If the user comes back with changes, a drawn plate is wasted work.
+
+Users who said to just make it, unattended runs, and runs with no way to reach the user get the card for the record and go straight on to the build.
 
 ## 7. Hand off
 
@@ -73,6 +75,6 @@ Print, as a short list, exactly what the next command needs:
 - the absolute working folder;
 - `script.md` (approved, with the seam list);
 - `facts.md` and `brief.md`;
-- `cues.md`, if the sound plan ran.
+- `helpers.js`, and `cues.md` if the sound plan ran.
 
 Then tell the user to run `/doodle-art-animation:doodle-build <folder>`, and say in one line what it will do (a lane per scene, one assembly, one build, one shared QA render). Don't draw anything in this command.

@@ -26,7 +26,7 @@ cp -R "<toolkit>/." .
 mkdir -p qa
 ```
 
-Then write `helpers.js`: the film's palette names, the `hero` function and its ID tag, the journey-log rows, and any shape or pose that two or more plates share. It is the one file every lane reads and no lane writes, so keep it small and finish it before the lanes start — a helper added later reaches nobody.
+Then write `helpers.js`, unless `/doodle-art-animation:doodle-plan` already wrote one — in that case read it and add only what is missing, never overwrite it. It holds the film's palette names, the `hero` function and its ID tag, the journey-log rows, any shape or pose that two or more plates share, and **every constant a seam anchors to**: if plate 2's `enter` reads the point where plate 1's drop landed, that point is declared here, or plate 2 cannot build without plate 1's file. It is the one file every lane reads and no lane writes, so keep it small and finish it before the lanes start — a helper added later reaches nobody.
 
 ## 3. Sound plan and art lanes start together
 
@@ -42,20 +42,20 @@ Each lane gets: the absolute working folder, its own row from the plate table, t
 
 Each lane:
 
-- writes exactly one file, `plate_<n>_<slug>.js`, holding one plate object named `P<n>` (`plate_3_corona.js` defines `const P3`) and nothing else;
+- writes exactly one file, `plate_<n>_<slug>.js`, holding one plate object named `P<n>` (`plate_2_corona.js` defines `const P2`) and nothing else;
 - builds and renders only to check its own plate, with its own probe story so the lanes don't collide:
 
 ```
-cat helpers.js plate_3_corona.js > probe_3.js
-printf "defineStory({ title: 'probe 3', stages: 1, plates: [P3] });\nboot();\n" >> probe_3.js
-python3 build.py probe_3.js probe_3.html
-node render.mjs probe_3.html --sheet-range 0-10 --fps 6 --dir qa/plate_3
+cat helpers.js plate_2_corona.js > probe_2.js
+printf "defineStory({ title: 'probe 2', stages: <the film's stages>, plates: [P2] });\nboot();\n" >> probe_2.js
+python3 build.py probe_2.js probe_2.html
+node render.mjs probe_2.html --sheet-range 0-<the plate's duration> --fps 6 --dir qa/plate_2
 ```
 
-- returns that range sheet (`qa/plate_3/range_0-10.jpg`) as its evidence, plus a line on what it drew and anything it could not do. `--crop x,y,w,h` adds a detail sheet of the same frames for small labels and textures;
+- returns that range sheet (`qa/plate_2/range_0-<dur>.jpg`) as its evidence, plus a line on what it drew and anything it could not do. `--crop x,y,w,h` adds a detail sheet of the same frames for small labels and textures. A probe holds one plate, so its seconds start at 0 whatever the plate's place in the film; `--sheet-range` counts from the start of whatever film it is handed, so those numbers change once the film is assembled;
 - never edits `engine.js`, `shell.html`, `build.py`, the kits, `helpers.js` or another lane's plate file. If a lane needs something in a shared file, it says so and the main session makes that change once, for everyone.
 
-**Build serially instead** when fanning out would cost more than it saves: a film of one or two scenes; one continuous scene split only by camera moves; or plates so tied together that the second can't be drawn without the first (both halves of a custom morph seam, a recap that redraws earlier art).
+**Fan out from three scenes up.** Below that — one or two plates, or a film of about 30 seconds or less — the briefing costs more than the drawing, so build the scenes yourself one after another. Build serially too when the plates share one continuous shot split only by camera moves, when they are so tied together that the second cannot be drawn without the first (both halves of a custom morph, a recap that redraws earlier art), or when the harness has no way to run agents at all.
 
 ## 5. Assemble and build once
 

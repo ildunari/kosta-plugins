@@ -59,6 +59,9 @@ const tile = (glob, cols, rows, outName, w = 480, crop = null) => execFileSync('
 if (opt('stills', null) || opt('sheet', null)) {
   const list = opt('stills', null) ? String(opt('stills')).split(',').map(Number)
     : Array.from({ length: Math.ceil(info.frames / (info.fps * +opt('sheet'))) }, (_, i) => Math.round(i * info.fps * +opt('sheet')));
+  // a contact sheet tiles f_*.jpg, so clear any left from an earlier, longer run of this film:
+  // qa/ outlives a single run now (the reviewers reuse it), and stale frames would be tiled in as if current
+  if (opt('sheet', null)) for (const fn of fs.readdirSync(dir)) if (/^f_\d+\.jpg$/.test(fn)) fs.unlinkSync(path.join(dir, fn));
   for (const f of list) await grab(first, f, `f_${String(f).padStart(5, '0')}.jpg`);
   console.log(`wrote ${list.length} stills to ${dir}`);
   if (opt('sheet', null)) { tile('f_*.jpg', 6, Math.ceil(list.length / 6), 'contact_sheet.jpg'); console.log('contact sheet:', path.join(dir, 'contact_sheet.jpg')); }

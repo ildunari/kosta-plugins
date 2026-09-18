@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""acceptance_check.py — go / no-go checks for doodle-art-animation v0.13 (docs/doodle-art-animation/ACCEPTANCE.md).
+"""acceptance_check.py — go / no-go checks for doodle-art-animation (docs/doodle-art-animation/ACCEPTANCE.md: L1-L17 from v0.13, W1-W9 from v0.14).
 
 usage:
   python3 tests/doodle-art-animation/acceptance_check.py            # static text and file checks (seconds)
@@ -248,7 +248,10 @@ if want('W1'):
     authoring = wstep(r'writes? the scene script|scene script')
     check('W1', 'a step authors the script on its own', bool(authoring) and 'sound-designer' not in authoring,
           'the script step still mentions sound-designer' if authoring else 'no script-authoring step found')
-    check('W1', 'a blocking Gate 1 step exists', bool(re.search(r'^Gate 1[.)]', WF, re.M)) and bool(wstep(r'script-reviewer')))
+    g1 = next((m.group(1) for m in re.finditer(r'^Gate 1[.)] (.*?)(?=^(?:\d+|Gate \d+)[.)] |\Z)', WF, re.M | re.S)), '')
+    check('W1', 'Gate 1 is a step of its own and runs script-reviewer on the saved script',
+          bool(g1) and 'script-reviewer' in g1 and bool(re.search(r'never before|only (once|after)|saved', g1, re.I)),
+          'Gate 1 must name script-reviewer and refuse to run before the file exists')
     check('W1', 'the sound plan has its own step', bool(wstep(r'sound-designer')) and wstep(r'sound-designer') != authoring)
     bad = [n for n, d in AGD.items() if re.search(r'workflow step \d', d, re.I)]
     check('W1', 'no agent description names a workflow step number', not bad, ', '.join(bad))
@@ -256,17 +259,28 @@ if want('W1'):
 if want('W2'):
     need = {'script-reviewer': r'script', 'sound-designer': r'review', 'film-reviewer': r'(built|html)',
             'seam-reviewer': r'(built|html)', 'audio-reviewer': r'(mp4|audio)'}
+    # a stop clause, not merely the word "stop": and nothing that licenses carrying on regardless
+    STOPS = r'\b(stop|refuse|do not (start|review|continue)|don.t (start|review|continue))\b'
+    LICENCE = r"(do not stop|don.t stop|proceed anyway|carry on anyway|none worth worrying|no need to stop|review (it|what) anyway)"
     for n in AGENTS_ALL:
         pre = section(AG[n], r'^## Preconditions')
-        ok = bool(pre.strip()) and bool(re.search(r'\bstop\b', pre, re.I)) and bool(re.search(need[n], pre, re.I))
-        check('W2', f'{n} has Preconditions that stop on a missing input', ok,
-              'no "## Preconditions" section' if not pre.strip() else 'must say stop, and name its input')
+        why = []
+        if not pre.strip(): why.append('no "## Preconditions" section')
+        else:
+            if not re.search(STOPS, pre, re.I): why.append('no stop clause')
+            if not re.search(need[n], pre, re.I): why.append('does not name its input')
+            if re.search(LICENCE, pre, re.I): why.append('licenses carrying on without the input')
+        check('W2', f'{n} has Preconditions that stop on a missing input', not why, '; '.join(why))
 
 if want('W3'):
     tbl = section(SKILL, r'^## Phases and gates')
     hdr = next((l for l in tbl.splitlines() if l.strip().startswith('|')), '')
     check('W3', 'SKILL.md has a "## Phases and gates" table', bool(tbl.strip()) and bool(hdr))
     check('W3', 'the table says needs / produces / lanes', all(w in hdr.lower() for w in ('needs', 'produces', 'lane')), hdr[:90])
+    rows = [l for l in tbl.splitlines() if l.strip().startswith('|') and '---' not in l][1:]
+    want_rows = ['intake', 'substance', 'script', 'gate 1', 'sound', 'art', 'assemble', 'gate 2', 'render', 'deliver']
+    missing = [w for w in want_rows if not any(w in r.lower() for r in rows)]
+    check('W3', 'every phase and both gates have a row', not missing, 'missing ' + ', '.join(missing))
 
 if want('W4'):
     check('W4', 'references/build-lanes.md exists', bool(LANES.strip()))
@@ -280,14 +294,28 @@ if want('W4'):
     check('W4', 'the build step points to build-lanes.md', 'build-lanes.md' in WF)
 
 if want('W5'):
-    qa = wstep(r'--sheet 1')   # the phase that renders the shared set
-    check('W5', 'QA step renders the sheets once and the reviewers reuse qa/',
-          bool(qa) and has(qa, 'reuse') and has(qa, 'qa/'), 'the QA step must say the reviewers reuse qa/')
+    sh = wstep(r'--sheet 1')   # the phase that renders the shared set
+    check('W5', 'one phase renders the shared qa/ set and says the reviewers reuse it',
+          bool(sh) and has(sh, 'reuse') and has(sh, 'qa/') and has(sh, 'once'),
+          'the assemble phase must render the set once and say the reviewers reuse it')
+    revs = [n for n in ('film-reviewer', 'seam-reviewer', 'audio-reviewer')
+            if not (re.search(r'(reuse|already (there|in `?qa)|already sitting)', AG[n], re.I)
+                    and re.search(r'qa/', AG[n]))]
+    check('W5', 'the three reviewers say they reuse it', not revs, ', '.join(revs))
 
 if want('W6'):
-    check('W6', 'SKILL.md says to re-run only the affected checks',
-          bool(re.search(r're-?run only', SKILL, re.I)))
-    check('W6', 'doodle-qa says the same', bool(re.search(r're-?run only', QA, re.I)))
+    def narrows(text):
+        """a clause that really narrows the re-run: 're-run only ...' not negated, and no 're-run everything' rule"""
+        hits = [m for m in re.finditer(r're-?run only', text, re.I)
+                if not re.search(r'(never|not|don.t|always)\W{0,12}$', text[max(0, m.start() - 24):m.start()], re.I)]
+        # a rule that demands the whole gate again defeats the narrowing, unless it is being forbidden
+        whole = [m for m in re.finditer(r're-?run (everything|the whole (gate|set))', text, re.I)
+                 if not re.search(r"(don.t|never|no need to|rather than)\W{0,24}$", text[max(0, m.start() - 40):m.start()], re.I)]
+        return bool(hits) and not whole
+    check('W6', 'SKILL.md narrows the re-run to the affected checks', narrows(SKILL))
+    check('W6', 'doodle-qa narrows it the same way, and caps the loop',
+          narrows(QA) and bool(re.search(r'(three rounds|after three|stop and report)', QA, re.I)),
+          'needs the narrowing and a bound on the loop')
 
 if want('W7'):
     for n, t in (('doodle-plan', PLAN), ('doodle-build', BUILD)):
@@ -297,23 +325,31 @@ if want('W7'):
     check('W7', 'SKILL.md names both commands', 'doodle-plan' in SKILL and 'doodle-build' in SKILL)
 
 if want('W8'):
-    bad = [n for n, d in AGD.items() if re.search(r'use proactively', d, re.I)]
-    check('W8', 'no agent description says "use proactively"', not bad, ', '.join(bad))
-    miss = [n for n, d in AGD.items() if not re.search(r'doodle-(plan|build|qa)', d)]
-    check('W8', 'each description names the command that owns it', not miss, ', '.join(miss))
+    bad = [n for n, d in AGD.items() if re.search(r'proactiv', d, re.I)]
+    check('W8', 'no agent description invites proactive use', not bad, ', '.join(bad))
+    miss = [n for n, d in AGD.items()
+            if not re.search(r'invoked by [^.]{0,80}doodle-(plan|build|qa)', d, re.I)
+            or not re.search(r'never on its own initiative|not on its own initiative', d, re.I)]
+    check('W8', 'each description says which command invokes it, and that it never self-starts', not miss, ', '.join(miss))
 
 if want('W9'):
     tp = section(INTAKE, r'^## Timed plan approval')
-    miss = [k for k, ok in {'section': bool(tp.strip()), '10 minutes': '10 min' in tp.lower(),
-                            'silence approves': bool(re.search(r'(silence|no reply|hear nothing|don.t hear)', tp, re.I)),
-                            'deadline stated up front': bool(re.search(r'(say|state|tell).{0,40}(deadline|before|up front|when)', tp, re.I)),
-                            'what stays editable': bool(re.search(r'(edit|change|revis)', tp, re.I))}.items() if not ok]
-    check('W9', 'intake.md has a timed plan approval section', not miss, 'missing ' + ', '.join(miss))
-    g1 = wstep(r'^\*\*|timed|deadline') or section(SKILL, r'^Gate 1')
+    miss = [k for k, ok in {
+        'section': bool(tp.strip()),
+        'says a model cannot run a clock': bool(re.search(r'(cannot|can.t|no) (run a clock|timer|way to)|cannot run a clock', tp, re.I)),
+        'reply cannot arrive mid-turn': bool(re.search(r'(turn ends|mid-?turn|until your turn)', tp, re.I)),
+        'the wait is bounded by work': bool(re.search(r'bound(ed)? by work|is the wait', tp, re.I)),
+        'never stalls': bool(re.search(r'(never blocks|carry (straight )?on|without waiting)', tp, re.I)),
+        'what stays editable': bool(re.search(r'(edit|chang|revis)', tp, re.I)),
+    }.items() if not ok]
+    check('W9', 'intake.md says how Gate 1 really behaves', not miss, 'missing ' + ', '.join(miss))
+    check('W9', 'intake.md does not tell the model to wait N minutes as the mechanism',
+          not re.search(r"(wait|waiting) (about )?\d+ minutes(?!,? and)", tp, re.I) or bool(re.search(r'harness', tp, re.I)))
     g1 = next((m.group(1) for m in re.finditer(r'^Gate 1[.)] (.*?)(?=^(?:\d+|Gate \d+)[.)] |\Z)', WF, re.M | re.S)), '')
-    check('W9', 'Gate 1 in SKILL.md is the timed card and says what may start during the wait',
-          bool(g1) and bool(re.search(r'(10 min|timed)', g1, re.I)) and bool(re.search(r'(during the wait|meanwhile|while waiting)', g1, re.I)),
-          'Gate 1 must name the wait and what work may start during it')
+    check('W9', 'Gate 1 in SKILL.md matches, and says what may start while the card stands',
+          bool(g1) and bool(re.search(r'(cannot run a clock|bounded by work|not by time)', g1, re.I))
+          and bool(re.search(r'(while the card stands|during the wait|meanwhile)', g1, re.I)),
+          'Gate 1 must say the wait is work-bounded and what may start')
 
 if want('REL'):
     pj = json.loads(read(os.path.join(PLUG, '.claude-plugin', 'plugin.json')) or '{}')
