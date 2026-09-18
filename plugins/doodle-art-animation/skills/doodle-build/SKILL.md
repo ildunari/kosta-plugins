@@ -96,6 +96,9 @@ node render.mjs film.html --strips --dir qa           # qa/strip_NN_type.jpg
 node render.mjs film.html --seams --dir qa            # qa/seam_NN_type.jpg, prints each seam's time
 node text_check.mjs film.html --json qa/text_check.json
 node speed_check.mjs film.html
+node legibility_check.mjs film.html --crops qa/legibility   # text over artwork, text below its size floor
+node story_check.mjs film.html                            # time runs forward, stages unique, one hero ID
+node cue_check.mjs film.html                              # no sound dominates or repeats identically
 touch qa/.complete                                    # last, and only if every line above succeeded
 ```
 

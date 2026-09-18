@@ -43,6 +43,9 @@ node render.mjs <film>.html --strips           # qa/strip_NN_type.jpg
 node render.mjs <film>.html --seams            # qa/seam_NN_type.jpg, prints each transition time
 node text_check.mjs <film>.html --json qa/text_check.json
 node speed_check.mjs <film>.html               # engine values against the speed limits (skip if the folder has no speed_check.mjs)
+node legibility_check.mjs <film>.html --crops qa/legibility   # text over artwork, text below its role's size floor
+node story_check.mjs <film>.html                              # elapsed time, stage numbers and the hero's ID stay consistent
+node cue_check.mjs <film>.html                                # one effect dominating, identical repeats
 python3 smoke_test.py --stories <story> --work qa_smoke   # page errors, fonts, blank frames, and a short clip whose sound it checks
 touch qa/.complete                             # only once everything above succeeded
 ```
