@@ -13,7 +13,7 @@ Turn an approved scene script into a built film: phases 3 to 5 of the workflow i
 
 - Arguments given: `$ARGUMENTS` (both optional: first the working folder, then the script file).
 - The working folder is the first argument, otherwise the current directory. `cd` into it and confirm with `pwd`.
-- The script is the second argument, otherwise `script.md`. **If there is no script, stop**: say that this command builds an approved plan and that the user should run `/doodle-art-animation:doodle-plan` first. Don't invent a script here.
+- The script is the second argument, otherwise `script.md`. Wherever this command says `script.md` below, it means that resolved file — pass its real path to every agent and every freshness comparison. **If there is no script, stop**: say that this command builds an approved plan and that the user should run `/doodle-art-animation:doodle-plan` first. Don't invent a script here.
 - If `script.md` exists but nothing shows it went through Gate 1 (no review notes, no approval in this conversation), say so and offer to run `doodle-art-animation:script-reviewer` on it now. Building against an unreviewed script is how a film gets drawn twice.
 - Read `brief.md` and `facts.md` if they are there, and `cues.md` if `/doodle-art-animation:doodle-plan` already produced a sound plan.
 
@@ -30,7 +30,7 @@ Then write `helpers.js`, unless `/doodle-art-animation:doodle-plan` already wrot
 
 ## 3. Sound plan and art lanes start together
 
-Both need only the reviewed script, so start them in the same message. Skip the sound plan if the film is silent, or if `cues.md` exists and is newer than `script.md`. A `cues.md` older than the script was planned against a version the user may since have changed — a scene retimed at the plan card moves every cue in it — so run `sound-designer` again.
+Both need only the reviewed script, so start them in the same message. Skip the sound plan if the film is silent, or if `cues.md` exists and is newer than both `script.md` and `brief.md`. A `cues.md` older than either was planned against something the user may since have changed — a scene retimed at the plan card moves every cue, and a switch from music to effects only changes the whole plan — so run `sound-designer` again.
 
 Run `doodle-art-animation:sound-designer` with `script.md`, `brief.md` and the absolute working folder. Save its cue sheet as `cues.md`; the cues get pasted into the plates at assembly, not by a lane.
 
@@ -62,7 +62,7 @@ node render.mjs probe_2.html --sheet-range 0-<the plate's duration> --fps 6 --di
 `story.js` is generated, never edited. Its sources are `helpers.js`, the plate files and a short `story_tail.js`, and one script rebuilds it from them — so every later fix goes into a source file and the film is reassembled, instead of drifting away from what the lanes wrote.
 
 0. If the brief says the film is silent, add `silent: true` to the `defineStory` call in `story_tail.js` and skip the rest of the sound. Leaving out cues is not enough: the engine adds a riser, a transition sound and a pen scratch on its own for every seam and header, and `silent: true` is what turns those off.
-1. Put the sound into its plates: paste each plate's `cues` and `bed` from `cues.md` into that plate's file now. Pasted into `story.js` they would vanish at the next reassembly.
+1. Put the sound into its sources, all of it: each plate's `cues`, `bed` and any custom `enter.sfx` go into that plate's file; story-level sound code the plan designs — a motif, a heartbeat, a named cue added with `SFX.<name> = …` — goes into `helpers.js`, ahead of the plates that call it; `music` goes into `story_tail.js`. Pasted into `story.js`, any of it would vanish at the next reassembly, and a cue sheet copied only in part renders with the defaults and no warning.
 2. Write `story_tail.js` with the story call, listing **every** plate object in screen order — title plate and end card included — and the music if the sound plan asks for it:
 
    ```

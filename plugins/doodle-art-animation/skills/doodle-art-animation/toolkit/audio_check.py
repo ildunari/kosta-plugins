@@ -52,6 +52,9 @@ if len(x) < sr * 0.1:
 adur = len(x) / sr
 
 if '--silent' in args:
+    # the engine renders silence in stereo; a one-channel file means the render or the encode collapsed it
+    if ch < 2:
+        line('FAIL', 'stereo', 'mono file (1 channel): a silent film still carries a stereo track')
     pk = db(np.abs(x).max())
     line('PASS' if pk < -60 else 'FAIL', 'silent', f'peak {pk:.1f} dB' + ('' if pk < -60 else ' - the film was made silent, but sound got in'))
     vdur = float(vid[0].get('duration') or probe['format']['duration']) if vid else adur

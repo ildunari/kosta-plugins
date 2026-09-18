@@ -61,7 +61,7 @@ Stop and report if the build fails or any `PAGE ERROR` appears. Open the contact
 
 Start the reviewers in parallel with the Agent tool: `doodle-art-animation:film-reviewer`, `doodle-art-animation:seam-reviewer` and, if there is an MP4 with sound, `doodle-art-animation:audio-reviewer`. Give each the absolute working folder, the HTML name, the story file and the MP4 (if any). Tell them that `qa/` already holds the contact sheet (`qa/contact_sheet.jpg`), strips, seam sheets and `qa/text_check.json` from this run (and the `text_check`, `speed_check`, `motion_check` and `audio_check` output, pasted into the prompt), so they should reuse those and render only the extra stills they need. Give `audio-reviewer` the transition times and any sound plan from `sound-designer` too. Without an MP4, skip `audio-reviewer` and list it under "Not checked" — `/doodle-art-animation:doodle-render` runs it once the MP4 exists. For a silent film (`silent: true` in the story) there is nothing for it to review; say so, and tell `film-reviewer` the film is silent so it runs `audio_check --silent` and skips its sound rubric — a silent track has identical channels and would otherwise fail as mono.
 
-If step 1 found a scene script, also start `doodle-art-animation:script-reviewer` with the script, the story file, the sources the folder or story lists, and the user's request and intake answers if you have them from this conversation (say so if you don't). It normally runs before the build, during planning; here it checks that the built film still matches its plan. With no script, skip it and note that script review belongs to planning.
+If step 1 found a scene script, also start `doodle-art-animation:script-reviewer` with the script, the story file, the sources the folder or story lists, and the user's request and intake answers if you have them from this conversation (say so if you don't). It normally runs before the build, during planning; here it checks that the built film still matches its plan, so ask for that comparison explicitly: hand it the plate files (or `story.js`) as well as the script, and ask it to map every row to what was built — beats present and in order, facts and numbers as scripted, seams as listed. With no script, skip it and note that script review belongs to planning.
 
 ## 4. Summarise
 
@@ -82,9 +82,9 @@ If the user says yes: merge the reviews into one fix list, apply it, rebuild, an
 
 | The change | Re-run |
 |---|---|
-| Text edited, moved or retimed | `text_check` |
+| Text edited, moved or retimed | `text_check`; if it moved, also render the frames around it and look — `text_check` sees text boxes, not text sitting over artwork |
 | A seam, transition or camera move changed | `speed_check`, `--seams` (and `--strips` for the plates either side), then `seam-reviewer` |
-| New art, a new beat, a plate retimed | that plate's `--sheet-range` sheet, `--sheet 1`, `text_check` (a retimed plate can cut a line short at its new end), `motion_check` after the next render, then `film-reviewer` |
+| New art, a new beat, a plate retimed | that plate's `--sheet-range` sheet, `--sheet 1`, `text_check` (a retimed plate can cut a line short at its new end), `motion_check` after the next render, then `film-reviewer`; if the change reaches the plate's first or last seconds, also the adjacent seam sheets and `seam-reviewer`, since a hero moved at the boundary is a hand-off that no longer meets |
 | A cue, bed or `music` changed | `audio_check` after the next render, then `audio-reviewer` |
 | The scene script itself changed | `script-reviewer` |
 
