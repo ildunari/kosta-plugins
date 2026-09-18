@@ -8,7 +8,7 @@ The rule that makes it work: **the plan is fixed before the lanes start, and no 
 
 One lane, one plate, one file.
 
-- The file is `plate_<n>_<slug>.js` in the working folder: `plate_2_corona.js`, `plate_3_leaky_vessels.js`. `<n>` is the plate's index in the film, so the files sort into story order.
+- The file is `plate_<n>_<slug>.js` in the working folder: `plate_2_corona.js`, `plate_3_leaky_vessels.js`. `<n>` is the plate's index in the film, so the files sort into story order. The plate object inside it is named after the file: `plate_2_corona.js` defines `const P2_CORONA`, because assembly concatenates the files and lists those names in `defineStory`. Each lane renders into its own `qa/plate_<n>/`, or two lanes covering the same seconds overwrite each other's `range_A-B.jpg`.
 - It holds **one plate object** in the shape `story_example.js` uses: `dur`, `dark`, `enter`, `header`, `stage`, `cam`, `draw(t)`, `overlay(t)`, `cues`, `bed`, plus the optional `hero`, `focus`, `log`, `drift`, `counter` and `marks` (`references/api.md`, "Plate fields"). It may also hold the drawing helpers that only this plate uses.
 - The lane **never edits** `engine.js`, the files in `kits/`, `helpers.js`, `story.js`, another lane's plate file, or anything else in the toolkit. If the plate needs something the engine does not do, the lane says so in its report and works around it; it does not patch the engine. An engine change is a plugin change, and the whole film would have to be rebuilt on it.
 - It does not add a plate, drop a plate, change its own `dur`, or change the transition the seam list gave it. Those are script decisions, and the script passed Gate 1. If the plate genuinely cannot be drawn as written, the lane stops and reports rather than quietly redesigning it.
@@ -69,10 +69,10 @@ If the main session adds a helper mid-build, it says so to every running lane. A
 Each lane builds a probe of its own plate and renders it. Concatenate `helpers.js` and the plate file, append a one-plate `defineStory` and `boot()`, and build:
 
 ```bash
-cat helpers.js plate_2_corona.js > story_probe.js
-printf "\ndefineStory({ title: 'Probe 2', stages: 4, plates: [P2_CORONA] });\nboot();\n" >> story_probe.js
-python3 build.py story_probe.js probe2.html
-node render.mjs probe2.html --sheet-range 0-10 --fps 6 --dir qa_p2
+cat helpers.js plate_2_corona.js > probe_2.js
+printf "\ndefineStory({ title: 'probe 2', stages: 4, plates: [P2_CORONA] });\nboot();\n" >> probe_2.js
+python3 build.py probe_2.js probe_2.html
+node render.mjs probe_2.html --sheet-range 0-10 --fps 6 --dir qa/plate_2
 ```
 
 (`build.py` needs a `defineStory({ title: '...' })` with a single-quoted title, and it picks the kits by scanning the story text for `KIT.<name>`, so the probe must be the concatenated file, not the plate file on its own. Keep `stages` the same as the finished film's, so the stage dial reads as it will in the film.)
@@ -80,7 +80,7 @@ node render.mjs probe2.html --sheet-range 0-10 --fps 6 --dir qa_p2
 The lane reports:
 
 - **A range sheet of the whole plate** (`--sheet-range <start>-<end> --fps 6`), in several sheets if the plate is long, plus **close-up crops** (`--crop x,y,w,h` on the same range) for fine detail: small labels, a texture, the moment of a hand-off. The lane says what it saw in them, against the cohesive-scene checklist in `references/animation-principles.md`.
-- **`node text_check.mjs probe2.html`** if the plate has text — every plate with a header has text — and **`node speed_check.mjs probe2.html`** if it owns a seam, which every plate but the first does. `READ`, `EDGE` and `OVERLAP` lines and any `SNAP` are the lane's to fix before it reports. `FAST` is advice and may be left with a reason.
+- **`node text_check.mjs probe_2.html`** if the plate has text — every plate with a header has text — and **`node speed_check.mjs probe_2.html`** if it owns a seam, which every plate but the first does. `READ`, `EDGE` and `OVERLAP` lines and any `SNAP` are the lane's to fix before it reports. `FAST` is advice and may be left with a reason.
 - **Every number it put on screen, with its source**, copied from the facts it was given. If the lane changed a number, rounded one, or derived one by arithmetic, it shows the arithmetic.
 - **An honest note on what it could not get right**: a beat that does not read, a texture that crawls, a callout it had to move, a helper it wants shared, a place where the script asks for something the plate cannot show. This is the most valuable part of the report. A lane that reports "done, looks good" has told the main session nothing, and the problem surfaces at Gate 2 instead, where it costs a re-render.
 

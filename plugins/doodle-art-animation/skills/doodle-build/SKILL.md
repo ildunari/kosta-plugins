@@ -42,12 +42,12 @@ Each lane gets: the absolute working folder, its own row from the plate table, t
 
 Each lane:
 
-- writes exactly one file, `plate_<n>_<slug>.js`, holding one plate object as `const P<n> = { … }` and nothing else;
+- writes exactly one file, `plate_<n>_<slug>.js`, holding one plate object named after the file (`plate_3_corona.js` defines `const P3_CORONA`) and nothing else;
 - builds and renders only to check its own plate, with its own probe story so the lanes don't collide:
 
 ```
 cat helpers.js plate_3_corona.js > probe_3.js
-printf "defineStory({ title: 'probe 3', stages: 1, plates: [P3] });\nboot();\n" >> probe_3.js
+printf "defineStory({ title: 'probe 3', stages: <the film's stages>, plates: [P3_CORONA] });\nboot();\n" >> probe_3.js
 python3 build.py probe_3.js probe_3.html
 node render.mjs probe_3.html --sheet-range 0-10 --fps 6 --dir qa/plate_3
 ```
