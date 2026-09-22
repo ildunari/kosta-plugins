@@ -1,6 +1,8 @@
 // render.mjs — frame-exact capture of a Doodle Art Animation HTML file.
 // usage:
-//   node render.mjs film.html out.mp4 [--workers 6] [--from 0] [--to N] [--png] [--bitrate 3800k] [--crf 16] [--preset slow] [--strict-fonts]
+//   node render.mjs film.html out.mp4 [--workers N] [--from 0] [--to N] [--png] [--bitrate 3800k] [--crf 16] [--preset medium] [--strict-fonts]
+//        --workers: pages drawing at once. Default: one per CPU core, at most 8, for a full render; at most 4 for the
+//        QA sets below, which also give each extra page at least 6 frames of its own (a page takes about a second to open)
 //   node render.mjs film.html --stills 0,120,480 [--dir qa]     single frames
 //   node render.mjs film.html --sheet 1 [--dir qa]              1 frame every N seconds -> qa/contact_sheet.jpg
 //   node render.mjs film.html --strips [--dir qa]               8 fps strip around every transition -> qa/strip_XX.jpg
@@ -10,7 +12,7 @@
 //   node render.mjs film.html --sheet-range A-B --crop x,y,w,h [--fps 6]    the same frames, cropped first -> qa/range_A-B_crop.jpg (a detail sheet; both files are written when --crop is given)
 import { createRequire } from 'module';
 import { pathToFileURL } from 'url';
-import fs from 'fs'; import path from 'path'; import { execFileSync } from 'child_process';
+import fs from 'fs'; import os from 'os'; import path from 'path'; import { execFileSync } from 'child_process';
 const require = createRequire(import.meta.url);
 let chromium;
 try { ({ chromium } = require('playwright')); }
@@ -21,7 +23,13 @@ const file = path.resolve(args[0]);
 const opt = (k, d) => { const i = args.indexOf('--' + k); return i < 0 ? d : (args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : true); };
 const out = args[1] && !args[1].startsWith('--') ? path.resolve(args[1]) : null;
 const strictFonts = !!opt('strict-fonts', false);   // exit non-zero if any page fell back to other fonts
-const workers = +opt('workers', 6), png = !!opt('png', false), bitrate = opt('bitrate', null), crf = String(opt('crf', 16)), preset = opt('preset', 'slow');
+// Headless Chromium draws the canvas on the CPU, so one page per core is the fastest: on a 4-core machine the 55 s One
+// Drop film drew in 187 s with 2 pages and 105 s with 4. More pages than cores gain nothing and cost ~450 MB each.
+const cores = (os.availableParallelism ? os.availableParallelism() : os.cpus().length) || 4;
+const workersArg = opt('workers', null), workers = Math.max(1, Math.round(+workersArg) || Math.min(8, cores));
+// medium, not slow: at --bitrate 3800k both give the same size and the same picture (SSIM and PSNR equal, no visible
+// difference at 200%), and medium encodes in about half the time (65 s against 119 s for One Drop on 4 cores)
+const png = !!opt('png', false), bitrate = opt('bitrate', null), crf = String(opt('crf', 16)), preset = opt('preset', 'medium');
 const dir = path.resolve(opt('dir', out ? out.replace(/\.mp4$/, '') + '_frames' : 'qa'));
 fs.mkdirSync(dir, { recursive: true });
 
@@ -73,6 +81,15 @@ const grab = async (page, f, name) => {
 };
 const tile = (glob, cols, rows, outName, w = 480, crop = null) => execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-pattern_type', 'glob', '-i', path.join(dir, glob),
   '-vf', `${crop ? `crop=${crop.w}:${crop.h}:${crop.x}:${crop.y},` : ''}scale=${w}:-1,tile=${cols}x${rows}:padding=4:color=white`, '-frames:v', '1', path.join(dir, outName)]);
+// QA sets: every [frame, file name] job, spread over several pages. A page takes about a second to open, so each extra
+// page gets at least 6 frames; without --workers at most 4 pages, since build lanes can run several of these at once.
+// Measured on 4 cores (One Drop): contact sheet 17.7 s -> 8.1 s, strips 34.8 s -> 13.4 s, seams 20.0 s -> 9.7 s.
+async function grabAll(jobs) {
+  const n = Math.max(1, Math.min(workersArg ? workers : Math.min(4, cores), Math.floor(jobs.length / 6)));
+  const pool = [first, ...await Promise.all(Array.from({ length: n - 1 }, openPage))];
+  let next = 0;
+  await Promise.all(pool.map(async page => { while (next < jobs.length) { const [f, name] = jobs[next++]; await grab(page, f, name); } }));
+}
 
 if (opt('stills', null) || opt('sheet', null)) {
   const list = opt('stills', null) ? String(opt('stills')).split(',').map(Number)
@@ -80,7 +97,7 @@ if (opt('stills', null) || opt('sheet', null)) {
   // a contact sheet tiles f_*.jpg, so clear any left from an earlier, longer run of this film:
   // qa/ outlives a single run now (the reviewers reuse it), and stale frames would be tiled in as if current
   if (opt('sheet', null)) for (const fn of fs.readdirSync(dir)) if (/^f_\d+\.jpg$/.test(fn)) fs.unlinkSync(path.join(dir, fn));
-  for (const f of list) await grab(first, f, `f_${String(f).padStart(5, '0')}.jpg`);
+  await grabAll(list.map(f => [f, `f_${String(f).padStart(5, '0')}.jpg`]));
   console.log(`wrote ${list.length} stills to ${dir}`);
   if (opt('sheet', null)) { tile('f_*.jpg', 6, Math.ceil(list.length / 6), 'contact_sheet.jpg'); console.log('contact sheet:', path.join(dir, 'contact_sheet.jpg')); }
   await browser.close(); process.exit(0);
@@ -90,11 +107,13 @@ if (opt('seams', null)) {
   // for a reviewer to score. Same for --strips below.
   for (const fn of fs.readdirSync(dir)) if (/^seam_\d+_\w+\.jpg$/.test(fn)) fs.unlinkSync(path.join(dir, fn));
   const fps = info.fps, fr = t => Math.max(0, Math.min(info.frames - 1, Math.round(t * fps)));
-  for (const [i, s] of info.starts.entries()) {
-    if (i === 0) continue;
+  const seams = [...info.starts.entries()].filter(([i]) => i > 0).map(([i, s]) => {
     const d = s.dur || 0, tag = `m${String(i).padStart(2, '0')}`, span = d || 0.6;
     const shots = [['a', fr(s.t) - 2], ['b', fr(s.t + d + s.settle)], ...[0.2, 0.4, 0.6, 0.8].map((u, k) => ['c' + k, fr(s.t + u * span)])];
-    for (const [n, f] of shots) await grab(first, f, `${tag}_${n}.jpg`);
+    return { i, s, tag, shots };
+  });
+  await grabAll(seams.flatMap(({ tag, shots }) => shots.map(([n, f]) => [f, `${tag}_${n}.jpg`])));
+  for (const { i, s, tag } of seams) {
     const P = n => path.join(dir, `${tag}_${n}.jpg`), out = path.join(dir, `seam_${String(i).padStart(2, '0')}_${s.type || 'cut'}.jpg`);
     execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', P('a'), '-i', P('b'), '-i', P('c0'), '-i', P('c1'), '-i', P('c2'), '-i', P('c3'), '-filter_complex',
       '[0]scale=640:360,split[a][a2];[1]scale=640:360,split[b][b2];[a2][b2]blend=all_mode=average[o];[a][o][b]hstack=3[top];' +
@@ -106,10 +125,11 @@ if (opt('seams', null)) {
 }
 if (opt('strips', null)) {   // 12 frames at 8 fps, from 0.25 s before each plate start
   for (const fn of fs.readdirSync(dir)) if (/^strip_\d+_\w+\.jpg$/.test(fn)) fs.unlinkSync(path.join(dir, fn));
-  const starts = info.starts.map((s, i) => ({ ...s, i })).filter(s => s.i > 0);
+  const starts = info.starts.map((s, i) => ({ ...s, i })).filter(s => s.i > 0), tagOf = s => `s${String(s.i).padStart(2, '0')}`;
+  await grabAll(starts.flatMap(s => Array.from({ length: 12 }, (_, k) =>
+    [Math.max(0, Math.round((s.t - 0.25) * info.fps) + k * 3), `${tagOf(s)}_${String(k).padStart(2, '0')}.jpg`])));
   for (const s of starts) {
-    const tag = `s${String(s.i).padStart(2, '0')}`;
-    for (let k = 0; k < 12; k++) { const f = Math.max(0, Math.round((s.t - 0.25) * info.fps) + k * 3); await grab(first, f, `${tag}_${String(k).padStart(2, '0')}.jpg`); }
+    const tag = tagOf(s);
     tile(`${tag}_*.jpg`, 4, 3, `strip_${String(s.i).padStart(2, '0')}_${s.type || 'cut'}.jpg`);
     for (const fn of fs.readdirSync(dir)) if (fn.startsWith(tag + '_')) fs.unlinkSync(path.join(dir, fn));
     console.log(`strip ${s.i} (${s.type || 'cut'}) at ${s.t.toFixed(2)} s`);
@@ -131,7 +151,7 @@ if (opt('sheet-range', null)) {   // frames from A to B seconds at --fps (defaul
   const fset = new Set(); for (let t = A; t <= B + 1e-9; t += 1 / rfps) fset.add(Math.round(t * info.fps));
   const list = [...fset].filter(f => f >= 0 && f < info.frames).sort((a, b) => a - b);
   if (!list.length) fail(`--sheet-range ${rangeArg}: no frames in range (film is ${(info.frames / info.fps).toFixed(1)} s)`);
-  for (const f of list) await grab(first, f, `rf_${String(f).padStart(5, '0')}.jpg`);
+  await grabAll(list.map(f => [f, `rf_${String(f).padStart(5, '0')}.jpg`]));
   const cols = Math.min(6, list.length), rows = Math.ceil(list.length / cols);
   tile('rf_*.jpg', cols, rows, `${tag}.jpg`);
   console.log(`range sheet (${list.length} frames at ${rfps} fps): ${path.join(dir, tag + '.jpg')}`);
@@ -141,7 +161,7 @@ if (opt('sheet-range', null)) {   // frames from A to B seconds at --fps (defaul
 }
 
 const from = +opt('from', 0), to = Math.min(+opt('to', info.frames), info.frames);
-const pages = [first]; for (let i = 1; i < workers; i++) pages.push(await openPage());
+const pages = [first, ...await Promise.all(Array.from({ length: workers - 1 }, openPage))];   // the first page already set the fonts
 let done = 0; const t0 = Date.now(), ext = png ? 'png' : 'jpg';
 // audio renders on its own thread (OfflineAudioContext), so start it now instead of after the frames: ~20 s saved on a 3-minute film
 let audioError = null;                                       // held until the frames finish, so a failure can't abort mid-render unhandled

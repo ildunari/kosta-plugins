@@ -1,5 +1,5 @@
 // legibility_check.mjs — can the film's text actually be read? Measured on pixels, not on boxes.
-// usage: node legibility_check.mjs film.html [--step 0.5] [--json out.json] [--crops DIR] [--from s --to s]
+// usage: node legibility_check.mjs film.html [--step 0.5] [--json out.json] [--crops DIR] [--from s --to s] [--workers N]
 //
 // text_check.mjs compares text boxes with each other; it cannot see text printed across line art, or grey type on a
 // pink chain. This check looks at the pixels. It wraps the engine's text() and haloText() in the page (engine.js and
@@ -84,20 +84,23 @@
 //   busy 0.55) and its card line must not be listed.
 import { createRequire } from 'module';
 import { pathToFileURL } from 'url';
-import fs from 'fs'; import path from 'path'; import { execFileSync } from 'child_process';
+import fs from 'fs'; import os from 'os'; import path from 'path'; import { execFileSync } from 'child_process';
 const require = createRequire(import.meta.url);
 let chromium;
 try { ({ chromium } = require('playwright')); }
 catch { try { ({ chromium } = require(path.join(execFileSync('npm', ['root', '-g']).toString().trim(), 'playwright'))); }
   catch { console.error('legibility_check: playwright not found (npm i playwright in the film folder, or npm i -g playwright)'); process.exit(2); } }
 
-const USAGE = 'usage: node legibility_check.mjs film.html [--step 0.5] [--json out.json] [--crops DIR] [--from s --to s]';
+const USAGE = 'usage: node legibility_check.mjs film.html [--step 0.5] [--json out.json] [--crops DIR] [--from s --to s] [--workers N]';
 const args = process.argv.slice(2);
 if (!args[0] || args[0].startsWith('--')) { console.log(USAGE); process.exit(2); }
 const opt = (k, d) => { const i = args.indexOf('--' + k); if (i < 0) return d; const v = args[i + 1];
   if (v === undefined || v.startsWith('--')) { console.error(`legibility_check: --${k} needs a value`); process.exit(2); } return v; };
 const file = path.resolve(args[0]), step = Number(opt('step', 0.5)), jsonOut = opt('json', null), cropDir = opt('crops', null);
 const from = Number(opt('from', 0)), to = opt('to', null) === null ? Infinity : Number(opt('to', null));
+// pages measuring frames at once (default: one per core, at most 4); the results are then read in film order
+const cores = (os.availableParallelism ? os.availableParallelism() : os.cpus().length) || 4, workers = Number(opt('workers', Math.min(4, cores)));
+if (!Number.isInteger(workers) || workers < 1) { console.error('legibility_check: --workers must be a whole number, 1 or more'); process.exit(2); }
 if (!(step > 0)) { console.error('legibility_check: --step must be a number of seconds above 0'); process.exit(2); }
 if (!(from >= 0) || !(to > from)) { console.error('legibility_check: --from/--to must be seconds with from < to'); process.exit(2); }
 if (!fs.existsSync(file)) { console.error(`legibility_check: ${file} not found`); process.exit(2); }
@@ -111,13 +114,17 @@ const browser = await chromium.launch({ args: ['--font-render-hinting=none'] });
 let pageErrors = 0;
 const bail = async (msg) => { console.error(msg); await browser.close(); process.exit(2); };
 try {
-const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
-page.on('pageerror', e => { pageErrors++; console.error('PAGE ERROR:', e.message); });
-await page.goto(pathToFileURL(file).href + '?render=1', { waitUntil: 'networkidle' });
-try { await page.waitForFunction(() => window.__ready === true, null, { timeout: 90000, polling: 250 }); }
-catch { await bail('legibility_check: the film never became ready (window.__ready); open it in a browser and look at the console'); }
+const openPage = async () => {
+  const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
+  page.on('pageerror', e => { pageErrors++; console.error('PAGE ERROR:', e.message); });
+  await page.goto(pathToFileURL(file).href + '?render=1', { waitUntil: 'networkidle' });
+  try { await page.waitForFunction(() => window.__ready === true, null, { timeout: 90000, polling: 250 }); }
+  catch { await bail('legibility_check: the film never became ready (window.__ready); open it in a browser and look at the console'); }
+  return page;
+};
+const page = await openPage();
 
-const info = await page.evaluate(({ GRAD, RING, OUTER, BIN, CR_SPAN, BUSY_SPAN, DECOR_LEN }) => {
+const setup = ({ GRAD, RING, OUTER, BIN, CR_SPAN, BUSY_SPAN, DECOR_LEN }) => {
   const main = cvs.getContext('2d'), origText = window.text, origHalo = window.haloText;
   const nc = document.createElement('canvas').getContext('2d');
   const rgba = c => { nc.fillStyle = '#000'; nc.fillStyle = c; const s = nc.fillStyle;
@@ -276,16 +283,24 @@ const info = await page.evaluate(({ GRAD, RING, OUTER, BIN, CR_SPAN, BUSY_SPAN, 
   };
   return { ...window.__story, plates: STORY.plates.map((p, i, all) => ({ start: p.start, dur: p.dur,
     name: p.header ? `plate ${p.header.num != null ? ROMAN(p.header.num) || p.header.num : i + 1} "${p.header.title}"` : i === 0 ? 'opening' : i === all.length - 1 ? 'end card' : `plate ${i + 1} of ${all.length}` })) };
-}, { GRAD, RING, OUTER, BIN, CR_SPAN, BUSY_SPAN, DECOR_LEN });
+};
+const SETUP_ARGS = { GRAD, RING, OUTER, BIN, CR_SPAN, BUSY_SPAN, DECOR_LEN }, info = await page.evaluate(setup, SETUP_ARGS);
 if (pageErrors) await bail('legibility_check: the page threw while loading; fix the film first');
 
 const t0 = Date.now(), fps = info.fps, dur = info.frames / fps, last = Math.min(dur, to);
 console.log(`${info.title}: ${dur.toFixed(1)} s, sampling every ${step} s${from > 0 || to < Infinity ? ` from ${from} to ${last.toFixed(1)} s` : ''}`);
 const samples = [], decorSeen = new Map();
 let skipped = 0;
-for (let T = from; T < last - 1e-9; T += step) {
-  const f = Math.min(info.frames - 1, Math.round(T * fps));
-  const r = await page.evaluate(f => window.__legibility(f), f);
+// renderFrame(f) depends on f alone, so the frames are measured on several pages at once and read back in film order.
+// Each page gets at least 10 frames (a page takes about a second to open). One Drop (110 frames) on 4 cores: 45 s -> 16 s (same results).
+const Ts = []; for (let T = from; T < last - 1e-9; T += step) Ts.push(T);
+const pages = [page, ...await Promise.all(Array.from({ length: Math.max(1, Math.min(workers, Math.floor(Ts.length / 10))) - 1 },
+  async () => { const p = await openPage(); await p.evaluate(setup, SETUP_ARGS); return p; }))];
+const measured = new Array(Ts.length);
+let next = 0;
+await Promise.all(pages.map(async p => { while (next < Ts.length) { const k = next++, f = Math.min(info.frames - 1, Math.round(Ts[k] * fps));
+  measured[k] = { f, r: await p.evaluate(f => window.__legibility(f), f) }; } }));
+for (const { f, r } of measured) {
   for (const x of r.decor) { const k = `${r.plate}|${x.via}|${x.s.replace(/\d/g, '#')}`;
     const D = decorSeen.get(k) || decorSeen.set(k, { plate: r.plate, via: x.via, text: x.s, size: x.size, from: r.T, to: r.T }).get(k);
     D.to = r.T; if (x.s.length > D.text.length) D.text = x.s; }

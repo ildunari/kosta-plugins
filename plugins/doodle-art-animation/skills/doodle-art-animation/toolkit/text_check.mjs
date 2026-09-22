@@ -1,5 +1,5 @@
 // text_check.mjs — measures the film's on-screen text instead of guessing it from the story code.
-// usage: node text_check.mjs film.html [--step 2] [--json text_check.json]
+// usage: node text_check.mjs film.html [--step 2] [--json text_check.json] [--workers N]
 // It wraps the engine's text() in the page (engine.js and the story are untouched), steps through the film one
 // drawing at a time, and follows every line of text as it types on, holds and fades. It reports:
 //   READ     lines that were not fully on screen for readTime(s) = chars / 12 + 0.8 s, or that fade or get cut before they
@@ -14,26 +14,32 @@
 // it, so still look at the frames for text over art or cards.
 import { createRequire } from 'module';
 import { pathToFileURL } from 'url';
-import fs from 'fs'; import path from 'path'; import { execFileSync } from 'child_process';
+import fs from 'fs'; import os from 'os'; import path from 'path'; import { execFileSync } from 'child_process';
 const require = createRequire(import.meta.url);
 let chromium;
 try { ({ chromium } = require('playwright')); }
 catch { ({ chromium } = require(path.join(execFileSync('npm', ['root', '-g']).toString().trim(), 'playwright'))); }
 
 const args = process.argv.slice(2);
-if (!args[0] || args[0].startsWith('--')) { console.log('usage: node text_check.mjs film.html [--step 2] [--json out.json]'); process.exit(2); }
+if (!args[0] || args[0].startsWith('--')) { console.log('usage: node text_check.mjs film.html [--step 2] [--json out.json] [--workers N]'); process.exit(2); }
 const opt = (k, d) => { const i = args.indexOf('--' + k); if (i < 0) return d; const v = args[i + 1];
   if (v === undefined || v.startsWith('--')) { console.error(`text_check: --${k} needs a value`); process.exit(2); } return v; };
 const file = path.resolve(args[0]), step = Number(opt('step', 2)), jsonOut = opt('json', null);
+// pages reading frames at once (default: one per core, at most 4); the frames are then followed in order, as on one page
+const cores = (os.availableParallelism ? os.availableParallelism() : os.cpus().length) || 4, workers = Number(opt('workers', Math.min(4, cores)));
+if (!Number.isInteger(workers) || workers < 1) { console.error('text_check: --workers must be a whole number, 1 or more'); process.exit(2); }
 if (!Number.isInteger(step) || step < 1) { console.error('text_check: --step must be a whole number of frames, 1 or more'); process.exit(2); }
 if (!fs.existsSync(file)) { console.error(`text_check: ${file} not found`); process.exit(2); }
 
 const browser = await chromium.launch({ args: ['--font-render-hinting=none'] });
-const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
-page.on('pageerror', e => console.error('PAGE ERROR:', e.message));
-await page.goto(pathToFileURL(file).href + '?render=1', { waitUntil: 'networkidle' });
-await page.waitForFunction(() => window.__ready === true, null, { timeout: 90000, polling: 250 });
-const info = await page.evaluate(() => {
+const openPage = async () => {
+  const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
+  page.on('pageerror', e => console.error('PAGE ERROR:', e.message));
+  await page.goto(pathToFileURL(file).href + '?render=1', { waitUntil: 'networkidle' });
+  await page.waitForFunction(() => window.__ready === true, null, { timeout: 90000, polling: 250 });
+  return page;
+};
+const setup = () => {
   const main = cvs.getContext('2d');
   let role = 'scene';
   const tag = (fn, r) => function (...a) { const k = role; role = r; try { return fn.apply(this, a); } finally { role = k; } };
@@ -55,10 +61,15 @@ const info = await page.evaluate(() => {
       box: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)], sc: Math.hypot(T.a, T.b), a: ctx.globalAlpha * alpha, tr: !!S.trans });
     return w;
   };
-  window.__tcFrame = f => { window.__tc = []; renderFrame(f); main.getImageData(0, 0, 1, 1); return { T: S.T, plate: STORY.plates.findIndex(p => S.T < p.start + p.dur), recs: window.__tc }; };
+  // Only the text() calls are needed, not the pixels, so the frame's queued drawing is thrown away (reset) instead of
+  // drawn: reading a pixel back made Chromium draw every frame, which took two thirds of the time. Something has to
+  // empty the queue each frame, or Chromium stalls for seconds every few dozen frames (references/render.md).
+  window.__tcFrame = f => { window.__tc = []; renderFrame(f); if (main.reset) main.reset(); else cvs.width = cvs.width;
+    return { T: S.T, plate: STORY.plates.findIndex(p => S.T < p.start + p.dur), recs: window.__tc }; };
   return { ...window.__story, plates: STORY.plates.map((p, i, all) => ({ start: p.start, dur: p.dur,
     name: p.header ? `plate ${p.header.num != null ? ROMAN(p.header.num) : i + 1} "${p.header.title}"` : i === 0 ? 'opening' : i === all.length - 1 ? 'end card' : `plate ${i + 1} of ${all.length}` })) };
-});
+};
+const page = await openPage(), info = await page.evaluate(setup);
 console.log(`${info.title}: ${info.frames} frames, sampling every ${step}`);
 console.log('transitions at (s):', info.starts.slice(1).map(x => x.t.toFixed(2)).join(','));
 
@@ -66,8 +77,16 @@ const readTime = s => s.length / 12 + 0.8, dt = step / info.fps, digits = /\d/;
 const tracks = [], frames = [];
 let lastT = 0;
 const related = (a, b) => a.startsWith(b) || b.startsWith(a);
-for (let f = 0; f < info.frames; f += step) {
-  const { T, plate, recs } = await page.evaluate(f => window.__tcFrame(f), f);
+// renderFrame(f) depends on f alone, so the frames are read on several pages at once, then followed in film order.
+// A page takes about a second to open, so each one gets at least 20 frames. One Drop (660 drawings) on 4 cores:
+// 134-148 s with the old one-page pixel read, 47 s with the reset on one page, 17.5 s on 4 pages (same results).
+const list = []; for (let f = 0; f < info.frames; f += step) list.push(f);
+const pages = [page, ...await Promise.all(Array.from({ length: Math.max(1, Math.min(workers, Math.floor(list.length / 20))) - 1 },
+  async () => { const p = await openPage(); await p.evaluate(setup); return p; }))];
+const results = new Array(list.length);
+let next = 0;
+await Promise.all(pages.map(async p => { while (next < list.length) { const k = next++; results[k] = await p.evaluate(f => window.__tcFrame(f), list[k]); } }));
+for (const { T, plate, recs } of results) {
   const used = new Set();
   for (const r of recs) {
     // Inside a transition, text only extends a line that is still in place (a bleed or fade), for up to 0.3 s.

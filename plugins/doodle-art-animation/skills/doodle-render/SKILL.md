@@ -15,17 +15,17 @@ Make the shareable MP4 of a film in the current working folder and check it befo
 - Arguments given: `$ARGUMENTS` (both optional: first the story file, as in `/doodle-art-animation:doodle-qa`, then the output MP4 name).
 - The story is the first argument, otherwise `story.js`. The output is the second argument, otherwise `film.mp4`; the HTML takes the same name with `.html`.
 - The toolkit lives at `${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation/toolkit`. If that path was not filled in, use `${CLAUDE_SKILL_DIR}/../doodle-art-animation/toolkit`. Copy in anything the folder is missing, never overwriting existing files: `cp -Rn "<toolkit>/." . || true` (macOS `cp -n` can exit non-zero when files already exist; that is fine).
-- Pick the worker count from the CPU count: `n=$(sysctl -n hw.ncpu 2>/dev/null || nproc)`, then workers = n - 2, at least 2 and at most 8. Use fewer if the user says the machine is busy.
+- Workers: `render.mjs` uses one page per CPU core, at most 8, when `--workers` is not given. That is the fastest setting: headless Chromium draws on the CPU, so on a 4-core machine One Drop drew in 105 s with 4 workers and 187 s with 2, and more workers than cores gain nothing. Pass `--workers N` (fewer than the core count) only if the user says the machine is busy.
 
 ## 2. Render
 
 ```
 sh assemble.sh                                  # if the folder has one: story.js is generated from the plate files
 python3 build.py <story> <film>.html
-node render.mjs <film>.html <film>.mp4 --workers <workers> --bitrate 3800k --strict-fonts
+node render.mjs <film>.html <film>.mp4 --bitrate 3800k --strict-fonts
 ```
 
-Run the render in the background and check on it. It prints the frame total first and then progress every 120 frames; expect roughly 40–70 ms per frame with 6 workers (a one-minute film takes 1–2 minutes). Stop and report if a `PAGE ERROR` appears.
+Run the render in the background and check on it. It prints the frame total first and then progress every 120 frames. Expect about 40–70 ms per frame on a machine with 6 or more cores (a one-minute film takes 1–2 minutes), and about 80 ms per frame plus about a minute of encoding on a 4-core cloud machine (One Drop, 55 s: about 3 minutes in all). Stop and report if a `PAGE ERROR` appears.
 
 ## 3. Check the file
 
@@ -52,6 +52,6 @@ Reply with a short summary:
 - the MP4 path, size, length and frame count;
 - the HTML path and size (it is also a player: space plays, the arrow keys skip 2 s, `[` and `]` jump between plates);
 - the `motion_check` and `audio_check` result lines;
-- the render time and worker count.
+- the render time and worker count (the `frames:` line names both).
 
 The `<film>_frames` folder holds every frame and the WAV. Give its size and offer to delete it; delete it only if the user agrees.
