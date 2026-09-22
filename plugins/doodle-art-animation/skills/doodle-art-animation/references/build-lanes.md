@@ -83,6 +83,8 @@ node render.mjs probe_2.html --sheet-range 0-<the plate's dur> --fps 6 --dir qa/
 
 Everything in those four lines is named after the plate, and that is the point: lanes run at the same time in the same folder. `--dir qa/plate_<n>` is not decoration — `render.mjs` names a range sheet after its seconds, so two lanes covering the same seconds into one directory both write the same `qa/range_A-B.jpg` and the second silently destroys the first's evidence. Give every lane its own `probe_<n>.js`, `probe_<n>.html` and `--dir qa/plate_<n>`.
 
+A range sheet draws its frames on up to 4 browser pages at once (about 450 MB each). With five or more lanes rendering at the same moment on a machine with 16 GB or less, add `--workers 2` so the lanes together stay within memory.
+
 `build.py` needs a `defineStory({ title: '...' })` with a single-quoted title, and it picks the kits by scanning the story text for `KIT.<name>`, so the probe must be the concatenated file — the plate file alone has neither.
 
 The lane reports:

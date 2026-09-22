@@ -2008,6 +2008,10 @@ function renderFrame(f) {
   let i = P.findIndex(p => T < p.start + p.dur); if (i < 0) i = P.length - 1;
   const pl = P[i], t = T - pl.start, tr = pl.enter, vig = d => d ? TEX.vigNight : TEX.vigPaper;
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  // start every frame on plain paper. A transition can leave a sub-pixel gap (the whip pan's seam between its two
+  // sheets), and the previous frame showed through it, so the frame depended on what this page had drawn before and
+  // renders with different worker counts differed in one pixel column
+  ctx.fillStyle = pl.dark ? PAL.night : PAL.paper; ctx.fillRect(0, 0, W, H);
   // gate weave: the whole drawing shifts a fraction of a pixel and turns a hair each drawing, like hand-shot animation
   const wv = STORY.weave ?? 0.9, db = Math.floor(f / 2), TT = f / FPS;   // weave: a slow wander (under 1 Hz) plus a tiny per-drawing jitter, so text never buzzes
   if (wv) { ctx.translate(W / 2 + (1.4 * vnoise(TT * 0.7, 1) + 0.25 * (hash3(db, 1, 7) - 0.5)) * wv, H / 2 + (1.4 * vnoise(TT * 0.6, 2) + 0.25 * (hash3(db, 2, 7) - 0.5)) * wv);

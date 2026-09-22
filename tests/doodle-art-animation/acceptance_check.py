@@ -459,12 +459,26 @@ if want('V8'):
     for fx in ('story_drift.js', 'story_drift2.js'):
         check('V8', f'fixture {fx} exists', os.path.isfile(os.path.join(FIX, fx)))
 
+if want('P1'):
+    RENDER = read(os.path.join(TK, 'render.mjs')) or ''
+    check('P1', 'render.mjs defaults to one worker per core, at most 8',
+          'availableParallelism' in RENDER and bool(re.search(r'Math\.min\(8,\s*cores\)', RENDER)))
+    check('P1', 'render.mjs encodes with the medium preset by default', "opt('preset', 'medium')" in RENDER)
+    check('P1', 'render.mjs spreads the QA sets over several pages', bool(re.search(r'async function grabAll[\s\S]{0,400}openPage', RENDER)))
+    DR = read(os.path.join(PLUG, 'skills', 'doodle-render', 'SKILL.md')) or ''
+    check('P1', 'doodle-render does not hold cores back from the render', not re.search(r'\bn\s*-\s*2\b|cores?\s+minus', DR, re.I))
+    for tool in ('text_check.mjs', 'legibility_check.mjs'):
+        check('P1', f'{tool} takes --workers', "opt('workers'" in (read(os.path.join(TK, tool)) or ''))
+    check('P1', 'text_check throws the drawing away instead of reading a pixel',
+          bool(re.search(r'__tcFrame[^\n]*renderFrame\(f\);[^\n]*reset\(\)', read(os.path.join(TK, 'text_check.mjs')) or '')))
+    check('P1', 'renderFrame starts every frame on plain paper', bool(re.search(r'function renderFrame\([\s\S]{0,1500}?fillRect\(0, 0, W, H\)', ENGINE)))
+
 if want('REL'):
     pj = json.loads(read(os.path.join(PLUG, '.claude-plugin', 'plugin.json')) or '{}')
     mj = json.loads(read(os.path.join(REPO, '.claude-plugin', 'marketplace.json')) or '{}')
     mv = next((p.get('version') for p in mj.get('plugins', []) if p.get('name') == 'doodle-art-animation'), None)
-    check('REL', 'plugin.json version 0.15.0', pj.get('version') == '0.15.0', str(pj.get('version')))
-    check('REL', 'marketplace entry version 0.15.0', mv == '0.15.0', str(mv))
+    check('REL', 'plugin.json version 0.16.0', pj.get('version') == '0.16.0', str(pj.get('version')))
+    check('REL', 'marketplace entry version 0.16.0', mv == '0.16.0', str(mv))
 
 # ---------------------------------------------------------------- full checks (build, probe, render)
 def run(cmd, cwd=None, timeout=1800):
@@ -604,6 +618,26 @@ if a.full:
         rc, out = run(['node', 'text_check.mjs', ex], cwd=work)
         check('L2', 'text_check CLEAN on story_example', rc == 0 and 'CLEAN' in out, out[-300:])
 
+    if want('P1'):
+        # render.mjs, text_check and legibility_check spread frames over pages, so a frame's pixels must not depend on
+        # what the same page drew before it. Every third drawing of every transition, drawn after frame 0 and after its
+        # own neighbour: at most 1 level apart (Chromium's own rounding; the pan seam that leaked was 4-5 levels).
+        # Each frame is read back before the next, as every tool does: two frames queued with no read in between can
+        # differ by a few levels, which no tool ever does (references/render.md, "Timing your own code").
+        ORDER = """const s = window.__story, g = document.querySelector('canvas').getContext('2d'), bad = [];
+          const grab = () => g.getImageData(0, 0, s.width, s.height).data, draw = f => { window.__renderFrame(f); g.getImageData(0, 0, 1, 1); };
+          for (const st of s.starts.slice(1)) { const f0 = Math.round(st.t * s.fps), f1 = Math.min(s.frames - 1, Math.round((st.t + (st.dur || 0)) * s.fps));
+            for (let f = f0; f <= f1; f += 3) { draw(0); draw(f); const a = grab().slice();
+              draw(f > 0 ? f - 1 : f + 1); draw(f); const b = grab();
+              let m = 0; for (let i = 0; i < a.length; i++) { const d = Math.abs(a[i] - b[i]); if (d > m) m = d; }
+              if (m > 1) bad.push([f, m]); } }
+          return bad;"""
+        for story in ('story_one_drop.js', 'story_example.js', 'story_reel.js'):
+            h = build(story)
+            r = probe(h, ORDER) if h else {'result': None, 'errors': ['build failed']}
+            check('P1', f'{story}: transition frames do not depend on the frame drawn before',
+                  r.get('result') == [] and not r.get('errors'), f"frame, max level difference: {r.get('result')} {'; '.join(r.get('errors') or [])[:200]}")
+
     if want('REL'):
         cmd = ['python3', os.path.join(TK, 'smoke_test.py'), '--work', os.path.join(work, 'smoke'), '--no-video']
         if nm: cmd += ['--node-modules', nm]
@@ -614,7 +648,7 @@ if a.full:
 # ---------------------------------------------------------------- report
 order = ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9', 'L10', 'L11', 'L12', 'L13', 'L14', 'L15', 'L16', 'L17',
          'W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9',
-         'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'REL']
+         'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'P1', 'REL']
 col = {'PASS': '\033[32m', 'FAIL': '\033[31m', 'SKIP': '\033[33m'}
 tty = sys.stdout.isatty()
 for item in order:

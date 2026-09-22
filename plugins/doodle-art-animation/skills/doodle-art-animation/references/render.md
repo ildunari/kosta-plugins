@@ -1,26 +1,39 @@
 # Rendering
 
 - **How it works:** `render.mjs` loads the HTML with `?render=1`, waits for `window.__ready`, and calls `window.__frameData(f)`, which returns the canvas as a JPEG.
-  - Frames are split across workers by `floor(f / 2) % workers`.
+  - Frames are split across workers (browser pages) by `floor(f / 2) % workers`. Without `--workers` there is one per CPU core, at most 8.
   - Audio comes from `window.__audioWav()`.
   - ffmpeg joins them at `-crf 16`, or at `--bitrate` if you pass one.
   - Audio renders at the same time as the frames (on its own audio thread), and the script prints frame, audio and encode times and the file size.
   - The page loads on `domcontentloaded` and waits for `window.__ready`; if the fonts did not load it prints a yellow `WARNING` (see "Fonts" below).
-- **Options:** `--png` for lossless frames, `--from/--to` to re-render a range, `--bitrate 3800k` for a capped bitrate, `--crf 16` and `--preset slow` for the constant-quality encode, `--strict-fonts` to stop (exit code 1) when any page fell back to other fonts. Use `--strict-fonts` for the final render (the `doodle-render` step), so a film never ships in the wrong typeface.
+- **Options:** `--workers N` for fewer pages than cores on a busy machine, `--png` for lossless frames, `--from/--to` to re-render a range, `--bitrate 3800k` for a capped bitrate, `--crf 16` for the constant-quality encode, `--preset` for the x264 preset (default `medium`; see "Encoder preset" below), `--strict-fonts` to stop (exit code 1) when any page fell back to other fonts. Use `--strict-fonts` for the final render (the `doodle-render` step), so a film never ships in the wrong typeface.
 - **Seams:** `node render.mjs film.html --seams` writes `qa/seam_NN_type.jpg` for every transition. The top row shows the old plate's last drawing, the two overlaid, and the new plate once settled; the bottom row shows four drawings inside the transition. Use the overlay to check that the exit and entry objects line up.
 - **Range sheets:** `node render.mjs film.html --sheet-range A-B [--fps 6] [--dir qa]` renders frames from `A` to `B` seconds at `--fps` drawings a second (default 6) and tiles them into one grid, `qa/range_A-B.jpg` (6 per row, 480 px tiles, via the same `tile` helper `--sheet` uses). Add `--crop x,y,w,h` (pixels, in the film's 1920×1080 frame) to also write a detail sheet of the same frames, cropped first and scaled up to the same 480 px tiles — `qa/range_A-B_crop.jpg` — for close-ups a plain range sheet is too small to judge (a hand, a small mask edge, hatching). `--sheet-range` is its own early exit, like `--stills`/`--sheet`/`--seams`/`--strips`: it never falls through to a full-film render, with or without an `out.mp4` on the command line.
 - **Speed** depends mostly on CPU cores, because headless Chromium draws the canvas on the CPU.
+  - Use one worker per core (the default). On a 4-core cloud machine the 55 s One Drop film drew in 187 s with 2 workers and 105 s with 4; 6 were no faster than 4. Each page draws on one core, so fewer workers than cores leaves cores idle.
   - On a machine with plenty of cores, 6 workers averaged about 60–70 ms per frame, so a 4.5-minute film takes about 7–8 minutes.
   - On a 2-core machine, the 55 s One Drop film (`story_one_drop.js`) averaged about 140 ms per frame with 4 workers (about 7 minutes).
   - The heaviest plates are wide panning worlds: drawing a 3,400 px landscape every frame cost about 330 ms per frame on 2 cores, against about 170 ms for a normal plate. Heavy `hatch()`, `pebbles()` and `stipple()` over large areas are the main costs, so keep `gap` at 5 px or more there.
 - **Timing your own code:** Chromium queues canvas drawing until something reads the canvas. A loop that calls `renderFrame()` without reading back stalls for several seconds every couple of dozen frames. When timing, read one pixel after each frame (`ctx.getImageData(0, 0, 1, 1)`). `render.mjs` reads every frame, so real renders don't stall.
+  - A check that only needs what the frame calls (text positions, cue times), not its pixels, should throw the queue away instead: `ctx.reset()` after each `renderFrame(f)`. Reading a pixel makes Chromium draw the whole frame, which was two thirds of `text_check`'s time.
+- **QA sets use several pages too.** `--stills`, `--sheet`, `--strips`, `--seams` and `--sheet-range` spread their frames over up to 4 pages (or `--workers`), each page taking at least 6 frames, because a page takes about a second to open. `text_check` and `legibility_check` do the same (`--workers`, default up to 4) and then read the results in film order, so their output is unchanged. Measured on 4 cores with One Drop:
+
+  | Command | Before (one page) | After |
+  |---|---|---|
+  | `render.mjs --sheet 1` | 17.7 s | 8.1 s |
+  | `render.mjs --strips` | 34.8 s | 13.4 s |
+  | `render.mjs --seams` | 20.0 s | 9.7 s |
+  | `render.mjs --sheet-range 20-28` | 12.1 s | 6.6 s |
+  | `text_check.mjs` | 134–148 s | 17.5 s |
+  | `legibility_check.mjs` | 45 s | 16 s |
+- **Every frame starts on plain paper.** `renderFrame` fills the canvas with the plate's paper colour before drawing. The whip pan's two sheets meet at a sub-pixel seam, and without the fill the previous frame showed through that one column (up to 5 levels out of 255), so a frame's pixels depended on which frame the same page drew before it, and renders with different worker counts differed. Chromium itself can still differ by 1 level after some draws (a `roll` frame drawn before a `lensIn` frame on the same page shifts the lens-in frame by at most 1 level); that is below what JPEG keeps.
 - **Alternative:** a HyperFrames (HeyGen) composition could drive the same canvas through a custom frame adapter (`seekFrame(f)` → `renderFrame(f)`). The plain harness below is the one that has been tested.
 
 ## Legibility and story checks
 
 Two checks read the built film rather than a render. Both load `film.html` in headless Chromium the way `render.mjs` does, need `playwright` in the film folder, and exit 0 when clean, 1 on a finding and 2 on a setup error (missing file, page error, no playwright).
 
-**`node legibility_check.mjs film.html [--step 0.5] [--json out.json] [--crops DIR] [--from s --to s]`** checks the text on pixels. `text_check` compares text boxes with each other, so it can't see grey type printed across line art. This check can. Every `--step` seconds, skipping frames inside transitions, it renders the frame twice: once as the film shows it, and once with only the letters' fill hidden and the film grain off. Whatever the engine draws around the letters stays in that second render: the glyph halo of `haloText()`, a card or a backing. So it shows the frame as the viewer sees it, minus the letters themselves.
+**`node legibility_check.mjs film.html [--step 0.5] [--json out.json] [--crops DIR] [--from s --to s] [--workers N]`** checks the text on pixels. `text_check` compares text boxes with each other, so it can't see grey type printed across line art. This check can. Every `--step` seconds, skipping frames inside transitions, it renders the frame twice: once as the film shows it, and once with only the letters' fill hidden and the film grain off. Whatever the engine draws around the letters stays in that second render: the glyph halo of `haloText()`, a card or a backing. So it shows the frame as the viewer sees it, minus the letters themselves.
 
 Every `text()` call on the main canvas is a line, whatever its length. A lone glyph (an `A` on a diagram) is judged too, and single glyphs drawn one call at a time from the same place in the code, one after another (`textOnPath`), are grouped back into the line they spell. A glyph that `dropText` is still popping in is skipped; the settled word is judged. For every line whose role isn't `decor` it measures:
 - **Size**: the em size on screen after the camera.
@@ -37,7 +50,7 @@ It reports:
 - Repeats of a line (same plate, role, font and calling component) are grouped into one finding with its time span. Typewriter prefixes fold into the full line, and so do ticking numbers. A sample is judged only when the line is at (or within 10% of) its own peak opacity and full size, so a line fading or scaling in is judged once it arrives, and a line whose peak is faint is judged at that faint peak. A line fails when two of its samples fail, or when it has only one sample and that fails; a line seen in one sample only, and not at full opacity there, is a glimpse mid-fade and is skipped.
 - Each finding line gives the time span, plate, role, the component that drew it (`journeyLog`, `callout < overlay`, `draw`, …), the text and the numbers (with the whole ring's mean contrast beside the worst stretch's when they differ). `--crops DIR` writes a full-resolution JPEG close-up of each finding at its worst sample. Open them, because a number is not a picture.
 - Text on a card, or with the engine's glyph halo on clear enough ground, passes. That is how legitimate overlap is allowed. To fix a `CLASH`, move the line into clear space, re-sequence it so the art isn't there yet, draw it with `haloText` (a `KIT.caption` with `backing: true`) or on a card, or darken or enlarge it. To fix a `SMALL`, enlarge the line, or give it the right role.
-- Speed: a 172 s film at `--step 0.5` takes 27–30 s (306 frames, two renders each).
+- Speed: a 172 s film at `--step 0.5` took 27–30 s on one page on a 10-core Mac (306 frames, two renders each). It now measures on up to 4 pages (`--workers N`): One Drop on 4 cores went from 45 s to 16 s, with identical findings.
 - Calibration, on "The Slow Squeeze", v0.13 build (the film whose review failed all ten plates while `text_check` said CLEAN; no halos): 368 lines, 224 CLASH and 265 SMALL (the first, mean-of-ring version found 190 and 254).
 
   | Line | Where | Contrast, worst stretch (mean) | Busy, worst stretch (mean) |
@@ -73,7 +86,7 @@ Measured on this MacBook Pro (10 cores, 32 GB) with a 2 min 41 s film (the examp
 | Disk | 3.6 GB of JPEG frames (≈ 1.3 GB per minute; `--png` is several times more). |
 | A/V sync | Video 161.500 s, AAC 161.493 s. The WAV runs 0.5 s longer (reverb tail) and `-shortest` trims it. |
 | `motion_check` | median 2.05, 0% still (1.91 with `--bitrate 3800k`) |
-| Encode, default (`-crf 16 -preset slow`) | about 465 s and **1.36 GB** (≈ 500 MB per minute) |
+| Encode, `-crf 16 -preset slow` (the default before v0.16) | about 465 s and **1.36 GB** (≈ 500 MB per minute) |
 | Encode, `-crf 16 -preset medium` | 362 s, 1.29 GB |
 | Encode, `-crf 20 -preset slow` | 577 s, 966 MB |
 | Encode, `--bitrate 3800k` | 327 s, **57 MB** |
@@ -81,11 +94,23 @@ Measured on this MacBook Pro (10 cores, 32 GB) with a 2 min 41 s film (the examp
 
 Advice:
 - **Always pass `--bitrate 3800k` for a film you will share.** The grain and gate weave change on every drawing, so constant-quality encodes spend their bits on noise: even CRF 20 gave almost 1 GB. At 3800k the paper grain softens a little and the type stays crisp. Keep the CRF 16 default only for a master you will re-encode. The script warns when a file exceeds 100 MB per minute.
-- **On a busy machine the encode, not the drawing, is the long step.** Here it took longer than rendering the frames. `--preset medium` saves about a fifth.
+- **On a busy or small machine the encode, not the drawing, is the long step.** Here it took longer than rendering the frames. The default preset is `medium` since v0.16 (see "Encoder preset").
 - **Budget disk:** about 1.3 GB of frames per minute of film. Delete `film_frames/` after the MP4 is checked.
 - Workers: 3 pages already use about 1.5 GB; each extra page adds roughly 400–500 MB. With other jobs running, more workers than free cores slows everything down.
 - Pacing over a long film: the per-second profile shows no dead stretches, and the loudness stays steady. Stage numbers wrap if plates repeat, so give a long film its own stage count.
 - The synthesized audio is not bit-identical between runs (±1 LSB on about 0.02% of samples, from the audio graph's own rounding). It is inaudible; don't compare WAV hashes.
+
+## Encoder preset
+
+`render.mjs` encodes with x264's `medium` preset unless `--preset` says otherwise. It used `slow` before v0.16. Measured on a 4-core cloud machine with One Drop's 1,320 frames at `--bitrate 3800k`:
+
+| Preset | Encode time | Size | SSIM (Y) | PSNR (Y) |
+|---|---|---|---|---|
+| `slow` | 119 s | 24 MB | 0.658 | 30.94 dB |
+| `medium` | 65–68 s | 24 MB | 0.660 | 31.07 dB |
+| `fast` | 51 s | 24 MB | 0.663 | — |
+
+At a fixed bitrate the file size is set by the bitrate, so the preset only trades encode time against picture quality, and here `slow` bought nothing measurable: its SSIM and PSNR against the source frames are no better, and 200% crops of line art, washes and paper side by side look the same. Both lose most of the paper grain, which is the 3800k budget, not the preset. `fast` scores as well but was not checked by eye across a whole film, so the default stays at `medium`. Pass `--preset slow` for a master if you want it anyway.
 
 ## Fonts
 

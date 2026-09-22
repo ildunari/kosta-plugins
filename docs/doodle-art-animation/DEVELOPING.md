@@ -39,7 +39,7 @@ plugins/doodle-art-animation/       the plugin
                                     space, lab, studio)
 docs/doodle-art-animation/          not shipped with the plugin
   DEVELOPING.md                     this file
-  v0.14-state.md, v0.15-state.md    what each release changed, how it was checked, its known limits
+  v0.14-state.md … v0.16-state.md   what each release changed, how it was checked, its known limits
   ACCEPTANCE.md                     the go/no-go rules (L1-L17 films and toolkit, W1-W9 workflow)
   HANDOFF.md                        history, measurements, known weaknesses (paths in it refer to the original handoff zip)
   history/  reference/  examples/   design review, reference-film study images, an older story file
@@ -68,7 +68,7 @@ node render.mjs film.html --sheet 1                 # qa/contact_sheet.jpg
 node render.mjs film.html --strips                  # qa/strip_NN_type.jpg, one per transition
 node render.mjs film.html --seams                   # qa/seam_NN_type.jpg, both sides of each transition
 node render.mjs reel.html --strips --dir qa_reel    # all 14 transition types
-node render.mjs film.html film.mp4 --workers 6      # full render
+node render.mjs film.html film.mp4                  # full render (one worker per CPU core, at most 8)
 python3 motion_check.py film.mp4                    # target: median >= 1.5, still < 5%
 python3 audio_check.py film.mp4                     # level, peak, clipping, stereo, silence, length
 node text_check.mjs film.html                       # reading time, text off frame, overlaps, text that scales
@@ -113,6 +113,10 @@ CI: `.github/workflows/doodle-smoke.yml` runs it on ubuntu-latest for pushes to 
 ## Engine rules that must not break
 
 - `renderFrame(f)` is a pure function of `f`. No `Math.random`, `Date`, `performance.now`, or state carried between frames. Use `mulberry(seed)` and `hash3()`.
+  That includes the pixels already on the canvas: every frame starts by filling it with paper, so nothing a transition
+  leaves uncovered (a sub-pixel seam) shows the previous frame. `render.mjs`, `text_check` and `legibility_check` spread
+  frames over several pages, so a frame that depends on what its page drew before comes out differently with a different
+  worker count. `acceptance_check.py --full` (P1) draws every transition's frames after two different predecessors.
 - Drawings are on twos except inside transitions (and 0.6 s either side), which `onOnes(f)` puts on ones; the line boil stays on twos (`S.boil = floor(f / 2)`), and `render.mjs` keeps frame pairs on the same worker. Never reuse a frame for its pair.
 - Every `TRANS[type](p, X)` returns the share (0..1) of the frame owned by the new plate. A new transition needs a `TRANS_SFX` entry, a `DEFAULT_DUR` that meets the speed limits in `references/motion.md`, and a `LEAD` plus a `PUSH` or `SETTLE` entry if it zooms and a `LAND_AT` share (where 90% of its travel is done; headers start 0.3 s after it). Shape its speed (`E.arrive`, `E.depart`, `E.shaped`) rather than using a symmetric ease. Masks ease their edge, not their area. Test it in the reel and run `motion_check.py` on the render: no `SNAP`, pop or jerk.
 - `LEAD`, `PUSH_ON` and `SETTLE` values stay at or above 1 (scaling a plate below 1 exposes its edges), and momentum keeps one direction through a cut: push-in types keep easing in, the rest ease out.

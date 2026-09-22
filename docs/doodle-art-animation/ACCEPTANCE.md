@@ -1,6 +1,6 @@
 # doodle-art-animation — acceptance (go / no-go)
 
-v0.13's film and toolkit items are L1–L17, v0.14's workflow items W1–W9, and v0.15's legibility, story and sound items V1–V8, at the end of this file. All are in force.
+v0.13's film and toolkit items are L1–L17, v0.14's workflow items W1–W9, v0.15's legibility, story and sound items V1–V8, and v0.16's speed item P1, at the end of this file. All are in force.
 
 The ledger agreed with Kosta on 2026-09-17, turned into checks. `tests/doodle-art-animation/acceptance_check.py`
 runs every **[auto]** item: with no flags it does the text and file checks, and `--full` adds builds, page probes, renders and timing.
@@ -260,8 +260,22 @@ carrying a fact), `label` (the default: chart axes, legends, card notes), `hud` 
   changes or the two disagree. It exits 1 on the fixtures `tests/doodle-art-animation/fixtures/story_drift.js` and
   `story_drift2.js` and 0 on every bundled `story*.js`.
 
+## P1 · Renders and checks use the machine, and frames don't depend on render order
+- [auto] `render.mjs` uses one page per CPU core (at most 8) when `--workers` is not given, encodes with x264's
+  `medium` preset by default, and spreads `--stills`, `--sheet`, `--strips`, `--seams` and `--sheet-range` over
+  several pages. `skills/doodle-render/SKILL.md` no longer holds cores back (the old rule was cores minus 2, which
+  chose 2 workers on a 4-core machine: 187 s of drawing against 105 s with 4).
+- [auto] `text_check.mjs` and `legibility_check.mjs` take `--workers`. `text_check` throws each frame's queued
+  drawing away (`ctx.reset()`) instead of reading a pixel, since it only needs the text calls.
+- [auto] `renderFrame` fills the canvas with paper before drawing, and on `story_one_drop.js`, `story_example.js`
+  and `story_reel.js` every third drawing of every transition is at most 1 level apart whether frame 0 or its own
+  neighbour was drawn before it (`--full`). Before v0.16 the pan's seam let the previous frame through (4–5 levels).
+- [eye] The same QA sets and check results from one page and from several: `text_check` and `legibility_check`
+  JSON identical on One Drop, The Long Release and the gallery; contact sheet, strips, seams and range sheets
+  byte-identical except the pan seam's sheets, which changed because of the fix above.
+
 ## Release
-- [auto] `plugin.json` and the marketplace entry say `0.15.0`.
+- [auto] `plugin.json` and the marketplace entry say `0.16.0`.
 - [auto] `smoke_test.py` passes on every bundled story, including `story_brushes.js`.
 - [eye] Final independent review against this file and the ledger; example films and gallery re-rendered and
   sent to Kosta.
