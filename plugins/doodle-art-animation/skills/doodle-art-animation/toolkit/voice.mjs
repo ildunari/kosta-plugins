@@ -4,17 +4,22 @@
 //
 // usage (run in the film folder; everything is read from and written to ./vo/):
 //   node voice.mjs lines script.md   reads the "## Narration" section of script.md into vo/lines.json and prints each
-//                                    plate's estimated spoken length against its Dur (no audio, no cost)
+//                                    plate's estimated spoken length against its Dur (no audio, no cost);
+//                                    --preset NAME picks a narrator preset (a Gemini voice and delivery)
 //   node voice.mjs audition          a few test lines in several voices and directions -> vo/audition/<voice>-<n>.mp3
-//                                    and vo/audition/audition.md (pace, loudness and flags per voice, best first)
+//                                    and vo/audition/audition.md (pace, loudness and flags per voice, best first);
+//                                    on Gemini it compares narrator presets (--presets A,B,C names them)
+//   node voice.mjs presets           lists the narrator presets: five Gemini voices, eight deliveries each
 //   node voice.mjs generate          one clip per plate -> vo/clips/<fingerprint>.wav and vo/voice.json
-//   node voice.mjs check             re-measures every clip against vo/lines.json and flags problems
+//   node voice.mjs check             re-measures every clip against vo/lines.json and flags problems; also runs
+//                                    voice_check.py (transcript against the script, voice consistency)
 //   node voice.mjs lock              marks vo/voice.json locked and lengthens the plates in script.md the voice outgrew
 //   node voice.mjs keys [--test]     where each provider's key was found (never the key itself); --test sends one
 //                                    free request per provider to see whether the key works
 // options: --dir DIR film folder (default .)   --provider P --model M --voice V   override vo/lines.json for this run
 //          --only P1,P2   --retake P2 (a new take even if a clip exists)   --retakes N (automatic retakes of a clip that
 //          fails a check, default 2)   --jobs N (requests at once, default 2)   --voices A,B,C (audition)
+//          --preset NAME (lines; a narrator preset)   --presets A,B,C (audition; presets to compare)
 //          --script FILE (lock; default the script lines.json came from)   --force (lock despite failures)
 //          --facts facts.md (lines: also read its pronunciation list)   --json (print a machine-readable summary)
 //
@@ -32,13 +37,14 @@
 // A "## Pronunciation" section (in script.md, or facts.md with --facts) lists "- term: say it as" lines. The respelling
 // is what the voice is sent; the script keeps the real word. A lowercase term matches any case; PCL matches only PCL.
 //
-// vo/lines.json (written by `lines`; edit it freely): { version, script, provider, model, voice, style (documentary |
-// explainer | short-form), wpm (target pace; default from the style), direction, speed, lufs, lead, tail,
+// vo/lines.json (written by `lines`; edit it freely): { version, script, provider, model, preset (Gemini narrator
+// preset, which wrote voice, direction and wpm), voice, style (documentary | explainer | short-form), wpm (target pace;
+// default from the preset, else the style), direction, speed, lufs, lead, tail,
 // pronounce: { term: "say" or { say, gemini, kokoro, ... } }, units: [{ id: "P1", plate: 1, key: "I", text, and
-// optional voice, direction, speed, lead, tail, climax }], audition: { lines, voices, directions } (all optional) }.
+// optional voice, direction, speed, lead, tail, climax }], audition: { lines, voices, directions, presets } (all optional) }.
 //
 // vo/voice.json (written by generate, check and lock; read by the engine): { version: 1, provider, model, voice,
-// style, wpm_target, lufs, locked, generated, missing: [ids without a clip], units: [{ id, plate, file (relative to
+// preset (if any), style, wpm_target, lufs, locked, generated, missing: [ids without a clip], units: [{ id, plate, file (relative to
 // the film folder), fp, take, voice, dur, lufs, lead, tail, text, sentences: [[start, end, "text"]], marks: { name: t },
 // timing, checks: { wpm, missing, extra, flags } }] }. Times are seconds from the clip's start. plate and the n of
 // P<n> are the plate's position from 0 (STORY.plates index). Clips are mono 16-bit WAV at the provider's own rate
@@ -80,7 +86,7 @@
 // Other settings: DOODLE_TTS_PROVIDER, DOODLE_TTS_VOICE (defaults for `lines`), DOODLE_TTS_COOLDOWN (seconds to
 // wait after a 429 rate limit, default 60), DOODLE_GEMINI_BASE_URL, OPENAI_BASE_URL, DOODLE_XAI_BASE_URL,
 // DOODLE_ELEVENLABS_BASE_URL, DOODLE_INWORLD_BASE_URL (other servers speaking the same API; tests), DOODLE_PYTHON, DOODLE_KOKORO_DIR,
-// DOODLE_TTS_FAKE_FAULT (tests: "P2:silent,P3:slow,P1:silent-once,P4:loud,P5:gap").
+// DOODLE_TTS_FAKE_FAULT (tests: "P2:silent,P3:slow,P1:silent-once,P4:loud,P5:gap,P6:odd").
 // Exit codes: 0 fine, 1 a clip failed a check or a request failed, 2 something to fix first (no lines.json, a key
 // the provider refused, a missing Python package, a bad option).
 import fs from 'fs'; import path from 'path'; import os from 'os'; import crypto from 'crypto';
@@ -97,18 +103,48 @@ const SENT_GAP = 0.32;                     // silence put between sentences when
 const SYL_PER_SEC = 4;                     // speaking speed used to weigh pauses against syllables in estimates
 const COOLDOWN = +(process.env.DOODLE_TTS_COOLDOWN || 60);
 
-const STYLES = {
-  documentary: { wpm: 138, mood: 'calm', directions: ['Say calmly, with quiet curiosity, like a documentary narrator:',
+const STYLES = {   // preset: the narrator preset a Gemini film of this style gets when none is chosen
+  documentary: { wpm: 138, mood: 'calm', preset: 'charon', directions: ['Say calmly, with quiet curiosity, like a documentary narrator:',
     'Say warmly, with a little more energy, like a science explainer:'] },
-  explainer: { wpm: 152, mood: 'calm', directions: ['Say in a friendly, clear voice, like a science explainer:',
+  explainer: { wpm: 152, mood: 'calm', preset: 'charon-professor', directions: ['Say in a friendly, clear voice, like a science explainer:',
     'Say warmly and brightly, like a favourite teacher:'] },
-  'short-form': { wpm: 160, mood: 'upbeat', directions: ['Say with upbeat energy, like a short science video:',
+  'short-form': { wpm: 160, mood: 'upbeat', preset: 'charon-lively', directions: ['Say with upbeat energy, like a short science video:',
     'Say quickly and brightly, with a hook in your voice:'] },
 };
+// NARRATOR PRESETS (Gemini only). A preset is a voice plus a delivery: the written direction and the pace that
+// direction really reads at. Kosta chose the five voices by ear in September 2026 from all 30 of Gemini's. Each pace
+// is the middle of the five voices reading the same 24-word line with that direction, rounded to 5 words a minute,
+// so plate estimates and the pace check match the voice instead of the style's target. A preset is named after the
+// narrator (its usual delivery) or <narrator>-<delivery>, like charon-storyteller. When to use which:
+// references/voice-presets.md.
+const DELIVERIES = {
+  plain: { wpm: 120, direction: 'Say in a calm, measured voice, at a natural conversational pace:' },
+  british: { wpm: 120, direction: 'Say in a calm, measured voice with a British English accent, at a natural conversational pace:' },
+  professor: { wpm: 120, direction: 'Say warmly, like a favourite professor explaining something they love, with a hint of a smile, at a natural pace:' },
+  hushed: { wpm: 115, direction: 'Say softly, in a hushed and slightly awed tone, like a nature documentary narrator:' },
+  wry: { wpm: 120, direction: 'Say with dry, understated wit, like a narrator who finds this quietly amusing, at a natural pace:' },
+  lively: { wpm: 160, direction: 'Say with bright energy at a brisk pace, like an enthusiastic science explainer:' },
+  storyteller: { wpm: 105, direction: 'Say low and intimate, like a late-night radio storyteller, unhurried but not slow:' },
+  intimate: { wpm: 110, direction: 'Say warmly and intimately, in a soft, slightly husky voice, like talking to one close friend, with a playful smile, at a natural conversational pace:' },
+};
+const NARRATORS = {   // pitch is the median of the voice's plain read, measured
+  charon: { voice: 'Charon', delivery: 'plain', sounds: 'male, mid-low (about 118 Hz), informative; the house narrator' },
+  orus: { voice: 'Orus', delivery: 'plain', sounds: 'male, higher and more animated than Charon (about 150 Hz)' },
+  erinome: { voice: 'Erinome', delivery: 'plain', sounds: 'female, clear and bright (about 195 Hz)' },
+  leda: { voice: 'Leda', delivery: 'plain', sounds: 'female, light and youthful (about 200 Hz)' },
+  pulcherrima: { voice: 'Pulcherrima', delivery: 'intimate', sounds: 'female, low, warm and slightly husky (about 135 Hz)' },
+};
+function preset(name) {
+  const [who, how] = String(name).trim().toLowerCase().split(/-(.+)/), N = NARRATORS[who], d = how || N?.delivery;
+  if (!N || !DELIVERIES[d]) throw new SetupError(`unknown preset "${name}": use a narrator (${Object.keys(NARRATORS).join(', ')}), optionally with -<delivery> (${Object.keys(DELIVERIES).join(', ')}), like charon-storyteller. node voice.mjs presets lists them`);
+  return { name: d === N.delivery ? who : `${who}-${d}`, narrator: who, voice: N.voice, delivery: d, ...DELIVERIES[d] };
+}
 const KOKORO_VOICES = { calm: ['af_heart', 'bm_george', 'am_michael'], upbeat: ['af_heart', 'af_nova', 'am_puck'] };
 const PROVIDERS = {
   gemini: { name: 'Gemini', model: 'gemini-3.1-flash-tts-preview', voice: 'Charon',
-    audition: { calm: ['Charon', 'Sadaltager', 'Sulafat'], upbeat: ['Puck', 'Laomedeia', 'Sadachbia'] } },
+    audition: { calm: ['Charon', 'Orus', 'Erinome', 'Leda', 'Pulcherrima'], upbeat: ['Charon', 'Orus', 'Erinome', 'Leda'] },
+    // with no voices or directions named, a Gemini audition compares narrator presets instead of voices x directions
+    presets: { calm: ['charon', 'orus', 'erinome', 'leda', 'pulcherrima'], upbeat: ['charon-lively', 'orus-lively', 'erinome-lively', 'leda-lively'] } },
   openai: { name: 'OpenAI', model: 'gpt-4o-mini-tts', voice: 'cedar', audition: { calm: ['cedar', 'marin', 'ash'], upbeat: ['coral', 'nova', 'marin'] } },
   local: { name: 'the local speech server', model: 'kokoro', voice: 'af_heart', audition: KOKORO_VOICES },
   kokoro: { name: 'Kokoro', model: 'kokoro-v1.0', voice: 'af_heart', audition: KOKORO_VOICES },
@@ -619,7 +655,7 @@ const ADAPTERS = {
     // a stand-in voice for tests: each syllable is a 0.25 s hum, words are 0.05 s apart, sentences 0.4 s apart
     async synth(plan) {
       const rate = 24000, fault = fakeFault(plan.id), speed = (plan.speed || 1) * (fault === 'slow' ? 0.4 : 1);
-      const seed = parseInt(plan.fp.slice(0, 8), 16), f0 = 105 + (seed % 7) * 9 + (plan.voice.charCodeAt(plan.voice.length - 1) % 5) * 12;
+      const f0 = (110 + (plan.voice.charCodeAt(plan.voice.length - 1) % 5) * 12) * (fault === 'odd' ? 1.6 : 1);   // one pitch per voice; 'odd' is another person
       const pieces = [], truth = []; let t = 0;
       const add = (sec, fn) => { const n = Math.round(sec * rate), y = new Float32Array(n); if (fn) for (let i = 0; i < n; i++) y[i] = fn(i / rate, sec); pieces.push(y); t += sec; };
       add(0.2);
@@ -767,8 +803,9 @@ function runConfig(L) {
   const own = provider === (L.provider || provider), P = PROVIDERS[provider], style = L.style || 'documentary';
   if (!STYLES[style]) throw new SetupError(`unknown style "${style}" (use ${Object.keys(STYLES).join(', ')})`);
   const model = flags.model || (own && L.model) || P.model, speed = +(own && L.speed) || 0;
-  return { provider, own, style, model, voice: flags.voice || (own && L.voice) || P.voice,
-    wpm: +L.wpm || STYLES[style].wpm, direction: L.direction ?? STYLES[style].directions[0],
+  const pre = L.preset && provider === 'gemini' ? preset(L.preset) : null;    // lines.json's own fields still win
+  return { provider, own, style, model, preset: pre?.name, voice: flags.voice || (own && L.voice) || pre?.voice || P.voice,
+    wpm: +L.wpm || pre?.wpm || STYLES[style].wpm, direction: L.direction ?? pre?.direction ?? STYLES[style].directions[0],
     // Kokoro reads faster than a narrator, so unless lines.json or the plate sets a speed, each plate gets the speed
     // that lands it on the style's pace (kokoroSpeed); Gemini has no speed and follows the direction instead
     speed: speed || 1, autoSpeed: !speed && (provider === 'kokoro' || (provider === 'local' && /kokoro/i.test(model))),
@@ -1036,16 +1073,27 @@ async function cmdLines() {
   }
   if (!units.length) throw new SetupError(`the Narration section of ${script} has no narration in it`);
   units.sort((a, b) => a.plate - b.plate);
-  const provider = flags.provider || old.provider || process.env.DOODLE_TTS_PROVIDER || 'gemini';
+  if (flags.preset && flags.provider && flags.provider !== 'gemini') throw new SetupError(`--preset picks a Gemini voice, so it cannot go with --provider ${flags.provider}`);
+  const provider = flags.provider || (flags.preset && 'gemini') || old.provider || process.env.DOODLE_TTS_PROVIDER || 'gemini';
   if (!PROVIDERS[provider]) throw new SetupError(`unknown provider "${provider}"`);
   const same = provider === (old.provider || provider), style = flags.style || old.style || 'documentary';
   if (!STYLES[style]) throw new SetupError(`unknown style "${style}" (use ${Object.keys(STYLES).join(', ')})`);
+  // the narrator preset (Gemini only): one named now replaces the voice, direction and pace; one kept from an earlier
+  // run leaves them as lines.json has them (edits included); a film with no voice chosen yet gets its style's preset,
+  // and so does one whose style changes while it still has the old style's preset
+  const envVoice = provider === (process.env.DOODLE_TTS_PROVIDER || 'gemini') && process.env.DOODLE_TTS_VOICE;
+  const keep = same && old.preset && !(flags.style && flags.style !== old.style && old.preset === STYLES[old.style || 'documentary']?.preset);
+  const pre = provider !== 'gemini' ? null : flags.preset ? preset(flags.preset) : keep ? preset(old.preset)
+    : !flags.voice && !(same && old.voice && !old.preset) && !envVoice ? preset(STYLES[style].preset) : null;
+  const fresh = pre && (flags.preset || !keep);
   const facts = flags.facts || old.facts, fp2 = facts && path.resolve(DIR, facts);           // remembered for later runs
   if (fp2 && !fs.existsSync(fp2)) throw new SetupError(`${fp2} not found (--facts)`);
   const pron = { ...(fp2 ? pronunciations(fs.readFileSync(fp2, 'utf8')) : {}), ...pronunciations(md) };
   const L = { version: FORMAT, script, ...(facts ? { facts } : {}), provider, model: flags.model || (same && old.model) || PROVIDERS[provider].model,
-    voice: flags.voice || (same && old.voice) || (provider === (process.env.DOODLE_TTS_PROVIDER || 'gemini') && process.env.DOODLE_TTS_VOICE) || PROVIDERS[provider].voice,
-    style, ...(old.wpm ? { wpm: old.wpm } : {}), direction: (flags.style && flags.style !== old.style ? null : old.direction) ?? STYLES[style].directions[0],
+    ...(pre ? { preset: pre.name } : {}),
+    voice: flags.voice || (fresh && pre.voice) || (same && old.voice) || envVoice || PROVIDERS[provider].voice,
+    style, ...(fresh ? { wpm: pre.wpm } : old.wpm ? { wpm: old.wpm } : {}),
+    direction: fresh ? pre.direction : (pre ? old.direction : flags.style && flags.style !== old.style ? null : old.direction) ?? STYLES[style].directions[0],
     ...(old.speed ? { speed: old.speed } : {}), lufs: old.lufs ?? TARGET_LUFS, lead: old.lead ?? LEAD, tail: old.tail ?? TAIL, pronounce: pron, units,
     ...(old.audition ? { audition: old.audition } : {}) };
   fs.mkdirSync(VO, { recursive: true });
@@ -1059,7 +1107,7 @@ async function cmdLines() {
     res.push({ id: u.id, words: p.words, spoken: r2(spoken), need: r2(need), dur, marks: p.marks });
   }
   if (flags.json) { out(JSON.stringify({ lines: path.relative(DIR, LINES), wpm: cfg.wpm, units: res }, null, 1)); return 0; }
-  out(`wrote ${path.relative(DIR, LINES) || LINES}: ${units.length} plates, ${cfg.provider} ${cfg.model}, voice ${cfg.voice}, ${style} at ${cfg.wpm} words a minute`);
+  out(`wrote ${path.relative(DIR, LINES) || LINES}: ${units.length} plates, ${cfg.provider} ${cfg.model}, ${cfg.preset ? `preset ${cfg.preset} (voice ${cfg.voice})` : `voice ${cfg.voice}`}, ${style} at ${cfg.wpm} words a minute`);
   if (Object.keys(pron).length) out(`pronunciation: ${Object.entries(pron).map(([t, s]) => `${t} -> ${typeof s === 'string' ? s : JSON.stringify(s)}`).join(', ')}`);
   out('');
   printTable(['id', '#', 'words', 'spoken', 'needs', 'Dur', 'plate', 'marks'], rows);
@@ -1097,7 +1145,7 @@ async function build(cfg, L, { synth }) {
   const same = (a, b) => a && ['fp', 'take', 'dur', 'plate', 'lead', 'tail'].every(k => a[k] === b[k]);
   const unchanged = prev?.locked && !missing.length && units.length === prev.units.length && units.every(u => same(prevUnits.get(u.id), u))
     && !units.some(u => u.checks.flags.some(f => f.startsWith('fail')));
-  const V = { version: FORMAT, provider: cfg.provider, model: cfg.model, voice: cfg.voice, style: cfg.style, wpm_target: cfg.wpm, lufs: cfg.lufs,
+  const V = { version: FORMAT, provider: cfg.provider, model: cfg.model, voice: cfg.voice, ...(cfg.preset ? { preset: cfg.preset } : {}), style: cfg.style, wpm_target: cfg.wpm, lufs: cfg.lufs,
     locked: !!unchanged, ...(unchanged ? { locked_at: prev.locked_at } : {}), generated: new Date().toISOString(), missing,
     units: units.map(u => { const { _raw, _cost, _truth, ...rest } = u; return rest; }) };
   fs.mkdirSync(VO, { recursive: true });
@@ -1133,7 +1181,7 @@ async function cmdCheck() {
   const vc = path.join(HERE, 'voice_check.py');
   if (fs.existsSync(vc) && r.units.length) {                     // the deeper checks (transcript, voice consistency), when present
     const tmp = path.join(os.tmpdir(), `doodle-voice-check-${process.pid}.json`);
-    const p = spawnSync(process.env.DOODLE_PYTHON || 'python3', [vc, VOICE, '--lines', LINES, '--json', tmp], { stdio: ['ignore', 'inherit', 'inherit'], cwd: DIR });
+    const p = spawnSync(process.env.DOODLE_PYTHON || 'python3', [vc, VOICE, '--lines', LINES, '--json', tmp, '--no-basic'], { stdio: ['ignore', 'inherit', 'inherit'], cwd: DIR });
     const res = readJson(tmp, 'voice_check output'); fs.rmSync(tmp, { force: true });
     if (p.status !== 0 && !res) note('voice: voice_check.py failed; only the built-in checks ran');
     for (const u of r.units) { const x = res?.units?.[u.id]; if (!x) continue;
@@ -1217,51 +1265,68 @@ function pickAuditionLines(L, cfg) {
 async function cmdAudition() {
   const L = readLines(), cfg = runConfig(L), A = ADAPTERS[cfg.provider], au = L.audition || {}, dir = path.join(VO, 'audition'), clipDir = path.join(dir, 'clips');
   const texts = au.lines?.length ? au.lines : pickAuditionLines(L, cfg);
-  const voices = flags.voices ? list(flags.voices) : flags.voice ? [flags.voice] : cfg.own && au.voices?.length ? au.voices : PROVIDERS[cfg.provider].audition[STYLES[cfg.style].mood];
+  // narrator presets (Gemini): each is one voice with its own direction, named on --presets or in lines.json, or the
+  // provider's default set when no voices or directions are named either
+  const named = flags.presets ? list(flags.presets) : flags.voices || flags.voice ? null : cfg.own && au.presets?.length ? au.presets : null;
+  if (named && cfg.provider !== 'gemini') throw new SetupError(`presets are Gemini voices; this film uses ${PROVIDERS[cfg.provider].name}`);
+  const presets = (named || (!flags.voices && !flags.voice && !(cfg.own && (au.voices?.length || au.directions?.length)) && PROVIDERS[cfg.provider].presets?.[STYLES[cfg.style].mood]) || []).map(preset);
+  const voices = presets.length ? [...new Set(presets.map(q => q.voice))]
+    : flags.voices ? list(flags.voices) : flags.voice ? [flags.voice] : cfg.own && au.voices?.length ? au.voices : PROVIDERS[cfg.provider].audition[STYLES[cfg.style].mood];
   const probe = planUnit({ id: 'A', text: texts[0] }, { ...cfg, voice: voices[0] });
-  const directions = A.direction(probe) ? (au.directions?.length ? au.directions : STYLES[cfg.style].directions) : [''];
-  const combos = [];
-  for (const v of voices) directions.forEach((d, di) => combos.push({ voice: v, di, direction: d,
-    plans: texts.map((t, i) => { const p = planUnit({ id: `A${i + 1}`, text: t, voice: v, direction: d }, { ...cfg, voice: v, direction: d, own: true }); return p; }) }));
+  const directions = presets.length ? [...new Set(presets.map(q => q.direction))]
+    : A.direction(probe) ? (au.directions?.length ? au.directions : STYLES[cfg.style].directions) : [''];
+  const combos = [], plansFor = (v, d, w) => texts.map((t, i) => planUnit({ id: `A${i + 1}`, text: t, voice: v, direction: d }, { ...cfg, voice: v, direction: d, wpm: w || cfg.wpm, own: true }));
+  if (presets.length) for (const q of presets) combos.push({ voice: q.voice, di: directions.indexOf(q.direction), direction: q.direction, preset: q.name, wpm: q.wpm, plans: plansFor(q.voice, q.direction, q.wpm) });
+  else for (const v of voices) directions.forEach((d, di) => combos.push({ voice: v, di, direction: d, plans: plansFor(v, d) }));
   const all = combos.flatMap(c => c.plans), todo = all.filter((p, i) => all.findIndex(q => q.fp === p.fp) === i && !fs.existsSync(path.join(clipDir, p.fp + '.wav')));
-  out(`audition: ${texts.length} lines x ${voices.length} voices x ${directions.length} direction${directions.length > 1 ? 's' : ''} with ${PROVIDERS[cfg.provider].name} (${cfg.model}); ${todo.length} new clips`);
+  out(`audition: ${texts.length} lines x ${presets.length ? `${presets.length} narrator presets` : `${voices.length} voices x ${directions.length} direction${directions.length > 1 ? 's' : ''}`} with ${PROVIDERS[cfg.provider].name} (${cfg.model}); ${todo.length} new clips`);
   const { made, errors } = await produce(todo, { ...cfg, retakes: Math.min(cfg.retakes, 1) }, clipDir);
   for (const e of errors.values()) out(`${e.voice} ${e.id}: FAILED: ${e.error.message}`);
   const ff = spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status === 0, rows = [], json = [];
   for (const c of combos) {
-    const ds = c.plans.filter(p => fs.existsSync(path.join(clipDir, p.fp + '.wav'))).map(p => describe(p, { ...cfg, voice: c.voice }, clipDir));
+    const ds = c.plans.filter(p => fs.existsSync(path.join(clipDir, p.fp + '.wav'))).map(p => describe(p, { ...cfg, voice: c.voice, ...(c.wpm ? { wpm: c.wpm } : {}) }, clipDir));
     const lost = c.plans.length - ds.length, lostFlag = `fail: ${lost} of ${c.plans.length} lines have no clip (see the FAILED lines)`;
-    if (!ds.length) { json.push({ voice: c.voice, direction: c.direction, file: null, wpm: null, raw_lufs: null, flags: [lostFlag], score: 1000 }); continue; }
+    if (!ds.length) { json.push({ ...(c.preset ? { preset: c.preset } : {}), voice: c.voice, direction: c.direction, file: null, wpm: null, raw_lufs: null, flags: [lostFlag], score: 1000 }); continue; }
     const parts = ds.map(d => readWav(fs.readFileSync(path.join(DIR, d.file)))), rate = parts[0].rate, gap = new Float32Array(Math.round(0.8 * rate));
     const y = new Float32Array(parts.reduce((n, p) => n + p.samples.length + gap.length, 0)); let o = 0;
     for (const p of parts) { y.set(p.samples, o); o += p.samples.length + gap.length; }
-    const name = `${c.voice}-${c.di + 1}`, wav = path.join(dir, name + '.wav');
+    const name = c.preset || `${c.voice}-${c.di + 1}`, wav = path.join(dir, name + '.wav');
     fs.writeFileSync(wav, wavBuffer(y, rate));
     let file = wav;
     if (ff && spawnSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-i', wav, '-codec:a', 'libmp3lame', '-q:a', '4', path.join(dir, name + '.mp3')]).status === 0) { fs.rmSync(wav); file = path.join(dir, name + '.mp3'); }
     const words = c.plans.reduce((n, p) => n + p.parsed.words, 0), speech = ds.reduce((n, d) => n + (d.sentences.at(-1)[1] - d.sentences[0][0]), 0);
     const wpm = Math.round(words * 60 / Math.max(0.1, speech)), flagsAll = [...(lost ? [lostFlag] : []), ...ds.flatMap(d => d.checks.flags.map(f => `${d.id} ${f}`))];
     const raws = ds.map(d => d._raw).filter(v => v != null), raw = raws.length ? r2(raws.reduce((a, b) => a + b, 0) / raws.length) : null;
-    const target = cfg.wpm, score = flagsAll.filter(f => / fail/.test(f)).length * 10 + flagsAll.length + Math.abs(wpm / target - 1) * 10;
-    json.push({ voice: c.voice, direction: c.direction, file: path.relative(DIR, file), wpm, raw_lufs: raw, flags: flagsAll, score: r2(score) });
+    const target = c.wpm || cfg.wpm, score = flagsAll.filter(f => / fail/.test(f)).length * 10 + flagsAll.length + Math.abs(wpm / target - 1) * 10;
+    json.push({ ...(c.preset ? { preset: c.preset } : {}), voice: c.voice, direction: c.direction, file: path.relative(DIR, file), wpm, raw_lufs: raw, flags: flagsAll, score: r2(score) });
   }
   json.sort((a, b) => a.score - b.score);
   const spent = [...made.values()].reduce((a, m) => a + (m.cost || 0), 0);
-  const md = [`# Voice audition`, '', `${PROVIDERS[cfg.provider].name}, ${cfg.model}; ${cfg.style} style, target ${cfg.wpm} words a minute${cfg.autoSpeed ? ' (Kokoro speed set line by line to match it)' : cfg.speed !== 1 ? ` (speed ${cfg.speed})` : ''}. Made ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC; new clips cost about ${dollars(spent)}.`, '',
+  const md = [`# Voice audition`, '', `${PROVIDERS[cfg.provider].name}, ${cfg.model}; ${cfg.style} style, target ${presets.length ? "each preset's own pace" : `${cfg.wpm} words a minute`}${cfg.autoSpeed ? ' (Kokoro speed set line by line to match it)' : cfg.speed !== 1 ? ` (speed ${cfg.speed})` : ''}. Made ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC; new clips cost about ${dollars(spent)}.`, '',
     'Lines (read back to back in every file, 0.8 s apart):', '', ...texts.map((t, i) => `${i + 1}. ${t}`), '',
     ...(directions[0] ? ['Directions:', '', ...directions.map((d, i) => `${i + 1}. ${d}`), ''] : []),
     'Best first, by the automatic checks only (fewest flags, pace nearest the target). Listen before choosing; the checks cannot hear tone.', '',
-    '| Voice | Direction | Pace (wpm) | Loudness before normalizing (LUFS) | Flags | File |', '|---|---|---|---|---|---|',
-    ...json.map(j => `| ${j.voice} | ${directions[0] ? directions.indexOf(j.direction) + 1 : '-'} | ${j.wpm ?? '-'} | ${j.raw_lufs ?? '-'} | ${j.flags.length || 'none'} | ${j.file ? path.basename(j.file) : 'none'} |`), '',
+    `| ${presets.length ? 'Preset | ' : ''}Voice | Direction | Pace (wpm) | Loudness before normalizing (LUFS) | Flags | File |`, `|${presets.length ? '---|' : ''}---|---|---|---|---|---|`,
+    ...json.map(j => `| ${presets.length ? `${j.preset} | ` : ''}${j.voice} | ${directions[0] ? directions.indexOf(j.direction) + 1 : '-'} | ${j.wpm ?? '-'} | ${j.raw_lufs ?? '-'} | ${j.flags.length || 'none'} | ${j.file ? path.basename(j.file) : 'none'} |`), '',
     ...(json.some(j => j.flags.length) ? ['Flags (A1 is line 1, and so on):', '', ...json.filter(j => j.flags.length).map(j => `- ${j.file ? path.basename(j.file) : `${j.voice} (no file)`}: ${j.flags.join('; ')}`), ''] : [])];
   fs.writeFileSync(path.join(dir, 'audition.md'), md.join('\n'));
-  fs.writeFileSync(path.join(dir, 'audition.json'), JSON.stringify({ provider: cfg.provider, model: cfg.model, lines: texts, directions, results: json }, null, 1) + '\n');
+  fs.writeFileSync(path.join(dir, 'audition.json'), JSON.stringify({ provider: cfg.provider, model: cfg.model, lines: texts, directions, ...(presets.length ? { presets: presets.map(q => q.name) } : {}), results: json }, null, 1) + '\n');
   if (flags.json) out(JSON.stringify({ results: json, cost: spent }, null, 1));
   else {
-    printTable(['voice', 'dir', 'wpm', 'raw LUFS', 'flags', 'file'], json.map(j => [j.voice, directions[0] ? directions.indexOf(j.direction) + 1 : '-', j.wpm ?? '-', j.raw_lufs ?? '-', j.flags.length || 'none', j.file || 'none']));
+    printTable([...(presets.length ? ['preset'] : []), 'voice', 'dir', 'wpm', 'raw LUFS', 'flags', 'file'], json.map(j => [...(presets.length ? [j.preset] : []), j.voice, directions[0] ? directions.indexOf(j.direction) + 1 : '-', j.wpm ?? '-', j.raw_lufs ?? '-', j.flags.length || 'none', j.file || 'none']));
     out(`wrote ${path.relative(DIR, path.join(dir, 'audition.md'))}${ff ? '' : ' (ffmpeg not found, so the files are WAV, not MP3)'}; new clips cost about ${dollars(spent)}`);
   }
   return errors.size ? 1 : 0;
+}
+function cmdPresets() {
+  const all = Object.keys(NARRATORS).flatMap(n => [preset(n), ...Object.keys(DELIVERIES).filter(d => d !== NARRATORS[n].delivery).map(d => preset(`${n}-${d}`))]);
+  if (flags.json) { out(JSON.stringify(all.map(q => ({ preset: q.name, provider: 'gemini', voice: q.voice, delivery: q.delivery, wpm: q.wpm, direction: q.direction, sounds: NARRATORS[q.narrator].sounds })), null, 1)); return 0; }
+  out('Narrator presets (Gemini). Name a narrator for its usual delivery, or <narrator>-<delivery> for another, like charon-storyteller.');
+  out('Use: node voice.mjs lines script.md --preset NAME, or compare a few: node voice.mjs audition --presets A,B,C. Which to pick: references/voice-presets.md\n');
+  printTable(['narrator', 'Gemini voice', 'usual delivery', 'sounds'], Object.entries(NARRATORS).map(([n, N]) => [n, N.voice, N.delivery, N.sounds]));
+  out('');
+  printTable(['delivery', 'pace', 'direction sent before the words'], Object.entries(DELIVERIES).map(([d, D]) => [d, `${D.wpm} wpm`, D.direction]));
+  return 0;
 }
 async function cmdKeys() {
   const rows = [];
@@ -1288,9 +1353,9 @@ async function cmdKeys() {
   return bad ? 1 : 0;
 }
 
-const COMMANDS = { lines: cmdLines, generate: cmdGenerate, check: cmdCheck, lock: cmdLock, audition: cmdAudition, keys: cmdKeys };
+const COMMANDS = { lines: cmdLines, generate: cmdGenerate, check: cmdCheck, lock: cmdLock, audition: cmdAudition, presets: cmdPresets, keys: cmdKeys };
 if (!COMMANDS[cmd] || flags.help) {
-  out('usage: node voice.mjs lines script.md | audition | generate | check | lock | keys [--test]   (see the top of voice.mjs)');
+  out('usage: node voice.mjs lines script.md [--preset NAME] | audition [--presets A,B] | generate | check | lock | presets | keys [--test]   (see the top of voice.mjs)');
   process.exit(cmd && !flags.help ? 2 : 0);
 }
 try { process.exitCode = await COMMANDS[cmd](); }

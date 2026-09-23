@@ -3,6 +3,9 @@ import sys, re, os, glob, base64, json, hashlib, shutil, subprocess
 # -> one self-contained HTML: narration (if any), engine, then kit files, then the story.
 # Kits: kits/_*.js (shared helpers) always, plus each kits/<name>.js the story calls as KIT.<name>. If the story refers
 # to KIT in a way that can't be read (KIT[...], passing KIT around, an unknown name), every kit is included.
+# Papers: grounds/_*.js always, plus each grounds/<file>.js that defines a paper or paper set the story names
+# (paper: 'blueprint'), with the files that define that set's two papers. A paper named by a variable
+# (paper: pick) includes every paper file. The notebook's two papers are in engine.js.
 
 # ---- fonts option (self-contained: parse_fonts_arg, local_fonts, and one substitution on the shell text) ----
 def parse_fonts_arg(argv):
@@ -134,10 +137,40 @@ m = re.search(r"defineStory\(\{\s*title:\s*'([^']+)'", story)
 if not m: sys.exit(f"build.py: {args[0]} has no defineStory({{ title: '...' }})")
 shell = apply_fonts(rd(os.path.join(here, 'shell.html')), fonts)
 if '__KITS__' not in shell: shell = shell.replace('__STORY__', '__KITS__\n__STORY__')   # an older shell.html
+engine = rd(os.path.join(here, 'engine.js'))
+
+def papers(story, engine):
+    """The grounds/*.js files this story needs, and the paper names it asks for that nothing defines."""
+    gfiles = sorted(glob.glob(os.path.join(here, 'grounds', '*.js')))
+    gbase = [p for p in gfiles if os.path.basename(p).startswith('_')]
+    where, members = {}, {}                       # paper or set name -> file; set name -> its two paper names
+    for p in gfiles:
+        src = rd(p)
+        for n in re.findall(r"\bdefineGround\(\s*['\"](\w+)['\"]", src): where[n] = p
+        for n, body in re.findall(r"\bdefinePaperSet\(\s*['\"](\w+)['\"]\s*,\s*\{([^}]*)\}", src):
+            where[n] = p; members[n] = re.findall(r"\b(?:light|dark)\s*:\s*['\"](\w+)['\"]", body)
+    known = set(re.findall(r"\bdefine(?:Ground|PaperSet)\(\s*['\"](\w+)['\"]", engine + story))   # the notebook, or the story's own
+    named = re.findall(r"\bpaper\s*:\s*(?:['\"](\w+)['\"]|([A-Za-z_$][\w$.]*))", story)
+    if any(var and not var.startswith('PAL.') for _, var in named): return gbase + [p for p in gfiles if p not in gbase], []
+    need, todo, unknown = set(), [n for n, _ in named], []
+    while todo:
+        n = todo.pop()
+        if n in where:
+            if where[n] not in need: need.add(where[n])
+            todo += [k for k in members.get(n, []) if k not in known and where.get(k) not in need]
+        elif n not in known and n not in unknown: unknown.append(n)
+    return gbase + sorted(need - set(gbase)), unknown
+
+gpick, unknown = papers(story, engine)
+for n in unknown:
+    print(f"build.py: warning: paper '{n}' is not defined in engine.js, toolkit/grounds/ or the story; the film will stop at boot",
+          file=sys.stderr)
 if '__VOICE__' not in shell: shell = shell.replace('__ENGINE__', '__VOICE__\n__ENGINE__')
-parts = {'__TITLE__': m.group(1), '__VOICE__': vjs, '__ENGINE__': rd(os.path.join(here, 'engine.js')), '__KITS__': '\n'.join(rd(p) for p in pick), '__STORY__': story}
+parts = {'__TITLE__': m.group(1), '__VOICE__': vjs, '__ENGINE__': engine, '__KITS__': '\n'.join(rd(p) for p in pick + gpick), '__STORY__': story}
 html = re.sub('|'.join(parts), lambda mm: parts[mm.group(0)], shell)   # one pass, so inserted code is never re-scanned
 open(out, 'w', encoding='utf-8').write(html)
 names = [os.path.basename(p)[:-3] for p in pick if p not in base]
+gnames = [os.path.basename(p)[:-3] for p in gpick if not os.path.basename(p).startswith('_')]
 print(out, len(html) // 1024, 'KB, kits:', ('all' if ambiguous and kits else ', '.join(names) or 'none'),
-      '(fonts embedded)' if fonts and fonts != 'google' else '', ('· ' + vnote) if vnote else '', '· animatic' if animatic else '')
+      *(['papers:', ', '.join(gnames)] if gnames else []), '(fonts embedded)' if fonts and fonts != 'google' else '',
+      ('· ' + vnote) if vnote else '', '· animatic' if animatic else '')

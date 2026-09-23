@@ -20,6 +20,18 @@ const PAL = {
   label: '#544b42', nightLabel: '#9c9dc0',   // secondary TEXT (labels, subs, axes): muted but >= 4.5:1 on paper / night. muted/nightMuted are for lines.
   pink: '#e8577a', navyFill: '#26336a', gold: '#e6c65c', cyan: '#56c3d2', mint: '#53ba8b',
   topo: ['#d98a8a', '#6fb5b8', '#d9c06a', '#9a9ad4'],
+  // plate furniture, per world (a paper set restyles these with the rest of its palette; see GROUNDS below)
+  mark: 'rgba(110,110,170,0.45)', nightMark: 'rgba(160,160,220,0.35)',          // registration marks
+  shadow: 'rgba(40,30,20,0.13)', nightShadow: 'rgba(0,0,6,0.45)',               // a torn card's drop shadow
+  cardTint: 'rgba(252,248,238,0.40)', nightCardTint: 'rgba(34,32,70,0.30)', cardEdge: 'rgba(42,34,38,0.42)', nightCardEdge: 'rgba(170,170,230,0.40)',
+  dialShadow: 'rgba(40,30,20,0.10)', figShadow: 'rgba(40,30,20,0.12)',          // the stage dial's and a card()'s shadow on paper
+  nightPanel: 'rgba(20,20,48,0.92)', nightPanelEdge: 'rgba(160,160,220,0.35)',    // stage dial at night
+  nightFig: 'rgba(18,18,44,0.92)', nightFigEdge: 'rgba(170,170,230,0.45)',        // card() at night
+  counter: 'rgba(90,80,70,0.6)', nightCounter: 'rgba(160,160,210,0.6)',          // the frame counter
+  nightSoft: '#b9b9d6', nightSoft2: '#b3b3d2',                                     // soft text at night (inkSoft on paper)
+  lens: '#e9e7f5', lensEdge: 'rgba(132,135,198,0.8)',                              // lens and iris rings
+  nightCurtain: '#07061a', rim: [70, 52, 40], nightRim: [16, 14, 44],              // iris curtain at night; an ink drop's pooled rim
+  pageBack: 'rgba(255,252,240,0.35)', nightPageBack: 'rgba(60,60,110,0.25)',       // the back of a turned page
 };
 const FONT = {
   display: '"Fraunces", Georgia, serif',
@@ -141,7 +153,9 @@ function vnoise(x, seed = 0) {                        // smooth 1-D value noise 
   const i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f);
   return lerp(hash3(i, seed), hash3(i + 1, seed), u) * 2 - 1;
 }
-const S = { f: 0, boil: 0, T: 0, morph: false, trans: null, side: null, noReticle: false, dark: false };   // dark: the plate being drawn is a night plate   // per-frame globals
+// per-frame globals. dark: the plate being drawn is a night plate; ground: its paper (GROUNDS); grounds: its set's
+// { light, dark } papers; raw: true while a treated plate draws its scene (paper lookups give the untreated texture)
+const S = { f: 0, boil: 0, T: 0, morph: false, trans: null, side: null, noReticle: false, dark: false, ground: null, grounds: null, raw: false };
 /** jitter that re-rolls every 2 frames: the hand-drawn "boil" (animation on twos) */
 const boil = (seed, k, amp) => (hash3(seed, k, S.boil) - 0.5) * 2 * amp;
 
@@ -944,73 +958,279 @@ const brush = (() => {
 function wash(poly, o) { return brush.wash(poly, o); }
 /* ===================== end of brushes ===================== */
 
-/* ---------- textures (built once) ---------- */
-const TEX = {};
+/* ---------- paper: grounds and paper sets ---------- */
+/*
+ * A ground is one paper: its texture, its palette and how a scene looks on it. A paper set pairs a light ground (the
+ * paper world: outside, human scale) with a dark one (the night world: inside, small, abstract). A story picks a set with
+ * defineStory({ paper: 'notebook' }), the default, and every plate keeps dark: true / false, which picks the set's light
+ * or dark page. plate.paper names another set, or a single ground, for that plate alone. Papers beyond the notebook live
+ * in toolkit/grounds/<name>.js; build.py includes a file when the story names one of its papers (references/api.md).
+ *
+ * defineGround(name, {
+ *   tone: 'light' | 'dark',         the world it stands in for
+ *   build(g, rand, W, H),           paints the texture once, at the film's own size (paperKit has the helpers)
+ *   pal: { ... },                    PAL fields it sets while one of its plates is drawn: the paper-world fields for a
+ *                                    light ground (paper, ink, label, ...), the night* fields for a dark one, plus shared
+ *                                    ones (accent, peri, ...). Its set's other page lends only its own world's fields.
+ *   vignette: 'rgba(...)',           the colour the frame's edges darken toward
+ *   grain: 0.8,                      film-grain strength on this paper (0..1, times STORY.grain)
+ *   contours: { colors, alpha } | false | fn(t, ground, seed),   the drifting topographic loops (default: PAL.topo)
+ *   treatment: { tooth, filter, color, glow } | fn(g2d, ground, { base, raw }) | null,   how a scene looks on it (treat())
+ *   sfx: { header: 'pencil' },       the writing sound a plate header types with (default: PAPER_PEN by the paper's name, else
+ *                                    scratch on a light paper and readout blips on a dark one; references/sound.md)
+ *   minContrast: { ink, label, accent },   lowered contrast floors for the smoke test (default 7, 4.5, 3), with a reason
+ *   seed,                            seeds rand (default: from the name)
+ * })
+ * definePaperSet(name, { light, dark })   ground names
+ */
+const GROUNDS = {}, PAPER_SETS = {};
+const nameSeed = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return h >>> 0; };
+function defineGround(name, spec) {
+  if (!spec || (spec.tone !== 'light' && spec.tone !== 'dark')) throw new Error(`defineGround('${name}'): tone must be 'light' or 'dark'`);
+  if (typeof spec.build !== 'function') throw new Error(`defineGround('${name}'): it needs build(g, rand, W, H)`);
+  const dark = spec.tone === 'dark';
+  return (GROUNDS[name] = { name, pal: {}, grain: dark ? 0.5 : 0.8, vignette: dark ? 'rgba(0,0,8,0.45)' : 'rgba(90,60,20,0.16)',
+    contours: { alpha: dark ? 0.10 : 0.16 }, treatment: null, sfx: {}, minContrast: {}, seed: nameSeed(name), ...spec });
+}
+function definePaperSet(name, { light, dark }) { return (PAPER_SETS[name] = { light, dark }); }
+
+/*
+ * paperKit: helpers for build(g, rand, W, H). They read the size from g.canvas, and counts scale with the frame's area
+ * (given for 1920 × 1080), so a paper looks the same in portrait. Rules that keep a texture alive through TikTok and
+ * YouTube re-encoding (references/style.md, "Papers"):
+ *   - grain in 2 px specks or larger (grain(..., { size: 2 }), the default): single-pixel grain is the first thing lost;
+ *   - grid lines at least 1.5 px wide, at least 8/255 brighter or darker than the paper (not only another hue), and
+ *     never closer than 30 px;
+ *   - a dark gradient gets mottles over it, or it bands.
+ */
+const paperKit = {
+  area: g => g.canvas.width * g.canvas.height / (1920 * 1080),
+  /** a flat colour, or a top-to-bottom gradient a -> b */
+  fill(g, a, b = null) { const { width: w, height: h } = g.canvas;
+    if (b) { const lg = g.createLinearGradient(0, 0, 0, h); lg.addColorStop(0, a); lg.addColorStop(1, b); g.fillStyle = lg; } else g.fillStyle = a;
+    g.fillRect(0, 0, w, h); },
+  /** n soft round stains, colours taken in turn */
+  mottle(g, r, n, cols, rmin, rmax) { const { width: w, height: h } = g.canvas, k = Math.sqrt(paperKit.area(g));
+    for (let i = 0; i < n; i++) { const x = r() * w, y = r() * h, R = (rmin + r() * (rmax - rmin)) * k, rg = g.createRadialGradient(x, y, 0, x, y, R);
+      rg.addColorStop(0, cols[i % cols.length]); rg.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = rg; g.fillRect(x - R, y - R, 2 * R, 2 * R); } },
+  /** n short curved fibres; rgbs: ['r,g,b', ...] picked at random, alpha a0..a1, length l0..l1, width w0..w1 */
+  fibres(g, r, n, rgbs, a0 = 0.04, a1 = 0.1, l0 = 4, l1 = 18, w0 = 0.6, w1 = 1.4) { const { width: w, height: h } = g.canvas; g.save(); g.lineCap = 'round';
+    for (let i = 0, N = Math.round(n * paperKit.area(g)); i < N; i++) { const x = r() * w, y = r() * h, a = r() * TAU, l = l0 + r() * (l1 - l0);
+      g.strokeStyle = `rgba(${rgbs[(r() * rgbs.length) | 0]},${(a0 + r() * (a1 - a0)).toFixed(3)})`; g.lineWidth = w0 + r() * (w1 - w0);
+      g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + Math.cos(a + 0.6) * l * .5, y + Math.sin(a + 0.6) * l * .5, x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke(); }
+    g.restore(); },
+  /** n round specks of colour rgb ('r,g,b'), radius s0..s1, alpha a0..a1 */
+  specks(g, r, n, rgb, s0, s1, a0, a1) { const { width: w, height: h } = g.canvas;
+    for (let i = 0, N = Math.round(n * paperKit.area(g)); i < N; i++) { g.fillStyle = `rgba(${rgb},${(a0 + r() * (a1 - a0)).toFixed(3)})`;
+      g.beginPath(); g.arc(r() * w, r() * h, s0 + r() * (s1 - s0), 0, TAU); g.fill(); } },
+  /** a printed grid: lines every `step` px whose ink wanders a little along their length; every `every`-th line is a major one */
+  grid(g, r, step, col, alpha, lw = 1.5, { ox = 0, oy = 0, every = 0, majorAlpha = alpha, majorW = lw } = {}) {
+    const { width: w, height: h } = g.canvas;
+    const line = (x0, y0, x1, y1, a, wd) => { for (let k = 0; k < 12; k++) { g.globalAlpha = a * (0.8 + 0.4 * r()); g.lineWidth = wd;
+      g.beginPath(); g.moveTo(lerp(x0, x1, k / 12), lerp(y0, y1, k / 12)); g.lineTo(lerp(x0, x1, (k + 1) / 12), lerp(y0, y1, (k + 1) / 12)); g.stroke(); } };
+    g.save(); g.strokeStyle = col;
+    for (let x = ox, i = 0; x <= w; x += step, i++) { const M = every && i % every === 0; line(x, 0, x, h, M ? majorAlpha : alpha, M ? majorW : lw); }
+    for (let y = oy, i = 0; y <= h; y += step, i++) { const M = every && i % every === 0; line(0, y, w, y, M ? majorAlpha : alpha, M ? majorW : lw); }
+    g.restore(); },
+  /** faint overlapping arcs, as an eraser or a rag leaves them */
+  swirl(g, r, x, y, R, col, n = 40, lw = 26) { g.save(); g.lineCap = 'round'; g.strokeStyle = col;
+    for (let k = 0; k < n; k++) { const a0 = r() * TAU, a1 = a0 + 0.8 + r() * 2.2, rr = R * (0.4 + r() * 0.8); g.lineWidth = lw * (0.5 + r());
+      g.beginPath(); g.ellipse(x + (r() - .5) * R * .5, y + (r() - .5) * R * .3, rr, rr * (0.35 + r() * 0.3), (r() - .5) * 0.6, a0, a1); g.stroke(); }
+    g.restore(); },
+  /** noise of strength amt (0..255) in specks `size` px square; mono: false gives each channel its own noise */
+  grain(g, amt, seed, { size = 2, mono = true } = {}) {
+    const { width: w, height: h } = g.canvas, img = g.getImageData(0, 0, w, h), d = img.data, r = mulberry(seed);
+    if (size <= 1) {
+      for (let i = 0; i < d.length; i += 4) { const n = (r() - 0.5) * amt; d[i] += n; d[i + 1] += mono ? n : (r() - 0.5) * amt; d[i + 2] += mono ? n : (r() - 0.5) * amt; }
+    } else {
+      const w2 = Math.ceil(w / size), h2 = Math.ceil(h / size), nz = new Float32Array(w2 * h2 * 3);
+      for (let i = 0; i < w2 * h2; i++) { const n = (r() - 0.5) * amt; nz[i * 3] = n; nz[i * 3 + 1] = mono ? n : (r() - 0.5) * amt; nz[i * 3 + 2] = mono ? n : (r() - 0.5) * amt; }
+      for (let y = 0; y < h; y++) for (let x = 0, row = ((y / size) | 0) * w2; x < w; x++) { const j = (row + ((x / size) | 0)) * 3, i = (y * w + x) * 4;
+        d[i] += nz[j]; d[i + 1] += nz[j + 1]; d[i + 2] += nz[j + 2]; }
+    }
+    g.putImageData(img, 0, 0); },
+};
+
+/* the notebook: today's two papers, and the default set. Built exactly as before paper sets, so films keep their look. */
+defineGround('cream', { tone: 'light', seed: 11, vignette: 'rgba(90,60,20,0.16)', grain: 0.8, contours: { alpha: 0.16 }, sfx: { header: 'scratch' },
+  minContrast: { accent: 2.5 },    // the vermilion measures 2.5:1 on the cream texture; it stays, so films made before paper sets look the same
+  /** cream: soft-edged 45° bands, large mottles, fibres, grain */
+  build(g, r, W, H) {
+    const k = W * H / (1920 * 1080), span = Math.max(1700, Math.ceil(Math.hypot(W, H) / 264 + 1) * 132);   // the bands cover any frame
+    g.fillStyle = PAL.paper; g.fillRect(0, 0, W, H);
+    g.save(); g.translate(W / 2, H / 2); g.rotate(-Math.PI / 4);
+    for (let x = -span; x < span; x += 132) { const lg = g.createLinearGradient(x, 0, x + 66, 0);
+      lg.addColorStop(0, 'rgba(0,0,0,0)'); lg.addColorStop(0.2, PAL.stripe); lg.addColorStop(0.8, PAL.stripe); lg.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = lg; g.fillRect(x, -span, 66, 2 * span); }
+    g.restore();
+    for (let i = 0; i < 9; i++) { const x = r() * W, y = r() * H, R = 260 + r() * 420, rg = g.createRadialGradient(x, y, 0, x, y, R);
+      rg.addColorStop(0, i % 2 ? 'rgba(120,90,50,0.055)' : 'rgba(255,250,235,0.08)'); rg.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = rg; g.fillRect(x - R, y - R, 2 * R, 2 * R); }
+    g.lineCap = 'round';
+    for (let i = 0, n = Math.round(3200 * k); i < n; i++) { const x = r() * W, y = r() * H, a = r() * TAU, l = 4 + r() * 18;
+      g.strokeStyle = `rgba(${r() < .5 ? '110,90,60' : '160,140,110'},${0.05 + r() * 0.07})`; g.lineWidth = 0.6 + r() * 0.8;
+      g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + Math.cos(a + 0.6) * l * .5, y + Math.sin(a + 0.6) * l * .5, x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke(); }
+    paperKit.grain(g, 16, 3, { size: 1 });
+  } });
+defineGround('night', { tone: 'dark', seed: 12, vignette: 'rgba(0,0,8,0.45)', grain: 0.5, contours: { alpha: 0.10 }, sfx: { header: 'readout' },
+  /** night: deep navy, faint grid, cross-hatch weave, specks, grain */
+  build(g, r, W, H) {
+    const k = W * H / (1920 * 1080), lg = g.createLinearGradient(0, 0, 0, H); lg.addColorStop(0, PAL.night); lg.addColorStop(1, PAL.night2);
+    g.fillStyle = lg; g.fillRect(0, 0, W, H);
+    g.strokeStyle = 'rgba(130,130,200,0.045)'; g.lineWidth = 1;
+    for (let x = 0; x <= W; x += 120) { g.beginPath(); g.moveTo(x + .5, 0); g.lineTo(x + .5, H); g.stroke(); }
+    for (let y = 0; y <= H; y += 120) { g.beginPath(); g.moveTo(0, y + .5); g.lineTo(W, y + .5); g.stroke(); }
+    for (let i = 0, n = Math.round(9000 * k); i < n; i++) { const x = r() * W, y = r() * H, l = 5 + r() * 12, s = r() < .5 ? 1 : -1;
+      g.strokeStyle = `rgba(150,150,210,${0.02 + r() * 0.035})`; g.beginPath(); g.moveTo(x, y); g.lineTo(x + l, y - s * l); g.stroke(); }
+    for (let i = 0, n = Math.round(500 * k); i < n; i++) { g.fillStyle = `rgba(210,210,255,${0.05 + r() * 0.2})`; g.fillRect(r() * W, r() * H, 1.4, 1.4); }
+    paperKit.grain(g, 10, 4, { size: 1 });
+  } });
+definePaperSet('notebook', { light: 'cream', dark: 'night' });
+
+/*
+ * Which paper each plate is on. resolvePapers() runs at boot: it gives every plate pl._grounds (its set's { light, dark })
+ * and pl._ground (the page it is drawn on), and the palette it draws with (pl._pal). A plate whose `paper` names a single
+ * ground takes that ground's tone as its dark flag.
+ */
+const WORLD_LIGHT = new Set(['paper', 'stripe', 'ink', 'inkSoft', 'muted', 'label', 'panel', 'panelEdge', 'panelAlpha', 'cloudFill', 'graphite',
+  'mark', 'shadow', 'cardTint', 'cardEdge', 'dialShadow', 'figShadow', 'counter', 'rim', 'pageBack']);
+const worldKey = (tone, k) => tone === 'dark' ? k.startsWith('night') : WORLD_LIGHT.has(k);
+let PAPER = null, PAL_KEYS = [];   // PAPER: the story's set { light, dark }; PAL_KEYS: the PAL fields a paper in this film changes
+function paperSet(name, what) {
+  const known = () => `paper sets: ${Object.keys(PAPER_SETS).join(', ')}; papers: ${Object.keys(GROUNDS).join(', ')}`;
+  const need = n => { if (!GROUNDS[n]) throw new Error(`${what}: paper set '${name}' uses the paper '${n}', which is not defined (${known()})`); return GROUNDS[n]; };
+  if (PAPER_SETS[name]) return { light: need(PAPER_SETS[name].light), dark: need(PAPER_SETS[name].dark) };
+  if (GROUNDS[name]) { const g = GROUNDS[name], nb = PAPER || { light: GROUNDS.cream, dark: GROUNDS.night }; return { ...nb, [g.tone]: g }; }
+  throw new Error(`${what}: '${name}' is not a paper set or a paper (${known()}). Papers outside the engine live in toolkit/grounds/*.js, ` +
+    `and build.py includes one when the story names it as paper: '${name}'`);
+}
+function resolvePapers() {
+  PAPER = null; PAPER = paperSet(STORY.paper ?? 'notebook', 'defineStory({ paper })');
+  for (const pl of STORY.plates) {
+    let gs = PAPER;
+    if (pl.paper != null) {
+      gs = paperSet(pl.paper, `plate ${pl.i} paper`);
+      if (!PAPER_SETS[pl.paper]) { const tone = GROUNDS[pl.paper].tone;    // a single paper sets the plate's world
+        if (pl.dark != null && !!pl.dark !== (tone === 'dark')) console.warn(`plate ${pl.i}: paper '${pl.paper}' is a ${tone} paper, so the plate is drawn as dark: ${tone === 'dark'}`);
+        pl.dark = tone === 'dark'; }
+    }
+    pl._grounds = gs; pl._ground = gs[pl.dark ? 'dark' : 'light'];
+  }
+  const used = new Set(STORY.plates.flatMap(pl => [pl._grounds.light, pl._grounds.dark]));
+  PAL_KEYS = [...new Set([...used].flatMap(g => Object.keys(g.pal)))];
+  const base = PAL_KEYS.map(k => PAL[k]);                                  // PAL as the story left it
+  for (const pl of STORY.plates) { const own = pl._ground, other = pl._grounds[own.tone === 'dark' ? 'light' : 'dark'];
+    pl._pal = PAL_KEYS.map((k, i) => k in own.pal ? own.pal[k] : k in other.pal && worldKey(other.tone, k) ? other.pal[k] : base[i]); }
+  return used;
+}
+/** swap a plate's palette into PAL (returns what to put back), and back out. A notebook film changes nothing. */
+function palIn(vals) { if (!PAL_KEYS.length || !vals) return null; const was = PAL_KEYS.map(k => PAL[k]); PAL_KEYS.forEach((k, i) => { PAL[k] = vals[i]; }); return was; }
+function palOut(was) { if (was) PAL_KEYS.forEach((k, i) => { PAL[k] = was[i]; }); }
+/** withPaper(plate, fn): run fn with the plate's paper current (PAL, S.ground, S.grounds), then put everything back */
+function withPaper(pl, fn) {
+  const g0 = S.ground, gs0 = S.grounds, was = palIn(pl._pal); S.ground = pl._ground || null; S.grounds = pl._grounds || null;
+  try { return fn(); } finally { palOut(was); S.ground = g0; S.grounds = gs0; }
+}
+/** palView(plate): the palette a plate draws with, as an object (for code that needs another plate's colours) */
+function palView(pl) { return PAL_KEYS.length && pl._pal ? Object.assign({}, PAL, Object.fromEntries(PAL_KEYS.map((k, i) => [k, pl._pal[i]]))) : PAL; }
+/** groundFor(dark): the paper of that world on the plate being drawn (its set's light or dark page) */
+function groundFor(dark = S.dark) { const gs = S.grounds || PAPER || { light: GROUNDS.cream, dark: GROUNDS.night }; return gs[dark ? 'dark' : 'light']; }
+
+/* ---------- textures (built once per paper, at the film's size) ---------- */
+const GTEX = {};
+/** groundTex(ground) -> { raw, treated, vig }: the texture as painted, with its treatment applied, and its vignette */
+function groundTex(g) {
+  let T = GTEX[g.name]; if (T) return T;
+  const mk = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; return c; };
+  const raw = mk(); g.build(raw.getContext('2d'), mulberry(g.seed), W, H);
+  const vig = mk(), vg = vig.getContext('2d'), m = Math.min(W, H), rg = vg.createRadialGradient(W / 2, H / 2, m * 0.32, W / 2, H / 2, m * 1.02);
+  rg.addColorStop(0, 'rgba(0,0,0,0)'); rg.addColorStop(1, g.vignette); vg.fillStyle = rg; vg.fillRect(0, 0, W, H);   // drawn once per frame at identity, so scaled plates never show edges
+  let treated = raw;
+  if (g.treatment) { treated = mk(); const tg = treated.getContext('2d'); tg.drawImage(raw, 0, 0); treat(tg, g, new DOMMatrix(), raw); }
+  return (GTEX[g.name] = { raw, treated, vig });
+}
+/** paperTex(dark): the texture of that world's paper: untreated while a treated scene draws (the treatment processes it), treated otherwise */
+function paperTex(dark = S.dark, g = groundFor(dark)) { const T = groundTex(g); return S.raw ? T.raw : T.treated; }
+const TEX = {};   // TEX.grain: the film-grain tiles. TEX.paper / TEX.night / TEX.vigPaper / TEX.vigNight: the notebook's, for older stories
+for (const [k, n, f] of [['paper', 'cream', 'raw'], ['night', 'night', 'raw'], ['vigPaper', 'cream', 'vig'], ['vigNight', 'night', 'vig']])
+  Object.defineProperty(TEX, k, { enumerable: true, get: () => groundTex(GROUNDS[n])[f] });
 function buildTextures() {
-  const mk = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; return [c, c.getContext('2d')]; };
-  const grain = (g, amt, seed) => { const img = g.getImageData(0, 0, W, H), d = img.data, r = mulberry(seed);
-    for (let i = 0; i < d.length; i += 4) { const n = (r() - 0.5) * amt; d[i] += n; d[i + 1] += n; d[i + 2] += n; } g.putImageData(img, 0, 0); };
-  // paper: cream, soft-edged 45° bands, large mottles, fibres, grain
-  let [c, g] = mk(), r = mulberry(11);
-  g.fillStyle = PAL.paper; g.fillRect(0, 0, W, H);
-  g.save(); g.translate(W / 2, H / 2); g.rotate(-Math.PI / 4);
-  for (let x = -1700; x < 1700; x += 132) { const lg = g.createLinearGradient(x, 0, x + 66, 0);
-    lg.addColorStop(0, 'rgba(0,0,0,0)'); lg.addColorStop(0.2, PAL.stripe); lg.addColorStop(0.8, PAL.stripe); lg.addColorStop(1, 'rgba(0,0,0,0)');
-    g.fillStyle = lg; g.fillRect(x, -1700, 66, 3400); }
-  g.restore();
-  for (let i = 0; i < 9; i++) { const x = r() * W, y = r() * H, R = 260 + r() * 420, rg = g.createRadialGradient(x, y, 0, x, y, R);
-    rg.addColorStop(0, i % 2 ? 'rgba(120,90,50,0.055)' : 'rgba(255,250,235,0.08)'); rg.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = rg; g.fillRect(x - R, y - R, 2 * R, 2 * R); }
-  g.lineCap = 'round';
-  for (let i = 0; i < 3200; i++) { const x = r() * W, y = r() * H, a = r() * TAU, l = 4 + r() * 18;
-    g.strokeStyle = `rgba(${r() < .5 ? '110,90,60' : '160,140,110'},${0.05 + r() * 0.07})`; g.lineWidth = 0.6 + r() * 0.8;
-    g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + Math.cos(a + 0.6) * l * .5, y + Math.sin(a + 0.6) * l * .5, x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke(); }
-  grain(g, 16, 3);
-  TEX.paper = c;
-  // night: deep navy, faint grid, cross-hatch weave, specks, grain
-  [c, g] = mk();
-  const lg = g.createLinearGradient(0, 0, 0, H); lg.addColorStop(0, PAL.night); lg.addColorStop(1, PAL.night2);
-  g.fillStyle = lg; g.fillRect(0, 0, W, H);
-  g.strokeStyle = 'rgba(130,130,200,0.045)'; g.lineWidth = 1;
-  for (let x = 0; x <= W; x += 120) { g.beginPath(); g.moveTo(x + .5, 0); g.lineTo(x + .5, H); g.stroke(); }
-  for (let y = 0; y <= H; y += 120) { g.beginPath(); g.moveTo(0, y + .5); g.lineTo(W, y + .5); g.stroke(); }
-  r = mulberry(12);
-  for (let i = 0; i < 9000; i++) { const x = r() * W, y = r() * H, l = 5 + r() * 12, s = r() < .5 ? 1 : -1;
-    g.strokeStyle = `rgba(150,150,210,${0.02 + r() * 0.035})`; g.beginPath(); g.moveTo(x, y); g.lineTo(x + l, y - s * l); g.stroke(); }
-  for (let i = 0; i < 500; i++) { g.fillStyle = `rgba(210,210,255,${0.05 + r() * 0.2})`; g.fillRect(r() * W, r() * H, 1.4, 1.4); }
-  grain(g, 10, 4);
-  TEX.night = c;
   // film grain: four noise tiles, one per drawing, so the paper never sits perfectly still
   TEX.grain = [0, 1, 2, 3].map(k => { const c2 = document.createElement('canvas'); c2.width = c2.height = 256; const gg = c2.getContext('2d'), im = gg.createImageData(256, 256), rr = mulberry(300 + k);
     for (let i = 0; i < im.data.length; i += 4) { const v = rr() < 0.5 ? 0 : 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = rr() * 34; }
     gg.putImageData(im, 0, 0); return gg.createPattern(c2, 'repeat'); });
-  // vignettes: their own layer, drawn once per frame at identity so scaled plates never show edges
-  for (const [key, col] of [['vigPaper', 'rgba(90,60,20,0.16)'], ['vigNight', 'rgba(0,0,8,0.45)']]) {
-    [c, g] = mk(); const vg = g.createRadialGradient(W / 2, H / 2, H * 0.32, W / 2, H / 2, H * 1.02);
-    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, col); g.fillStyle = vg; g.fillRect(0, 0, W, H); TEX[key] = c;
-  }
+  for (const g of resolvePapers()) groundTex(g);                          // only the papers this film uses
+  TEX.ready = true;
 }
-/** four large, smooth topographic loops drifting slowly (the survey-map layer) */
+
+/*
+ * treat(g2d, ground, base, raw): how a scene looks on a paper. drawPlate() draws a treated plate's paper, scene and
+ * overlay onto a layer, treats it here, and draws the HUD on top untreated. base: the frame the paper was drawn in;
+ * raw: the untreated texture. The kinds, applied in this order (any combination):
+ *   tooth: [share, alpha]   holes punched through the drawing and filled with the paper, so lines pick up its grain
+ *   filter: 'sepia(0.45)'   a CSS filter over everything
+ *   color: ['#2d62b0', 0.7] everything tinted toward one hue (the 'color' blend: brightness stays, hue and saturation go)
+ *   glow: [8, 0.6]          a blurred copy added on top (px, strength), as fluorescence glows
+ * A function instead of the object does the whole job itself: fn(g2d, ground, { base, raw }), on the layer at identity.
+ */
+const TREAT = { scratch: null, holes: new Map() };
+function holePattern(share) {
+  let p = TREAT.holes.get(share); if (p) return p;
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'), im = g.createImageData(128, 128), r = mulberry(91);
+  for (let i = 0; i < im.data.length; i += 4) { const v = r(); im.data[i + 3] = v < share ? 255 : v < share * 1.8 ? 90 : 0; }
+  g.putImageData(im, 0, 0); p = g.createPattern(c, 'repeat'); TREAT.holes.set(share, p); return p;
+}
+function treatScratch(src) {
+  const c = TREAT.scratch && TREAT.scratch.width === src.width && TREAT.scratch.height === src.height ? TREAT.scratch : (TREAT.scratch = Object.assign(document.createElement('canvas'), { width: src.width, height: src.height }));
+  const g = c.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = 'copy'; g.drawImage(src, 0, 0); return c;
+}
+function treat(g2d, gr, base, raw) {
+  const tr = gr.treatment; if (!tr) return;
+  const c = g2d.canvas;
+  g2d.save();
+  try {
+    g2d.setTransform(1, 0, 0, 1, 0, 0); g2d.globalAlpha = 1; g2d.globalCompositeOperation = 'source-over'; g2d.filter = 'none';
+    if (typeof tr === 'function') { tr(g2d, gr, { base, raw }); return; }
+    // keep every kind on the paper's own rectangle: outside it the layer is empty, and a blend or a blur would fill that
+    g2d.setTransform(base); g2d.beginPath(); g2d.rect(0, 0, raw.width, raw.height); g2d.setTransform(1, 0, 0, 1, 0, 0); g2d.clip();
+    if (tr.tooth) {                                                        // holes in 2 px specks, fixed to the paper
+      const [share, a] = tr.tooth, pat = holePattern(share); pat.setTransform(base.multiply(new DOMMatrix([2, 0, 0, 2, 0, 0])));
+      g2d.globalCompositeOperation = 'destination-out'; g2d.globalAlpha = a; g2d.fillStyle = pat; g2d.fillRect(0, 0, c.width, c.height);
+      g2d.globalAlpha = 1; g2d.globalCompositeOperation = 'destination-over'; g2d.setTransform(base); g2d.drawImage(raw, 0, 0); g2d.setTransform(1, 0, 0, 1, 0, 0);
+    }
+    if (tr.filter) { const s = treatScratch(c); g2d.globalCompositeOperation = 'copy'; g2d.globalAlpha = 1; g2d.filter = tr.filter; g2d.drawImage(s, 0, 0); g2d.filter = 'none'; }
+    if (tr.color) { const [col, a] = tr.color; g2d.globalCompositeOperation = 'color'; g2d.globalAlpha = a; g2d.fillStyle = col; g2d.fillRect(0, 0, c.width, c.height); }
+    if (tr.glow) { const [px, a] = tr.glow, s = treatScratch(c); g2d.globalCompositeOperation = 'lighter'; g2d.globalAlpha = a; g2d.filter = `blur(${px}px)`; g2d.drawImage(s, 0, 0); }
+  } finally { g2d.restore(); }
+}
+/** the layer a treated plate draws its scene on (one per nesting depth: a transition can draw a plate inside another's layer) */
+const TREAT_LAYERS = []; let TREAT_DEPTH = 0;
+
+/** four large, smooth topographic loops drifting slowly (the survey-map layer), in the paper's colours */
 function contours(t, dark, seed = 21) {
-  const r = mulberry(seed);
-  for (let i = 0; i < 4; i++) { const cx = r() * W, cy = r() * H, rad = 260 + r() * 300, col = PAL.topo[i % PAL.topo.length];
+  const g = groundFor(dark), c = g.contours; if (!c) return;
+  if (typeof c === 'function') return c(t, g, seed);
+  const cols = c.colors || PAL.topo, alpha = c.alpha ?? (dark ? 0.10 : 0.16), r = mulberry(seed);
+  for (let i = 0; i < 4; i++) { const cx = r() * W, cy = r() * H, rad = 260 + r() * 300, col = cols[i % cols.length];
     for (let k = 0; k < 2; k++) { const p = shape.blob(cx + Math.sin(t * 0.05 + i) * 16, cy, rad * (1 - k * 0.18), seed + i * 7 + k, 0.22, 96, t * 0.012 * (i % 2 ? 1 : -1));
-      ink(p, { closed: true, w: 1.3, color: col, alpha: dark ? 0.10 : 0.16, amp: 0 }); } }
+      ink(p, { closed: true, w: 1.3, color: col, alpha, amp: 0 }); } }
 }
 function regMarks(dark, alpha = 1) {
-  const col = dark ? 'rgba(160,160,220,0.35)' : 'rgba(110,110,170,0.45)';
+  const col = dark ? PAL.nightMark : PAL.mark;
   ctx.save(); ctx.globalAlpha *= alpha; ctx.strokeStyle = col; ctx.lineWidth = 1.2;
   for (const [x, y] of [[34, 34], [W - 34, 34], [34, H - 34], [W - 34, H - 34]]) {
     ctx.beginPath(); ctx.arc(x, y, 9, 0, TAU); ctx.moveTo(x - 15, y); ctx.lineTo(x + 15, y); ctx.moveTo(x, y - 15); ctx.lineTo(x, y + 15); ctx.stroke();
   }
   ctx.restore();
 }
-function background(dark, t) { ctx.drawImage(dark ? TEX.night : TEX.paper, 0, 0); contours(t, dark); haloGround(dark, t); }
+function background(dark, t) { ctx.drawImage(paperTex(dark), 0, 0); contours(t, dark); haloGround(dark, t); }
 /** the ground a glyph halo paints with: this frame's paper plus its drifting contour loops, drawn once per plate per
     frame into an offscreen canvas in the paper's own frame. With the loops included, a halo over plain paper is the
-    paper, tint and all, so it cannot show as an outline; over line art it still knocks the lines back. */
-const HALO_BG = { c: null };
+    paper, tint and all, so it cannot show as an outline; over line art it still knocks the lines back. On a treated
+    paper there are two: the untreated one for text inside the scene (the treatment reaches it later) and a treated one
+    for the HUD, which is drawn after the treatment. */
+const HALO_BG = { c: null, t: null };
 function haloGround(dark, t) {
-  const tex = dark ? TEX.night : TEX.paper;
+  const g = groundFor(dark), tex = groundTex(g).raw;
   if (!HALO_BG.c || HALO_BG.c.width !== tex.width || HALO_BG.c.height !== tex.height) {
     HALO_BG.c = document.createElement('canvas'); HALO_BG.c.width = tex.width; HALO_BG.c.height = tex.height; }
   const was = ctx; ctx = HALO_BG.c.getContext('2d');
@@ -1018,6 +1238,13 @@ function haloGround(dark, t) {
         ctx.drawImage(tex, 0, 0); contours(t, dark); }
   finally { ctx = was; }
   S.haloPat = ctx.createPattern(HALO_BG.c, 'no-repeat');   // a copy: the next plate in a transition can reuse the canvas
+  S.haloPatT = null;
+  if (g.treatment) {
+    if (!HALO_BG.t || HALO_BG.t.width !== tex.width || HALO_BG.t.height !== tex.height) HALO_BG.t = Object.assign(document.createElement('canvas'), { width: tex.width, height: tex.height });
+    const tg = HALO_BG.t.getContext('2d'); tg.setTransform(1, 0, 0, 1, 0, 0); tg.globalAlpha = 1; tg.globalCompositeOperation = 'copy'; tg.drawImage(HALO_BG.c, 0, 0);
+    tg.globalCompositeOperation = 'source-over'; treat(tg, g, new DOMMatrix(), tex);
+    S.haloPatT = ctx.createPattern(HALO_BG.t, 'no-repeat');
+  }
 }
 /** layer(fn, slot): draw fn() into a reusable offscreen W×H canvas (ctx is swapped for the duration) and return it */
 const LAYERS = [];
@@ -1101,18 +1328,18 @@ function tornEdge(x, y, w, h, seed = 1, amp = 3) {
 const BACK = {};
 function backing(x0, y0, x1, y1, o = {}) {
   const { dark = S.dark, pad = 16, feather = 18, alpha = 1, seed = 1, style = 'card' } = o;
-  if (alpha <= 0 || !TEX.paper || x1 <= x0) return;
-  const X0 = x0 - pad, Y0 = y0 - pad, w = x1 - x0 + 2 * pad, h = y1 - y0 + 2 * pad, tex = dark ? TEX.night : TEX.paper;
+  if (alpha <= 0 || !TEX.ready || x1 <= x0) return;
+  const X0 = x0 - pad, Y0 = y0 - pad, w = x1 - x0 + 2 * pad, h = y1 - y0 + 2 * pad, tex = paperTex(dark);
   // the texture is sampled where the plate's own paper lies (S.base: the frame drawPlate drew the paper in), so a halo
   // over empty paper matches it grain for grain, whatever camera, counter-scale or overlay transform the caller is under
   const base = S.base || new DOMMatrix(), cur = ctx.getTransform(), B = base.inverse().multiply(cur), k = Math.hypot(B.a, B.b) || 1;
   if (style === 'card') {
     const e = tornEdge(X0, Y0, w, h, seed, 2.6);
     ctx.save(); ctx.globalAlpha *= alpha;
-    ctx.save(); ctx.translate(4, 5); flat(e, dark ? 'rgba(0,0,6,0.45)' : 'rgba(40,30,20,0.13)'); ctx.restore();
+    ctx.save(); ctx.translate(4, 5); flat(e, dark ? PAL.nightShadow : PAL.shadow); ctx.restore();
     ctx.save(); trace(e, true); ctx.clip(); ctx.setTransform(base); ctx.drawImage(tex, 0, 0); ctx.setTransform(cur);
-    flat(e, dark ? 'rgba(34,32,70,0.30)' : 'rgba(252,248,238,0.40)'); ctx.restore();
-    ink(e, { closed: true, w: 1.1, color: dark ? 'rgba(170,170,230,0.40)' : 'rgba(42,34,38,0.42)', amp: 0.35, seed });
+    flat(e, dark ? PAL.nightCardTint : PAL.cardTint); ctx.restore();
+    ink(e, { closed: true, w: 1.1, color: dark ? PAL.nightCardEdge : PAL.cardEdge, amp: 0.35, seed });
     ctx.restore(); return;
   }
   // patch: the torn shape's blurred SHADOW only (the shape itself is drawn far off-canvas), so the edge is soft on both
@@ -1143,10 +1370,11 @@ function textBox(s, x, y, o = {}) {
     halo matches it grain for grain and cannot show; a flat PAL colour left a pale outline round every haloed line */
 const HALO = {};
 function haloInk(dark = S.dark) {
-  const tex = dark ? TEX.night : TEX.paper;
-  if (!tex) return dark ? PAL.night : PAL.paper;
-  const key = dark ? 'night' : 'paper';
-  const pat = (S.haloPat && S.haloDark === !!dark) ? S.haloPat : (HALO[key] || (HALO[key] = ctx.createPattern(tex, 'no-repeat')));
+  if (!TEX.ready) return dark ? PAL.night : PAL.paper;
+  // on a treated paper the HUD (drawn after the treatment) needs the treated paper; text inside the scene the untreated one
+  const g = groundFor(dark), tex = paperTex(dark, g), treated = tex !== groundTex(g).raw, key = g.name + (treated ? '|t' : '');
+  const own = S.haloDark === !!dark && (treated ? S.haloPatT : S.haloPat);
+  const pat = own || HALO[key] || (HALO[key] = ctx.createPattern(tex, 'no-repeat'));
   pat.setTransform(ctx.getTransform().inverse().multiply(S.base || new DOMMatrix()));   // pattern space = the paper's frame
   return pat;
 }
@@ -1168,7 +1396,7 @@ const unionBox = bs => bs.filter(Boolean).reduce((a, b) => a ? [Math.min(a[0], b
  */
 const LEG = {};
 function legible(color, dark = S.dark, min = 6) {
-  const key = `${color}|${dark ? 1 : 0}|${min}`; if (LEG[key]) return LEG[key];
+  const key = `${color}|${dark ? 1 : 0}|${min}|${dark ? PAL.night2 : PAL.paper}|${PAL.ink}`; if (LEG[key]) return LEG[key];   // keyed by the paper too
   const lin = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
   const lum = c => { const [r, g, b] = rgbOf(c).map(lin); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
   const bg = lum(dark ? PAL.night2 : PAL.paper), cr = c => { const l = lum(c); return (Math.max(l, bg) + 0.05) / (Math.min(l, bg) + 0.05); };
@@ -1200,7 +1428,7 @@ function plateHeader(t, { num, title, sub, dark, backing: bk = true }) {
   dropText(title, 88, 158, t - 0.15, { ...TO, ...hl, color: ic, cps: 17 });
   const tw = measure(title, TO), rp = E.out3(inv(0.35, 1.1, t));
   if (rp > 0) ink([[90, 180], [90 + (tw + 6) * rp, 180]], { w: 1.6, color: PAL.peri, amp: 0, alpha: 0.85 });
-  if (sub) haloText(typed(sub, t - 0.7, 30), 90, 221, { ...SO, ...hl, color: dark ? '#b9b9d6' : PAL.inkSoft });
+  if (sub) haloText(typed(sub, t - 0.7, 30), 90, 221, { ...SO, ...hl, color: dark ? PAL.nightSoft : PAL.inkSoft });
 }
 /**
  * journey log: {title, rows: [[label, value]], states: [...], state: i, backing}. HUD role: labels 18 px, values 21 px.
@@ -1222,7 +1450,7 @@ function journeyLog(t, log, dark) {
   const ySt = y0 + log.rows.length * R, yEnd = log.states ? ySt + (wrap ? lines.length : 0) * 30 : ySt - R;
   if (log.backing === 'card') backing(x0, 52, x1, yEnd + 8, { dark, alpha: clamp(t * 3), seed: 5, pad: 16 });
   const hl = { dark, halo: (log.backing ?? true) === true }, text = haloText;   // every line below gets the glyph halo
-  text(typed(log.title, t, 40), x1, 70, { ...LOG.title, ...hl, align: 'right', color: dark ? '#b9b9d6' : PAL.inkSoft });
+  text(typed(log.title, t, 40), x1, 70, { ...LOG.title, ...hl, align: 'right', color: dark ? PAL.nightSoft : PAL.inkSoft });
   ink([[x0, 84], [lerp(x0, x1, E.out3(inv(0.1, 0.6, t))), 84]], { w: 1.4, color: PAL.peri, amp: 0, alpha: 0.8 });
   log.rows.forEach(([lab, val], i) => { const y = y0 + i * R, al = inv(0.2 + i * 0.08, 0.5 + i * 0.08, t);
     text(lab, x0, y, { ...LOG.lab, ...hl, color: lc, alpha: al }); text(val, x1, y, { ...LOG.val, ...hl, align: 'right', color: ic, alpha: al }); });
@@ -1240,8 +1468,8 @@ function stageDial(t, { n, N, name, prevN }, dark) {
   const a = inv(0, 0.4, t); if (a <= 0) return;
   ctx.save(); ctx.globalAlpha *= a;
   const box = shape.rect(45, 900, 358, 138);
-  if (dark) ink(box, { closed: true, w: 1.2, color: 'rgba(160,160,220,0.35)', fill: 'rgba(20,20,48,0.92)', amp: 0 });
-  else { flat(shape.rect(48, 903, 358, 138), 'rgba(40,30,20,0.10)'); ink(box, { closed: true, w: 1.6, color: PAL.panelEdge, fill: PAL.panel, fillAlpha: Math.max(0.97, PAL.panelAlpha), amp: 0.5, seed: 91, double: true }); }   // opaque: the dial is the backing for its text
+  if (dark) ink(box, { closed: true, w: 1.2, color: PAL.nightPanelEdge, fill: PAL.nightPanel, amp: 0 });
+  else { flat(shape.rect(48, 903, 358, 138), PAL.dialShadow); ink(box, { closed: true, w: 1.6, color: PAL.panelEdge, fill: PAL.panel, fillAlpha: Math.max(0.97, PAL.panelAlpha), amp: 0.5, seed: 91, double: true }); }   // opaque: the dial is the backing for its text
   const cx = 118, cy = 968, R = 50;
   ink(shape.circle(cx, cy, R), { closed: true, w: 1.3, color: PAL.peri, amp: 0, alpha: 0.9 });
   for (let i = 0; i < 12; i++) { const an = i / 12 * TAU; ink([[cx + Math.cos(an) * (R - 5), cy + Math.sin(an) * (R - 5)], [cx + Math.cos(an) * (R + 5), cy + Math.sin(an) * (R + 5)]], { w: 1.2, color: PAL.peri, amp: 0 }); }
@@ -1255,7 +1483,7 @@ function stageDial(t, { n, N, name, prevN }, dark) {
 }
 function frameCounter(f, dark) {
   const s = `EXP ${String(Math.floor(f / 2)).padStart(4, '0')}    F ${String(f).padStart(4, '0')}`;
-  text(s, 1868, 1046, { kind: 'mono', size: 14, ls: 1, align: 'right', color: dark ? 'rgba(160,160,210,0.6)' : 'rgba(90,80,70,0.6)', role: 'decor' });
+  text(s, 1868, 1046, { kind: 'mono', size: 14, ls: 1, align: 'right', color: dark ? PAL.nightCounter : PAL.counter, role: 'decor' });
 }
 
 /* ---------- annotation components ---------- */
@@ -1301,9 +1529,9 @@ function stat(t, { x, y, kicker, value, note, dark = S.dark, size = 62, align = 
   if (bk === 'card') { const vf = typeof value === 'function' ? value(1e4) : value, b = unionBox([kicker && textBox(kicker, x + 3, ky, KO), textBox(String(vf), x, y, VO), note && textBox(note, x + 3, ny, NO)]);
     backing(b[0], b[1], b[2], b[3], { dark, alpha: clamp(t * 4), seed: 13, pad: 14 }); }
   const hl = { dark, halo: bk === true }, text = haloText;
-  if (kicker) text(typed(kicker, t, 40), x + 3, ky, { ...KO, ...hl, color: dark ? '#b9b9d6' : PAL.inkSoft });
+  if (kicker) text(typed(kicker, t, 40), x + 3, ky, { ...KO, ...hl, color: dark ? PAL.nightSoft : PAL.inkSoft });
   if (t >= 0.3) text(v, x, y, { ...VO, ...hl, color: inkOf(dark) });   // the number lands at full ink, like a typed glyph (a fade would show the first count half-transparent)
-  if (note) text(typed(note, t - 1.2, 40), x + 3, ny, { ...NO, ...hl, color: dark ? '#b3b3d2' : PAL.inkSoft });
+  if (note) text(typed(note, t - 1.2, 40), x + 3, ny, { ...NO, ...hl, color: dark ? PAL.nightSoft2 : PAL.inkSoft });
 }
 /** tracker reticle + ID tag (role 'hud', 18 px, with a glyph halo). Prefer the plate's `hero` property, which the engine draws as furniture. */
 function reticle(x, y, t, { label, r = 40, dark, alpha = 1, tag = true }) {
@@ -1334,8 +1562,8 @@ function reticle(x, y, t, { label, r = 40, dark, alpha = 1, tag = true }) {
 function card(t, { x, y, w, h, dark = S.dark, fig, title }) {
   const p = E.out3(inv(0, 0.4, t)); if (p <= 0) return 0;
   const ww = w * p;
-  if (dark) ink(shape.rect(x, y, ww, h), { closed: true, w: 1.4, color: 'rgba(170,170,230,0.45)', fill: 'rgba(18,18,44,0.92)', amp: 0 });
-  else { flat(shape.rect(x + 4, y + 4, ww, h), 'rgba(40,30,20,0.12)'); ink(shape.rect(x, y, ww, h), { closed: true, w: 2, color: PAL.panelEdge, fill: PAL.panel, fillAlpha: Math.max(0.95, PAL.panelAlpha), amp: 0.6, seed: 77, double: true }); }
+  if (dark) ink(shape.rect(x, y, ww, h), { closed: true, w: 1.4, color: PAL.nightFigEdge, fill: PAL.nightFig, amp: 0 });
+  else { flat(shape.rect(x + 4, y + 4, ww, h), PAL.figShadow); ink(shape.rect(x, y, ww, h), { closed: true, w: 2, color: PAL.panelEdge, fill: PAL.panel, fillAlpha: Math.max(0.95, PAL.panelAlpha), amp: 0.6, seed: 77, double: true }); }
   let to = { kind: 'mono', size: 22, weight: 600, ls: 4, role: 'label' };
   if (title && measure(title, to) > w - 48) to = { ...to, ls: 1 };
   if (title) {
@@ -1404,10 +1632,10 @@ function insetLens(t, { cx, cy, r, sx, sy, draw, dark = true, label }) {
   const L = Math.sqrt(Math.max(0, d * d - rr * rr));
   for (const sg of [-1, 1]) ink([[sx, sy], [sx + Math.cos(a + sg * b) * L, sy + Math.sin(a + sg * b) * L]], { w: 1.2, color: PAL.peri, amp: 0, alpha: 0.8 * clamp(p) });
   ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, rr, 0, TAU); ctx.clip();
-  ctx.drawImage(dark ? TEX.night : TEX.paper, cx - W / 2, cy - H / 2);
+  ctx.drawImage(paperTex(dark), cx - W / 2, cy - H / 2);
   ctx.translate(cx, cy); draw(t); ctx.restore();
   lensRing(cx, cy, rr, clamp(p), S.dark ? null : PAL.inkSoft);                      // the plate's own ink: a pale ring vanishes on paper
-  if (label) haloText(typed(label, t - 0.5, 30), cx, cy + r + 48, { kind: 'mono', size: 22, ls: 3, align: 'center', role: 'label', color: S.dark ? '#b9b9d6' : PAL.inkSoft });
+  if (label) haloText(typed(label, t - 0.5, 30), cx, cy + r + 48, { kind: 'mono', size: 22, ls: 3, align: 'center', role: 'label', color: S.dark ? PAL.nightSoft : PAL.inkSoft });
 }
 
 /* ---------- motion helpers ---------- */
@@ -1440,7 +1668,8 @@ function flow(path, t, o = {}) {
 const zlerp = (a, b, e) => a * Math.pow(b / a, e);
 /** radius of the smallest circle centred at (x, y) that covers the whole frame */
 const coverR = (x, y) => Math.max(Math.hypot(x, y), Math.hypot(W - x, y), Math.hypot(x, H - y), Math.hypot(W - x, H - y)) + 24;
-const bgTex = dark => dark ? TEX.night : TEX.paper;
+/** bgTex(ground | dark): a paper texture to lay under a plate drawn with bg: false (a ground, or a world of the current plate's set) */
+const bgTex = d => d && typeof d === 'object' ? groundTex(d).treated : paperTex(!!d);
 
 /* ---------- camera ---------- */
 /** withCamera({x, y, s, dx, dy, rot}, fn): draw fn() zoomed by s about (x, y) and panned by (dx, dy). Paper and HUD stay put. */
@@ -1570,9 +1799,9 @@ function momentum(pl, t) {
 /* ---------- transitions ---------- */
 function lensRing(cx, cy, r, a, color = null) {
   if (a <= 0) return;
-  ctx.save(); ctx.globalAlpha *= a; ctx.strokeStyle = color || '#e9e7f5'; ctx.lineWidth = 3;
+  ctx.save(); ctx.globalAlpha *= a; ctx.strokeStyle = color || PAL.lens; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.stroke();
-  ctx.strokeStyle = 'rgba(132,135,198,0.8)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(cx, cy, r + 8, 0, TAU); ctx.stroke();
+  ctx.strokeStyle = PAL.lensEdge; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(cx, cy, r + 8, 0, TAU); ctx.stroke();
   for (let i = 0; i < 48; i++) { const a2 = i / 48 * TAU, e = r + (i % 4 ? 13 : 20); ctx.beginPath(); ctx.moveTo(cx + Math.cos(a2) * (r + 8), cy + Math.sin(a2) * (r + 8)); ctx.lineTo(cx + Math.cos(a2) * e, cy + Math.sin(a2) * e); ctx.stroke(); }
   ctx.restore();
 }
@@ -1644,8 +1873,10 @@ function sampleColor(X, which, x, y) {
 /**
  * Every transition is a pure function of p (0..1) and returns the share (0..1) of the frame owned by the new plate,
  * which the engine uses to blend vignettes. X = {drawOld, drawNew, drawOldX(o), drawNewX(o), focusOld, focusNew,
- * darkOld, darkNew, prev, pl, pt, t, tr, seed}. Transitions render on ones; zooms use zlerp (constant ratio per drawing);
- * masks ease their edge, not their area. See references/motion.md, Speed limits.
+ * darkOld, darkNew, gOld, gNew (the two plates' papers), palOld, palNew (their palettes), prev, pl, pt, t, tr, seed}.
+ * A transition runs with the new plate's paper current, so PAL is palNew; the old plate's colours are X.palOld.
+ * Transitions render on ones; zooms use zlerp (constant ratio per drawing); masks ease their edge, not their area.
+ * See references/motion.md, Speed limits.
  */
 const TRANS = {
   /** down the scale ladder into another world: the camera dives at the hero while a lens opens on it, the new world inside */
@@ -1653,7 +1884,7 @@ const TRANS = {
     const { tr } = X, e = X.ez(p, E.arrive), [cx, cy] = X.focusOld, [fx, fy] = X.focusNew, R = coverR(cx, cy), r = lerp(16, R, e);   // ease the ring's edge (what the eye follows), not its area: area easing pops the lens open
     X.drawOldX({ xf: about(cx, cy, zlerp(1, tr.dive ?? 2, e)) });
     ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.clip();
-    ctx.drawImage(bgTex(X.darkNew), 0, 0);
+    ctx.drawImage(bgTex(X.gNew), 0, 0);
     const ei = X.ez(p, E.arriveSoft);   // the world inside lags the ring a little (overlapping action)
     X.drawNewX({ bg: false, xf: about(fx, fy, zlerp(tr.scaleFrom ?? 0.3, 1, ei), lerp(cx, fx, e), lerp(cy, fy, e)) });
     ctx.restore();
@@ -1666,7 +1897,7 @@ const TRANS = {
     const cx = lerp(ox, nx, e), cy = lerp(oy, ny, e), r = lerp(R0, 20, e);   // the edge eases in and out
     X.drawNewX({ xf: about(nx, ny, zlerp(tr.dive ?? 2, 1, e)) });
     ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.clip();
-    withAlpha(1 - E.in2(inv(0.8, 1, p)), () => { ctx.drawImage(bgTex(X.darkOld), 0, 0);   // the last dot of the old world fades instead of popping off
+    withAlpha(1 - E.in2(inv(0.8, 1, p)), () => { ctx.drawImage(bgTex(X.gOld), 0, 0);   // the last dot of the old world fades instead of popping off
       X.drawOldX({ bg: false, hud: 1 - inv(0, 0.3, p), xf: about(ox, oy, zlerp(1, 0.25, eo), cx, cy) }); });
     ctx.restore();
     lensRing(cx, cy, r, 1 - inv(0.85, 1, p));
@@ -1684,7 +1915,7 @@ const TRANS = {
     // (the masked pass keeps the reticle at the HUD's strength; only the header, dial and log are drawn unmasked after it)
     const plate = (draw, sc, hud, xf, R) => { if (sc >= 0.999) return draw({ bg: false, hud, xf });
       softReveal(() => draw({ bg: false, hud, chrome: false, xf }), px, py, sc * R * 1.1, sc * R * 0.45, 1); if (hud > 0) draw({ hudOnly: true, hud }); };
-    ctx.drawImage(bgTex(X.darkOld), 0, 0); if (X.darkNew !== X.darkOld) withAlpha(a, () => ctx.drawImage(bgTex(X.darkNew), 0, 0));   // the paper changes gradually
+    ctx.drawImage(bgTex(X.gOld), 0, 0); if (X.gNew !== X.gOld) withAlpha(a, () => ctx.drawImage(bgTex(X.gNew), 0, 0));   // the paper changes gradually
     withAlpha(1 - E.in2(inv(0.35, 0.8, p)), () => plate(X.drawOldX, sOld, 1 - inv(0, 0.3, p), about(ox, oy, sOld, px, py), coverR(ox, oy)));
     S.noReticle = p < 0.6;
     withAlpha(a, () => plate(X.drawNewX, sNew, inv(0.6, 1, p), about(nx, ny, sNew, px, py), coverR(nx, ny)));
@@ -1803,7 +2034,7 @@ const TRANS = {
     }
     const th = frontAt(vals, e) + (soft + 0.005) * e;
     const m = maskCanvas('m', w, h), rm = maskCanvas('r', w, h), md = m.img.data, rd = rm.img.data;
-    const rc = X.tr.rim || (X.darkNew ? [16, 14, 44] : [70, 52, 40]);
+    const rc = X.tr.rim || (X.darkNew ? PAL.nightRim : PAL.rim);
     for (let i = 0; i < w * h; i++) { const b = th - vals[i], j = i * 4;
       md[j + 3] = 255 * clamp(b / soft);
       rd[j] = rc[0]; rd[j + 1] = rc[1]; rd[j + 2] = rc[2]; rd[j + 3] = b > 0 && b < band ? 255 * (1 - b / band) ** 1.5 : 0; }   // ink pools at the edge
@@ -1841,7 +2072,7 @@ const TRANS = {
     const fade = 1 - inv(0.85, 1, p); ctx.globalCompositeOperation = 'lighter';
     ctx.globalAlpha = 0.55 * fade; ctx.filter = 'blur(10px)'; ctx.drawImage(gm.c, 0, 0, W, H);
     ctx.globalAlpha = 0.9 * fade; ctx.filter = 'none'; ctx.drawImage(gm.c, 0, 0, W, H); ctx.restore();
-    const ar = mulberry(X.seed + 77), col = X.darkOld ? PAL.nightInk : PAL.ink;         // ash: each fleck leaves when the front reaches it
+    const ar = mulberry(X.seed + 77), col = X.darkOld ? X.palOld.nightInk : X.palOld.ink;         // ash: each fleck leaves when the front reaches it
     for (let i = 0; i < 60; i++) { const ax = ar() * W, ay = ar() * H, age = (th - vAt(ax, ay)) / 0.3, dr = ar();
       if (age <= 0 || age >= 1) continue;
       const [wx, wy] = wander(i, S.T, 14, 1.2), s = 2 + dr * 3;
@@ -1850,7 +2081,7 @@ const TRANS = {
   },
   /** iris / blink: a lens closes on the old hero to a dot, then opens from a dot on the new hero */
   iris(p, X) {
-    const curtain = X.tr.color || (X.darkOld || X.darkNew ? '#07061a' : PAL.ink), op = X.tr.opacity ?? 0.8, [ox, oy] = X.focusOld, [nx, ny] = X.focusNew, r0 = 7;
+    const curtain = X.tr.color || (X.darkNew ? PAL.nightCurtain : X.darkOld ? X.palOld.nightCurtain : PAL.ink), op = X.tr.opacity ?? 0.8, [ox, oy] = X.focusOld, [nx, ny] = X.focusNew, r0 = 7;
     let cx, cy, r;
     const hole = () => { ctx.save(); ctx.globalAlpha *= op; ctx.fillStyle = curtain; ctx.beginPath(); ctx.rect(-20, -20, W + 40, H + 40);
       if (r > r0 + 0.5) ctx.arc(cx, cy, r, 0, TAU, true); ctx.fill('evenodd'); ctx.restore(); };
@@ -1860,7 +2091,7 @@ const TRANS = {
       X.drawOldX({ hud: 0, xf: about(ox, oy, 1.15) }); withAlpha(u, () => X.drawNewX({ hud: 0, xf: about(nx, ny, 1.15) })); hole(); }
     else { const q = E.shaped(0.35, 2, 3)((p - 0.54) / 0.46); [cx, cy] = [nx, ny]; r = lerp(r0, coverR(cx, cy), q); X.drawNewX({ hud: q, xf: about(cx, cy, 1.15 - 0.15 * q) }); hole(); }
     lensRing(cx, cy, r, 1 - inv(0.9, 1, p));
-    if (r <= r0 + 0.5) { ctx.fillStyle = '#e9e7f5'; ctx.beginPath(); ctx.arc(cx, cy, r0 * 0.6, 0, TAU); ctx.fill(); }
+    if (r <= r0 + 0.5) { ctx.fillStyle = PAL.lens; ctx.beginPath(); ctx.arc(cx, cy, r0 * 0.6, 0, TAU); ctx.fill(); }
     return E.inOut3(inv(0.4, 0.6, p));
   },
   /** page turn: a bottom corner of the old page is lifted and dragged across (tr.dir 'left' = the right corner travels left,
@@ -1885,13 +2116,13 @@ const TRANS = {
     if (flap.length > 2) {
       ctx.save(); ctx.filter = 'blur(14px)'; ctx.globalAlpha = 0.28; ctx.translate(-10 * nx, -10 * ny + 6); flat(flap, '#1e140c'); ctx.restore();   // soft drop shadow
       ctx.save(); trace(flap, true); ctx.clip();
-      const backDark = (X.tr.back || 'new') === 'new' ? X.darkNew : X.darkOld;
-      ctx.drawImage(bgTex(backDark), 0, 0); ctx.fillStyle = backDark ? 'rgba(60,60,110,0.25)' : 'rgba(255,252,240,0.35)'; ctx.fillRect(0, 0, W, H);
+      const backNew = (X.tr.back || 'new') === 'new', backDark = backNew ? X.darkNew : X.darkOld, bp = backNew ? X.palNew : X.palOld;
+      ctx.drawImage(bgTex(backNew ? X.gNew : X.gOld), 0, 0); ctx.fillStyle = backDark ? bp.nightPageBack : bp.pageBack; ctx.fillRect(0, 0, W, H);
       if (backDark === X.darkOld) { ctx.save(); ctx.globalAlpha = 0.09; ctx.transform(1 - 2 * nx * nx, -2 * nx * ny, -2 * nx * ny, 1 - 2 * ny * ny, 2 * md * nx, 2 * md * ny); ctx.drawImage(L, 0, 0); ctx.restore(); }   // print showing through
       const g = ctx.createLinearGradient(mx, my, mx - nx * 300, my - ny * 300);   // the curl: dark in the crease, a highlight, then soft shade
       g.addColorStop(0, 'rgba(30,20,10,0.38)'); g.addColorStop(0.12, 'rgba(30,20,10,0.08)'); g.addColorStop(0.35, 'rgba(255,255,255,0.18)'); g.addColorStop(1, 'rgba(30,20,10,0.10)');
       ctx.fillStyle = g; ctx.fillRect(-10, -10, W + 20, H + 20); ctx.restore();
-      ink(flap, { closed: true, w: 2.2, color: backDark ? PAL.nightInk : PAL.ink, amp: 0.5, seed: 61, alpha: 0.85 });
+      ink(flap, { closed: true, w: 2.2, color: backDark ? bp.nightInk : bp.ink, amp: 0.5, seed: 61, alpha: 0.85 });
     }
     X.drawOldX({ hudOnly: true, hud: 1 - inv(0, 0.3, p) });
     return e;
@@ -1902,7 +2133,7 @@ const TRANS = {
     X.drawNew();
     if (yc < H) { const g = ctx.createLinearGradient(0, yc + R, 0, yc + R + 110); g.addColorStop(0, 'rgba(30,20,10,0.32)'); g.addColorStop(1, 'rgba(30,20,10,0)');
       ctx.fillStyle = g; ctx.fillRect(0, yc + R, W, 110); }                                   // shadow the roll casts on the new page
-    const L = layer(() => X.drawOldX({ hud: 0 }), 2), back = bgTex(X.darkOld);
+    const L = layer(() => X.drawOldX({ hud: 0 }), 2), back = bgTex(X.gOld);
     if (yc > 0) ctx.drawImage(L, 0, 0, W, Math.min(H, yc), 0, 0, W, Math.min(H, yc));     // the part not yet rolled
     const strip = (d, front) => { const sy = yc + d; if (sy < 0 || sy >= H) return; const th = d / R, dy = yc + R * Math.sin(th), dh = Math.max(1, step * Math.abs(Math.cos(th)) + 1);
       if (front) { ctx.drawImage(L, 0, sy, W, step, 0, dy, W, dh); ctx.fillStyle = `rgba(0,0,0,${0.35 * Math.sin(th)})`; }
@@ -1910,7 +2141,7 @@ const TRANS = {
       ctx.fillRect(0, dy, W, dh); };
     for (let d = 0; d < Math.PI * R / 2; d += step) strip(d, true);                          // underside of the roll
     for (let d = Math.PI * R / 2; d < Math.PI * R; d += step) strip(d, false);               // outside of the roll, facing us
-    if (yc < H && yc > -R) { const col = X.darkOld ? PAL.nightInk : PAL.ink;                // inked edges of the roll
+    if (yc < H && yc > -R) { const col = X.darkOld ? X.palOld.nightInk : X.palOld.ink;                // inked edges of the roll
       pen([[-10, yc], [W + 10, yc]], { w: 2.4, color: col, seed: 51, taper: 0.01, amp: 0.8 });
       pen([[-10, yc + R], [W + 10, yc + R]], { w: 3.2, color: col, seed: 52, taper: 0.01, amp: 0.8 });
       ink(shape.arc(W - 40, yc + R / 2, R * 0.32, -1.4, 3.6, 24), { w: 1.8, color: col, alpha: 0.7, amp: 0.3 }); }
@@ -1926,7 +2157,7 @@ const TRANS = {
     const fa = tr.fromFill || sampleColor(X, 'old', ax, ay), fb = tr.toFill || sampleColor(X, 'new', bx, by);
     S.morph = true;
     X.drawOldX({ hud: 1 - inv(0, 0.4, p), xf: about(ax, ay, zlerp(1, 1.6, e), cx, cy) });
-    ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.clip(); ctx.drawImage(bgTex(X.darkNew), 0, 0);
+    ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.clip(); ctx.drawImage(bgTex(X.gNew), 0, 0);
     X.drawNewX({ bg: false, hud: inv(0.7, 1, p), xf: about(bx, by, zlerp(0.7, 1, e), cx, cy) });
     ctx.restore();
     S.morph = false;
@@ -1972,6 +2203,8 @@ function defineStory(story) {
   story.plates.forEach(p => {
     if (!(p.dur > 0)) throw new Error(`plate ${p.i}${p.header ? ` (${p.header.title})` : ''} has no dur` + (p.vo ? ', and no narration was embedded to time it (build with vo/voice.json)' : ''));
     p.start = t; t += p.dur; });
+  fitScore(story);                                                     // a tempo grid: plate starts move onto bar lines
+  t = story.plates.reduce((s, p) => s + p.dur, 0);
   const vEnd = Math.max(0, ...story.plates.flatMap(p => p.voice.filter(v => v.unit).map(v => p.start + v.at + v.dur)));
   if (vEnd + 0.3 > t) { const last = story.plates[story.plates.length - 1]; last.dur += vEnd + 0.3 - t; t = vEnd + 0.3; }   // a line running off the end
   indexMarks(story);
@@ -2150,15 +2383,34 @@ function animaticOverlay(p, t) {
 /**
  * drawPlate(pl, t, o): paper -> scene (transition xf, momentum, camera) -> hero reticle (constant size) -> overlay -> HUD (staggered).
  * o.all applies xf to everything (pans, page curls); o.hud scales HUD alpha; o.bg = false skips the paper.
+ * The plate draws with its own paper current (withPaper: PAL, S.ground). On a paper with a treatment, the paper, scene,
+ * reticle and overlay go onto a layer that is treated (treat()) and then drawn; the HUD goes on top, untreated. A
+ * treated plate always carries its own paper on that layer (bg: false draws it without the contour loops).
  */
 function drawPlate(pl, t, o = {}) {
-  const { xf = null, all = false, hud = 1, bg = true, hudOnly = false, chrome = true } = o;   // chrome: false skips header, dial, log and marks (the reticle still follows hud)
-  const darkWas = S.dark, baseWas = S.base, patWas = S.haloPat, pdWas = S.haloDark; S.dark = !!pl.dark; S.haloPat = null; S.haloDark = !!pl.dark;
-  ctx.save();
-  if (all && xf) xf();
-  S.base = ctx.getTransform();                                         // the frame the paper is drawn in: backing() samples it here
-  if (!hudOnly) {
-  if (bg) background(pl.dark, t);
+  const { hud = 1, hudOnly = false, chrome = true } = o;   // chrome: false skips header, dial, log and marks (the reticle still follows hud)
+  const darkWas = S.dark, baseWas = S.base, patWas = S.haloPat, patTWas = S.haloPatT, pdWas = S.haloDark;
+  S.dark = !!pl.dark; S.haloPat = null; S.haloPatT = null; S.haloDark = !!pl.dark;
+  withPaper(pl, () => {
+    ctx.save();
+    if (o.all && o.xf) o.xf();
+    S.base = ctx.getTransform();                                       // the frame the paper is drawn in: backing() samples it here
+    if (!hudOnly) (S.ground && S.ground.treatment ? treatedScene : plateScene)(pl, t, o);
+    if (hud > 0 && chrome) {
+      ctx.globalAlpha *= clamp(hud);
+      const ht = t - headerDelay(pl);
+      if (pl.header) plateHeader(ht, { ...pl.header, dark: pl.dark });
+      if (pl.stage) stageDial(ht - 0.25, { ...pl.stage, N: STORY.stages }, pl.dark);
+      if (pl.log) journeyLog(ht - 0.35, pl.log(t), pl.dark);
+      if (pl.marks !== false) regMarks(pl.dark);
+    }
+    ctx.restore();
+  });
+  S.dark = darkWas; S.base = baseWas; S.haloPat = patWas; S.haloPatT = patTWas; S.haloDark = pdWas;
+}
+/** the plate below its HUD: paper, the scene under its camera, the hero's reticle, the overlay */
+function plateScene(pl, t, { xf = null, all = false, hud = 1, bg = true } = {}, own = false) {
+  if (bg) background(pl.dark, t); else if (own) ctx.drawImage(paperTex(pl.dark), 0, 0);   // own: a treated plate's layer carries its paper
   const cam = camOf(pl, t), ms = entryShift(pl, t), mo = momentum(pl, t) * (ms ? ms.s : 1);
   ctx.save(); if (xf && !all) xf();
   ctx.save();                                                          // scene: entry shift + momentum + camera
@@ -2173,16 +2425,19 @@ function drawPlate(pl, t, o = {}) {
   // cards and stats off the frame before a lens or zoom); a transition's xf still does, so it leaves with its plate.
   if (pl.overlay) relAlpha(() => pl.overlay(t, pl));
   ctx.restore();
-  }
-  if (hud > 0 && chrome) {
-    ctx.globalAlpha *= clamp(hud);
-    const ht = t - headerDelay(pl);
-    if (pl.header) plateHeader(ht, { ...pl.header, dark: pl.dark });
-    if (pl.stage) stageDial(ht - 0.25, { ...pl.stage, N: STORY.stages }, pl.dark);
-    if (pl.log) journeyLog(ht - 0.35, pl.log(t), pl.dark);
-    if (pl.marks !== false) regMarks(pl.dark);
-  }
-  ctx.restore(); S.dark = darkWas; S.base = baseWas; S.haloPat = patWas; S.haloDark = pdWas;
+}
+/** plateScene on the treatment layer: drawn in the same frame as ctx, treated, then laid down with ctx's own clip and alpha */
+function treatedScene(pl, t, o) {
+  const outer = ctx, d = TREAT_DEPTH;
+  if (!TREAT_LAYERS[d] || TREAT_LAYERS[d].width !== W || TREAT_LAYERS[d].height !== H) TREAT_LAYERS[d] = Object.assign(document.createElement('canvas'), { width: W, height: H });
+  const L = TREAT_LAYERS[d], g = L.getContext('2d'), rawWas = S.raw;
+  g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.filter = 'none'; g.clearRect(0, 0, W, H);
+  g.setTransform(ctx.getTransform());
+  ctx = g; S.raw = true; TREAT_DEPTH++;
+  try { plateScene(pl, t, o, true); }
+  finally { ctx = outer; S.raw = rawWas; TREAT_DEPTH--; }
+  treat(g, S.ground, S.base, groundTex(S.ground).raw);
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(L, 0, 0); ctx.restore();
 }
 /** true while frame f is inside a transition (or a plate's lead into one): those run on ones so scale and mask steps stay small */
 function onOnes(f) {
@@ -2199,7 +2454,11 @@ function renderFrame(f) {
   S.f = f; S.boil = Math.floor(f / 2); S.T = fq / FPS; S.trans = null;
   const T = S.T, P = STORY.plates;
   let i = P.findIndex(p => T < p.start + p.dur); if (i < 0) i = P.length - 1;
-  const pl = P[i], t = T - pl.start, tr = pl.enter, vig = d => d ? TEX.vigNight : TEX.vigPaper;
+  const pl = P[i], t = T - pl.start, tr = pl.enter;
+  const vig = p => p._ground ? groundTex(p._ground).vig : p.dark ? TEX.vigNight : TEX.vigPaper;   // each paper has its own vignette
+  withPaper(pl, () => frameBody(f, P, i, pl, t, tr, vig));             // the frame draws with this plate's paper and palette
+}
+function frameBody(f, P, i, pl, t, tr, vig) {
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
   // start every frame on plain paper. A transition can leave a sub-pixel gap (the whip pan's seam between its two
   // sheets), and the previous frame showed through it, so the frame depended on what this page had drawn before and
@@ -2221,19 +2480,20 @@ function renderFrame(f) {
     const X = { drawOld: () => side('old', () => drawPlate(prev, pt)), drawNew: () => side('new', () => drawPlate(pl, t)),
       drawOldX: o => side('old', () => drawPlate(prev, pt, o)), drawNewX: o => side('new', () => drawPlate(pl, t, o)),
       focusOld: focusOf(prev, pt), focusNew: focusOf(pl, t), darkOld: prev.dark, darkNew: pl.dark, prev, pl, pt, t, tr, seed: i * 7 + 1,
+      gOld: prev._ground, gNew: pl._ground, palOld: palView(prev), palNew: palView(pl),   // the two papers and palettes (PAL is the new plate's)
       ez: (v, def) => own ? easeOf(tr.ease)(v) : def(v) };   // a preset's main easing, unless enter.ease replaces it
     const share = (tr.draw || TRANS[tr.type] || TRANS.fade)(p, X);        // enter.draw: a transition written by the story itself
-    ctx.save(); ctx.globalAlpha = 1 - share; ctx.drawImage(vig(prev.dark), 0, 0); ctx.globalAlpha = share; ctx.drawImage(vig(pl.dark), 0, 0); ctx.restore();
+    ctx.save(); ctx.globalAlpha = 1 - share; ctx.drawImage(vig(prev), 0, 0); ctx.globalAlpha = share; ctx.drawImage(vig(pl), 0, 0); ctx.restore();
   } else {
-    drawPlate(pl, t); ctx.drawImage(vig(pl.dark), 0, 0);
+    drawPlate(pl, t); ctx.drawImage(vig(pl), 0, 0);
     // anticipation: in the last 0.5 s before a lens-in a ring locks onto the hero (70 -> 16 px) and fills with the next world's colour
     const nx = P[i + 1];
     if (nx && nx.enter && nx.enter.type === 'lensIn') { const u = inv(pl.dur - 0.5, pl.dur, t); if (u > 0) { const [hx, hy] = focusOf(pl, t), rr = lerp(70, 16, E.inOutSine(u)), fa = E.inOutSine(inv(0.5, 1, u));
-      ctx.save(); ctx.globalAlpha = E.out3(inv(0, 0.3, u)); ctx.beginPath(); ctx.arc(hx, hy, rr, 0, TAU); ctx.lineWidth = 2.5; ctx.strokeStyle = '#e9e7f5'; ctx.stroke();
-      ctx.globalAlpha = fa; ctx.fillStyle = nx.dark ? PAL.night : PAL.paper; ctx.fill(); ctx.stroke(); ctx.restore(); } }
+      ctx.save(); ctx.globalAlpha = E.out3(inv(0, 0.3, u)); ctx.beginPath(); ctx.arc(hx, hy, rr, 0, TAU); ctx.lineWidth = 2.5; ctx.strokeStyle = PAL.lens; ctx.stroke();
+      ctx.globalAlpha = fa; ctx.fillStyle = palView(nx)[nx.dark ? 'night' : 'paper']; ctx.fill(); ctx.stroke(); ctx.restore(); } }
   }
   const gr = STORY.grain ?? 1;                                          // grain tile changes every drawing
-  if (gr) { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = gr * (pl.dark ? 0.5 : 0.8); ctx.translate(-(hash3(db, 4, 9) * 256 | 0), -(hash3(db, 5, 9) * 256 | 0));
+  if (gr) { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = gr * (pl._ground ? pl._ground.grain : pl.dark ? 0.5 : 0.8); ctx.translate(-(hash3(db, 4, 9) * 256 | 0), -(hash3(db, 5, 9) * 256 | 0));
     ctx.fillStyle = TEX.grain[db % 4]; ctx.fillRect(0, 0, W + 256, H + 256); ctx.restore(); }
   if (pl.counter !== false) frameCounter(f, pl.dark);
 }
@@ -2511,6 +2771,145 @@ const SFX = {
   },
 };
 /*
+ * New in v0.16.6 (sound build S2): writing tools for each paper, paper and desk sounds, data sounds, lab and body sounds,
+ * and two physical ones. Seeded like the v0.15 sounds (opts.seed fixes one exact sound); each fill is normalized, so
+ * `g` is the sound's peak before the master chain.
+ *
+ * Writing tools take { chars, cps } to type a line (the header does this) or { dur } to draw a line, plus `g`. The
+ * header picks one from the plate's paper (penOf, below): scratch (pen on the cream notebook), pencil (graph paper),
+ * chalk (chalkboard), marker (whiteboard), quill (parchment, the codex set), charcoal (kraft, toned paper), techPen
+ * (blueprint and whiteprint), readout (night, screens, the microscope: no pen there).
+ */
+const writeDur = (o, def) => o.dur ?? (o.chars != null ? Math.max(0.15, o.chars / (o.cps || 30)) : def);
+const writeRate = (o, def, cap = 14) => o.rate ?? (o.chars != null ? Math.min(o.cps || 30, cap) : def);   // strokes a second
+Object.assign(SFX, {
+  /* ---- writing tools ---- */
+  /** pencil: graphite on paper, softer and grainier than the pen, in strokes */
+  pencil(ac, out, t, o = {}) { const g = o.g ?? (o.chars != null ? 0.02 : 0.05), dur = writeDur(o, 1.2), rate = writeRate(o, 5), r = sfxRng(o, t, 'pencil'), sd = r() * 1e6 | 0;
+    synth(ac, out, t, dur, (d, q) => noiseInto(d, q, s => Math.max(0, Math.sin(TAU * rate * s + vnoise(s * 2, sd))) ** 0.7 * (0.6 + 0.4 * vnoise(s * 30, sd + 1)) * Math.min(1, s / 0.03, (dur - s) / 0.05)),
+      { g: g * rr(r, 0.85, 1.1), r, pan: panOf(t, o) * 0.4, filters: [{ type: 'bandpass', f: rr(r, 2200, 3000), q: 0.5 }, { type: 'highpass', f: 900 }] }); },
+  /** chalk on a blackboard: typing taps a stroke onto each letter with a short dry scrape; drawing is a rough scrape with the odd squeak */
+  chalk(ac, out, t, o = {}) { const g = o.g ?? (o.chars != null ? 0.055 : 0.06), dur = writeDur(o, 1), r = sfxRng(o, t, 'chalk'), sd = r() * 1e6 | 0;
+    if (o.chars != null) { const step = 1 / Math.min(o.cps || 30, 12);
+      return synth(ac, out, t, dur + 0.15, (d, q) => { for (let s = 0; s < dur; s += step * rr(q, 0.8, 1.2)) { DSP.burst(d, s, rr(q, 0.6, 1), 0.004, 0.0008, q);
+          const L = step * rr(q, 0.4, 0.7), i0 = s * SR | 0; for (let i = 0; i < L * SR && i0 + i < d.length; i++) d[i0 + i] += 0.25 * (q() * 2 - 1) * Math.sin(Math.PI * i / (L * SR)); } },
+        { g, r, pan: panOf(t, o) * 0.4, filters: [{ type: 'bandpass', f: rr(r, 1500, 2000), q: 0.5 }] }); }
+    const rate = o.rate ?? 4;
+    synth(ac, out, t, dur, (d, q) => { noiseInto(d, q, s => Math.max(0, Math.sin(TAU * rate * s)) ** 0.5 * (0.5 + 0.5 * vnoise(s * 60, sd)) * Math.min(1, s / 0.02, (dur - s) / 0.04));
+      for (let s = rr(q, 0.1, 0.4); s < dur - 0.15; s += rr(q, 0.3, 0.8)) DSP.chirp(d, s, 0.12, rr(q, 1900, 2600), rr(q, 2000, 2900), 0.08, 0.03, 0.09); },
+      { g, r, pan: panOf(t, o) * 0.4, filters: [{ type: 'bandpass', f: 1600, q: 0.4 }] }); },
+  /** marker on a whiteboard: a felt squeak per stroke (strokes: how many; typing makes about five a second) */
+  marker(ac, out, t, o = {}) { const g = o.g ?? (o.chars != null ? 0.016 : 0.05), dur = writeDur(o, 0.8), strokes = o.strokes ?? (o.chars != null ? Math.max(2, Math.round(dur * 5)) : 3), r = sfxRng(o, t, 'marker');
+    synth(ac, out, t, dur, (d, q) => { const L = dur / strokes; for (let k = 0; k < strokes; k++) { const s = k * L, f = rr(q, 900, 1400), i0 = s * SR | 0, m = L * 0.85 * SR | 0; let ph = 0;
+        for (let i = 0; i < m && i0 + i < d.length; i++) { const u = i / m; ph += TAU * f * (1 + 0.15 * Math.sin(u * 7)) / SR; d[i0 + i] += (0.35 * Math.sin(ph) + 0.65 * (q() * 2 - 1)) * Math.sin(Math.PI * u) ** 0.5; } } },
+      { g, r, pan: panOf(t, o) * 0.4, filters: [{ type: 'bandpass', f: 1800, q: 0.7 }] }); },
+  /** a quill on parchment: scratchy, with the nib catching on each downstroke */
+  quill(ac, out, t, o = {}) { const g = o.g ?? (o.chars != null ? 0.03 : 0.06), dur = writeDur(o, 1), r = sfxRng(o, t, 'quill'), rate = writeRate(o, 10) * rr(r, 0.8, 1), sd = r() * 1e6 | 0;
+    synth(ac, out, t, dur, (d, q) => { noiseInto(d, q, s => Math.max(0, Math.sin(TAU * rate * s)) ** 2 * (0.5 + 0.5 * vnoise(s * 80, sd)) * Math.min(1, s / 0.02, (dur - s) / 0.05));
+      for (let s = 0; s < dur; s += 1 / rate) if (q() < 0.4) DSP.burst(d, s + rr(q, 0, 0.02), 0.5, 0.002, 0.0004, q); },
+      { g, r, pan: panOf(t, o) * 0.4, filters: [{ type: 'bandpass', f: rr(r, 3200, 4200), q: 0.9 }, { type: 'highpass', f: 1500 }] }); },
+  /** charcoal on toned paper: soft, low and broad */
+  charcoal(ac, out, t, o = {}) { const g = o.g ?? (o.chars != null ? 0.023 : 0.06), dur = writeDur(o, 1), r = sfxRng(o, t, 'charcoal'), sd = r() * 1e6 | 0;
+    synth(ac, out, t, dur, (d, q) => noiseInto(d, q, s => (0.6 + 0.4 * Math.sin(TAU * 6 * s + vnoise(s, sd))) * (0.7 + 0.3 * vnoise(s * 40, sd + 1)) * Math.min(1, s / 0.04, (dur - s) / 0.08)),
+      { g, r, pan: panOf(t, o) * 0.4, filters: [{ type: 'bandpass', f: rr(r, 900, 1300), q: 0.4 }, { type: 'lowpass', f: 3500 }] }); },
+  /** a technical pen on drafting film (blueprint): a thin, even, high line, with a ruler click every few strokes */
+  techPen(ac, out, t, o = {}) { const g = o.g ?? (o.chars != null ? 0.015 : 0.03), dur = writeDur(o, 1), r = sfxRng(o, t, 'techPen');
+    synth(ac, out, t, dur + 0.05, (d, q) => { noiseInto(d, q, s => (0.8 + 0.2 * Math.sin(TAU * 9 * s)) * Math.min(1, s / 0.01, Math.max(0, dur - s) / 0.02));
+      for (let s = rr(q, 0.2, 0.4); s < dur; s += rr(q, 0.3, 0.5)) DSP.modes(d, s, [[rr(q, 3800, 4200), 0.6, 0.004], [rr(q, 1100, 1300), 0.3, 0.008]]); },
+      { g, r, pan: panOf(t, o) * 0.4, filters: [{ type: 'bandpass', f: rr(r, 5500, 6500), q: 1.2 }] }); },
+
+  /* ---- paper and desk ---- */
+  /** typewriter: key strikes at typing speed (spaces are duller), then the margin bell and the carriage return (bell: false skips them) */
+  typewriter(ac, out, t, o = {}) { const { chars = 16, cps = 9, g = 0.065, bell = true } = o, r = sfxRng(o, t, 'typewriter'), step = 1 / cps;
+    synth(ac, out, t, chars * step + (bell ? 1.1 : 0.1), (d, q) => { for (let k = 0; k < chars; k++) { const s = k * step + rr(q, -0.015, 0.015), sp = q() < 0.18, f = sp ? rr(q, 500, 700) : rr(q, 1400, 2200);
+        DSP.burst(d, Math.max(0, s), rr(q, 0.6, 1), 0.004, 0.0007, q); DSP.modes(d, Math.max(0, s + 0.002), [[f, 0.6, 0.012], [f * 2.3, 0.3, 0.006], [rr(q, 180, 240), sp ? 0.5 : 0.3, 0.03]]); }
+      if (bell) { const s = chars * step + 0.1; DSP.modes(d, s, [[2640, 0.5, 0.35], [2640 * 2.76, 0.12, 0.12]]);
+        for (let k = 0; k < 7; k++) DSP.burst(d, s + 0.18 + k * 0.035, 0.35, 0.004, 0.001, q); DSP.burst(d, s + 0.5, 0.2, 0.3, 0.12, q); } },
+      { g, r, pan: panOf(t, o) * 0.4, filters: [{ type: 'highpass', f: 120 }] }); },
+  /** an eraser rubbed back and forth (rate: rubs a second) */
+  eraser(ac, out, t, o = {}) { const { dur = 0.9, g = 0.06, rate = 7 } = o, r = sfxRng(o, t, 'eraser');
+    synth(ac, out, t, dur, (d, q) => noiseInto(d, q, s => Math.abs(Math.sin(Math.PI * rate * s)) * Math.min(1, s / 0.03, (dur - s) / 0.08)), { g, r, pan: panOf(t, o) * 0.4, filters: [{ type: 'bandpass', f: rr(r, 900, 1300), q: 0.8 }] }); },
+  /** a rubber stamp: the thunk and a small squish of ink */
+  stamp(ac, out, t, o = {}) { const { g = 0.18 } = o, r = sfxRng(o, t, 'stamp');
+    synth(ac, out, t, 0.3, (d, q) => { DSP.chirp(d, 0, 1, rr(q, 160, 200), rr(q, 80, 100), 0.04, 0.03, 0.2); DSP.burst(d, 0, 0.5, 0.02, 0.004, q); DSP.burst(d, 0.03, 0.15, 0.1, 0.03, q); },
+      { g, r, filters: [{ type: 'lowpass', f: 1800 }] }); },
+  /** paper tearing: a crackling run of fibres snapping, bright then dull */
+  tear(ac, out, t, o = {}) { const { dur = 0.7, g = 0.1 } = o, r = sfxRng(o, t, 'tear');
+    synth(ac, out, t, dur, (d, q) => { for (let s = 0; s < dur - 0.01; s += rr(q, 0.001, 0.006)) DSP.burst(d, s, rr(q, 0.2, 1) * Math.min(1, s / 0.05, (dur - s) / 0.1), 0.003, 0.0006, q); },
+      { g, r, pan: panOf(t, o) * 0.5, filters: [{ type: 'bandpass', f: 3500, f1: 1500, q: 0.6 }] }); },
+
+  /* ---- data ---- */
+  /** a mechanical tally counter under a count-up: n clicks over dur that slow down as the number settles (ease-out timing) */
+  counter(ac, out, t, o = {}) { const { n = 12, dur = 1.5, g = 0.06 } = o, r = sfxRng(o, t, 'counter');
+    synth(ac, out, t, dur + 0.1, (d, q) => { for (let k = 0; k < n; k++) { const u = k / n, s = dur * (1 - (1 - u) ** 0.5), f = rr(q, 2500, 2800);
+        DSP.modes(d, s, [[f, 1, 0.005], [f * 1.6, 0.5, 0.003], [rr(q, 700, 800), 0.4, 0.01]]); } }, { g, r, pan: panOf(t, o) * 0.4 }); },
+  /** sonify a curve: a soft tone whose pitch follows the data as a line draws (curve: 0..1 values, lo..hi Hz), panning left to right */
+  sonify(ac, out, t, o = {}) { const { dur = 2, curve = [0, 0.2, 0.5, 0.9, 1], lo = 330, hi = 990, g = 0.019 } = o, r = sfxRng(o, t, 'sonify'), k = semis(r, 0.1);
+    const c = Float32Array.from({ length: 64 }, (_, i) => { const x = i / 63 * (curve.length - 1), j = Math.min(curve.length - 2, Math.floor(x)); return k * lo * (hi / lo) ** (curve[j] + (curve[j + 1] - curve[j]) * (x - j)); });
+    const os = ac.createOscillator(), v = ac.createGain(), pn = ac.createStereoPanner(); os.type = 'triangle'; os.frequency.setValueCurveAtTime(c, t, dur);
+    pn.pan.setValueAtTime(-0.5, t); pn.pan.linearRampToValueAtTime(0.5, t + dur);
+    v.gain.setValueAtTime(0, t); v.gain.linearRampToValueAtTime(g, t + 0.08); v.gain.setValueAtTime(g, t + dur - 0.15); v.gain.linearRampToValueAtTime(0, t + dur);
+    os.connect(v).connect(pn).connect(out); os.start(t); os.stop(t + dur + 0.05); },
+  /** sparkle: a quick cluster of high glockenspiel pings in the film's key (music.tonic), for something gleaming or an idea landing */
+  sparkle(ac, out, t, o = {}) { const { n = 7, dur = 0.6, g = 0.032, tonic = STORY.music ? STORY.music.tonic || 220 : 220 } = o, r = sfxRng(o, t, 'sparkle');
+    synth(ac, out, t, dur + 1.2, (d, q) => { for (let k = 0; k < n; k++) { const s = dur * (k / n) ** 1.3 + rr(q, 0, 0.03), f = note(tonic * 8, q() * 6 | 0), a = 1 - 0.5 * k / n;
+        DSP.modes(d, s, [[f, a, 0.35], [f * 2.756, a * 0.3, 0.16], [f * 5.404, a * 0.12, 0.06]]); DSP.burst(d, s, 0.1 * a, 0.003, 0.0006, q); } },
+      { g, r, pan: panOf(t, o) * 0.5, filters: [{ type: 'highpass', f: 800 }] }); },
+
+  /* ---- lab and body ---- */
+  /** a pipette: the plunger click, the draw of liquid, the release */
+  pipette(ac, out, t, o = {}) { const { g = 0.12 } = o, r = sfxRng(o, t, 'pipette');
+    synth(ac, out, t, 0.9, (d, q) => { DSP.modes(d, 0, [[rr(q, 2000, 2300), 1, 0.006], [rr(q, 900, 1000), 0.5, 0.01]]); DSP.burst(d, 0, 0.5, 0.003, 0.0005, q);
+      for (let k = 0; k < 5; k++) { const f = rr(q, 500, 800); DSP.chirp(d, 0.12 + k * rr(q, 0.03, 0.06), rr(q, 0.2, 0.4), f, f * 1.8, 0.03, 0.02, 0.12); }
+      DSP.modes(d, 0.62, [[rr(q, 1700, 1900), 0.7, 0.006]]); DSP.burst(d, 0.62, 0.3, 0.003, 0.0005, q); }, { g, r, pan: panOf(t, o) * 0.5 }); },
+  /** a benchtop centrifuge for dur: spin-up whine, steady hum at top Hz, spin-down */
+  centrifuge(ac, out, t, o = {}) { const { dur = 4, g = 0.012 } = o, r = sfxRng(o, t, 'centrifuge'), top = (o.top ?? 520) * semis(r, 1);
+    const up = Math.min(1.2, dur / 3), dn = Math.min(1.4, dur / 3), c = Float32Array.from({ length: 64 }, (_, i) => { const s = i / 63 * dur; return 40 + (top - 40) * (s < up ? (s / up) ** 0.6 : s > dur - dn ? ((dur - s) / dn) ** 1.5 : 1); });
+    [1, 2, 3.02].forEach((h, j) => { const os = ac.createOscillator(), v = ac.createGain(); os.type = j ? 'sine' : 'triangle'; os.frequency.setValueCurveAtTime(c.map(f => f * h), t, dur);
+      v.gain.setValueAtTime(0, t); v.gain.linearRampToValueAtTime(g / (j + 1), t + 0.3); v.gain.setValueAtTime(g / (j + 1), t + dur - 0.4); v.gain.linearRampToValueAtTime(0, t + dur);
+      os.connect(v).connect(out); os.start(t); os.stop(t + dur + 0.05); });
+    SFX.noise(ac, out, t, { dur, g: g * 0.8, f0: rr(r, 550, 650), f1: rr(r, 850, 950), q: 0.8, a: up }); },
+  /** a syringe: the plunger's rubber squeak and a thin hiss of liquid */
+  syringe(ac, out, t, o = {}) { const { dur = 0.8, g = 0.05 } = o, r = sfxRng(o, t, 'syringe');
+    synth(ac, out, t, dur, (d, q) => { const f = rr(q, 700, 900); let ph = 0; for (let i = 0; i < d.length; i++) { const s = i / SR, u = s / dur; ph += TAU * f * (1 + 0.1 * Math.sin(s * 23)) / SR;
+        d[i] = (0.4 * Math.sin(ph) * (1 + 0.5 * Math.sin(s * 140)) * Math.exp(-s / 0.25) + 0.25 * (q() * 2 - 1) * Math.sin(Math.PI * u)) * Math.min(1, s / 0.02); } },
+      { g, r, pan: panOf(t, o) * 0.5, filters: [{ type: 'bandpass', f: 1800, q: 0.5 }] }); },
+  /** pills rattling in a plastic bottle: a few shakes of many small clicks */
+  pills(ac, out, t, o = {}) { const { g = 0.06, shakes = 3 } = o, r = sfxRng(o, t, 'pills');
+    synth(ac, out, t, 0.25 * shakes + 0.2, (d, q) => { for (let k = 0; k < shakes; k++) for (let j = 0; j < 40; j++) { const s = k * 0.25 + rr(q, 0, 0.1) ** 1.5, f = rr(q, 2500, 5000);
+        DSP.modes(d, s, [[f, rr(q, 0.2, 1), 0.003], [f * 1.7, 0.3, 0.002]]); } }, { g, r, pan: panOf(t, o) * 0.5, filters: [{ type: 'highpass', f: 1200 }] }); },
+  /** effervescence: a tablet fizzing for dur, thousands of tiny bubbles bursting at the surface */
+  fizz(ac, out, t, o = {}) { const { dur = 2.5, g = 0.05 } = o, r = sfxRng(o, t, 'fizz');
+    [-0.4, 0.4].forEach(pan => synth(ac, out, t, dur, (d, q) => { for (let s = 0; s < dur - 0.01; s += rr(q, 0.0005, 0.004)) { const e = Math.min(1, s / 0.15) * Math.exp(-s / (dur * 0.6));
+        if (q() < 0.8) DSP.burst(d, s, rr(q, 0.1, 1) * e, 0.001, 0.00015, q); else { const f = rr(q, 3000, 7000); DSP.chirp(d, s, 0.3 * e, f, f * 1.4, 0.003, 0.003, 0.012); } } },
+      { g, r, pan, filters: [{ type: 'highpass', f: 2000 }] })); },
+  /** a stream of bubbles rising for dur (gas, dissolution); rate: bubbles a second */
+  bubbles(ac, out, t, o = {}) { const { dur = 1.5, g = 0.06, rate = 12 } = o, r = sfxRng(o, t, 'bubbles');
+    synth(ac, out, t, dur + 0.2, (d, q) => { for (let s = 0; s < dur; s += -Math.log(1 - q() * 0.999) / rate) { const f = rr(q, 350, 900) * (1 + s / dur * 0.5); DSP.chirp(d, s, rr(q, 0.3, 1), f, f * rr(q, 1.5, 2.2), 0.02, rr(q, 0.015, 0.04), 0.15); } },
+      { g, r, pan: panOf(t, o) * 0.5, filters: [{ type: 'lowpass', f: 4000 }] }); },
+  /** a wet squelch (mucus, a gel): a resonant sweep over bubbly noise */
+  squelch(ac, out, t, o = {}) { const { dur = 0.5, g = 0.08 } = o, r = sfxRng(o, t, 'squelch');
+    synth(ac, out, t, dur, (d, q) => { const x = new Float32Array(d.length); noiseInto(x, q, s => Math.sin(Math.PI * s / dur) * (0.5 + 0.5 * Math.sin(s * 70))); const f0 = rr(q, 250, 350);
+      const y = DSP.reson(x, i => f0 * (1 + 2.5 * Math.sin(Math.PI * i / x.length)), 60); DSP.norm(y); for (let i = 0; i < d.length; i++) d[i] = y[i]; }, { g, r, pan: panOf(t, o) * 0.4 }); },
+  /** one heartbeat, lub-dub (for a steady pulse under a whole plate use BED.body) */
+  heartbeat(ac, out, t, o = {}) { const { g = 0.25 } = o, r = sfxRng(o, t, 'heartbeat');
+    synth(ac, out, t, 0.5, (d, q) => { DSP.chirp(d, 0, 1, rr(q, 60, 70), 40, 0.05, 0.04, 0.2); DSP.chirp(d, rr(q, 0.22, 0.26), rr(q, 0.6, 0.8), rr(q, 55, 62), 38, 0.04, 0.035, 0.18); }, { g, r, filters: [{ type: 'lowpass', f: 300 }] }); },
+  /** instrument beeps: n short sine beeps gap s apart at f Hz (an instrument ready, a monitor); the pitch stays exact */
+  beep(ac, out, t, o = {}) { const { n = 1, f = 1000, gap = 0.18, g = 0.05 } = o, r = sfxRng(o, t, 'beep');
+    for (let k = 0; k < n; k++) SFX.tone(ac, out, t + k * gap, { f, dur: 0.09, g: g * rr(r, 0.85, 1.05), a: 0.005, pan: 0.2 }); },
+
+  /* ---- physical ---- */
+  /** an electric spark: a crack and a short buzz */
+  zap(ac, out, t, o = {}) { const { g = 0.12, dur = 0.35 } = o, r = sfxRng(o, t, 'zap');
+    synth(ac, out, t, dur, (d, q) => { DSP.burst(d, 0, 1, 0.01, 0.002, q); const f = rr(q, 90, 130); for (let i = 0; i < d.length; i++) { const s = i / SR; d[i] += 0.5 * Math.sign(Math.sin(TAU * f * s + 3 * Math.sin(TAU * 37 * s))) * Math.exp(-s / 0.1) * (q() < 0.7 ? 1 : 0); } },
+      { g, r, pan: panOf(t, o) * 0.5, filters: [{ type: 'highpass', f: 300 }, { type: 'lowpass', f: 6000 }] }); },
+  /** a small magnet snapping onto metal */
+  magnet(ac, out, t, o = {}) { const { g = 0.08 } = o, r = sfxRng(o, t, 'magnet');
+    synth(ac, out, t, 0.5, (d, q) => { DSP.burst(d, 0, 1, 0.002, 0.0004, q); DSP.modes(d, 0, [[rr(q, 3100, 3500), 0.6, 0.08], [rr(q, 5200, 5800), 0.3, 0.05], [rr(q, 1200, 1400), 0.4, 0.03]]); }, { g, r, pan: panOf(t, o) * 0.5 }); },
+});
+for (const n of ['pencil', 'chalk', 'marker', 'quill', 'charcoal', 'techPen', 'typewriter', 'eraser', 'stamp', 'tear', 'counter', 'sonify', 'sparkle',
+  'pipette', 'centrifuge', 'syringe', 'pills', 'fizz', 'bubbles', 'squelch', 'heartbeat', 'beep', 'zap', 'magnet']) VARIED.add(n);
+/*
  * Instruments: pitched notes in the film's key, one note per call, varied per call like the effects above (a fixed
  * `seed` repeats one exact note). Every instrument takes (ac, out, t, { f, deg, oct, tonic, g, pan, decay, seed }):
  * `f` is the pitch in Hz; without it, `deg` (a degree of note()'s scale, 0 = the tonic) is played in the film's key
@@ -2631,6 +3030,162 @@ const STING = {
 const INST_G = { marimba: 0.07, vibes: 0.05, musicBox: 0.05, kalimba: 0.06, celesta: 0.05, glock: 0.045, epiano: 0.05, pluck: 0.06, feltPiano: 0.06, strings: 0.01 };
 Object.assign(SFX, INST, STING);   // plates cue them by name: cues: [[1.2, 'marimba', { deg: 2 }], [3.0, 'reveal']]
 /*
+ * The score: one tempo grid for the whole film, music beds that keep time to it, a chord plan with direction, a tension
+ * curve that switches layers on and off, and the hero's motif. defineStory({ music: { style, bpm, tonic, ... } }):
+ *   style    'classic' (today's soft pad, the default: no grid, old films are unchanged), 'notebook' (marimba arpeggio
+ *            with felt piano), 'kalimba' (the same on kalimba), 'lofi' (e-piano chords, soft drums, vinyl crackle) or
+ *            'calm' (phasing loops over a drone). Any style but classic turns the grid on
+ *   bpm      a fixed tempo; otherwise the engine picks one in the style's range (MUSIC_STYLES) that fits the plates
+ *   tonic    the key's root in Hz (220 = A)
+ *   chords   the chord plan, one PROG index per plate (0 I, 1 vi, 2 IV, 3 V, 4 ii); default: I first, V on the climax
+ *            plate with ii before it, the end card home on I
+ *   tension  [[t, 0..1], ...] in film seconds, or a function of the timed plates; a plate's own `tension` wins. Default:
+ *            rising from 0.2 to 1 at the climax plate (`climax: true`, else the plate with the biggest `lift`, else the
+ *            one 70% through), then 0.3 on the end card. Layers join as it rises: bass at 0.35, the full arpeggio
+ *            (or drums) at 0.5, a pulse under the plate before the climax, strings at 0.8
+ *   motif    { degs: [2, 3, 4, 6], inst: 'musicBox' }: the hero's four notes. A plate with `motif: true` plays them once
+ *            its transition has landed (on the next beat), `motif: 'vary'` one scale step higher, and the end card
+ *            resolves them home (`motif: 'resolve'`, automatic on the last plate when a motif is set)
+ *   nudge    narrated films: how far (s) a plate's tail may move so the next plate starts on a bar line (default 0.15)
+ * Without narration the picture follows the music: every plate but the last is lengthened (never shortened) to whole
+ * bars, at the tempo in range that adds the least time. With narration the voice sets the lengths, so the engine picks
+ * the tempo that puts the most plate starts on bar lines after nudging tails by up to `nudge` s (a tail only shortens
+ * when its narration still ends 0.3 s before the cut); a plate that still misses plays a pad in free time (p.free) and
+ * the pulse comes back on the next plate that lands. A plate's `music: 'pad' | 'arp' | 'lofi' | 'pulse' | 'phasing'`
+ * overrides its bed; `bed:` still replaces the music outright. Musical cues (instruments, stingers, chime) within 40 ms
+ * of a half beat move onto it; effects stay on their frame.
+ */
+const MUSIC_STYLES = {
+  classic: { bed: 'pad' },
+  notebook: { bed: 'arp', inst: 'marimba', keys: 'feltPiano', bpm: [100, 120] },
+  kalimba: { bed: 'arp', inst: 'kalimba', keys: 'feltPiano', bpm: [100, 120] },
+  lofi: { bed: 'lofi', bpm: [84, 96] },
+  calm: { bed: 'phasing', bpm: [84, 100] },
+};
+const GRID = {
+  on: false, bpm: 100, t0: 0, beatsPerBar: 4,
+  beat() { return 60 / this.bpm; }, bar() { return this.beatsPerBar * 60 / this.bpm; },
+  /** every grid step of `div` beats in [a, b), as [time, step index] */
+  steps(a, b, div = 0.5) { const s = this.beat() * div, out = []; for (let k = Math.ceil((a - this.t0) / s - 1e-6); this.t0 + k * s < b - 1e-6; k++) out.push([this.t0 + k * s, k]); return out; },
+  /** the nearest step of `div` beats to a film time */
+  snap(t, div = 0.5) { const s = this.beat() * div; return this.t0 + Math.round((t - this.t0) / s) * s; },
+  /** the first step of `div` beats at or after t */
+  next(t, div = 1) { const s = this.beat() * div; return this.t0 + Math.ceil((t - this.t0) / s - 1e-6) * s; },
+};
+/** soft drums for the lo-fi and pulse beds */
+const DRUM = {
+  kick(ac, out, t, o = {}) { const r = sfxRng(o, t, 'kick'), g = o.g ?? 0.3; synth(ac, out, t, 0.35, (d, q) => { DSP.chirp(d, 0, 1, rr(q, 105, 125), 48, 0.07, 0.09, 0.35);
+      DSP.chirp(d, 0, 0.25, 220, 110, 0.02, 0.01, 0.05); DSP.burst(d, 0, 0.1, 0.005, 0.001, q); }, { g, r, filters: [{ type: 'lowpass', f: 2500 }] }); },
+  brush(ac, out, t, o = {}) { const r = sfxRng(o, t, 'brush'), g = o.g ?? 0.06; synth(ac, out, t, 0.22, (d, q) => noiseInto(d, q, s => Math.exp(-s / 0.06) * (0.6 + 0.4 * Math.sin(s * 90))), { g, r, pan: 0.1, filters: [{ type: 'bandpass', f: rr(r, 2200, 2800), q: 0.6 }] }); },
+  shaker(ac, out, t, o = {}) { const r = sfxRng(o, t, 'shakerHit'), g = o.g ?? 0.02; synth(ac, out, t, 0.1, (d, q) => noiseInto(d, q, s => Math.min(1, s / 0.03) * Math.exp(-Math.max(0, s - 0.03) / 0.02)), { g: g * rr(r, 0.7, 1), r, pan: 0.3, filters: [{ type: 'highpass', f: 5000 }] }); },
+  vinyl(ac, out, t0, dur, o = {}) { const { g = 0.012 } = o, r = sfxRng(o, t0, 'vinyl');
+    synth(ac, out, t0, dur, (d, q) => { noiseInto(d, q, () => 0.05); for (let s = 0; s < dur; s += -Math.log(1 - q() * 0.999) / 18) DSP.burst(d, s, rr(q, 0.1, 1) ** 3, 0.002, 0.0003, q); },
+      { g, r, pan: 0.1, fade: 0.5, filters: [{ type: 'bandpass', f: 2500, q: 0.4 }] }); },
+};
+const chordOf = (tonic, idx, oct = 0) => PROG[((idx % PROG.length) + PROG.length) % PROG.length].map(s => tonic * 2 ** (s / 12 + oct));
+/* music beds in the plate `bed` shape, locked to GRID so the pulse runs straight through the seams. o: { tonic, chord, tension, ... } */
+const MUS = {
+  /** the classic pad (today's automatic bed): the chord, held, darker and lower at night */
+  pad: (o = {}) => (ac, out, t0, dur) => { SFX.padKey(ac, out, t0, { dur, tonic: o.tonic || 220, chord: o.notes || PROG[((o.chord || 0) % PROG.length + PROG.length) % PROG.length], g: o.g || 0.018, dark: o.dark, oct: o.dark ? -1 : 0 });
+    if (o.dark) SFX.noise(ac, out, t0, { dur, g: 0.025, f0: 160, type: 'lowpass', q: 0.5, a: 1 }); },
+  /** arpeggio: an instrument plays the chord in eighths, thinned by tension; a plucked bass on each bar from 0.35, felt-piano chords every other bar */
+  arp: (o = {}) => (ac, out, t0, dur) => { const { tonic = 220, chord = 0, inst = 'marimba', keys = 'feltPiano', tension = 0.5, g = 0.035, pattern = [0, 1, 2, 3, 2, 1, 2, 1] } = o;
+    const ch = chordOf(tonic, chord, 1), bs = chordOf(tonic / 4, chord), kc = chordOf(tonic / 2, chord), density = 0.35 + 0.65 * clamp((tension - 0.2) / 0.3, 0, 1);
+    for (const [t, k] of GRID.steps(t0, t0 + dur - 0.05, 0.5)) { const inBar = k % (GRID.beatsPerBar * 2), bar = Math.floor(k / (GRID.beatsPerBar * 2)), sr = mulberry(k * 131 + chord * 7);
+      if (inBar === 0 || sr() <= density) INST[inst](ac, out, t, { f: ch[pattern[inBar % pattern.length] % ch.length], g: g * (inBar === 0 ? 1 : 0.75), pan: (k % 2 ? 1 : -1) * 0.35 });
+      if (inBar === 0 && tension >= 0.35) INST.pluck(ac, out, t, { f: bs[0], g: g * 1.6, bright: 0.25, t60: GRID.bar() * 1.2 });
+      if (inBar === 0 && keys && bar % 2 === 0) kc.slice(0, 3).forEach((f, i) => INST[keys](ac, out, t + i * 0.015, { f, g: g * 0.7, vel: 0.3 + 0.3 * tension, pan: (i - 1) * 0.25 })); } },
+  /** lo-fi: e-piano chords on 1 and the and-of-2, and from tension 0.3 a brushed backbeat, swung shaker and soft kick, over vinyl crackle */
+  lofi: (o = {}) => (ac, out, t0, dur) => { const { tonic = 220, chord = 0, tension = 0.5, g = 0.04, swing = 0.12 } = o, ch = chordOf(tonic, chord), beat = GRID.beat(), drums = tension >= 0.3;
+    for (const [t, k] of GRID.steps(t0, t0 + dur - 0.05, 0.5)) { const pos = k % 8, sw = pos % 2 ? swing * beat : 0;
+      if (pos === 0 || pos === 3) ch.forEach((f, i) => INST.epiano(ac, out, t + sw + i * 0.012, { f, g: g * (pos ? 0.6 : 0.8), pan: (i - 1.5) * 0.3, vel: 0.35 }));
+      if (pos === 0 && tension >= 0.35) INST.pluck(ac, out, t, { f: ch[0] / 2, g: g * 1.5, bright: 0.2, t60: GRID.bar() });
+      if (!drums) continue;
+      if (pos === 0 || pos === 5) DRUM.kick(ac, out, t + sw, { g: 0.22 });
+      if (pos === 2 || pos === 6) DRUM.brush(ac, out, t);
+      DRUM.shaker(ac, out, t + sw, { g: pos % 2 ? 0.012 : 0.018 }); }
+    DRUM.vinyl(ac, out, t0, dur, { g: 0.012 }); },
+  /** pulse: a muted plucked ostinato in eighths that opens up and thickens across the plate, over a low drone (the build before a climax) */
+  pulse: (o = {}) => (ac, out, t0, dur) => { const { tonic = 220, chord = 3, g = 0.16 } = o, ch = chordOf(tonic, chord), root = ch[0];
+    for (const [t, k] of GRID.steps(t0, t0 + dur - 0.05, 0.5)) { const u = (t - t0) / dur;
+      INST.pluck(ac, out, t, { f: k % 4 === 3 ? ch[2] : root, g: g * (0.6 + 0.5 * u), bright: 0.15 + 0.6 * u, t60: 0.35 + 0.5 * u, pan: k % 2 ? 0.3 : -0.3 });
+      if (u > 0.5 && k % 2) INST.pluck(ac, out, t + GRID.beat() * 0.25, { f: root * 2, g: g * 0.5 * u, bright: 0.6, t60: 0.3, pan: 0.5 }); }
+    SFX.tone(ac, out, t0, { f: root / 2, dur, g: 0.045, a: 1.5, type: 'triangle' }); },
+  /** phasing loops (after Eno): each note repeats on its own period, so the pattern drifts and never quite repeats, over a drone */
+  phasing: (o = {}) => (ac, out, t0, dur) => { const { tonic = 220, inst = 'vibes', degrees = [0, 2, 3, 4, 7], periods = [5.3, 6.7, 8.1, 9.9, 11.3], g = 0.04 } = o;
+    degrees.forEach((dg, i) => { const P = periods[i % periods.length], off = (i * 1.7) % P;
+      for (let t = Math.ceil((t0 - off) / P) * P + off; t < t0 + dur - 0.5; t += P) INST[inst](ac, out, t, { f: note(tonic * 2, dg), g, pan: ((i % 3) - 1) * 0.5 }); });
+    SFX.padKey(ac, out, t0, { dur, tonic: tonic / 2, chord: [0, 7, 12], g: 0.012, dark: true }); },
+};
+const musicOn = m => !!m && ((m.style && m.style !== 'classic') || m.bpm > 0);
+/** the plate the film builds to: climax: true, else the biggest lift, else the plate 70% of the way through */
+function climaxPlate(P) { const c = P.find(p => p.climax); if (c) return c.i;
+  const l = P.filter(p => p.lift > 0).sort((a, b) => b.lift - a.lift)[0]; if (l) return l.i; return Math.min(P.length - 1, Math.round((P.length - 1) * 0.7)); }
+/** tension 0..1 for a plate: its own, else music.tension at its middle, else the default rise to the climax */
+function tensionOf(p) { const m = STORY.music || {}, P = STORY.plates; if (p.tension != null) return p.tension;
+  const tc = typeof m.tension === 'function' ? m.tension(P) : m.tension;
+  if (Array.isArray(tc) && tc.length) { const pts = [...tc].sort((a, b) => a[0] - b[0]), x = p.start + p.dur / 2; if (x <= pts[0][0]) return pts[0][1];
+    for (let i = 1; i < pts.length; i++) if (x <= pts[i][0]) return pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * (x - pts[i - 1][0]) / (pts[i][0] - pts[i - 1][0] || 1);
+    return pts[pts.length - 1][1]; }
+  const c = climaxPlate(P); if (p.i === P.length - 1 && P.length > 1) return 0.3; if (p.i >= c) return p.i === c ? 1 : 0.6;
+  return 0.2 + 0.8 * p.i / Math.max(1, c); }
+/** the plate's chord: music.chords, else I first, ii then V into the climax, home on the end card, I vi IV ii between */
+function chordIdx(p) { const m = STORY.music || {}, P = STORY.plates, c = climaxPlate(P); if (Array.isArray(m.chords) && m.chords.length) return m.chords[p.i % m.chords.length];
+  if (p.i === P.length - 1 && P.length > 1) return 0; if (p.i === c) return 3; if (p.i === c - 1) return 4; return [0, 1, 2, 4][p.i % 4]; }
+/**
+ * fitScore: set GRID for the film and move plate ends so plate starts land on bar lines (see the note above MUSIC_STYLES).
+ * Runs inside defineStory once the plates are timed, before marks are indexed. Classic (or no music) leaves every plate alone.
+ */
+function fitScore(story) {
+  const m = story.music; GRID.on = false; if (!musicOn(m) || story.silent) return;
+  const st = MUSIC_STYLES[m.style] || MUSIC_STYLES.notebook, P = story.plates, voiced = P.some(p => (p.voice || []).some(v => v.unit));
+  const [lo, hi] = m.bpm > 0 ? [m.bpm, m.bpm] : (st.bpm || [100, 120]); GRID.on = true; GRID.t0 = 0; GRID.beatsPerBar = m.beats || 4;
+  const barOf = bpm => GRID.beatsPerBar * 60 / bpm;
+  if (!voiced) {                                                       // the picture follows the music: whole bars
+    let best = null;
+    for (let bpm = lo; bpm <= hi + 1e-9; bpm += 0.5) { const bar = barOf(bpm), add = P.slice(0, -1).reduce((s, p) => s + Math.ceil(p.dur / bar - 1e-6) * bar - p.dur, 0);
+      if (!best || add < best.add - 1e-9) best = { bpm, add }; }
+    GRID.bpm = best.bpm; const bar = GRID.bar(); P.slice(0, -1).forEach(p => { p.dur = Math.ceil(p.dur / bar - 1e-6) * bar; });
+  } else {                                                             // the voice sets the lengths: fit the tempo, nudge the tails
+    const nudge = m.nudge ?? 0.15, vEndOf = p => Math.max(0, ...(p.voice || []).filter(v => v.unit).map(v => v.at + v.dur));
+    const trial = (bpm, t0) => { const bar = barOf(bpm), durs = P.map(p => p.dur), free = []; let t = 0, hits = 0;
+      for (let i = 0; i < P.length - 1; i++) { const s = t + durs[i], b = t0 + Math.round((s - t0) / bar) * bar, dl = b - s;
+        if (Math.abs(dl) <= 0.025) hits++;
+        else if (Math.abs(dl) <= nudge && (dl > 0 || durs[i] + dl >= vEndOf(P[i]) + 0.3)) { durs[i] += dl; hits++; }
+        else free.push(i + 1);
+        t += durs[i]; }
+      return { bpm, t0, hits, durs, free }; };
+    // the downbeat may sit a little after 0 (the first plate opens on a pickup), so try putting it under each seam in turn
+    let best = null, t = 0; const seams = P.slice(0, -1).map(p => t += p.dur);
+    for (let bpm = lo; bpm <= hi + 1e-9; bpm += 0.05) { const b = +bpm.toFixed(2), bar = barOf(b);
+      for (const t0 of [0, ...seams.map(x => x % bar)]) { const r = trial(b, t0); if (!best || r.hits > best.hits) best = r; } }
+    GRID.bpm = best.bpm; GRID.t0 = best.t0; P.forEach((p, i) => { p.dur = best.durs[i]; p.free = best.free.includes(i); });
+  }
+  let t = 0; P.forEach(p => { p.start = t; t += p.dur; });
+}
+/** the music for a plate from STORY.music (style, chord plan, tension layers); null when the film has no music */
+function scoreBed(p) {
+  const m = STORY.music; if (!m) return null;
+  const tonic = m.tonic || 220, chord = chordIdx(p), tension = tensionOf(p), st = MUSIC_STYLES[m.style] || MUSIC_STYLES.classic, P = STORY.plates;
+  const kind = p.music || (!GRID.on || p.free || p.dark ? 'pad' : st.bed), g = m.gain;
+  if (kind === 'pad') return MUS.pad({ tonic, chord: undefined, notes: p.i === P.length - 1 ? [0, 7, 12, 14] : PROG[((chord % PROG.length) + PROG.length) % PROG.length], dark: p.dark, g });
+  const layers = [MUS[kind]({ tonic, chord, tension, inst: m.inst || st.inst, keys: m.keys ?? st.keys, ...(g ? { g: g * 2 } : {}) })];
+  if (GRID.on && kind !== 'pulse' && kind !== 'phasing' && p.i === climaxPlate(P) - 1 && !p.music) layers.push(MUS.pulse({ tonic, chord: 3, g: 0.08 }));
+  if (GRID.on && tension >= 0.8 && kind !== 'phasing') layers.push((ac, out, t0, dur) => INST.strings(ac, out, t0, { notes: chordOf(tonic, chord, 0).slice(0, 3), dur: Math.max(0.5, dur - 1.2), g: 0.006, att: 1.2, rel: 1.2, bright: 0.4 }));
+  return BED.mix(...layers);
+}
+/** the motif cues a plate plays: [plate time, 'motif', opts], from p.motif and music.motif */
+function motifCues(p) {
+  const m = STORY.music, mo = m && m.motif; if (!mo) return [];
+  const last = p.i === STORY.plates.length - 1, kind = p.motif ?? (last ? 'resolve' : null); if (!kind) return [];
+  const degs = kind === 'vary' ? (mo.degs || [2, 3, 4, 6]).map(d => d + 1) : kind === 'resolve' ? [...(mo.degs || [2, 3, 4, 6]).slice(0, 3), 5] : typeof kind === 'object' ? kind.degs : (mo.degs || [2, 3, 4, 6]);
+  let at = (p.i ? landAt(p.enter) : 0) + 0.3 + (kind === 'resolve' ? 0.6 : 0);
+  if (GRID.on) at = GRID.next(p.start + at, 1) - p.start;
+  return [[at, 'motif', { degs, inst: mo.inst || 'musicBox', step: GRID.on ? GRID.beat() / 2 : 0.22, g: mo.g }]];
+}
+/** musical cues that move onto the beat when one is within 40 ms */
+const ON_BEAT = new Set([...Object.keys(INST), ...Object.keys(STING), 'chime']);
+/*
  * Ambience beds, in the plate `bed` shape: `bed: BED.rain`, or with options `bed: (ac, o, t, d) => BED.rain(ac, o, t, d, { heavy: 0.8 })`.
  * Layer several with BED.mix(BED.roomTone, myPad). They fade in and out over about a second, so neighbours crossfade.
  * Left and right are synthesized separately (decorrelated), so a bed is really stereo.
@@ -2666,6 +3221,49 @@ const BED = {
       synth(ac, out, t0 + s, len, (d, q) => noiseInto(d, q, x => Math.sin(Math.PI * x / len) ** 3), { g: g * rr(r, 0.5, 1), r, pan: -0.8 * dir, pan1: 0.8 * dir,
         filters: [{ type: 'bandpass', f, f1: f * 0.6, q: 0.7 }] }); } },
   /** layer beds: bed: BED.mix(BED.roomTone, (ac, o, t, d) => SFX.pad(ac, o, t, { dur: d })) */
+  /* ---- new in v0.16.6 (sound build S2): settings for body, water, nature, time and the micro world ---- */
+  /** inside the body: a slow heartbeat you feel more than hear (bpm), and blood rushing in time with it */
+  body(ac, out, t0, dur, o = {}) { const { g = 0.05, bpm = 66 } = o, r = sfxRng(o, t0, 'body'), P = 60 / bpm, ph = r() * P;
+    const beatEnv = s => { const x = ((s + ph) % P) / P; return 0.25 + Math.exp(-(((x - 0.08) / 0.05) ** 2)) + 0.7 * Math.exp(-(((x - 0.3) / 0.06) ** 2)); };
+    [-0.6, 0.6].forEach(pan => synth(ac, out, t0, dur, (d, q) => noiseInto(d, q, beatEnv), { g: g * 0.7, r, pan, fade: Math.min(1, dur / 4), filters: [{ type: 'lowpass', f: 380, q: 0.6 }, { type: 'highpass', f: 45 }] }));
+    for (let s = P - ph; s < dur - 0.3; s += P) { SFX.tone(ac, out, t0 + s + 0.08 * P, { f: 58, f2: 40, dur: 0.18, g: g * 1.4 }); SFX.tone(ac, out, t0 + s + 0.3 * P, { f: 52, f2: 38, dur: 0.14, g: g * 1.0 }); } },
+  /** underwater: a muffled low wash, slow pressure swells and bubble streams rising */
+  underwater(ac, out, t0, dur, o = {}) { const { g = 0.05 } = o, r = sfxRng(o, t0, 'underwater'), sd = r() * 1e6 | 0;
+    [-0.7, 0.7].forEach((pan, j) => synth(ac, out, t0, dur, (d, q) => noiseInto(d, q, s => 0.6 + 0.4 * vnoise(s * 0.3, sd + j)), { g, r, pan, fade: Math.min(1, dur / 4), filters: [{ type: 'lowpass', f: 320, q: 0.9 }] }));
+    synth(ac, out, t0, dur, (d, q) => { for (let s = rr(q, 0.3, 1); s < dur - 0.6; s += rr(q, 0.6, 2.2)) { const n = 3 + (q() * 8 | 0);
+        for (let k = 0; k < n; k++) { const f = rr(q, 400, 1100); DSP.chirp(d, s + k * rr(q, 0.04, 0.12), rr(q, 0.2, 0.6), f, f * rr(q, 1.6, 2.4), 0.03, rr(q, 0.02, 0.05), 0.2); } } },
+      { g: g * 0.8, r, pan: 0.2, fade: 0.5, filters: [{ type: 'lowpass', f: 2200 }] }); },
+  /** forest: leaves in a light breeze and a few birds calling in short phrases (birds: how busy, 0 for none) */
+  forest(ac, out, t0, dur, o = {}) { const { g = 0.012, birds = 1 } = o, r = sfxRng(o, t0, 'forest'), sd = r() * 1e6 | 0;
+    [-0.7, 0.7].forEach((pan, j) => synth(ac, out, t0, dur, (d, q) => noiseInto(d, q, s => 0.4 + 0.6 * ((vnoise(s * 0.5, sd + j) + 1) / 2) ** 2), { g, r, pan, fade: Math.min(1, dur / 4), filters: [{ type: 'highpass', f: 1800 }, { type: 'lowpass', f: 6500 }] }));
+    for (let s = rr(r, 0.4, 1.2); s < dur - 1 && birds > 0; s += rr(r, 1.2, 3.5) / birds) { const base = rr(r, 2600, 4200), n = 2 + (r() * 5 | 0), pan = rr(r, -0.8, 0.8), kind = r() * 3 | 0;
+      synth(ac, out, t0 + s, 0.12 * n + 0.2, (d, q) => { let ph = 0;
+        for (let k = 0; k < n; k++) { const s0 = k * rr(q, 0.09, 0.14), L = rr(q, 0.05, 0.09), i0 = s0 * SR | 0, m = L * SR | 0, f0 = base * rr(q, 0.9, 1.15), f1 = kind === 0 ? f0 * 1.5 : kind === 1 ? f0 * 0.7 : f0 * rr(q, 0.8, 1.3);
+          for (let i = 0; i < m && i0 + i < d.length; i++) { const u = i / m, f = f0 + (f1 - f0) * u; ph += TAU * f / SR; d[i0 + i] += Math.sin(ph + 2 * Math.sin(ph * 0.5)) * Math.sin(Math.PI * u) ** 2; } } },
+        { g: g * rr(r, 0.4, 0.9), r, pan }); } },
+  /** ocean: waves that build and break every 7 to 11 s, with a hiss of foam as each recedes */
+  ocean(ac, out, t0, dur, o = {}) { const { g = 0.028 } = o, r = sfxRng(o, t0, 'ocean'), waves = []; for (let s = rr(r, -2, 1); s < dur; s += rr(r, 7, 11)) waves.push([s, rr(r, 0.7, 1)]);
+    const env = s => waves.reduce((v, [w, a]) => { const x = s - w; return v + (x < 0 || x > 9 ? 0 : a * (x < 3 ? (x / 3) ** 2 : Math.exp(-(x - 3) / 1.8))); }, 0.12);
+    [-0.7, 0.7].forEach((pan, j) => synth(ac, out, t0, dur, (d, q) => noiseInto(d, q, s => env(s + j * 0.25)), { g, r, pan, fade: Math.min(1, dur / 4), filters: [{ type: 'lowpass', f: 2600, q: 0.5 }, { type: 'highpass', f: 70 }] })); },
+  /** fire: a low roar and sparse crackles and pops */
+  fire(ac, out, t0, dur, o = {}) { const { g = 0.08 } = o, r = sfxRng(o, t0, 'fire'), sd = r() * 1e6 | 0;
+    synth(ac, out, t0, dur, (d, q) => noiseInto(d, q, s => 0.5 + 0.5 * ((vnoise(s * 1.3, sd) + 1) / 2)), { g: g * 0.8, r, fade: Math.min(1, dur / 4), filters: [{ type: 'lowpass', f: 260, q: 0.7 }] });
+    [-0.5, 0.5].forEach(pan => synth(ac, out, t0, dur, (d, q) => { for (let s = q() * 0.1; s < dur - 0.05; s += -Math.log(1 - q() * 0.999) / 14) { DSP.burst(d, s, rr(q, 0.1, 1) ** 2, 0.004, rr(q, 0.0003, 0.0012), q);
+        if (q() < 0.05) for (let k = 0; k < 6; k++) DSP.burst(d, s + k * rr(q, 0.004, 0.02), rr(q, 0.2, 0.7), 0.003, 0.0005, q); } },
+      { g, r, pan, fade: 0.5, filters: [{ type: 'highpass', f: 900 }] })); },
+  /** a quiet room with a clock: tick-tock (rate: ticks a second) over faint room air, for time passing */
+  clockRoom(ac, out, t0, dur, o = {}) { const { g = 0.1, rate = 1 } = o, r = sfxRng(o, t0, 'clockRoom'); BED.roomTone(ac, out, t0, dur, { g: 0.012, fridge: false, seed: o.seed });
+    synth(ac, out, t0, dur, (d, q) => { for (let k = 0, s = 0.3; s < dur - 0.1; k++, s += 1 / rate) { const f = k % 2 ? rr(q, 2300, 2450) : rr(q, 2900, 3050);
+        DSP.modes(d, s, [[f, 1, 0.006], [f * 1.9, 0.4, 0.004], [f * 0.35, 0.3, 0.012]]); DSP.burst(d, s, 0.25, 0.003, 0.0005, q); } }, { g, r, pan: -0.2, fade: 0.3 }); },
+  /** the micro world: slow, viscous blobs of low sound and soft glassy tones drifting in the film's key, for scenes inside a cell or mucus */
+  micro(ac, out, t0, dur, o = {}) { const { g = 0.07, tonic = STORY.music ? STORY.music.tonic || 220 : 220 } = o, r = sfxRng(o, t0, 'micro'), sd = r() * 1e6 | 0;
+    [-0.7, 0.7].forEach((pan, j) => synth(ac, out, t0, dur, (d, q) => noiseInto(d, q, s => ((vnoise(s * 0.9, sd + j) + 1) / 2) ** 3), { g, r, pan, fade: Math.min(1, dur / 4),
+      filters: [{ type: 'lowpass', f: 400, q: 4, curve: slowCurve(sd + j, dur, 0.4, 180, 520) }] }));
+    for (let s = rr(r, 0.5, 1.5); s < dur - 2; s += rr(r, 1.5, 3)) SFX.tone(ac, out, t0 + s, { f: note(tonic * 2, r() * 6 | 0), dur: rr(r, 1.5, 2.5), g: g * 0.25, a: 0.6, pan: rr(r, -0.7, 0.7) }); },
+  /** vinyl: surface crackle and a faint hiss, for a lo-fi or archival feel */
+  vinyl(ac, out, t0, dur, o = {}) { const { g = 0.1 } = o, r = sfxRng(o, t0, 'vinyl');
+    synth(ac, out, t0, dur, (d, q) => { noiseInto(d, q, () => 0.05); for (let s = 0; s < dur; s += -Math.log(1 - q() * 0.999) / 18) DSP.burst(d, s, rr(q, 0.1, 1) ** 3, 0.002, 0.0003, q); },
+      { g, r, pan: 0.1, fade: 0.5, filters: [{ type: 'bandpass', f: 2500, q: 0.4 }] }); },
   mix: (...beds) => (ac, out, t0, dur) => beds.forEach(b => b(ac, out, t0, dur)),
 };
 /* transition sounds: each seam gets its own variation (the SFX above re-seed per call); a cut is a low tap of its own, not the contact thump */
@@ -2686,9 +3284,47 @@ const TRANS_SFX = {
 /** default bed when a plate has none and STORY.music = {tonic}: the stage's chord, darker and lower at night */
 function autoBed(p) {
   const m = STORY.music; if (!m) return null;
+  if (musicOn(m) || Array.isArray(m.chords) || p.music) return scoreBed(p);            // the score (MUSIC_STYLES); classic films keep this pad
   const n = p.stage ? p.stage.n : p.i, chord = p.i === STORY.plates.length - 1 ? [0, 7, 12, 14] : PROG[(n - (p.stage ? 1 : 0) + PROG.length * 4) % PROG.length];
   return (ac, out, t0, dur) => { SFX.padKey(ac, out, t0, { dur, tonic: m.tonic || 220, chord, g: m.gain || 0.018, dark: p.dark, oct: p.dark ? -1 : 0 });
     if (p.dark) SFX.noise(ac, out, t0, { dur, g: 0.025, f0: 160, type: 'lowpass', q: 0.5, a: 1 }); };
+}
+/*
+ * The writing sound a header types on with comes from the plate's paper: a pen on the cream notebook, a pencil on graph
+ * paper, chalk on a chalkboard, and so on. The night paper, screens and the microscope have no pen, so their headers type
+ * as soft readout blips. A paper in the GROUNDS registry can name its own with `sfx: { header }`; otherwise PAPER_PEN
+ * does, keyed by paper (or by set, as [light, dark]). plate.pen overrides it: a sound name ('pencil'), true (the paper's
+ * own tool, or the pen where the paper has none), false (readout) or 'none' (silence).
+ * PEN_SUB is each tool's level for the subtitle, which types more quietly than the kicker and title.
+ */
+const PAPER_PEN = {
+  notebook: ['scratch', 'readout'], paper: 'scratch', cream: 'scratch', night: 'readout',
+  blueprint: 'techPen', whiteprint: 'techPen',
+  lab: ['pencil', 'readout'], graph: 'pencil', engineering: 'pencil', dotgrid: 'pencil', hexagon: 'pencil', semilog: 'pencil', fluorescence: 'readout', fluoro: 'readout',
+  chalk: ['marker', 'chalk'], whiteboard: 'marker', chalkboard: 'chalk',
+  codex: ['quill', 'quill'], laid: 'quill', parchment: 'quill', starAtlas: 'quill', starchart: 'quill', staratlas: 'quill',
+  toned: ['charcoal', 'scratch'], kraft: 'charcoal', tan: 'charcoal', sketchbook: 'scratch', blackpaper: 'scratch',
+};
+const PEN_SUB = { scratch: 0.012, readout: 0.005, pencil: 0.015, chalk: 0.041, marker: 0.012, quill: 0.0225, charcoal: 0.017, techPen: 0.011 };
+/** the paper a plate is drawn on: plate.paper, else the story's paper set, else the notebook; a set resolves by `dark` */
+function paperOf(p) {
+  const name = p.paper || STORY.paper || 'notebook', set = typeof PAPER_SETS === 'object' && PAPER_SETS ? PAPER_SETS[name] : null;
+  return set ? set[p.dark ? 'dark' : 'light'] || name : name;
+}
+/** the writing sound of the plate's paper, ignoring plate.pen */
+function paperPen(p) {
+  const paper = paperOf(p), gr = p._ground || (typeof GROUNDS === 'object' && GROUNDS ? GROUNDS[paper] : null);
+  let tool = (gr && gr.sfx && gr.sfx.header) || PAPER_PEN[paper];
+  if (Array.isArray(tool)) tool = tool[p.dark ? 1 : 0];
+  return tool || (p.dark ? 'readout' : 'scratch');
+}
+/** the header's writing sound for a plate (an SFX name), or null for silence */
+function penOf(p) {
+  const tool = paperPen(p), o = p.pen;
+  if (o == null) return tool;
+  if (o === 'none') return null;
+  if (typeof o === 'string') { if (typeof SFX[o] === 'function') return o; console.warn(`pen: '${o}' is not a sound; using ${tool}`); return tool; }
+  return o ? (tool === 'readout' ? 'scratch' : tool) : 'readout';
 }
 /**
  * The film's loudness shape. defineStory({ dynamics: [[t, dB], ...] }) sets the master level over time (film seconds,
@@ -2749,13 +3385,16 @@ async function renderAudio(opts = {}) {
     const t0 = p.start, tr = p.enter, ty = tr?.type, d = tr?.dur || 0.5;
     AUDIO.plate = p.i; AUDIO.t0 = t0;                                                    // seeds are per plate (see sfxRng)
     if (p.i > 0) { AUDIO.tag = 'riser'; if (ty !== 'fade') SFX.riser(ac, fx, Math.max(0, t0 - 0.35));
-      AUDIO.tag = 'transition'; (TRANS_SFX[ty] || TRANS_SFX.cut)(ac, fx, t0, d, tr || {}); duck(t0, 0.5, d + 0.4); }
-    // the header types on: pen scratch on paper; on a night plate (or pen: false) there is no pen, so soft readout blips
-    if (p.header) { const hd = t0 + headerDelay(p), h = p.header, pen = p.pen ?? !p.dark, s = pen ? SFX.scratch : SFX.readout; AUDIO.tag = 'header';
-      if (p.pen !== 'none') { s(ac, fx, hd, { chars: 9, cps: 30 }); s(ac, fx, hd + 0.15, { chars: h.title.length, cps: 17 }); if (h.sub) s(ac, fx, hd + 0.7, { chars: h.sub.length, cps: 30, g: pen ? 0.012 : 0.005 }); } }
+      AUDIO.tag = 'transition'; (TRANS_SFX[ty] || TRANS_SFX.cut)(ac, fx, t0, d, tr || {}); duck(t0, GRID.on ? 0.25 : 0.5, d + 0.4); }   // a rhythmic bed dips less, so the pulse carries through
+    // the header types on with its paper's writing sound (penOf): pen scratch on the notebook, pencil, chalk, a marker and
+    // so on on the other papers, soft readout blips where there is no pen (night). plate.pen overrides it
+    if (p.header) { const hd = t0 + headerDelay(p), h = p.header, tool = penOf(p), s = tool && SFX[tool]; AUDIO.tag = 'header';
+      if (s) { s(ac, fx, hd, { chars: 9, cps: 30 }); s(ac, fx, hd + 0.15, { chars: h.title.length, cps: 17 }); if (h.sub) s(ac, fx, hd + 0.7, { chars: h.sub.length, cps: 30, g: PEN_SUB[tool] }); } }
     AUDIO.tag = 'bed'; const bed = p.bed || autoBed(p); if (bed) bed(ac, bedBus, t0, p.dur);
     AUDIO.tag = 'cue';
-    for (const [ct, type, opt] of (p.cues || [])) { SFX[type](ac, fx, t0 + ct, opt || {}); const dk = CUE_DUCK[type]; if (dk) duck(t0 + ct, ...dk); }
+    for (const [ct, type, opt] of [...(p.cues || []), ...motifCues(p)]) { let tc = t0 + ct;
+      if (GRID.on && ON_BEAT.has(type) && type !== 'reveal') { const b = GRID.snap(tc, 0.5); if (Math.abs(b - tc) <= 0.04) tc = b; }   // musical cues onto the beat
+      SFX[type](ac, fx, tc, opt || {}); const dk = CUE_DUCK[type]; if (dk) duck(tc, ...dk); }
   }
   writeDucks(); AUDIO.reset();
   const buf = await ac.startRendering();
@@ -2910,7 +3549,7 @@ async function loadFonts() {
 async function boot() {
   await loadFonts();
   buildTextures();
-  window.__story = { fps: FPS, frames: TOTAL_F, width: W, height: H, title: STORY.title, silent: !!STORY.silent, starts: STORY.plates.map(p => ({ t: p.start, type: p.enter ? p.enter.type : null, dur: p.enter ? p.enter.dur : 0, settle: p.enter ? p.enter.settle ?? 0.9 : 0 })),
+  window.__story = { fps: FPS, frames: TOTAL_F, width: W, height: H, title: STORY.title, silent: !!STORY.silent, music: GRID.on ? { bpm: GRID.bpm, bar: GRID.bar(), t0: GRID.t0, free: STORY.plates.filter(p => p.free).map(p => p.i) } : null, starts: STORY.plates.map(p => ({ t: p.start, type: p.enter ? p.enter.type : null, dur: p.enter ? p.enter.dur : 0, settle: p.enter ? p.enter.settle ?? 0.9 : 0 })),
     narrated: voiceTrack().length > 0, animatic: ANIMATIC };
   window.__renderFrame = f => { renderFrame(f); return true; };
   window.__frameData = (f, type = 'image/jpeg', q = 0.94) => { renderFrame(f); return cvs.toDataURL(type, q).split(',')[1]; };
@@ -2984,6 +3623,23 @@ async function boot() {
       default: break;   // cut, hatch, fade: no scale/mask beyond p itself (exempt from speed limits, or plain crossfade)
     }
     return out;
+  };
+  /* __paperProbe(): for each paper this film uses, its tone, the mean colour of its texture (treated, as a scene sees
+   * it) and the contrast of its ink, label text and accent against that mean, next to the floors they must clear:
+   * ink 7, labels 4.5, the accent 3 (a graphic, not text), or the paper's own minContrast. smoke_test.py checks it. */
+  window.__paperProbe = () => {
+    const lin = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+    const lum = c => { const [r, g, b] = rgbOf(c).map(lin); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+    const cr = (a, b) => { const x = lum(a), y = lum(b); return +((Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)).toFixed(2); };
+    return [...resolvePapers()].map(g => {
+      const d = groundTex(g).treated.getContext('2d').getImageData(0, 0, W, H).data, m = [0, 0, 0]; let n = 0;
+      for (let i = 0; i < d.length; i += 4 * 7) { m[0] += d[i]; m[1] += d[i + 1]; m[2] += d[i + 2]; n++; }
+      const mean = m.map(v => Math.round(v / n)), pl = STORY.plates.find(q => q._ground === g);
+      const pal = pl ? palView(pl) : Object.assign({}, PAL, g.pal), dk = g.tone === 'dark';
+      const got = { ink: cr(dk ? pal.nightInk : pal.ink, mean), label: cr(dk ? pal.nightLabel : pal.label, mean), accent: cr(pal.accent, mean) };
+      const floors = { ink: 7, label: 4.5, accent: 3, ...g.minContrast };
+      return { name: g.name, tone: g.tone, mean, ...got, floors, fails: Object.keys(floors).filter(k => got[k] < floors[k]) };
+    });
   };
   window.__ready = true;
   if (RENDER) { renderFrame(+(QS.get('f') || 0)); return; }

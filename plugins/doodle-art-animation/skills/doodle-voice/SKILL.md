@@ -44,7 +44,7 @@ node voice.mjs check                      # every clip against its line: length,
 
 `generate` already retakes a clip that fails a check (twice by default). For what still fails, follow the table in `references/voice.md`, "When a check fails": a new take (`node voice.mjs generate --retake P2`), a rewritten line, or a pause tag. Only the plates whose text or settings changed cost anything. After two rounds, keep the best take, list its flags, and carry on; don't circle.
 
-Claude cannot hear the clips. The checks measure them; say so in the report, and attach one or two clips to the thread so the user can listen when they have time.
+Claude cannot hear the clips. The checks measure them, and `python3 voice_check.py vo/voice.json --listen` has Gemini listen to each clip against its direction (about 0.1 cent a clip; one model's opinion, so it only warns). Say so in the report, and attach one or two clips to the thread so the user can listen when they have time.
 
 ## 5. Lock
 

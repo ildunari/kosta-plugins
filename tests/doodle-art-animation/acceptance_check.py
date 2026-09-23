@@ -390,7 +390,11 @@ STORIES = sorted(os.path.basename(p) for p in glob.glob(os.path.join(TK, 'story*
 SOUND = read(os.path.join(REF, 'sound.md')) or ''
 PRINC = read(os.path.join(REF, 'animation-principles.md')) or ''
 NEW_SFX = ['crunch', 'creak', 'pump', 'relay', 'hiss', 'plop', 'slosh', 'shaker', 'clink', 'pour', 'foil', 'droplet',
-           'pageFlip', 'pegSnap', 'roomTone', 'rain', 'wind', 'cityHum']
+           'pageFlip', 'pegSnap', 'roomTone', 'rain', 'wind', 'cityHum',
+           # v0.16.6 (sound build S2): writing tools, desk, data, lab and body effects, and the new ambience beds
+           'pencil', 'chalk', 'marker', 'quill', 'charcoal', 'techPen', 'typewriter', 'eraser', 'stamp', 'tear', 'counter',
+           'sonify', 'sparkle', 'pipette', 'centrifuge', 'syringe', 'pills', 'fizz', 'bubbles', 'squelch', 'heartbeat', 'beep',
+           'zap', 'magnet', 'body', 'underwater', 'forest', 'ocean', 'fire', 'clockRoom', 'micro', 'vinyl']
 # v0.16.4: the ten instruments and six stingers (sound plan S1)
 NEW_MUSIC = ['marimba', 'vibes', 'musicBox', 'kalimba', 'celesta', 'glock', 'epiano', 'pluck', 'feltPiano', 'strings',
              'motif', 'success', 'question', 'oops', 'reveal', 'resolve']
@@ -528,8 +532,8 @@ if want('REL'):
     pj = json.loads(read(os.path.join(PLUG, '.claude-plugin', 'plugin.json')) or '{}')
     mj = json.loads(read(os.path.join(REPO, '.claude-plugin', 'marketplace.json')) or '{}')
     mv = next((p.get('version') for p in mj.get('plugins', []) if p.get('name') == 'doodle-art-animation'), None)
-    check('REL', 'plugin.json version 0.17.0', pj.get('version') == '0.17.0', str(pj.get('version')))
-    check('REL', 'marketplace entry version 0.17.0', mv == '0.17.0', str(mv))
+    check('REL', 'plugin.json version 0.17.2', pj.get('version') == '0.17.2', str(pj.get('version')))
+    check('REL', 'marketplace entry version 0.17.2', mv == '0.17.2', str(mv))
 
 # ---------------------------------------------------------------- full checks (build, probe, render)
 def run(cmd, cwd=None, timeout=1800):

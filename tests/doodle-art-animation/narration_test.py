@@ -14,6 +14,8 @@ usage:
                of 42 characters at most; a full render writes film.srt next to the MP4 (checked on a short film)
   levels       audio_check.py --narrated: -16 LUFS integrated, true peak at or under -1 dBTP
   under        render.mjs --stems + audio_check.py --stems: the music and effects 15-20 dB under the voice
+  masked       audio_check.py --stems names the stretches where a cue comes within 10 dB of the voice
+  speech       cue_check.mjs flags a loud cue on a spoken word and leaves a soft one alone
   segment      a short MP4 segment where the voice speaks carries an audio stream with the voice in it
   animatic     build.py --animatic boots, marks itself as an animatic and draws its placeholders
   no voice     built with --voice none: the plates keep their own dur and the marks fall back to their estimates
@@ -148,6 +150,15 @@ if not a.static:
             rc, out = run([sys.executable, 'audio_check.py', os.path.join(work, 'film.wav'), '--narrated', '--stems', 'qa_stems'], cwd=tk)
             lu = lines(out, 'under')
             check('under: the music and effects sit 15-20 dB under the voice while it speaks', bool(lu) and lu[0].startswith('PASS'), (lu or [out[-300:]])[0])
+            lm = lines(out, 'masked')
+            check('masked: audio_check names the stretches where a cue comes within 10 dB of the voice (the chimes at 15.4 and 35.2 s)',
+                  bool(lm) and lm[0].startswith('WARN') and '15.' in lm[0] and '35.' in lm[0], (lm or [out[-300:]])[0])
+
+        rc, out = run(['node', 'cue_check.mjs', 'film.html', '--json', 'cues.json'], cwd=tk, timeout=300)
+        cj = json.load(open(os.path.join(tk, 'cues.json'))) if os.path.isfile(os.path.join(tk, 'cues.json')) else {}
+        ow = [(w['k'], w['unit']) for w in cj.get('speech', {}).get('onWords', [])]
+        check('speech: cue_check flags a loud cue on a spoken word (the foil on "drop") and not a soft one (the plink on "gone")',
+              ('foil', 'P0') in ow and not any(k == 'plink' for k, _ in ow) and cj['speech']['sentences'] > 0 and 'WARN    speech:' in out, out[-400:])
 
         rc, out = run(['node', 'render.mjs', 'film.html', '--srt', 'captions.srt'], cwd=tk)
         srt = open(os.path.join(tk, 'captions.srt'), encoding='utf-8').read() if os.path.isfile(os.path.join(tk, 'captions.srt')) else ''

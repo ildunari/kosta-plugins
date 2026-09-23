@@ -27,7 +27,7 @@ Before drawing a common object, check `references/components.md`: the kits alrea
 | `toolkit/motion_check.py` | Measures how alive a render is, from its pixels, and flags snaps, pops and jerks. |
 | `toolkit/speed_check.mjs` | Measures each seam's and camera's speed from the engine's own values; `FAST` is advice, `SNAP` is a failure. |
 | `toolkit/audio_check.py` | Checks the sound: level, peak, clipping, stereo, silence, length, cue timing; `--narrated` for a film with a voice-over. |
-| `toolkit/voice.mjs` | The narration tool: reads the narration from `script.md`, auditions voices, records one clip per plate, checks each clip against its words, and locks the timing in `vo/voice.json` for the engine. |
+| `toolkit/voice.mjs` | The narration tool: reads the narration from `script.md`, sets the narrator preset, auditions presets on a close call, records one clip per plate, checks each clip against its words, and locks the timing in `vo/voice.json` for the engine. |
 | `toolkit/text_check.mjs` | Measures on-screen text: reading time, text off the frame, overlaps, text that scales. |
 | `toolkit/legibility_check.mjs` | Looks at the pixels behind every line of text: size on screen against its role's floor, contrast, and how busy the artwork under it is. `CLASH` and `SMALL` fail. |
 | `toolkit/story_check.mjs` | Checks the film's own facts over time: elapsed time never runs backwards, stage numbers don't repeat, the hero keeps one ID. |
@@ -49,10 +49,11 @@ Before drawing a common object, check `references/components.md`: the kits alrea
 | `references/writing.md` | Explainer voice, how to adapt any subject or dataset, the scene (plate) script format. |
 | `references/animation-principles.md` | How motion flows inside a scene: overlapping action, follow-through, staggers, hand-offs, moving holds, arcs, anticipation, main and secondary motion. |
 | `references/sound.md` | The synthesized sound design and cue names, and how narration is mixed. |
-| `references/voice.md` | Voice-over: when a film is narrated, styles and speaking rates, writing the narration, the voice step, providers, keys, and what to do when a clip fails a check. |
+| `references/voice.md` | Voice-over: when a film is narrated, styles and paces, writing the narration, the voice step, providers, keys, and what to do when a clip fails a check. |
 | `references/api.md` | Every function and plate field a story can use. |
 | `references/film-grammar.md` | Editing and animation grammar for seams and camera moves (eye trace, screen direction, lead room, motivated camera, the switch-up rule, the twelve principles) and the seam review rubric. |
 | `references/render.md` | How rendering works, options and speed. |
+| `references/voice-presets.md` | Narrated films: the five narrators and eight deliveries Kosta chose (Gemini), and which preset to use for which film. |
 
 Read `references/style.md`, `references/motion.md`, `references/writing.md`, `references/animation-principles.md` and `references/film-grammar.md` before writing the scene script. Open `references/api.md` and `references/components.md` while building, and `references/sound.md` when adding cues.
 
@@ -115,6 +116,7 @@ Each has its details in the references.
 - **Pen for subjects, ink for measurement**, shading made of pen or brush strokes, and at least two textures on any fill wider than 200 px. Watercolor `wash` tints may sit under the ink lines; smooth digital gradients never appear. Choose brushes (`brush.stroke` types, `brush.hatch`, `brush.field`) per film to suit the subject: pencil for sketches and plans, charcoal for weight and weather, markers for diagrams (`references/style.md`, "Brushes").
 - **Use the kits, then go further.** The kits cover nature (`KIT.earth`), animals and people (`KIT.life`), dwellings and civilization (`KIT.settle`), technology, AI, space, the lab and the studio. Kit components are on-style and already move; use them where they fit, restyle them with their options, and draw the rest of the scene yourself. A film should never look like the gallery: a few components inside a scene built for its topic.
 - **The HUD and the hero reticle never scale with the camera.** Stats, callouts, cards and charts that must stay still go in `overlay(t)`, which ignores the camera, momentum and the match-cut shift and only moves with its plate's transition. Anchor overlay art to moving things through `camPoint` or `heroOf(plate, t)`, keeping labels fixed. Put a chart in `draw(t)` only when it belongs to the world and should zoom with it.
+- **A narrated film's voice comes from a preset** (`references/voice-presets.md`): the one the user asked for, else one that suits the film's character, else the style's default, and not the same narrator as the last two films. One narrator and one delivery per film.
 - **Sound varies with what happens.** Different kinds of event get different sounds — a press crunches, a liquid pours, a camera move whooshes — no effect repeats identically, and the climax is louder than the rest (`references/sound.md`, `cue_check.mjs`).
 - **Ask, then review the plan.** Start with the intake round (`references/intake.md`), write the script to `script.md`, and pass Gate 1 (`script-reviewer`, then the plan card) before any art is drawn.
 - **Nothing runs before its input exists.** The phase table above says what each phase and agent needs. A reviewer given a file that was never written will score an imaginary film, and every later phase inherits that mistake.

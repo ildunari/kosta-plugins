@@ -158,6 +158,31 @@ else:
                 check('stingers: all six render sound without clipping', len(v['stingers']) == 6 and not quiet, str(v['stingers']))
                 check('instruments: deg plays note() of the film key in the home octave', abs(v['deg']) < 0.01, str(v['deg']))
 
+        # ---------------------------------------------------------------- the score: tempo grid and beds (sound build S3)
+        SCORE = """const s = window.__story, b = await renderAudio(), L = b.getChannelData(0); let pk = 0;
+          for (let i = 0; i < L.length; i += 7) pk = Math.max(pk, Math.abs(L[i]));
+          const m = s.music, off = m ? s.starts.map(x => Math.abs(((x.t - m.t0) / m.bar - Math.round((x.t - m.t0) / m.bar)) * m.bar)) : [];
+          return { total: s.frames / s.fps, music: m, worst: Math.max(0, ...off), peak: pk,
+            motif: STORY.plates.map(p => motifCues(p).length), tension: STORY.plates.map(p => +tensionOf(p).toFixed(2)) };"""
+        src = open(os.path.join(tk, 'story_one_drop.js')).read()
+        h = build('story_one_drop.js')
+        base = (probe(h, SCORE).get('result') or {}) if h else {}
+        check('score: classic (no style) keeps the film untimed and gridless', base.get('music') is None and abs(base.get('total', 0) - 55) < 0.05, str(base)[:200])
+        for style in ('notebook', 'lofi', 'calm'):
+            open(os.path.join(tk, f'story_score_{style}.js'), 'w').write(src.replace("music: { tonic: 220 }",
+                f"music: {{ tonic: 220, style: '{style}', motif: {{ degs: [2, 3, 4, 6] }} }}").replace('const P1 = {', 'const P1 = { motif: true,', 1))
+            h = build(f'story_score_{style}.js')
+            if not h: continue
+            r = probe(h, SCORE); v = r.get('result') or {}
+            check(f'score {style}: renders with no page errors', bool(v) and not r.get('errors'), str(r.get('errors'))[:300])
+            if v:
+                check(f"score {style}: every plate starts within 25 ms of a bar line (bpm {(v['music'] or {}).get('bpm')})",
+                      bool(v['music']) and v['worst'] <= 0.025, str(v)[:300])
+                check(f'score {style}: plates only grow, by less than a bar each', 55 <= v['total'] <= 55 + 6 * v['music']['bar'], str(v['total']))
+                check(f'score {style}: the motif plays on the hero plate and resolves on the end card', v['motif'][1] == 1 and v['motif'][-1] == 1, str(v['motif']))
+                check(f"score {style}: tension rises to the climax", v['tension'][0] < max(v['tension']) == 1, str(v['tension']))
+                check(f'score {style}: audible and unclipped', 0.05 < v['peak'] < 1, str(v['peak']))
+
         h = build('story_pan_twice.js')
         if h:
             rc, out = run(['node', 'speed_check.mjs', h], cwd=tk)
@@ -167,6 +192,51 @@ else:
         if h:
             rc, out = run(['node', 'speed_check.mjs', h], cwd=tk)
             check('pan twice: a bundled film with a clean pan gets no TWICE', rc == 0 and 'TWICE' not in out, out[-300:])
+
+        # ------------------------------------------------------------ paper sets (0.17): notebook unchanged, treated papers work
+        src = open(os.path.join(tk, 'story_one_drop.js'), encoding='utf-8').read()
+        nb = src.replace("defineStory({ title: 'One Drop',", "defineStory({ title: 'One Drop', paper: 'notebook',")
+        check("paper: the paper option can be injected into One Drop", nb != src)
+        open(os.path.join(tk, 'story_one_drop_nb.js'), 'w', encoding='utf-8').write(nb)
+        HASH = """const g = document.getElementById('stage').getContext('2d'), n = window.__story.frames, out = {};
+          for (const f of [Math.round(n * 0.1), Math.round(n * 0.37), Math.round(n * 0.62), n - 2]) { window.__renderFrame(f);
+            const d = g.getImageData(0, 0, 1920, 1080).data; let h = 2166136261; for (let i = 0; i < d.length; i++) h = Math.imul(h ^ d[i], 16777619); out[f] = h >>> 0; }
+          return out;"""
+        h0, h1 = build('story_one_drop.js'), build('story_one_drop_nb.js')
+        if h0 and h1:
+            r0, r1 = probe(h0, HASH), probe(h1, HASH)
+            check("paper: One Drop with paper: 'notebook' draws the same pixels as without it",
+                  bool(r0.get('result')) and r0.get('result') == r1.get('result') and not r0.get('errors') and not r1.get('errors'),
+                  f"{r0.get('result')} vs {r1.get('result')} {str(r0.get('errors'))[:200]} {str(r1.get('errors'))[:200]}")
+        os.makedirs(os.path.join(tk, 'grounds'), exist_ok=True)
+        shutil.copy2(os.path.join(FIX, 'grounds', 'zz_fixture.js'), os.path.join(tk, 'grounds'))
+        h = build('story_swatch.js')
+        if h:
+            # plates are found by paper, not position: every toolkit/grounds/ file adds its sets to the swatch
+            r = probe(h, """const s = window.__story, g = document.getElementById('stage').getContext('2d'), out = { plates: s.starts.length };
+              const inSet = new Set(Object.values(PAPER_SETS).flatMap(p => [p.light, p.dark]));
+              out.expected = 2 * Object.keys(PAPER_SETS).length + Object.keys(GROUNDS).filter(n => !inSet.has(n)).length;
+              const idx = (paper, dark) => STORY.plates.findIndex(p => p.paper === paper && !!p.dark === dark);
+              const fd = idx('fixture', true), fl = idx('fixture', false), nd = idx('notebook', true); out.found = [fd, fl, nd];
+              if (Math.min(fd, fl, nd) < 0) return out;
+              const hash = () => { const d = g.getImageData(0, 0, 1920, 1080).data; let h = 2166136261; for (let i = 0; i < d.length; i++) h = Math.imul(h ^ d[i], 16777619); return h >>> 0; };
+              const at = (i, u) => Math.round((s.starts[i].t + u * 3) * s.fps), mid = (x, y) => Array.from(g.getImageData(x, y, 1, 1).data.slice(0, 3));
+              window.__renderFrame(at(fd, 0.8)); out.fixDark = hash(); out.fixDarkPx = mid(200, 300);
+              window.__renderFrame(at(fd, 0.8)); out.again = hash();
+              window.__renderFrame(at(fl, 0.1)); out.seam = hash();
+              window.__renderFrame(at(nd, 0.8)); out.nightPx = mid(200, 300);
+              out.papers = window.__paperProbe().map(p => [p.name, p.fails]);
+              return out;""")
+            v = r.get('result') or {}
+            check('paper: the swatch shows every set, fixture papers included, with no page errors',
+                  v.get('plates') is not None and v.get('plates') == v.get('expected') and min(v.get('found') or [-1]) >= 0 and not r.get('errors'),
+                  f"{v.get('plates')} plates of {v.get('expected')}, fixture dark/light and night at {v.get('found')}, {str(r.get('errors'))[:300]}")
+            if v and 'fixDark' not in v: v = {}
+            if v:
+                check('paper: a treated paper renders the same pixels twice', v['fixDark'] == v['again'], str(v))
+                check("paper: the fixture's dark paper is blue where the notebook's night is navy",
+                      v['fixDarkPx'][2] > 90 and v['nightPx'][2] < 70, f"fixture {v['fixDarkPx']}, night {v['nightPx']}")
+                check('paper: every paper clears its contrast floors', all(not f for _, f in v['papers']), str(v['papers']))
 
 n_fail = sum(1 for _, ok, _ in results if not ok)
 print(f'\n{len(results) - n_fail} passed, {n_fail} failed' + ('  (static only)' if a.static else ''))

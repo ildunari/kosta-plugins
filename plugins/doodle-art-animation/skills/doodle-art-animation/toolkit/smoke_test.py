@@ -17,7 +17,9 @@ What it checks, for each story:
   2. a probe page load: window.__ready arrives, window.__story is sane (fps, frames, size, plate starts),
      the fonts loaded (window.__fontWarning unset and document.fonts.check('500 64px Fraunces')),
      and 3 frames rendered through window.__frameData raise no page errors (errors are collected
-     1.5 s after the last frame, so late async errors are seen too).
+     1.5 s after the last frame, so late async errors are seen too). Each paper the film uses must
+     clear its contrast floors (window.__paperProbe: ink 7, labels 4.5, accent 3, or the paper's own
+     minContrast); story_swatch.js puts every paper on screen, so it checks them all.
   3. render.mjs --stills renders 3 frames spread across the film: exit 0, no "PAGE ERROR:",
      each still decodes, is not blank (grey std-dev >= 2), and the three are not identical.
 Then one short MP4 segment across the video story's first transition (render.mjs --from/--to):
@@ -36,7 +38,8 @@ import argparse, concurrent.futures as cf, glob, json, os, re, shutil, signal, s
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC_EXT = ('.js', '.mjs', '.cjs', '.py', '.html', '.css', '.json', '.txt', '.woff', '.woff2', '.ttf', '.otf')
 SKIP_DIRS = re.compile(r'^(qa.*|.*_frames|node_modules|smoke.*|\.git|__pycache__|\..*)$')
-BUNDLED = {'story_example.js', 'story_one_drop.js', 'story_seams.js', 'story_reel.js', 'story_gallery.js', 'story_components.js', 'story_brushes.js'}
+BUNDLED = {'story_example.js', 'story_one_drop.js', 'story_seams.js', 'story_reel.js', 'story_gallery.js', 'story_components.js', 'story_brushes.js',
+           'story_swatch.js'}
 CALL_TIMEOUT = 300
 FONT_HINT = ('(font requests to fonts.googleapis.com / fonts.gstatic.com can fail or time out on a slow network; '
              'if the story itself is fine, re-run before debugging)')
@@ -85,7 +88,9 @@ try {
     }
     await sleep(1500);
   }
-  console.log(JSON.stringify({ story, errors, fonts }));
+  // each paper the film uses: its ink, label and accent contrast against the texture (story_swatch.js uses them all)
+  const papers = isReady ? await page.evaluate(() => window.__paperProbe ? window.__paperProbe() : null).catch(() => null) : null;
+  console.log(JSON.stringify({ story, errors, fonts, papers }));
 } finally { await browser.close(); }
 """
 
@@ -213,6 +218,11 @@ def check_story(story, work, out_dir):
         P.append(f'fonts: {FONT_HINT}')
     meta = res['meta'] = info['story']
     P += check_story_meta(meta)
+    for pp in info.get('papers') or []:     # contrast floors: ink 7, labels 4.5, accent 3, or the paper's own minContrast
+        for k in pp.get('fails', []):
+            P.append(f"paper '{pp['name']}': {k} contrast {pp[k]}:1 is under its floor of {pp['floors'][k]}:1 "
+                     f"(against the texture's mean colour rgb{tuple(pp['mean'])}); change the palette or set minContrast with a reason")
+    res['papers'] = info.get('papers')
     if not meta or not isinstance(meta.get('frames'), int) or meta['frames'] <= 0:
         return res
     n = meta['frames']
