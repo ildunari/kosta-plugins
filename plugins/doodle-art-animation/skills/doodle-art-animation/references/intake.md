@@ -15,7 +15,9 @@ Open with one line, for example:
 
 ## 2. Choose 3–7 questions
 
-Pick the 3–7 most important gaps given the user's request, the context they gave you (files, data, earlier messages) and what this plugin makes. Don't ask what the request already answers, and don't ask about things the plugin fixes (ink, paper, type, HUD, transition style). Fewer good questions beat many small ones; three is often enough.
+Pick the 3–7 most important gaps given the user's request, the context they gave you (files, data, earlier messages) and what this plugin makes. Don't ask what the request already answers, and don't ask about things the plugin fixes (ink, type, HUD, transition style). Fewer good questions beat many small ones; three is often enough.
+
+The paper set is the planner's call, not a question: pick it from the topic ("Choosing the paper set" in `references/style.md`) and record it in `script.md`. Ask only when the look is clearly a matter of taste, for example a general-audience story that would suit two sets equally well, and then offer the two sets with the one you recommend marked.
 
 Candidate areas, roughly in order of how much they change the build:
 

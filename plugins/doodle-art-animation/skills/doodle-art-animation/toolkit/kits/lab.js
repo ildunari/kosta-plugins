@@ -1,4 +1,4 @@
-/* =====================  KIT.lab · flask, cell, molecule, microscope, pipette  =====================
+/* =====================  KIT.lab · flask, cell, molecule, microscope, pipette, scale bar  =====================
    Paper-world lab pieces (cell and molecule also work at night with dark: true). flask, microscope and pipette take
    x, y = the point they stand on (the pipette: its tip); cell and molecule take x, y = their centre.
    See references/components.md. */
@@ -226,5 +226,17 @@ KIT.lab = (() => {
     });
   }
 
-  return { flask, cell, molecule, microscope, pipette };
+  /** scaleBar(t, {x, y, len, label, dark, color, draw}): a microscope scale bar, a solid bar len px long whose left end is
+      at x, y, with its length typed above it ('10 µm'). It draws on from the left; 6 px thick so it survives phone
+      compression. Made for fluorescence plates (dark: true), where it reads in the paper's ink. */
+  function scaleBar(t, o) {
+    o = K.opts(o, { len: 160, label: '10 µm', dark: true, color: null });
+    return K.at(o, () => {
+      const col = o.color || K.inkOf(o.dark), u = K.ph(o.draw, 0, 0.6);
+      ctx.save(); ctx.fillStyle = col; ctx.fillRect(0, -3, o.len * u, 6); ctx.restore();
+      if (o.label) K.caption(t, o.label, o.len / 2, -16, { dark: o.dark, align: 'center', color: col, alpha: K.ph(o.draw, 0.4, 1) });
+    });
+  }
+
+  return { flask, cell, molecule, microscope, pipette, scaleBar };
 })();
