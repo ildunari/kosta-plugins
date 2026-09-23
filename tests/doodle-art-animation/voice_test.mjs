@@ -117,6 +117,18 @@ function film(name, script = SCRIPT) { const d = path.join(WORK, name); fs.mkdir
   const n = film('lines-none', '# Script\n\nNo narration here.\n');
   const y = await run(n, ['lines', 'script.md']);
   check('lines: explains a missing Narration section', y.code === 2 && /## Narration/.test(y.err), y.all);
+  const f = film('lines-edge', SCRIPT.replace('Meloxicam waits inside.', 'Meloxicam waits inside.\n1953 — the year the double helix was found.\n<!-- TODO: check\nthe pacing here -->\nIt waits.')
+    .replace('| I | Into the Blood (paper) | 4.0 |', '| I | Into the Blood (paper) | 4–6 |'));
+  const z = await run(f, ['lines', 'script.md', '--provider', 'fake']);
+  const Z = fs.existsSync(path.join(f, 'vo/lines.json')) ? readJson(path.join(f, 'vo/lines.json')) : { units: [] };
+  check('lines: a narration line starting "1953 —" is not a new plate', z.code === 0 && Z.units.map(u => u.id).join() === 'P1,P2,P3' && /1953 — the year .* It waits\.$/.test(Z.units[1]?.text || ''), z.all + JSON.stringify(Z.units));
+  check('lines: an HTML comment over several lines is not spoken', !/TODO|pacing/.test(JSON.stringify(Z.units)), JSON.stringify(Z.units));
+  check('lines: a Dur range is read as its upper end', /^P1\s+I\s.*\s6\.0 s\s/m.test(z.out), z.out);
+  fs.writeFileSync(path.join(f, 'script.md'), fs.readFileSync(path.join(f, 'script.md'), 'utf8').replace('@direction: Say slowly, with wonder:\n', '').replace('- PEG: peg\n', ''));
+  const z2 = await run(f, ['lines', 'script.md']), Z2 = readJson(path.join(f, 'vo/lines.json'));
+  check('lines: an @direction or pronunciation taken out of script.md is gone', z2.code === 0 && Z2.units[1].direction === undefined && !('PEG' in Z2.pronounce) && Z2.pronounce.meloxicam, JSON.stringify(Z2));
+  const bad = await run(f, ['generate', '--retakes', 'abc']);
+  check('options: a --retakes that is not a number is refused (exit 2)', bad.code === 2 && /--retakes needs a whole number/.test(bad.err), bad.all);
 }
 
 // ---------------------------------------------------------------- generate, cache, check, lock with the fake voice
@@ -139,7 +151,7 @@ let ffmpegClip = null;
     if (u.sentences[0][0] > 0.06 || u.dur - u.sentences.at(-1)[1] > 0.2) { ok = false; why += `${u.id} trim ${u.sentences[0][0]} ${u.dur - u.sentences.at(-1)[1]}; `; }
   }
   check('clips: mono 16-bit WAV, -20 LUFS, trimmed, sentences as [start, end, text]', ok, why);
-  ffmpegClip = path.join(d, V.units[1].file);
+  ffmpegClip = path.join(WORK, 'ebur128.wav'); fs.copyFileSync(path.join(d, V.units[1].file), ffmpegClip);   // later tests re-level the film's clips
   let worst = 0;
   for (const u of V.units) { const m = readJson(path.join(d, 'vo/clips', u.fp + '.json')); u.sentences.forEach((s, i) => { worst = Math.max(worst, Math.abs(s[0] - m.truth[i][0]), Math.abs(s[1] - m.truth[i][1])); }); }
   check('timing: sentence times found from the pauses within 0.05 s', worst <= 0.05, `worst error ${worst.toFixed(3)} s`);
@@ -181,6 +193,22 @@ let ffmpegClip = null;
   check('audition: two files, a table and the glossary line', au.code === 0 && aj.results.length === 2 && aj.results.every(x => fs.existsSync(path.join(d, x.file)))
     && fs.existsSync(path.join(d, 'vo/audition/audition.md')) && aj.lines.some(l => /meloxicam, PEG/.test(l)), au.all);
   check('audition: no pause tag leads a line', aj.lines.every(l => !/^\[/.test(l)), JSON.stringify(aj.lines));
+
+  const vj = () => readJson(path.join(d, 'vo/voice.json'));
+  const rt = await run(d, ['generate', '--retake', 'P1'], { DOODLE_TTS_FAKE_FAULT: 'P1:slow' });
+  check('lock: a new take of a locked plate unlocks voice.json', vj().locked === false && vj().units[0].take > V2.units[0].take, rt.all + JSON.stringify(vj()).slice(0, 200));
+  await run(d, ['generate', '--retake', 'P1']);
+  const relock = await run(d, ['lock']);
+  const L2 = readJson(path.join(d, 'vo/lines.json')), oldText = vj().units[2].text;
+  L2.units[2].text = 'Same polymer, same drug, and a {slow}far slower road out.';
+  fs.writeFileSync(path.join(d, 'vo/lines.json'), JSON.stringify(L2, null, 2));
+  const ck = await run(d, ['check']), lk3 = await run(d, ['lock']);
+  check('lock: an edit after locking unlocks, and lock then refuses', relock.code === 0 && ck.code === 1 && lk3.code === 1 && vj().locked === false, ck.all + lk3.all);
+  check('stale: a stale plate keeps the words and times of its own clip', vj().units[2].text === oldText && vj().units[2].checks.flags[0].startsWith('fail: stale'), JSON.stringify(vj().units[2]));
+  L2.units[2].text = 'Same polymer, same drug, and a {slow}much slower road out.'; L2.lufs = -16;
+  fs.writeFileSync(path.join(d, 'vo/lines.json'), JSON.stringify(L2, null, 2));
+  const n0 = clips(), lu = await run(d, ['check']);
+  check('loudness: a new lufs target re-levels the cached clips without new ones', lu.code === 0 && clips() === n0 && vj().units.every(u => Math.abs(u.lufs + 16) <= 0.3), lu.all + vj().units.map(u => u.lufs).join());
 }
 
 // ---------------------------------------------------------------- failures and retakes
@@ -240,6 +268,9 @@ let ffmpegClip = null;
   check('gemini: 24 kHz clips with sentence times from the pauses', V.units.every(u => wavInfo(path.join(d, u.file)).rate === 24000) && V.units[0].sentences.length === 2
     && V.units[0].sentences[1][0] > V.units[0].sentences[0][1], JSON.stringify(V.units[0]));
   check('gemini: cost estimated from the token counts', /about \$0\.0\d+/.test(g.out), g.out);
+  const GL = readJson(path.join(d, 'vo/lines.json')); GL.units[0].speed = 0.8; fs.writeFileSync(path.join(d, 'vo/lines.json'), JSON.stringify(GL, null, 2));
+  const n0 = seen.length, sp = await run(d, ['generate'], env);
+  check('gemini: a speed is ignored with a warning, not paid for with a new take', sp.code === 0 && /no speed setting/.test(sp.err) && seen.length === n0, sp.all);
 
   mode = 'text-once'; calls = 0; seen.length = 0;
   const tx = await run(d, ['generate', '--retake', 'P1', '--jobs', '1'], env);
@@ -269,6 +300,7 @@ let ffmpegClip = null;
   const srv = http.createServer((req, res) => {
     let body = ''; req.on('data', c => body += c);
     req.on('end', () => { const j = JSON.parse(body || '{}'); seen.push({ url: req.url, headers: req.headers, body: j });
+      if (j.voice === 'bad') { res.writeHead(400, { 'content-type': 'application/json' }); return res.end('{"error":{"message":"unknown voice bad"}}'); }
       res.writeHead(200, { 'content-type': 'audio/wav' }); res.end(wavOf(tonePcm(j.input || 'x'), 24000, true)); });
   });
   const port = await listen(srv), d = film('openai');
@@ -286,6 +318,10 @@ let ffmpegClip = null;
   const q = seen[0];
   check('local: same API at DOODLE_TTS_BASE_URL, no key, no instructions, slowed Kokoro', gl.code === 0 && q?.body.model === 'kokoro' && q.body.voice === 'af_heart'
     && !q.headers.authorization && !q.body.instructions && q.body.speed > 0.7 && q.body.speed < 0.95, gl.all + JSON.stringify(q?.body));
+  const ab = await run(e, ['audition', '--voices', 'af_heart,bad'], { DOODLE_TTS_BASE_URL: `http://127.0.0.1:${port}/v1` });
+  const aj = fs.existsSync(path.join(e, 'vo/audition/audition.json')) ? readJson(path.join(e, 'vo/audition/audition.json')) : { results: [] };
+  check('audition: a voice the server refuses is reported, not dropped (exit 1)', ab.code === 1 && /bad A1: FAILED/.test(ab.out)
+    && aj.results.some(x => x.voice === 'bad' && x.flags.some(f => /no clip/.test(f))) && aj.results.some(x => x.voice === 'af_heart' && x.file), ab.all + JSON.stringify(aj.results));
   srv.close();
 }
 
@@ -310,6 +346,13 @@ else {
       DOODLE_GEMINI_BASE_URL: 'https://gemini.test/v1beta', OPENAI_BASE_URL: 'https://gemini.test/v1', DOODLE_TTS_BASE_URL: 'https://gemini.test/v1' });
     check('proxy: HTTPS requests go through the HTTPS_PROXY tunnel', connects.includes('gemini.test:443') && hits.some(h => h.url === '/v1beta/models?pageSize=1') && /Gemini: works/.test(r.out), r.all + JSON.stringify({ connects, hits }));
     check('proxy: the Host header names the API host', hits.every(h => h.host === 'gemini.test'), JSON.stringify(hits));
+    connects.length = 0;
+    const r2 = await run(film('proxy2'), ['keys', '--test'], { HTTPS_PROXY: `127.0.0.1:${pPort}`, NO_PROXY: 'localhost,127.0.0.1', NODE_EXTRA_CA_CERTS: cert,
+      DOODLE_GEMINI_BASE_URL: 'https://gemini.test/v1beta', OPENAI_BASE_URL: 'https://gemini.test/v1', DOODLE_TTS_BASE_URL: 'https://gemini.test/v1' });
+    check('proxy: an HTTPS_PROXY written without http:// is used too', connects.includes('gemini.test:443') && /Gemini: works/.test(r2.out), r2.all);
+    const r3 = await run(film('proxy3'), ['keys', '--test'], { HTTPS_PROXY: 'http://', DOODLE_GEMINI_BASE_URL: 'https://gemini.test/v1beta',
+      OPENAI_BASE_URL: 'https://gemini.test/v1', DOODLE_TTS_BASE_URL: 'https://gemini.test/v1' });
+    check('proxy: an HTTPS_PROXY that is not an address is an error, never a direct connection', /HTTPS_PROXY is set but/.test(r3.out) && r3.code === 1, r3.all);
     api.close(); proxy.close();
   }
 }
@@ -330,6 +373,9 @@ else {
   const g = await run(d, ['generate'], { DOODLE_KOKORO_DIR: process.env.DOODLE_KOKORO_DIR || '' });
   const V = fs.existsSync(path.join(d, 'vo/voice.json')) ? readJson(path.join(d, 'vo/voice.json')) : { units: [] };
   check('kokoro: clips with exact sentence times', g.code === 0 && V.units.length === 3 && V.units.every(u => u.timing === 'sentence-clips'), g.all);
+  // comma-heavy plates still come out slower than the others, so the film's average pace is what is held to 10%
+  const avg = V.units.reduce((n, u) => n + u.checks.wpm, 0) / Math.max(1, V.units.length);
+  check('kokoro: the speed chosen per plate keeps the average pace within 10% of the target', Math.abs(avg / V.wpm_target - 1) <= 0.1, V.units.map(u => u.checks.wpm).join());
 }
 
 const failed = results.filter(r => r[0] === 'FAIL').length;

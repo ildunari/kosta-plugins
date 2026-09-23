@@ -19,7 +19,8 @@
 //          --facts facts.md (lines: also read its pronunciation list)   --json (print a machine-readable summary)
 //
 // NARRATION IN script.md. A "## Narration" section, one block per plate, keyed by the plate table's # column
-// (0, I, II ... End) or by P<n>. Words in braces are marks: named points that beats can land on; the mark's time is
+// (0, I, II ... End) or by P<n>, under a "### I · Title" heading (an unheaded "I · Title" line also starts a block
+// when I is in the table). Words in braces are marks: named points that beats can land on; the mark's time is
 // the start of the word right after it. Square brackets are delivery tags; Gemini acts them ([short pause] 0.25 s,
 // [medium pause] 0.5 s, [long pause] 1 s, [curious], [serious] ...). The other providers drop them, and Kokoro turns
 // a pause tag between sentences into that much silence. Optional @voice, @direction, @speed, @lead and @tail lines
@@ -54,7 +55,9 @@
 // http://localhost:8880/v1), kokoro (Kokoro-82M in-process through voice_kokoro.py and the kokoro-onnx Python package;
 // free, CPU only, model files from GitHub), fake (synthetic tones for tests; no network, no cost).
 // Clips are cached by a fingerprint of exactly what was sent (text, provider, model, voice, direction, speed), so
-// generating again after editing one plate pays only for that plate.
+// generating again after editing one plate pays only for that plate. A new lufs target re-levels cached clips for free.
+// Gemini has no speed setting (a speed there is ignored, with a warning). Kokoro reads faster than a narrator, so
+// unless a speed is set each plate gets the speed that lands it on the target pace (measured per voice).
 //
 // KEYS. Looked up in this order: the provider's environment variable (GEMINI_API_KEY or GOOGLE_API_KEY,
 // OPENAI_API_KEY, XAI_API_KEY, ELEVENLABS_API_KEY, INWORLD_API_KEY, DOODLE_TTS_API_KEY for a local server),
@@ -97,10 +100,16 @@ const PROVIDERS = {
   gemini: { name: 'Gemini', model: 'gemini-3.1-flash-tts-preview', voice: 'Charon',
     audition: { calm: ['Charon', 'Sadaltager', 'Sulafat'], upbeat: ['Puck', 'Laomedeia', 'Sadachbia'] } },
   openai: { name: 'OpenAI', model: 'gpt-4o-mini-tts', voice: 'cedar', audition: { calm: ['cedar', 'marin', 'ash'], upbeat: ['coral', 'nova', 'marin'] } },
-  local: { name: 'the local speech server', model: 'kokoro', voice: 'af_heart', audition: KOKORO_VOICES, pace: 167 },
-  kokoro: { name: 'Kokoro', model: 'kokoro-v1.0', voice: 'af_heart', audition: KOKORO_VOICES, pace: 167 },
+  local: { name: 'the local speech server', model: 'kokoro', voice: 'af_heart', audition: KOKORO_VOICES },
+  kokoro: { name: 'Kokoro', model: 'kokoro-v1.0', voice: 'af_heart', audition: KOKORO_VOICES },
   fake: { name: 'the fake voice', model: 'fake-1', voice: 'fake-a', audition: { calm: ['fake-a', 'fake-b'], upbeat: ['fake-a', 'fake-c'] } },
 };
+// Kokoro's pace at speed 1, in words a minute of speech (pauses between sentences not counted), measured on five
+// narration sentences per voice. Its speed setting is not proportional: speed 0.85 gives 0.889 of the pace and speed
+// 0.7 gives 0.683 (the same on every voice measured), so KOKORO_CURVE maps speed to that fraction (0.5 and 1.3 are
+// extrapolated).
+const KOKORO_PACE = { af_heart: 198, af_nova: 203, am_michael: 177, am_puck: 192, bf_emma: 207, bm_george: 171 }, KOKORO_PACE_OTHER = 192;
+const KOKORO_CURVE = [[0.5, 0.41], [0.7, 0.683], [0.85, 0.889], [1, 1], [1.3, 1.22]];
 const KEY_VARS = { gemini: ['GEMINI_API_KEY', 'GOOGLE_API_KEY'], openai: ['OPENAI_API_KEY'], xai: ['XAI_API_KEY'],
   elevenlabs: ['ELEVENLABS_API_KEY'], inworld: ['INWORLD_API_KEY'], local: ['DOODLE_TTS_API_KEY'] };
 const KEY_NAMES = { gemini: 'Gemini', openai: 'OpenAI', xai: 'Grok (xAI)', elevenlabs: 'ElevenLabs', inworld: 'Inworld', local: 'Local server' };
@@ -189,13 +198,19 @@ function proxyFor(host) {
       if (bits === 0 || Math.floor(n(h) / 2 ** (32 - bits)) === Math.floor(n(c[1]) / 2 ** (32 - bits))) return null; }
   }
   if (h === 'localhost' || /^127\./.test(h) || h === '::1') return null;
-  try { return new URL(p); } catch { return null; }
+  // "host:port" with no scheme is common; an address that cannot be read is an error, never a direct connection
+  let u = null; try { u = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(p) ? p : 'http://' + p); } catch {}
+  if (!u || !u.hostname || !/^https?:$/.test(u.protocol))
+    throw new SetupError('HTTPS_PROXY is set but is not a proxy address this tool can use (expected http://host:port or https://host:port)');
+  return u;
 }
 function tunnel(proxy, host, port) {
   return new Promise((resolve, reject) => {
     const headers = { host: `${host}:${port}` };
     if (proxy.username) headers['proxy-authorization'] = 'Basic ' + Buffer.from(`${decodeURIComponent(proxy.username)}:${decodeURIComponent(proxy.password)}`).toString('base64');
-    const req = http.request({ hostname: proxy.hostname, port: +proxy.port || 80, method: 'CONNECT', path: `${host}:${port}`, headers, timeout: 30000 });
+    const secure = proxy.protocol === 'https:', ph = proxy.hostname.replace(/^\[|\]$/g, '');
+    const req = (secure ? https : http).request({ hostname: ph, port: +proxy.port || (secure ? 443 : 80), method: 'CONNECT', path: `${host}:${port}`,
+      headers, timeout: 30000, ...(secure ? { servername: ph } : {}) });
     req.on('connect', (res, socket) => {
       if (res.statusCode !== 200) { socket.destroy(); return reject(new Error(`the network proxy refused the connection to ${host} (${res.statusCode})`)); }
       const s = tls.connect({ socket, servername: host }, () => resolve(s));
@@ -436,7 +451,7 @@ function alignSentences(sents, m) {
   while (k > 0) { const h = how[k][g]; if (h === 0) g--; else if (h === 1) { bnd[k - 1] = G[g - 1]; matched++; k--; g--; } else { bnd[k - 1] = null; k--; } }
   for (let j = 0; j < B; j++) if (!bnd[j]) {                                   // an estimated boundary stays between its neighbours
     const lo = j ? (bnd[j - 1] ? bnd[j - 1][1] : on) : on, hi = bnd.slice(j + 1).find(Boolean)?.[0] ?? off;
-    const t = Math.min(hi - 0.05, Math.max(lo + 0.05, exp[j])); bnd[j] = [t, t];
+    const t = hi - lo > 0.1 ? Math.min(hi - 0.05, Math.max(lo + 0.05, exp[j])) : (lo + hi) / 2; bnd[j] = [t, t];
   }
   return { times: sents.map((s, j) => [j ? bnd[j - 1][1] : on, j < B ? bnd[j][0] : off]), matched };
 }
@@ -478,7 +493,7 @@ function joinChunks(parts, rate, speed = 1) {
 }
 const ADAPTERS = {
   gemini: {
-    direction: () => true,
+    direction: () => true, speed: false,
     prepare: (parsed, pairs) => ({ text: applyPron(parsed.sents.map(s => s.toks.map(t => t.tag != null ? `[${geminiTag(t.tag)}]` : t.text).join(' ')).join(' '), pairs) }),
     async synth(plan) {
       const key = findKey('gemini'), base = (process.env.DOODLE_GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/+$/, '');
@@ -585,29 +600,56 @@ function readLines() {
   if (!Array.isArray(L.units)) throw new SetupError('vo/lines.json has no "units" list');
   return L;
 }
+function intFlag(k, def, min) {
+  if (flags[k] == null) return def;
+  const v = Number(flags[k]);
+  if (!Number.isInteger(v) || v < min) throw new SetupError(`--${k} needs a whole number of at least ${min} (it was given "${flags[k]}")`);
+  return v;
+}
 function runConfig(L) {
   const provider = flags.provider || L.provider || process.env.DOODLE_TTS_PROVIDER || 'gemini';
   if (!ADAPTERS[provider]) throw new SetupError(`unknown provider "${provider}" (this version knows ${Object.keys(ADAPTERS).join(', ')})`);
   const own = provider === (L.provider || provider), P = PROVIDERS[provider], style = L.style || 'documentary';
   if (!STYLES[style]) throw new SetupError(`unknown style "${style}" (use ${Object.keys(STYLES).join(', ')})`);
-  return { provider, own, style, model: flags.model || (own && L.model) || P.model, voice: flags.voice || (own && L.voice) || P.voice,
+  const model = flags.model || (own && L.model) || P.model, speed = +(own && L.speed) || 0;
+  return { provider, own, style, model, voice: flags.voice || (own && L.voice) || P.voice,
     wpm: +L.wpm || STYLES[style].wpm, direction: L.direction ?? STYLES[style].directions[0],
-    // Kokoro reads at about 167 words a minute at speed 1 (measured on af_heart, am_michael and bm_george), so it is
-    // slowed to the style's pace unless lines.json sets a speed; Gemini has no speed and follows the direction instead
-    speed: +(own && L.speed) || (P.pace && (provider === 'kokoro' || /kokoro/i.test(flags.model || (own && L.model) || P.model)) ? r2((+L.wpm || STYLES[style].wpm) / P.pace) : 1),
+    // Kokoro reads faster than a narrator, so unless lines.json or the plate sets a speed, each plate gets the speed
+    // that lands it on the style's pace (kokoroSpeed); Gemini has no speed and follows the direction instead
+    speed: speed || 1, autoSpeed: !speed && (provider === 'kokoro' || (provider === 'local' && /kokoro/i.test(model))),
     lufs: +L.lufs || TARGET_LUFS, lead: L.lead ?? LEAD, tail: L.tail ?? TAIL, pron: L.pronounce || {},
-    jobs: Math.max(1, +flags.jobs || 2), retakes: flags.retakes != null ? Math.max(0, +flags.retakes) : 2 };
+    jobs: intFlag('jobs', 2, 1), retakes: intFlag('retakes', 2, 0) };
 }
+// the Kokoro speed at which a plate lasts as long as the target pace says. The pause after each sentence is fixed
+// (SENT_GAP / speed), so the words themselves are read a little faster than the target
+function kokoroSpeed(parsed, voice, wpm) {
+  const C = KOKORO_CURVE, pace = KOKORO_PACE[voice] || KOKORO_PACE_OTHER, total = parsed.words / wpm * 60;
+  // Kokoro also stops for about 0.2 s at each comma, semicolon, colon or dash (at speed 1)
+  const commas = parsed.sents.reduce((n, s) => n + (s.plain.match(/[,;:—–]/g) || []).length, 0), gaps = parsed.sents.length - 1;
+  const speedFor = f => { let k = 1; while (k < C.length - 1 && f > C[k][1]) k++;
+    const [s0, f0] = C[k - 1], [s1, f1] = C[k]; return Math.min(1.3, Math.max(0.5, s0 + (f - f0) * (s1 - s0) / (f1 - f0))); };
+  let speed = 0.85;
+  for (let i = 0; i < 4; i++) speed = speedFor(parsed.words * 60 / Math.max(0.3 * total, total - (gaps * SENT_GAP + commas * 0.2) / speed) / pace);
+  return r2(speed);
+}
+const warned = new Set(), warnOnce = m => { if (!warned.has(m)) { warned.add(m); note('voice: ' + m); } };
 function planUnit(u, cfg) {
   const A = ADAPTERS[cfg.provider], parsed = parseText(u.text || '', u.id);
   if (!parsed.words) throw new SetupError(`${u.id}: the narration has no words`);
+  const voice = flags.voice || (cfg.own && u.voice) || cfg.voice;
+  let speed = +u.speed || (cfg.autoSpeed ? kokoroSpeed(parsed, voice, cfg.wpm) : cfg.speed);
+  if (A.speed === false && speed !== 1) {                 // it would cost a new take and change nothing
+    warnOnce(`${u.id}: ${PROVIDERS[cfg.provider].name} has no speed setting, so speed ${speed} is ignored; ask for a slower or faster read in the direction instead`);
+    speed = 1;
+  }
   const plan = { id: u.id, plate: u.plate, key: u.key, parsed, provider: cfg.provider, model: cfg.model,
-    voice: flags.voice || (cfg.own && u.voice) || cfg.voice, direction: u.direction ?? cfg.direction, speed: +(u.speed ?? cfg.speed) || 1,
-    lead: +(u.lead ?? cfg.lead), tail: +(u.tail ?? cfg.tail) };
+    voice, direction: u.direction ?? cfg.direction, speed, lead: +(u.lead ?? cfg.lead), tail: +(u.tail ?? cfg.tail) };
   Object.assign(plan, A.prepare(parsed, sayAs(cfg.pron, cfg.provider)));
   if (!A.direction(plan)) plan.direction = '';
+  // settings outside lines.json that change the audio too: the Kokoro model file, and which local server answers
+  const src = cfg.provider === 'kokoro' ? process.env.DOODLE_KOKORO_MODEL : cfg.provider === 'local' ? process.env.DOODLE_TTS_BASE_URL : '';
   plan.fp = crypto.createHash('sha256').update(JSON.stringify([FORMAT, plan.provider, plan.model, plan.voice, plan.direction, plan.speed,
-    plan.text ?? plan.chunks])).digest('hex').slice(0, 12);
+    plan.text ?? plan.chunks, ...(src ? [src] : [])])).digest('hex').slice(0, 12);
   plan.expected = parsed.words / cfg.wpm * 60 + parsed.pauses;
   return plan;
 }
@@ -623,7 +665,7 @@ function cost(meta) {
 function saveClip(plan, cfg, res, take, clipDir) {
   const rate = res.rate, m = speechMap(res.samples, rate), meta = { fp: plan.fp, id: plan.id, provider: plan.provider, model: plan.model,
     voice: plan.voice, direction: plan.direction, speed: plan.speed, sent: plan.text ?? plan.chunks.map(c => c.text).join(' '), take,
-    created: new Date().toISOString(), rate, tokens: res.tokens, chars: res.chars };
+    created: new Date().toISOString(), rate, tokens: res.tokens, chars: res.chars, target_lufs: cfg.lufs };
   let y, a = 0;
   if (m.onset == null) { y = res.samples; meta.raw_lufs = null; meta.raw_peak = null; }
   else {
@@ -644,6 +686,18 @@ function saveClip(plan, cfg, res, take, clipDir) {
   fs.writeFileSync(path.join(clipDir, plan.fp + '.wav'), wavBuffer(y, rate));
   fs.writeFileSync(path.join(clipDir, plan.fp + '.json'), JSON.stringify(meta, null, 1));
   return meta;
+}
+// a cached clip made for another loudness target is turned up or down here, at no cost, instead of being made again
+function regain(fp, cfg, clipDir) {
+  const jf = path.join(clipDir, fp + '.json'), meta = readJson(jf, 'a clip sidecar');
+  if (!meta || meta.raw_lufs == null || (meta.target_lufs ?? TARGET_LUFS) === cfg.lufs) return;
+  const wf = path.join(clipDir, fp + '.wav'), w = readWav(fs.readFileSync(wf)), y = w.samples, now = lufs(y, w.rate), pk = peakDb(y);
+  let gain = cfg.lufs - now; delete meta.limited;
+  if (pk + gain > PEAK_CEIL) { gain = PEAK_CEIL - pk; meta.limited = r2(cfg.lufs - now - gain); }
+  const g = 10 ** (gain / 20); for (let i = 0; i < y.length; i++) y[i] *= g;
+  fs.writeFileSync(wf, wavBuffer(y, w.rate));
+  Object.assign(meta, { gain: r2((meta.gain || 0) + gain), target_lufs: cfg.lufs });
+  fs.writeFileSync(jf, JSON.stringify(meta, null, 1));
 }
 // what the engine gets for one plate, measured from the clip on disk
 function describe(plan, cfg, clipDir) {
@@ -702,8 +756,8 @@ async function produce(plans, cfg, clipDir) {
     const again = [];
     todo.forEach((p, k) => {
       const r = results[k];
-      if (!r || r.error) { errors.set(p.id, r?.error || new Error('no result')); if (r?.error instanceof Retryable) again.push(p); return; }
-      errors.delete(p.id);
+      if (!r || r.error) { errors.set(p.fp, { id: p.id, voice: p.voice, error: r?.error || new Error('no result') }); if (r?.error instanceof Retryable) again.push(p); return; }
+      errors.delete(p.fp);
       takes.set(p.fp, takes.get(p.fp) + 1);
       const meta = saveClip(p, cfg, r, takes.get(p.fp), clipDir), d = describe(p, cfg, clipDir);
       made.set(p.fp, meta);
@@ -731,6 +785,8 @@ function splitRow(line) {
   return cells;
 }
 const cellKey = c => c.replace(/[*`_]/g, '').trim().toLowerCase();
+// a Dur cell: "10.5", "10.5 s", or a range like "4–6" (read as its upper end, the most the plate may take)
+const durCell = c => { const n = String(c || '').match(/\d+(?:\.\d+)?/g); return n ? Math.max(...n.map(Number)) : NaN; };
 function plateTable(md) {
   const L = md.split('\n');
   for (let h = 0; h < L.length - 1; h++) {
@@ -739,20 +795,25 @@ function plateTable(md) {
     if (head[0] !== '#' || dur < 0 || !/^\s*\|?\s*:?-{2,}/.test(L[h + 1])) continue;
     const rows = [];
     for (let i = h + 2; i < L.length && /^\s*\|/.test(L[i]); i++) {
-      const c = splitRow(L[i]); rows.push({ line: i, key: cellKey(c[0] || ''), label: (c[0] || '').replace(/[*`]/g, '').trim(), dur: parseFloat(String(c[dur] || '').replace(/[^\d.]/g, '')) });
+      const c = splitRow(L[i]); rows.push({ line: i, key: cellKey(c[0] || ''), label: (c[0] || '').replace(/[*`]/g, '').trim(), dur: durCell(c[dur]) });
     }
     return { durCol: dur, rows };
   }
   return null;
 }
-function narrationBlocks(md) {
-  const L = md.split(/\r?\n/), s = L.findIndex(l => /^##\s+narration\b/i.test(l));
+// HTML comments are removed first, even across lines (their line breaks are kept, so line numbers stay right)
+const noComments = md => md.replace(/<!--[\s\S]*?-->/g, c => c.replace(/[^\n]/g, ''));
+function narrationBlocks(md, table) {
+  const L = noComments(md).split(/\r?\n/), s = L.findIndex(l => /^##\s+narration\b/i.test(l));
   if (s < 0) return null;
+  // a block starts at a "### I · Title" heading, or at an unheaded "I · Title" line whose key is a row of the plate
+  // table (so a narration line like "1953 — the year ..." stays narration)
+  const rowKey = k => table?.rows.some(r => r.key === k.replace(/[*`_]/g, '').toLowerCase());
   const blocks = []; let b = null;
   for (let i = s + 1; i < L.length; i++) {
     const l = L[i];
     if (/^#{1,2}\s/.test(l)) break;
-    const h = l.match(/^###\s+(.+)$/), plan = !h && l.match(/^(P\d+|\d+|[IVXLC]+|End)\s+[·•|:—–-]\s*(.*)$/i);
+    const h = l.match(/^###\s+(.+)$/), m = !h && l.match(/^(\S+)\s+[·•|:—–-]\s*(.*)$/), plan = m && rowKey(m[1]) ? m : null;
     if (h || plan) {
       if (h && /^pronunciation\b/i.test(h[1].trim())) { b = null; continue; }
       const key = h ? h[1].trim().split(/\s*[·•|:—–]\s*|\s+-\s+|\s+/)[0] : plan[1];
@@ -761,13 +822,13 @@ function narrationBlocks(md) {
     if (!b) continue;
     const o = l.match(/^\s*@(voice|direction|speed|lead|tail|climax)\b\s*[:=]?\s*(.*)$/i);
     if (o) { b.opts[o[1].toLowerCase()] = /^(speed|lead|tail)$/i.test(o[1]) ? +o[2] : o[1].toLowerCase() === 'climax' ? true : o[2].trim(); continue; }
-    const t = l.replace(/<!--.*?-->/g, '').replace(/^\s*>\s?/, '').replace(/[*`]/g, '').trim();
+    const t = l.replace(/^\s*>\s?/, '').replace(/[*`]/g, '').trim();
     if (t) b.text.push(t);
   }
   return blocks;
 }
 function pronunciations(md) {
-  const L = md.split(/\r?\n/), res = {}, s = L.findIndex(l => /^#{2,4}\s+pronunciation/i.test(l));
+  const L = noComments(md).split(/\r?\n/), res = {}, s = L.findIndex(l => /^#{2,4}\s+pronunciation/i.test(l));
   if (s < 0) return res;
   const level = L[s].match(/^#+/)[0].length;
   for (let i = s + 1; i < L.length; i++) {
@@ -784,24 +845,32 @@ const ROMAN = s => { const v = { i: 1, v: 5, x: 10, l: 50, c: 100 }; let n = 0; 
 async function cmdLines() {
   const script = pos[0] || 'script.md', sp = path.resolve(DIR, script);
   if (!fs.existsSync(sp)) throw new SetupError(`${sp} not found`);
-  const md = fs.readFileSync(sp, 'utf8'), blocks = narrationBlocks(md), table = plateTable(md);
+  const md = fs.readFileSync(sp, 'utf8'), table = plateTable(md), blocks = narrationBlocks(md, table);
   if (!blocks) throw new SetupError(`${script} has no "## Narration" section. Add one, one block per plate:\n\n## Narration\n### I · Into the Blood\nOne particle slips into the vein. [short pause]\nIt is one of {count}about four hundred and thirty billion in a single milligram.\n`);
-  const old = readJson(LINES, 'vo/lines.json') || {}, oldUnits = new Map((old.units || []).map(u => [u.id, u]));
+  const old = readJson(LINES, 'vo/lines.json') || {};
   const units = [];
   for (const b of blocks) {
     const text = b.text.join(' ').trim();
     if (!text || /^\(?(none|no narration|silent|—|–|-)\)?\.?$/i.test(text)) continue;
-    const k = b.key.toLowerCase(); let plate;
-    if (/^p\d+$/.test(k)) plate = +k.slice(1);
-    else if (table && table.rows.some(r => r.key === k)) plate = table.rows.findIndex(r => r.key === k);
+    const k = b.key.toLowerCase(), notPlate = `${script} line ${b.line}: "${b.key}" is not a plate in the plate table (use its # value, like I or End, or P<n>)`;
+    let plate;
+    if (table && table.rows.some(r => r.key === k)) plate = table.rows.findIndex(r => r.key === k);
+    else if (/^p\d+$/.test(k)) plate = +k.slice(1);
+    else if (table) throw new SetupError(notPlate);
     else if (/^\d+$/.test(k)) plate = +k;
     else if (/^[ivxlc]+$/.test(k)) plate = ROMAN(k);
-    else throw new SetupError(`${script} line ${b.line}: "${b.key}" is not a plate in the plate table (use its # value, like I or End, or P<n>)`);
+    else throw new SetupError(notPlate);
+    if (table && plate >= table.rows.length) throw new SetupError(`${script} line ${b.line}: ${b.key} is past the last plate (the table has ${table.rows.length}, P0 to P${table.rows.length - 1})`);
     const id = 'P' + plate;
     if (units.some(u => u.id === id)) throw new SetupError(`${script} line ${b.line}: plate ${b.key} has two narration blocks (one block per plate)`);
     parseText(text, `${script} plate ${b.key}`);                       // refuse broken marks now, not after paying for audio
-    const prev = oldUnits.get(id) || {}, u = { id, plate, key: b.key, text };
-    for (const k2 of ['voice', 'direction', 'speed', 'lead', 'tail', 'climax']) { const v = b.opts[k2] ?? prev[k2]; if (v !== undefined && v !== '' && !Number.isNaN(v)) u[k2] = v; }
+    const u = { id, plate, key: b.key, text };                          // script.md is the only source of these, so a
+    for (const k2 of ['voice', 'direction', 'speed', 'lead', 'tail', 'climax']) {   // line taken out of it is gone
+      const v = b.opts[k2]; if (v === undefined || v === '') continue;
+      if (typeof v === 'number' && !(Number.isFinite(v) && (k2 === 'speed' ? v > 0 : v >= 0)))
+        throw new SetupError(`${script} plate ${b.key}: @${k2} needs a number${k2 === 'speed' ? ' above 0' : ' of seconds'}`);
+      u[k2] = v;
+    }
     units.push(u);
   }
   if (!units.length) throw new SetupError(`the Narration section of ${script} has no narration in it`);
@@ -810,8 +879,10 @@ async function cmdLines() {
   if (!PROVIDERS[provider]) throw new SetupError(`unknown provider "${provider}"`);
   const same = provider === (old.provider || provider), style = flags.style || old.style || 'documentary';
   if (!STYLES[style]) throw new SetupError(`unknown style "${style}" (use ${Object.keys(STYLES).join(', ')})`);
-  const pron = { ...(flags.facts ? pronunciations(fs.readFileSync(path.resolve(DIR, flags.facts), 'utf8')) : {}), ...(old.pronounce || {}), ...pronunciations(md) };
-  const L = { version: FORMAT, script, provider, model: flags.model || (same && old.model) || PROVIDERS[provider].model,
+  const facts = flags.facts || old.facts, fp2 = facts && path.resolve(DIR, facts);           // remembered for later runs
+  if (fp2 && !fs.existsSync(fp2)) throw new SetupError(`${fp2} not found (--facts)`);
+  const pron = { ...(fp2 ? pronunciations(fs.readFileSync(fp2, 'utf8')) : {}), ...pronunciations(md) };
+  const L = { version: FORMAT, script, ...(facts ? { facts } : {}), provider, model: flags.model || (same && old.model) || PROVIDERS[provider].model,
     voice: flags.voice || (same && old.voice) || (provider === (process.env.DOODLE_TTS_PROVIDER || 'gemini') && process.env.DOODLE_TTS_VOICE) || PROVIDERS[provider].voice,
     style, ...(old.wpm ? { wpm: old.wpm } : {}), direction: (flags.style && flags.style !== old.style ? null : old.direction) ?? STYLES[style].directions[0],
     ...(old.speed ? { speed: old.speed } : {}), lufs: old.lufs ?? TARGET_LUFS, lead: old.lead ?? LEAD, tail: old.tail ?? TAIL, pronounce: pron, units,
@@ -849,17 +920,22 @@ async function build(cfg, L, { synth }) {
   }
   const prev = readJson(VOICE, 'vo/voice.json'), prevUnits = new Map((prev?.units || []).map(u => [u.id, u])), units = [], missing = [];
   for (const p of plans) {
-    if (fs.existsSync(path.join(clipDir, p.fp + '.wav'))) { units.push(describe(p, cfg, clipDir)); continue; }
+    if (fs.existsSync(path.join(clipDir, p.fp + '.wav'))) { regain(p.fp, cfg, clipDir); units.push(describe(p, cfg, clipDir)); continue; }
     const old = prevUnits.get(p.id);
-    if (old && old.fp && fs.existsSync(path.join(DIR, old.file))) {                   // an older clip whose text or settings changed
-      const oldPlan = { ...p, fp: old.fp }; const d = describe(oldPlan, cfg, clipDir);
-      d.checks.flags.unshift('fail: stale: the narration or its settings changed after this clip was made; run generate');
-      units.push(d); continue;
+    if (old && old.fp && fs.existsSync(path.join(DIR, old.file))) {
+      // an older clip whose text or settings changed: kept exactly as it was, so its times still match its own words
+      const kept = (old.checks?.flags || []).filter(f => !f.startsWith('fail: stale'));
+      units.push({ ...old, checks: { ...(old.checks || {}), flags: ['fail: stale: the narration or its settings changed after this clip was made; run generate', ...kept] } });
+      continue;
     }
     missing.push(p.id);
   }
   filmChecks(units);
-  const unchanged = prev?.locked && units.length === prev.units.length && units.every(u => prevUnits.get(u.id)?.fp === u.fp) && !missing.length;
+  // the lock holds only while every clip is the very one that was locked (a retake keeps the fingerprint, so the
+  // take and length are compared too) and nothing fails
+  const same = (a, b) => a && ['fp', 'take', 'dur', 'plate', 'lead', 'tail'].every(k => a[k] === b[k]);
+  const unchanged = prev?.locked && !missing.length && units.length === prev.units.length && units.every(u => same(prevUnits.get(u.id), u))
+    && !units.some(u => u.checks.flags.some(f => f.startsWith('fail')));
   const V = { version: FORMAT, provider: cfg.provider, model: cfg.model, voice: cfg.voice, style: cfg.style, wpm_target: cfg.wpm, lufs: cfg.lufs,
     locked: !!unchanged, ...(unchanged ? { locked_at: prev.locked_at } : {}), generated: new Date().toISOString(), missing,
     units: units.map(u => { const { _raw, _cost, _truth, ...rest } = u; return rest; }) };
@@ -872,13 +948,13 @@ function report(r, cfg, verb) {
   const fails = units.filter(u => u.checks.flags.some(f => f.startsWith('fail'))), spent = [...made.values()].reduce((a, m) => a + (m.cost || 0), 0);
   if (flags.json) {
     out(JSON.stringify({ voice: path.relative(DIR, VOICE), units: units.map(u => ({ id: u.id, dur: u.dur, wpm: u.checks.wpm, timing: u.timing, flags: u.checks.flags, new: [...made.values()].some(m => m.fp === u.fp) })),
-      missing, errors: Object.fromEntries([...errors].map(([k, e]) => [k, e.message])), cost: Math.round(spent * 1e4) / 1e4 }, null, 1));
+      missing, errors: Object.fromEntries([...errors.values()].map(e => [e.id, e.error.message])), cost: Math.round(spent * 1e4) / 1e4 }, null, 1));
   } else {
     printTable(['id', 'dur', 'wpm', 'timing', 'clip', 'flags'], units.map(u => [u.id, `${u.dur.toFixed(2)} s`, u.checks.wpm, u.timing,
       [...made.values()].some(m => m.fp === u.fp) ? `new, take ${u.take}` : 'kept', u.checks.flags.length ? u.checks.flags[0] + (u.checks.flags.length > 1 ? ` (+${u.checks.flags.length - 1} more)` : '') : 'ok']));
     for (const u of units) for (const f of u.checks.flags.slice(1)) out(`  ${u.id} ${f}`);
-    for (const [id, e] of errors) out(`${id}: FAILED: ${e.message}`);
-    const none = missing.filter(id => !errors.has(id));
+    for (const e of errors.values()) out(`${e.id}: FAILED: ${e.error.message}`);
+    const failedIds = new Set([...errors.values()].map(e => e.id)), none = missing.filter(id => !failedIds.has(id));
     if (none.length) out(`no clip yet for ${none.join(', ')}${verb === 'check' ? ' (run generate)' : ''}`);
     const total = units.reduce((a, u) => a + u.dur, 0);
     out(`${verb === 'check' ? 'checked' : 'wrote'} ${path.relative(DIR, VOICE)}: ${units.length} clips, ${total.toFixed(1)} s of narration${made.size ? `; ${made.size} new, ${spent ? `about ${dollars(spent)}` : 'at no cost'}` : ''}`);
@@ -902,7 +978,11 @@ async function cmdCheck() {
     for (const u of r.units) { const x = res?.units?.[u.id]; if (!x) continue;
       for (const k of ['missing', 'extra']) if (Array.isArray(x[k])) u.checks[k] = x[k];
       if (Array.isArray(x.flags)) u.checks.flags.push(...x.flags); }
-    if (res) { r.V.units = r.units.map(u => { const { _raw, _cost, _truth, ...rest } = u; return rest; }); fs.writeFileSync(VOICE, JSON.stringify(r.V, null, 2) + '\n'); }
+    if (res) {
+      r.V.units = r.units.map(u => { const { _raw, _cost, _truth, ...rest } = u; return rest; });
+      if (r.units.some(u => u.checks.flags.some(f => f.startsWith('fail')))) { r.V.locked = false; delete r.V.locked_at; }
+      fs.writeFileSync(VOICE, JSON.stringify(r.V, null, 2) + '\n');
+    }
   }
   return report(r, cfg, 'check');
 }
@@ -985,11 +1065,12 @@ async function cmdAudition() {
   const all = combos.flatMap(c => c.plans), todo = all.filter((p, i) => all.findIndex(q => q.fp === p.fp) === i && !fs.existsSync(path.join(clipDir, p.fp + '.wav')));
   out(`audition: ${texts.length} lines x ${voices.length} voices x ${directions.length} direction${directions.length > 1 ? 's' : ''} with ${PROVIDERS[cfg.provider].name} (${cfg.model}); ${todo.length} new clips`);
   const { made, errors } = await produce(todo, { ...cfg, retakes: Math.min(cfg.retakes, 1) }, clipDir);
-  for (const [id, e] of errors) out(`${id}: FAILED: ${e.message}`);
+  for (const e of errors.values()) out(`${e.voice} ${e.id}: FAILED: ${e.error.message}`);
   const ff = spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status === 0, rows = [], json = [];
   for (const c of combos) {
     const ds = c.plans.filter(p => fs.existsSync(path.join(clipDir, p.fp + '.wav'))).map(p => describe(p, { ...cfg, voice: c.voice }, clipDir));
-    if (!ds.length) continue;
+    const lost = c.plans.length - ds.length, lostFlag = `fail: ${lost} of ${c.plans.length} lines have no clip (see the FAILED lines)`;
+    if (!ds.length) { json.push({ voice: c.voice, direction: c.direction, file: null, wpm: null, raw_lufs: null, flags: [lostFlag], score: 1000 }); continue; }
     const parts = ds.map(d => readWav(fs.readFileSync(path.join(DIR, d.file)))), rate = parts[0].rate, gap = new Float32Array(Math.round(0.8 * rate));
     const y = new Float32Array(parts.reduce((n, p) => n + p.samples.length + gap.length, 0)); let o = 0;
     for (const p of parts) { y.set(p.samples, o); o += p.samples.length + gap.length; }
@@ -998,25 +1079,25 @@ async function cmdAudition() {
     let file = wav;
     if (ff && spawnSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-i', wav, '-codec:a', 'libmp3lame', '-q:a', '4', path.join(dir, name + '.mp3')]).status === 0) { fs.rmSync(wav); file = path.join(dir, name + '.mp3'); }
     const words = c.plans.reduce((n, p) => n + p.parsed.words, 0), speech = ds.reduce((n, d) => n + (d.sentences.at(-1)[1] - d.sentences[0][0]), 0);
-    const wpm = Math.round(words * 60 / Math.max(0.1, speech)), flagsAll = ds.flatMap(d => d.checks.flags.map(f => `${d.id} ${f}`));
+    const wpm = Math.round(words * 60 / Math.max(0.1, speech)), flagsAll = [...(lost ? [lostFlag] : []), ...ds.flatMap(d => d.checks.flags.map(f => `${d.id} ${f}`))];
     const raws = ds.map(d => d._raw).filter(v => v != null), raw = raws.length ? r2(raws.reduce((a, b) => a + b, 0) / raws.length) : null;
     const target = cfg.wpm, score = flagsAll.filter(f => / fail/.test(f)).length * 10 + flagsAll.length + Math.abs(wpm / target - 1) * 10;
     json.push({ voice: c.voice, direction: c.direction, file: path.relative(DIR, file), wpm, raw_lufs: raw, flags: flagsAll, score: r2(score) });
   }
   json.sort((a, b) => a.score - b.score);
   const spent = [...made.values()].reduce((a, m) => a + (m.cost || 0), 0);
-  const md = [`# Voice audition`, '', `${PROVIDERS[cfg.provider].name}, ${cfg.model}; ${cfg.style} style, target ${cfg.wpm} words a minute${cfg.speed !== 1 ? ` (speed ${cfg.speed})` : ''}. Made ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC; new clips cost about ${dollars(spent)}.`, '',
+  const md = [`# Voice audition`, '', `${PROVIDERS[cfg.provider].name}, ${cfg.model}; ${cfg.style} style, target ${cfg.wpm} words a minute${cfg.autoSpeed ? ' (Kokoro speed set line by line to match it)' : cfg.speed !== 1 ? ` (speed ${cfg.speed})` : ''}. Made ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC; new clips cost about ${dollars(spent)}.`, '',
     'Lines (read back to back in every file, 0.8 s apart):', '', ...texts.map((t, i) => `${i + 1}. ${t}`), '',
     ...(directions[0] ? ['Directions:', '', ...directions.map((d, i) => `${i + 1}. ${d}`), ''] : []),
     'Best first, by the automatic checks only (fewest flags, pace nearest the target). Listen before choosing; the checks cannot hear tone.', '',
     '| Voice | Direction | Pace (wpm) | Loudness before normalizing (LUFS) | Flags | File |', '|---|---|---|---|---|---|',
-    ...json.map(j => `| ${j.voice} | ${directions[0] ? directions.indexOf(j.direction) + 1 : '-'} | ${j.wpm} | ${j.raw_lufs ?? '-'} | ${j.flags.length || 'none'} | ${path.basename(j.file)} |`), '',
-    ...(json.some(j => j.flags.length) ? ['Flags (A1 is line 1, and so on):', '', ...json.filter(j => j.flags.length).map(j => `- ${path.basename(j.file)}: ${j.flags.join('; ')}`), ''] : [])];
+    ...json.map(j => `| ${j.voice} | ${directions[0] ? directions.indexOf(j.direction) + 1 : '-'} | ${j.wpm ?? '-'} | ${j.raw_lufs ?? '-'} | ${j.flags.length || 'none'} | ${j.file ? path.basename(j.file) : 'none'} |`), '',
+    ...(json.some(j => j.flags.length) ? ['Flags (A1 is line 1, and so on):', '', ...json.filter(j => j.flags.length).map(j => `- ${j.file ? path.basename(j.file) : `${j.voice} (no file)`}: ${j.flags.join('; ')}`), ''] : [])];
   fs.writeFileSync(path.join(dir, 'audition.md'), md.join('\n'));
   fs.writeFileSync(path.join(dir, 'audition.json'), JSON.stringify({ provider: cfg.provider, model: cfg.model, lines: texts, directions, results: json }, null, 1) + '\n');
   if (flags.json) out(JSON.stringify({ results: json, cost: spent }, null, 1));
   else {
-    printTable(['voice', 'dir', 'wpm', 'raw LUFS', 'flags', 'file'], json.map(j => [j.voice, directions[0] ? directions.indexOf(j.direction) + 1 : '-', j.wpm, j.raw_lufs ?? '-', j.flags.length || 'none', j.file]));
+    printTable(['voice', 'dir', 'wpm', 'raw LUFS', 'flags', 'file'], json.map(j => [j.voice, directions[0] ? directions.indexOf(j.direction) + 1 : '-', j.wpm ?? '-', j.raw_lufs ?? '-', j.flags.length || 'none', j.file || 'none']));
     out(`wrote ${path.relative(DIR, path.join(dir, 'audition.md'))}${ff ? '' : ' (ffmpeg not found, so the files are WAV, not MP3)'}; new clips cost about ${dollars(spent)}`);
   }
   return errors.size ? 1 : 0;
