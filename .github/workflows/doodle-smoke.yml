@@ -74,6 +74,11 @@ jobs:
           npx playwright install --with-deps chromium
           npx playwright --version
 
+      - name: Regression tests (biocoating film gaps)
+        # tests/doodle-art-animation/regression_test.py: story parts in smoke_test, audio_check's seam swell, plates
+        # that reset globalAlpha inside a fade, the zoom default, and speed_check's TWICE warning on pans.
+        run: python3 tests/doodle-art-animation/regression_test.py --node-modules "$RUNNER_TEMP/pw/node_modules"
+
       - name: Run smoke test
         run: >
           python "$TOOLKIT/smoke_test.py"

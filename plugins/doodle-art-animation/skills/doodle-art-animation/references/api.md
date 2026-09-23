@@ -21,7 +21,7 @@ Plate fields:
 | `focus` | `t => [x, y]` in screen coordinates, for plates without a hero |
 | `cam` | `t => ({ x, y, s, dx, dy, rot })`, or `t => follow(target, t, { s, lead, lag, anchor })` to track a moving subject |
 | `drift` | Override the automatic push-in (a fraction, or `false`) |
-| `draw(t)` | The scene |
+| `draw(t)` | The scene. While `draw` and `overlay` run, `ctx.globalAlpha` counts from the alpha the plate was handed: during a transition's fade, `ctx.globalAlpha = 1` means "back to the fade", not full strength, so a plate cannot undo its own fade. `ctx.save()` / `*=` / `ctx.restore()` still reads best |
 | `overlay(t)` | Art that ignores the camera, momentum and the match-cut/carry shift (stats, callouts, cards, charts). It still leaves with its plate during a transition. Anchor to the hero with `heroOf(plate, t)`. |
 | `cues` | `[[t, name, opts]]`: at local time `t`, play `SFX[name](ac, out, plateStart + t, opts)` |
 | `bed` | `(ac, out, t0, dur) => …`, or a `BED.*` bed; replaces the automatic music pad for this plate |
