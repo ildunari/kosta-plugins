@@ -17,6 +17,7 @@ The plugin has five agents. Three review a built film and run here: `film-review
 - The working folder is the second argument, otherwise the current directory. `cd` into it and confirm with `pwd`.
 - The story is the first argument, otherwise `story.js`. If that doesn't exist, list the `story*.js` files and ask which one.
 - The scene script, if any: a `script.md`, `plates.md` or similar in the folder, or the plate table and seam list in the story file's top comment. Note where it is.
+- Narration: the film is narrated when `brief.md` says so or the folder has `vo/voice.json`. Note it; several checks below change for a narrated film.
 - The film HTML is `film.html` unless the folder already has another HTML built from this story (check its `<title>` against the story's `title`). The MP4 is the newest `*.mp4` in the folder, if any.
 - The toolkit lives at `${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation/toolkit`. If that path was not filled in, use `${CLAUDE_SKILL_DIR}/../doodle-art-animation/toolkit`. Copy in anything the folder is missing, never overwriting existing files: `cp -Rn "<toolkit>/." . || true` (macOS `cp -n` can exit non-zero when files already exist; that is fine). If the folder's `engine.js` differs from the toolkit's (`cmp`), say so in the summary; don't replace it, because the story may depend on it.
 
@@ -47,6 +48,8 @@ node legibility_check.mjs <film>.html --crops qa/legibility   # text over artwor
 node story_check.mjs <film>.html                              # elapsed time, stage numbers and the hero's ID stay consistent
 node cue_check.mjs <film>.html                                # one effect dominating, identical repeats
 python3 smoke_test.py --stories <story> --work qa_smoke   # page errors, fonts, blank frames, and a short clip whose sound it checks
+node voice.mjs check                                          # narrated films only: every clip against its line (length, pace, gaps)
+node render.mjs <film>.html --stems --dir qa                  # narrated films only: voice and the rest as two WAVs, plus qa/speech.json
 touch qa/.complete                             # only once everything above succeeded
 ```
 
@@ -55,6 +58,7 @@ If there is an MP4 **newer than the current build**, also run the following. An 
 ```
 python3 motion_check.py <film>.mp4
 python3 audio_check.py <film>.mp4 --starts <transition times printed by text_check>   # add --silent, and drop --starts, for a story made with silent: true
+                                                    # narrated: add --narrated --stems qa (-16 LUFS, true peak, music 15-20 dB under the voice)
 ffprobe -v error -count_frames -select_streams v -show_entries stream=nb_read_frames -of csv=p=0 <film>.mp4
 ```
 
@@ -62,9 +66,9 @@ Stop and report if the build fails or any `PAGE ERROR` appears. Open the contact
 
 ## 3. Run the reviewers
 
-Start the reviewers in parallel with the Agent tool: `doodle-art-animation:film-reviewer`, `doodle-art-animation:seam-reviewer` and, if there is an MP4 with sound, `doodle-art-animation:audio-reviewer`. Give each the absolute working folder, the HTML name, the story file and the MP4 (if any). Tell them that `qa/` already holds the contact sheet (`qa/contact_sheet.jpg`), strips, seam sheets and `qa/text_check.json` from this run (and the `text_check`, `speed_check`, `motion_check` and `audio_check` output, pasted into the prompt), so they should reuse those and render only the extra stills they need. Give `audio-reviewer` the transition times and any sound plan from `sound-designer` too. Without an MP4, skip `audio-reviewer` and list it under "Not checked" — `/doodle-art-animation:doodle-render` runs it once the MP4 exists. For a silent film (`silent: true` in the story) there is nothing for it to review; say so, and tell `film-reviewer` the film is silent so it runs `audio_check --silent` and skips its sound rubric — a silent track has identical channels and would otherwise fail as mono.
+Start the reviewers in parallel with the Agent tool: `doodle-art-animation:film-reviewer`, `doodle-art-animation:seam-reviewer` and, if there is an MP4 with sound, `doodle-art-animation:audio-reviewer`. Give each the absolute working folder, the HTML name, the story file and the MP4 (if any). Tell them that `qa/` already holds the contact sheet (`qa/contact_sheet.jpg`), strips, seam sheets and `qa/text_check.json` from this run (and the `text_check`, `speed_check`, `motion_check` and `audio_check` output, pasted into the prompt), so they should reuse those and render only the extra stills they need. Give `audio-reviewer` the transition times and any sound plan from `sound-designer` too. For a narrated film, tell all three it is narrated and point them at `vo/voice.json`, `qa/speech.json` and the `voice.mjs check` output: `film-reviewer` checks the words on screen against what is being said, `seam-reviewer` checks lines running across seams, and `audio-reviewer` checks the voice in the mix. Without an MP4, skip `audio-reviewer` and list it under "Not checked" — `/doodle-art-animation:doodle-render` runs it once the MP4 exists. For a silent film (`silent: true` in the story) there is nothing for it to review; say so, and tell `film-reviewer` the film is silent so it runs `audio_check --silent` and skips its sound rubric — a silent track has identical channels and would otherwise fail as mono.
 
-If step 1 found a scene script, also start `doodle-art-animation:script-reviewer` with the script, the story file, the sources the folder or story lists, and the user's request and intake answers if you have them from this conversation (say so if you don't). It normally runs before the build, during planning; here it checks that the built film still matches its plan, so ask for that comparison explicitly: hand it the plate files (or `story.js`) as well as the script, and ask it to map every row to what was built — beats present and in order, facts and numbers as scripted, seams as listed. With no script, skip it and note that script review belongs to planning.
+If step 1 found a scene script, also start `doodle-art-animation:script-reviewer` (for a narrated film, with the narration: the locked lengths from `vo/voice.json` against the script's estimates) with the script, the story file, the sources the folder or story lists, and the user's request and intake answers if you have them from this conversation (say so if you don't). It normally runs before the build, during planning; here it checks that the built film still matches its plan, so ask for that comparison explicitly: hand it the plate files (or `story.js`) as well as the script, and ask it to map every row to what was built — beats present and in order, facts and numbers as scripted, seams as listed. With no script, skip it and note that script review belongs to planning.
 
 ## 4. Summarise
 
@@ -90,6 +94,7 @@ If the user says yes: merge the reviews into one fix list, apply it, rebuild, an
 | New art, a new beat, a plate retimed | that plate's `--sheet-range` sheet, `--sheet 1`, `text_check` (a retimed plate can cut a line short at its new end), `motion_check` after the next render, then `film-reviewer`; if the change reaches the plate's first or last seconds, also the adjacent seam sheets and `seam-reviewer`, since a hero moved at the boundary is a hand-off that no longer meets |
 | A cue, bed or `music` changed | `cue_check`, then `audio_check` after the next render, then `audio-reviewer` |
 | The scene script itself changed | `script-reviewer` |
+| A narration line rewritten or retaken | `node voice.mjs generate`, `check` and `lock` (only that plate costs anything), rebuild, `--stems`, then `film-reviewer` and `audio-reviewer`: the plate's length and its marks moved, and the beats on them moved too |
 
 Apply each fix to its source — the plate file or `helpers.js` in a folder built by `/doodle-art-animation:doodle-build`, never `story.js`, which `assemble.sh` regenerates — then `sh assemble.sh` and a build (`python3 build.py`) come before any of them, and anything needing an MP4 waits for the next render. Repeat until the affected checks are clean, then report the same summary as above for what changed, and say which checks you did not re-run and why.
 

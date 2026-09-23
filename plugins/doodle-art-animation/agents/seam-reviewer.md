@@ -59,6 +59,8 @@ Automatic fails, whatever the score:
 
 Redesign any seam with a 0, an automatic fail, or a total under 14.
 
+**Narration at seams** (narrated films only: the plates have `vo`, or `vo/voice.json` exists). Most seams should have no narration over them. Read the sentence times from `<film>.srt` or `window.__voice()` against each seam: a line that runs across a seam must be a planned L-cut or J-cut in the seam list (the old plate's line carrying on over the new picture, or the new plate's line starting under the old one); otherwise say so under Hold and staging. A narrated line cut off by a transition scores 0 on Hold and staging.
+
 ## Scene verdicts
 
 Each seam belongs to the scene it enters, because that plate's `enter` implements it. Give each seam a verdict in the **scene verdict** format that the build lanes and `film-reviewer` use, so the main session can merge the three reports scene by scene:

@@ -20,7 +20,7 @@ Read this when planning the film.
   - one italic line that reframes the film (*Every glass of water has done this before.*);
   - the colophon `TITLE · N PLATES · N FRAMES · DRAWN IN CODE`;
   - `SOURCES · …`.
-- **No narration.** On-screen text carries the story, so give every line its reading time.
+- **No narration** unless the brief asks for it. On-screen text carries the story, so give every line its reading time. A narrated film follows `references/voice.md` and the "Narration" section below.
 
 ## Adapting any subject
 
@@ -131,3 +131,25 @@ Three things the table gets wrong more often than anything else:
 | III | Leaky Vessels (paper) | 12.8 | whip pan right 0.9, picking up the flow's speed: the flow carries the camera on (a switch-up after the lens-in, not a pull-out) | follow NP·01 at s 1.3 with lead room, then pull back to the full diagram 5.6→8.2 | … | along the capillary, down through a gap | 1.1→7.3 stat ≈380–780 nm · 1.4→6.7 junction callout (fixed label) · 5.2→12.6 EPR callout · 7.2 side labels · 8.3→12.6 lymph notes (wide view only) | T+ 6→24 h, FLOWING → LODGED | 03 EXTRAVASATION | NP·01 leaves the flow through a gap in the wall and lodges; the log flips FLOWING → LODGED | heartbeat bed, chimes |
 | IV | Slow Release (night) | 12 | lensIn 2.1, heavy (speed peak at 40%, long release; the slow breath), after a slow creep | slow push 1.06→1.14 with a sway | … | fixed; the particle swells and pits | 1.7→ release card, the curve draws with the clock · 2.2→7.6 hydrolysis callout · 6.6→11.9 diffusion callout | T+ 1→28 days, released % | 04 RELEASE | NP·01 swells, its outline roughens and pits open as it erodes; drug dots leave it and the release curve rises with them | dark bed, plinks per drug |
 | End | End card (night) | 10.5 | shape 1.6: the eroded particle → the emblem | – | – | – | drifting camera, ripples, turning tick ring, orbiting drug · 1.5 quote · 2.5 credits · 2.9 notes | – | – | the eroded particle becomes the emblem, then erodes further and lets its last drug go | pad, chimes |
+
+## Narration
+
+Only for a narrated film (the brief says so; `references/voice.md` has the rules for what the narrator says, the pacing and the voice phase). The narration lives in `script.md` below the plate table, in a `## Narration` section with one block per plate. Each block starts with a `###` heading that begins with the plate's `#` (`0`, `I`, `II` … `End`, or `P<n>`), followed by the lines the narrator says:
+
+```
+## Narration
+### I · Into the Blood
+One particle slips into the vein. [short pause]
+It is one of {count}about four hundred and thirty billion in a single milligram.
+
+### II · The Corona
+(none)
+```
+
+- **Marks in braces** name the moment a word is spoken: `{count}` is the start of "about". A beat in the table uses the mark instead of a number of seconds (`stat ≈430 billion per mg at {count}`), and the stat lands on the word once the voice exists. Marks are never read aloud.
+- **Delivery tags in square brackets** (`[short pause]`, `[long pause]`, `[curious]`) shape the reading.
+- **`(none)`** marks a plate with no narration on purpose.
+- **Per-plate settings** go on their own lines in the block when one plate needs a different reading: `@voice`, `@direction`, `@speed`, `@lead`, `@tail`.
+- **Each plate's row notes its estimated spoken seconds**, at the start of its Beats cell (`≈ 8.5 s spoken ·`), so the table shows at a glance whether the words fit the `Dur`. Leave the `Dur` cell a bare number: `voice.mjs lock` rewrites it when the real voice runs longer. `node toolkit/voice.mjs lines script.md` prints the same estimate for every plate.
+- **A `## Pronunciation` section** after the narration lists how to say each technical term, one per line: `- meloxicam: mel-OX-i-cam`. The voice is sent the respelling; the script and the screen keep the real word. A lowercase term matches any case; `PCL` matches only `PCL`.
+- **The seam list says which seams the narration crosses** (an L-cut or a J-cut, `references/voice.md`, "Pacing"); every other seam is unnarrated.

@@ -26,6 +26,7 @@ Candidate areas, roughly in order of how much they change the build:
 | Length | Sets the number of plates and the pacing | ≈ 30 s teaser · ≈ 60 s · 2–3 min · 4–5 min full study |
 | Hero subject | The thing tracked through every plate | the obvious traveller · an alternative · a character the viewer can relate to |
 | Audio | Changes the sound design and the render | music + ambience + effects · effects and ambience only · music only · silent (`defineStory({ silent: true })` — leaving out cues is not enough, the engine adds its own) |
+| Narration | Adds a voice phase before the build, and changes the writing and the mix (`references/voice.md`) | none (Recommended unless the request asks for narration or a voice-over) · calm documentary narrator · explainer · short-form. Two voices (host and expert) is planned, not built |
 | Tone and audience | Sets the copy, density of facts and pace | curious general audience · students · specialists · children |
 | Setting and scenery | The places the plates show | the literal setting · a stylised map or cross-section · a mix |
 | Drawing complexity | Density of each plate, build time | rich and detailed · balanced · sparse and diagrammatic |
@@ -33,6 +34,10 @@ Candidate areas, roughly in order of how much they change the build:
 | Must-include facts or data | What has to be on screen | the user's dataset or source · standard figures I research · a specific number or claim |
 | Ending | The last idea the viewer keeps | recap of the whole journey · a single reframing line · a call to action · an open question |
 | Delivery | The files and format | MP4 + HTML player · MP4 only · MP4 plus stills or a contact sheet |
+
+### Narration
+
+Narration is off by default: the answer is "none" unless the request asks for narration or a voice-over. Ask the question only when the request leaves it open and the run is interactive; in an unattended run, take the default without asking (none, or the documentary style when a voice-over was asked for). When a film is narrated, the brief also records the narrator preset and a reason of a few words, picked by the rules in `references/voice-presets.md` (what the user asked for, else the film's character, else the style's preset, and not the narrator of the last two films). A request for a voice ("a woman's voice", "British", "warm") is answered by a preset there, not by a question. The key is never written into `brief.md`. The styles, the voice phase and the keys are in `references/voice.md`; the presets are in `references/voice-presets.md`.
 
 ## 3. Shape each question
 
@@ -62,7 +67,7 @@ Reply compactly, e.g. "1a 2b 3: my own answer". Anything you skip, I'll decide.
 
 ## 4. After the answers
 
-- Restate the decisions as a short brief (4–8 lines): length, hero, setting, audio, tone and audience, must-include facts, ending, delivery, plus any assumption you made for unanswered questions.
+- Restate the decisions as a short brief (4–8 lines): length, hero, setting, audio, narration, tone and audience, must-include facts, ending, delivery, plus any assumption you made for unanswered questions.
 - **Save that brief as `brief.md`** in the film folder. It is not just a message to the user: every later phase reads it. The script is written against it, the sound plan is written against it, and each build lane is handed it so the plate it draws is consistent with decisions taken before that lane existed. A brief that only ever appeared in the conversation reaches none of them.
 - Carry the brief into the scene script: plate count and durations follow the length, the hero column follows the hero, the sound column follows the audio choice, the end card follows the ending.
 - For films over about a minute, the script summary you show the user before building should reflect these decisions, so they can see their answers in it.
