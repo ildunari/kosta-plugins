@@ -101,7 +101,7 @@ def voice_script(path):
         src = next((c for c in (os.path.join(film, u['file']), os.path.join(vdir, u['file']), u['file']) if os.path.isfile(c)), None)
         if not src: sys.exit(f'--voice: clip {u["file"]} for {u["id"]} not found (looked in {film} and {vdir})')
         audio, mime = clip_bytes(src, os.path.join(vdir, '.opus'))
-        keep = {k: u[k] for k in ('id', 'plate', 'dur', 'sentences', 'marks', 'text', 'timing', 'lufs') if k in u}
+        keep = {k: u[k] for k in ('id', 'plate', 'dur', 'sentences', 'marks', 'text', 'timing', 'lufs', 'lead', 'tail') if k in u}
         units.append({**keep, 'mime': mime, 'audio': base64.b64encode(audio).decode()})
         secs += float(u.get('dur') or 0); size += len(audio)
     head = {k: data[k] for k in ('version', 'provider', 'model', 'voice', 'style') if k in data}

@@ -4,8 +4,8 @@ usage: python3 make_voice.py MODEL_DIR    (MODEL_DIR holds kokoro-v1.0.onnx and 
        github.com/thewh1teagle/kokoro-onnx/releases/tag/model-files-v1.0)
 needs: pip install kokoro-onnx soundfile numpy faster-whisper; ffmpeg
 
-It reads vo/lines.json and writes vo/clips/<id>.ogg (Opus) and vo/voice.json in the format the engine reads
-(docs/doodle-art-animation/voice-track.md). The plugin's own voice tool (toolkit/voice.mjs) is the real way to make
+It reads vo/lines.json and writes vo/clips/<id>.ogg (Opus) and vo/voice.json in the format toolkit/voice.mjs writes
+and the engine reads (skills/doodle-art-animation/references/api.md, "Narration"). The plugin's own voice tool (toolkit/voice.mjs) is the real way to make
 narration; this script only exists so the example's clips can be remade. How it times things:
   - each sentence is generated on its own and the clip is the sentences joined with set pauses (0.35 s, or 0.75 s after
     [pause]), so every sentence start and end is exact;

@@ -1990,9 +1990,10 @@ function defineStory(story) {
  * in the HTML as window.__VOICE_DATA, so the film stays one file and the player, the render and every check hear it.
  * A plate names its clip: `vo: 'P2'`, a list `vo: ['P3a', 'P3b']` (played in order, `gap` s apart), or
  * `vo: { id, at, gap, tail, marks }`. Then:
- *   - the clip starts at `at` (plate seconds; default: once the header's title has typed on, plus VOICE.lead). A
- *     negative `at` starts it during the previous plate (a J-cut);
- *   - the plate lasts at least until the clip ends plus `tail` (default VOICE.tail). Its own `dur` is the drawing's
+ *   - the clip starts at `at` (plate seconds; default: once the header's title has typed on, plus VOICE.lead, and
+ *     no earlier than the clip's own `lead` in voice.json). A negative `at` starts it during the previous plate (a J-cut);
+ *   - the plate lasts at least until the clip ends plus `tail` (default: the clip's `tail` in voice.json, else
+ *     VOICE.tail). Its own `dur` is the drawing's
  *     minimum, and may be left out when the narration sets the length. A negative `tail` lets the line run on across
  *     the seam into the next plate (an L-cut);
  *   - named words in the script ({count}) are marks: mark('count') is the plate time that word is spoken, and a cue
@@ -2016,7 +2017,8 @@ function voiceUnit(u) {
     sents = parts.length === sents.length ? sents.map((s, i) => [s[0], s[1], parts[i]]) : [[sents[0][0], sents[sents.length - 1][1], cleanWords(u.text)]];
   }
   if (!sents.length) sents = [[0, +u.dur || 0, cleanWords(u.text)]];
-  return { id: String(u.id), dur: +u.dur || (sents.length ? sents[sents.length - 1][1] : 0), sentences: sents, marks: u.marks || {}, audio: u.audio, mime: u.mime };
+  return { id: String(u.id), dur: +u.dur || (sents.length ? sents[sents.length - 1][1] : 0), sentences: sents, marks: u.marks || {}, audio: u.audio, mime: u.mime,
+    lead: u.lead != null ? +u.lead : null, tail: u.tail != null ? +u.tail : null };
 }
 /** where a plate's narration starts by default: once the title has finished typing (dropText at 17 cps, 0.25 s pop) */
 function voiceStart(p) {
@@ -2036,9 +2038,10 @@ function placeVoice(story) {
       const u = NARR.units.get(String(it.id)) || null;
       if (data && !u) NARR.warnings.push(`plate ${p.i} asks for narration '${it.id}', which the embedded voice.json does not have`);
       if (u) used.add(u.id);
-      const at = it.at != null ? +it.at : end == null ? voiceStart(p) : end + (it.gap ?? o.gap);
+      // the first clip waits for the title; the lead voice.json planned for it (script.md's @lead) is a minimum
+      const at = it.at != null ? +it.at : end == null ? Math.max(voiceStart(p), (u && u.lead) || 0) : end + (it.gap ?? o.gap);
       end = at + (u ? u.dur : 0);
-      p.voice.push({ id: String(it.id), at, dur: u ? u.dur : 0, unit: u, est: it.marks || {}, tail: it.tail });
+      p.voice.push({ id: String(it.id), at, dur: u ? u.dur : 0, unit: u, est: it.marks || {}, tail: it.tail ?? (u ? u.tail : null) ?? undefined });
     }
     if (p.voice.some(v => v.unit)) { const last = p.voice[p.voice.length - 1];
       p.durMin = p.dur; p.dur = Math.max(p.dur || 0, end + (last.tail ?? o.tail)); }            // the picture waits for the voice

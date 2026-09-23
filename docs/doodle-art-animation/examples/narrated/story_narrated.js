@@ -11,7 +11,7 @@
    plays before the voice exists.
 
    Seams: 0 → I zoom into the beaker as the salt lands; I → II lens into the water where the crystals were;
-   II → III lens back out to the bench.
+   II → end card: lens back out to the bench.
    Values rounded: table salt (NaCl) dissolves to about 36 g per 100 mL of water at 20 °C. */
 Object.assign(PAL, { na: '#8e7cc3', cl: '#6fb56c', oxy: '#e0645a', hyd: '#f4f1ea', salt: '#f7f4ec', saltSide: '#d9d3c5', streak: '#eef8fa' });
 const BENCH = 910;
