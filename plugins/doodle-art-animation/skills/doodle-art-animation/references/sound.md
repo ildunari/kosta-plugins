@@ -2,7 +2,7 @@
 
 Every sound is synthesized in code: the plugin ships no audio files, so a film stays one self-contained HTML. The one recording a film may carry is its own narration, which `build.py` embeds in the HTML (see "Narration" below). The engine renders the whole track with an `OfflineAudioContext` from the same plate start times as the picture, so the result is deterministic and exported as WAV.
 
-The layers: a music bed (pads in the film's key), ambience beds (room tone, rain, wind, traffic, the inside of the body, underwater, forest, ocean, fire, a room with a clock, the micro world, vinyl crackle), effect cues on the picture's events, the automatic sounds of seams and headers (the header writes with its paper's own tool), a compressor, a short reverb and real stereo.
+The layers: a music bed (pads in the film's key), ambience beds (room tone, rain, wind, traffic, the inside of the body, underwater, forest, ocean, fire, a room with a clock, the micro world, vinyl crackle), effect cues on the picture's events, instruments and short musical stingers in the film's key, the automatic sounds of seams and headers (the header writes with its paper's own tool), a compressor, a short reverb and real stereo.
 
 ## The rule: different kinds of events get different sounds
 
@@ -41,7 +41,13 @@ A viewer hears a repeated sound as the same event happening again. So the same s
 | Electricity, magnetism | `zap`, `magnet` | |
 | A camera move or a seam | the automatic transition sound | don't add a contact sound to it |
 | Time passing | a bed change (`wind` rising, `cityHum` thinning), bed `BED.clockRoom`, a slow `tone` glide, or a `tick` series | not a pen scratch |
-| A reveal | a moment of near-silence before it, then `chime` or a lift in the bed | see *Dynamics* |
+| A reveal | a moment of near-silence before it, then `chime` or a lift in the bed; for the film's one big reveal, the `reveal` stinger | see *Dynamics* |
+| The hero first appears; changes; the end | `motif { degs }` (its four notes), varied `degs` when it changes, and ending on the tonic at the end | one motif per film |
+| Something works, a step completes | `success` | musical, so keep it for real wins |
+| A question is posed, a mystery opens | `question` | |
+| A myth crossed out, a failed attempt | `oops` | |
+| The end card | `resolve` (a rolled chord) | |
+| A melody or a counted series in key | an instrument: `marimba`, `kalimba`, `musicBox`, `celesta`, `glock`, `vibes`, `epiano`, `pluck`, `feltPiano`, `strings` | `{ deg }` keeps it in key |
 | Places | beds: `roomTone` (lab, office, classroom), `rain`, `wind` (outdoors, a fall), `cityHum` (streets), `body` (inside the body, the bloodstream), `underwater`, `forest`, `ocean`, `fire`, `clockRoom`, `micro` (inside a cell, mucus, a gel), `vinyl` (lo-fi, archival) | |
 
 ## Effect cues
@@ -72,7 +78,7 @@ New in v0.15 (techniques after Andy Farnell, *Designing Sound*, and K. van den D
 - `pageFlip` `{ dur = 0.45, g }`: a page turned: a rising, fluttering swish of air and the soft slap as it lands.
 - `pegSnap` `{ g }`: a clothes peg: a scrape of the spring, a woody snap and a faint ring of the coil. Also good for any small clip or latch.
 
-New in v0.16.4 (sound build S2). Writing tools take `{ chars, cps }` to type a line or `{ dur }` to draw one; typed, each is level-matched to the pen `scratch` (within 0.3 LU), and drawn, each sits with the other effects:
+New in v0.16.5 (sound build S2). Writing tools take `{ chars, cps }` to type a line or `{ dur }` to draw one; typed, each is level-matched to the pen `scratch` (within 0.3 LU), and drawn, each sits with the other effects:
 
 - `pencil` `{ chars, cps, dur = 1.2, g, rate }`: graphite on paper, softer and grainier than the pen, in strokes (`rate` a second).
 - `chalk` `{ chars, cps, dur = 1, g, rate }`: typed, a tap onto each letter and a short dry scrape; drawn, a rough scrape with the odd squeak.
@@ -102,11 +108,39 @@ Paper and desk, data, lab and body, physical:
 - `zap` `{ dur = 0.35, g }`: an electric spark, a crack and a short buzz.
 - `magnet` `{ g }`: a small magnet snapping onto metal.
 
+## Instruments and stingers (new in v0.16.4)
+
+Ten pitched instruments play one note per call, in the film's key, and vary per call like the effects (a fixed `seed` repeats one exact note). Every one takes `{ f, deg, oct, tonic, g, pan, decay, seed }`: `f` is the pitch in Hz; without it, `deg` (a degree of the engine's `note()` scale, 0 = the tonic) is played in the film's key (`tonic`, else `music.tonic`, else 220 Hz), `oct` octaves above the tonic, starting from the instrument's home octave. `g` is the note's peak and `decay` stretches or shortens its ring (1 = as built). The pitch never varies by more than 2 cents per call, and a test checks every instrument's tuning by FFT to within 5 cents.
+
+- `marimba { hard }` (home: one octave up): a wooden bar, soft mallet, short and woody. `hard` 0..1 is the mallet.
+- `vibes { trem }` (one up): a long metal bar with the motor's tremolo (`trem` Hz, 0 = motor off).
+- `musicBox` (two up): a plucked steel comb tine, bright, with the pin's click.
+- `kalimba` (one up): a thumb-plucked tine over a wooden box, warm.
+- `celesta` (two up): a soft, round bell.
+- `glock { hard }` (three up): a glockenspiel, bright and ringing.
+- `epiano { vel }` (one up): an electric piano, bright when struck and mellowing; `vel` 0..1 is how hard.
+- `pluck { bright, t60 }` (the tonic's octave): a plucked string, harp-like when bright, a soft bass when low.
+- `feltPiano { vel }` (the tonic's octave): a soft upright with felt over the hammers.
+- `strings { dur, att, rel, bright, notes }`: a string section swelling in over `att` s, held `dur` s, released over `rel` s; one note (`f` or `deg`), a chord (`notes: [Hz, ...]`), or the film's I chord when neither is given.
+
+How each is made is in the comment above `INST` in `engine.js`: struck bars and tines are modal synthesis (a few decaying sines at the object's mode ratios), the electric piano is FM, the plucked string is Karplus-Strong, the felt piano sums a stiff string's stretched overtones, and the strings are detuned sawtooth waves through a slowly opening filter.
+
+Six stingers are short musical phrases in the film's key, built from the instruments. Each takes `{ tonic, g, seed }`, where `g` scales the whole phrase (1 = as balanced), and varies per call:
+
+- `motif { degs = [2, 3, 4, 6], inst = 'musicBox', step = 0.22, oct }`: the hero's four notes, when it first appears. Change `degs` when the hero changes; end on the tonic (`0`) at the end.
+- `success { inst = 'marimba' }`: a quick rising arpeggio.
+- `question { inst = 'epiano' }`: two rising notes that do not resolve.
+- `oops`: a falling half step on a muted string.
+- `reveal { lead = 1.4 }`: a reversed swell that starts `lead` s before the cue and ends exactly on it, then a low boom, a bright chord and a string swell. The bed ducks by 40% for 0.9 s under it. Use it once or twice per film, on the moment itself (a cue's time is the hit, not the start of the swell).
+- `resolve`: a rolled felt-piano chord and a music-box sparkle, for the end card.
+
+`One Drop` (`story_one_drop.js`) uses five of them: its motif when the drop appears and again, ending on the tonic, under the end card; `oops` as the teardrop myth is crossed out; `reveal` as the camera settles on the whole route; `success` as the route closes; `resolve` under the end card's rule line. Music beds with a pulse (arpeggios, lo-fi, the pulse bed) are not built yet; today's pad is still the default bed.
+
 A story can still add its own: `SFX.drip = (ac, out, t, o = {}) => { … }` before `defineStory`, built from `SFX.tone`, `SFX.noise` or `synth(ac, out, t, dur, fill, { g, pan, filters })`. Keep it deterministic: no `Math.random`; use `sfxRng(o, t, 'drip')` so it varies per call like the built-ins.
 
 ## Beds
 
-`bed: (ac, out, t0, dur) => …` on a plate plays on a bus that ducks by 50% under every transition and by 25% under a `chime`, `pop` or `crunch`. Overlapping ducks combine as the deepest one at each moment, so a cue inside a transition's duck never pulls the bed back up early.
+`bed: (ac, out, t0, dur) => …` on a plate plays on a bus that ducks by 50% under every transition, by 25% under a `chime`, `pop` or `crunch`, and by 40% under a `reveal`. Overlapping ducks combine as the deepest one at each moment, so a cue inside a transition's duck never pulls the bed back up early.
 
 - **Music bed:** `defineStory({ music: { tonic: 220, gain } })` gives every plate without a `bed` an automatic pad. Stage `n` plays chord `n` of a I–vi–IV–V–ii–V loop; night plates drop an octave, darken and add a low noise bed; the end card resolves to I with an added 9th. `SFX.pad` and `SFX.padKey` build your own.
 - **Ambience beds** (`BED.*`, in the bed shape, each takes `(ac, out, t0, dur, opts)` and fades in and out over about a second; left and right are synthesized separately so they are really stereo):

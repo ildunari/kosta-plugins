@@ -235,7 +235,7 @@ carrying a fact), `label` (the default: chart axes, legends, card notes), `hud` 
 ## V6 · Sound with variety, still synthesized
 - [auto] The engine's `SFX` has, besides its existing sounds: `crunch`, `creak`, `pump`, `relay`, `hiss`, `plop`,
   `slosh`, `shaker`, `clink`, `pour`, `foil`, `droplet`, `pageFlip`, `pegSnap`, and the beds `roomTone`, `rain`,
-  `wind`, `cityHum`; and since v0.16.4 the writing tools `pencil`, `chalk`, `marker`, `quill`, `charcoal`, `techPen`, the
+  `wind`, `cityHum`; and since v0.16.5 the writing tools `pencil`, `chalk`, `marker`, `quill`, `charcoal`, `techPen`, the
   effects `typewriter`, `eraser`, `stamp`, `tear`, `counter`, `sonify`, `sparkle`, `pipette`, `centrifuge`, `syringe`,
   `pills`, `fizz`, `bubbles`, `squelch`, `heartbeat`, `beep`, `zap`, `magnet`, and the beds `body`, `underwater`,
   `forest`, `ocean`, `fire`, `clockRoom`, `micro`, `vinyl`. Each takes a `seed`, and repeated calls vary unless a seed
@@ -250,6 +250,11 @@ carrying a fact), `label` (the default: chart axes, legends, card notes), `hud` 
   on the fixture `tests/doodle-art-animation/fixtures/story_monotone.js` (ten pops in 16 s).
 - [auto] Unseeded repeats of a sound vary in their dominant component, and the variation is seeded by plate, time
   within the plate, name and repeat at that instant, never by call order (fixes from the final v0.15 review).
+- [auto] (v0.16.4) Ten instruments (`marimba`, `vibes`, `musicBox`, `kalimba`, `celesta`, `glock`, `epiano`, `pluck`,
+  `feltPiano`, `strings`) and six stingers (`motif`, `success`, `question`, `oops`, `reveal`, `resolve`) are in the
+  engine, cue-able by name, listed in `VARIED` and documented in `sound.md`. `regression_test.py` checks every
+  instrument's tuning by FFT to within 5 cents over its range, that a fixed seed repeats one exact note while plain
+  calls vary, and that each stinger renders sound without clipping.
 
 ## V7 · Scene verdicts at fixed points
 - [auto] `references/build-lanes.md`, `agents/film-reviewer.md` and `agents/seam-reviewer.md` use one scene-verdict
@@ -279,7 +284,7 @@ carrying a fact), `label` (the default: chart axes, legends, card notes), `hud` 
   byte-identical except the pan seam's sheets, which changed because of the fix above.
 
 ## Release
-- [auto] `plugin.json` and the marketplace entry say `0.16.4`.
+- [auto] `plugin.json` and the marketplace entry say `0.16.5`.
 - [auto] `smoke_test.py` passes on every bundled story, including `story_brushes.js`.
 - [eye] Final independent review against this file and the ledger; example films and gallery re-rendered and
   sent to Kosta.
