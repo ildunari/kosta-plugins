@@ -172,18 +172,26 @@ else:
         shutil.copy2(os.path.join(FIX, 'grounds', 'zz_fixture.js'), os.path.join(tk, 'grounds'))
         h = build('story_swatch.js')
         if h:
+            # plates are found by paper, not position: every toolkit/grounds/ file adds its sets to the swatch
             r = probe(h, """const s = window.__story, g = document.getElementById('stage').getContext('2d'), out = { plates: s.starts.length };
+              const inSet = new Set(Object.values(PAPER_SETS).flatMap(p => [p.light, p.dark]));
+              out.expected = 2 * Object.keys(PAPER_SETS).length + Object.keys(GROUNDS).filter(n => !inSet.has(n)).length;
+              const idx = (paper, dark) => STORY.plates.findIndex(p => p.paper === paper && !!p.dark === dark);
+              const fd = idx('fixture', true), fl = idx('fixture', false), nd = idx('notebook', true); out.found = [fd, fl, nd];
+              if (Math.min(fd, fl, nd) < 0) return out;
               const hash = () => { const d = g.getImageData(0, 0, 1920, 1080).data; let h = 2166136261; for (let i = 0; i < d.length; i++) h = Math.imul(h ^ d[i], 16777619); return h >>> 0; };
               const at = (i, u) => Math.round((s.starts[i].t + u * 3) * s.fps), mid = (x, y) => Array.from(g.getImageData(x, y, 1, 1).data.slice(0, 3));
-              window.__renderFrame(at(3, 0.8)); out.fixDark = hash(); out.fixDarkPx = mid(200, 300);
-              window.__renderFrame(at(3, 0.8)); out.again = hash();
-              window.__renderFrame(at(2, 0.1)); out.seam = hash();
-              window.__renderFrame(at(1, 0.8)); out.nightPx = mid(200, 300);
+              window.__renderFrame(at(fd, 0.8)); out.fixDark = hash(); out.fixDarkPx = mid(200, 300);
+              window.__renderFrame(at(fd, 0.8)); out.again = hash();
+              window.__renderFrame(at(fl, 0.1)); out.seam = hash();
+              window.__renderFrame(at(nd, 0.8)); out.nightPx = mid(200, 300);
               out.papers = window.__paperProbe().map(p => [p.name, p.fails]);
               return out;""")
             v = r.get('result') or {}
             check('paper: the swatch shows every set, fixture papers included, with no page errors',
-                  v.get('plates') == 4 and not r.get('errors'), f"{v.get('plates')} plates, {str(r.get('errors'))[:300]}")
+                  v.get('plates') is not None and v.get('plates') == v.get('expected') and min(v.get('found') or [-1]) >= 0 and not r.get('errors'),
+                  f"{v.get('plates')} plates of {v.get('expected')}, fixture dark/light and night at {v.get('found')}, {str(r.get('errors'))[:300]}")
+            if v and 'fixDark' not in v: v = {}
             if v:
                 check('paper: a treated paper renders the same pixels twice', v['fixDark'] == v['again'], str(v))
                 check("paper: the fixture's dark paper is blue where the notebook's night is navy",
