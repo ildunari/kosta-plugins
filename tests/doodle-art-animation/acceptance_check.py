@@ -391,6 +391,9 @@ SOUND = read(os.path.join(REF, 'sound.md')) or ''
 PRINC = read(os.path.join(REF, 'animation-principles.md')) or ''
 NEW_SFX = ['crunch', 'creak', 'pump', 'relay', 'hiss', 'plop', 'slosh', 'shaker', 'clink', 'pour', 'foil', 'droplet',
            'pageFlip', 'pegSnap', 'roomTone', 'rain', 'wind', 'cityHum']
+# v0.16.4: the ten instruments and six stingers (sound plan S1)
+NEW_MUSIC = ['marimba', 'vibes', 'musicBox', 'kalimba', 'celesta', 'glock', 'epiano', 'pluck', 'feltPiano', 'strings',
+             'motif', 'success', 'question', 'oops', 'reveal', 'resolve']
 
 if want('V1'):
     check('V1', 'toolkit/legibility_check.mjs exists', os.path.isfile(os.path.join(TK, 'legibility_check.mjs')))
@@ -442,6 +445,12 @@ if want('V6'):
     check('V6', 'sound.md documents every new sound', not miss, 'missing ' + ', '.join(miss))
     check('V6', 'sound.md states the event rule and the climax lift',
           bool(re.search(r'different (kinds of )?events?[^.]{0,60}different sounds', SOUND, re.I)) and bool(re.search(r'climax', SOUND, re.I)))
+    miss = [n for n in NEW_MUSIC if not re.search(r'^  ' + n + r'\(ac, out, t, o = \{\}\)', ENGINE, re.M) or f'`{n}' not in SOUND]
+    check('V6', 'the instruments and stingers are in the engine and sound.md', not miss, 'missing ' + ', '.join(miss))
+    vm = re.search(r'const VARIED = new Set\(\[(.*?)\]\)', ENGINE, re.S)
+    miss = [n for n in NEW_MUSIC if not vm or f"'{n}'" not in vm.group(1)]
+    check('V6', 'the instruments and stingers are listed in VARIED', not miss, 'missing ' + ', '.join(miss))
+    check('V6', 'plates can cue them by name', 'Object.assign(SFX, INST, STING)' in ENGINE)
     check('V6', 'toolkit/cue_check.mjs exists', os.path.isfile(os.path.join(TK, 'cue_check.mjs')))
     check('V6', 'fixture story_monotone.js exists', os.path.isfile(os.path.join(FIX, 'story_monotone.js')))
     check('V6', 'variation is not seeded by call order', 'AUDIO.n++' not in ENGINE and bool(re.search(r'const sfxRng[\s\S]{0,400}AUDIO\.plate', ENGINE)))
@@ -477,8 +486,8 @@ if want('REL'):
     pj = json.loads(read(os.path.join(PLUG, '.claude-plugin', 'plugin.json')) or '{}')
     mj = json.loads(read(os.path.join(REPO, '.claude-plugin', 'marketplace.json')) or '{}')
     mv = next((p.get('version') for p in mj.get('plugins', []) if p.get('name') == 'doodle-art-animation'), None)
-    check('REL', 'plugin.json version 0.16.3', pj.get('version') == '0.16.3', str(pj.get('version')))
-    check('REL', 'marketplace entry version 0.16.3', mv == '0.16.3', str(mv))
+    check('REL', 'plugin.json version 0.16.4', pj.get('version') == '0.16.4', str(pj.get('version')))
+    check('REL', 'marketplace entry version 0.16.4', mv == '0.16.4', str(mv))
 
 # ---------------------------------------------------------------- full checks (build, probe, render)
 def run(cmd, cwd=None, timeout=1800):

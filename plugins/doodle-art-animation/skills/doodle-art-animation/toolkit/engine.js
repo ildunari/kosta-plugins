@@ -2263,7 +2263,8 @@ const note = (tonic, deg) => tonic * 2 ** (SCALE[((deg % 8) + 8) % 8] / 12 + Mat
 const AUDIO = { tag: 'cue', plate: 0, t0: 0, seen: new Map(), reset() { this.plate = 0; this.t0 = 0; this.seen.clear(); this.tag = 'cue'; } };
 const VARIED = new Set(['tick', 'scratch', 'readout', 'pop', 'chime', 'plink', 'thump', 'swell', 'riser', 'crackle', 'whoosh', 'shutter',
   'glide', 'flick', 'bend', 'hiss', 'crunch', 'creak', 'pump', 'relay', 'plop', 'slosh', 'shaker', 'clink', 'pour', 'foil', 'droplet',
-  'pageFlip', 'pegSnap']);
+  'pageFlip', 'pegSnap', 'marimba', 'vibes', 'musicBox', 'kalimba', 'celesta', 'glock', 'epiano', 'pluck', 'feltPiano', 'strings',
+  'motif', 'success', 'question', 'oops', 'reveal', 'resolve']);
 const saltOf = s => { let h = 7; for (let i = 0; i < s.length; i++) h = Math.imul(h, 31) + s.charCodeAt(i) | 0; return h; };
 /** rng for one sound: mulberry seeded by opts.seed, or by (plate, time within the plate, name, repeat at that instant) */
 const sfxRng = (o, t, name) => {
@@ -2510,6 +2511,126 @@ const SFX = {
   },
 };
 /*
+ * Instruments: pitched notes in the film's key, one note per call, varied per call like the effects above (a fixed
+ * `seed` repeats one exact note). Every instrument takes (ac, out, t, { f, deg, oct, tonic, g, pan, decay, seed }):
+ * `f` is the pitch in Hz; without it, `deg` (a degree of note()'s scale, 0 = the tonic) is played in the film's key
+ * (`tonic`, else music.tonic, else 220 Hz), `oct` octaves above the tonic (each instrument has a home octave).
+ * `g` is the note's peak and `decay` stretches or shortens its ring (1 = as built). The pitch is exact: small per-call
+ * changes are in level, timbre and ring, never more than 2 cents of pitch (the tuning test allows 5).
+ * How they are made:
+ *   - struck bars and tines (marimba, vibes, glock, celesta, musicBox, kalimba): modal synthesis, a few decaying sines
+ *     at the object's mode ratios (a marimba bar tuned near 1 : 3.9 : 9.2, a free steel bar 1 : 2.756 : 5.404, after
+ *     Fletcher & Rossing, The Physics of Musical Instruments, 1998), each dying at its own rate, plus the mallet's click;
+ *   - epiano: two-operator FM (Chowning, JAES 1973) with a decaying index, bright at the strike and mellowing;
+ *   - pluck: Karplus-Strong (CMJ 1983), a noise burst circulating in a delay line that loses treble each pass, with the
+ *     allpass fine-tuning of Jaffe & Smith (CMJ 1983) so high notes stay in tune; low notes make a soft bass;
+ *   - feltPiano: partials stretched by string stiffness (f_n = n f sqrt(1 + B n^2), Fletcher et al., JASA 1962), two
+ *     strings per note a hair apart so they beat, a quick and a slow decay, a soft felt onset;
+ *   - strings: three detuned sawtooth oscillators per note through a slowly opening filter, with vibrato, spread wide.
+ */
+/** the film's key: opts.tonic, else music.tonic, else 220 Hz (A3) */
+const tonicOf = o => (o && o.tonic) || (STORY && STORY.music && STORY.music.tonic) || 220;
+/** an instrument's pitch: opts.f in Hz, else degree opts.deg of the film's key, opts.oct octaves up (home: the instrument's own) */
+const pitchOf = (o, home) => o.f ?? note(tonicOf(o) * 2 ** (o.oct ?? home), o.deg ?? 0);
+const softOnset = (d, n) => { for (let i = 0, m = Math.min(n, d.length); i < m; i++) d[i] *= i / m; };
+const INST = {
+  /** marimba: a rosewood bar over a tube, soft mallet, short and woody. hard 0..1 = mallet hardness */
+  marimba(ac, out, t, o = {}) { const { g = 0.07, pan = 0, decay = 1, hard = 0.5 } = o, r = sfxRng(o, t, 'marimba'), f = pitchOf(o, 1) * semis(r, 0.02);
+    const tau = clamp(0.5 * Math.sqrt(262 / f), 0.12, 0.8) * decay;
+    synth(ac, out, t, tau * 5, (d, q) => { DSP.modes(d, 0, [[f, 1, tau], [f * rr(q, 3.88, 3.98), rr(q, 0.14, 0.26) * (0.6 + 0.8 * hard), tau * 0.22], [f * rr(q, 9.0, 9.3), 0.05 * (0.4 + 1.2 * hard), tau * 0.07]]);
+      DSP.burst(d, 0, rr(q, 0.15, 0.3) * (0.4 + 1.2 * hard), 0.008, 0.0015, q); }, { g: g * rr(r, 0.85, 1.05), r, pan, filters: [{ type: 'lowpass', f: Math.min(9000, f * 10), q: 0.5 }] }); },
+  /** vibraphone: a long aluminium bar with the motor's tremolo (trem Hz, 0 = motor off) */
+  vibes(ac, out, t, o = {}) { const { g = 0.05, pan = 0, decay = 1, trem = 5.2 } = o, r = sfxRng(o, t, 'vibes'), f = pitchOf(o, 1), tau = clamp(1.5 * Math.sqrt(262 / f), 0.5, 2.4) * decay;
+    synth(ac, out, t, tau * 3.5, (d, q) => { DSP.modes(d, 0, [[f, 1, tau], [f * 4.0, rr(q, 0.07, 0.13), tau * 0.15], [f * 10, 0.025, tau * 0.05]]);
+      const ph = q() * TAU, rate = trem * rr(q, 0.97, 1.03); if (trem > 0) for (let i = 0; i < d.length; i++) d[i] *= 1 - 0.3 * (0.5 + 0.5 * Math.sin(TAU * rate * i / SR + ph)); },
+      { g: g * rr(r, 0.9, 1.05), r, pan }); },
+  /** music box: a plucked steel comb tine, bright, with its high inharmonic partial and the pin's click */
+  musicBox(ac, out, t, o = {}) { const { g = 0.05, pan = 0, decay = 1 } = o, r = sfxRng(o, t, 'musicBox'), f = pitchOf(o, 2), tau = clamp(0.9 * Math.sqrt(1046 / f), 0.3, 1.4) * decay;
+    synth(ac, out, t, tau * 4, (d, q) => { DSP.modes(d, 0, [[f, 1, tau], [f * 1.0025, rr(q, 0.25, 0.4), tau], [f * rr(q, 5.9, 6.3), 0.16, tau * 0.12], [f * rr(q, 16.5, 17.5), 0.04, tau * 0.03]]);
+      DSP.burst(d, 0, rr(q, 0.08, 0.15), 0.004, 0.0008, q); }, { g: g * rr(r, 0.85, 1.05), r, pan, filters: [{ type: 'highpass', f: 250 }] }); },
+  /** kalimba: a thumb-plucked tine over a wooden box, warm, with a quick high overtone and the box's knock */
+  kalimba(ac, out, t, o = {}) { const { g = 0.06, pan = 0, decay = 1 } = o, r = sfxRng(o, t, 'kalimba'), f = pitchOf(o, 1), tau = clamp(0.8 * Math.sqrt(523 / f), 0.3, 1.2) * decay;
+    synth(ac, out, t, tau * 4, (d, q) => { DSP.modes(d, 0, [[f, 1, tau], [f * rr(q, 5.8, 6.1), rr(q, 0.16, 0.28), tau * 0.07], [f * 2, 0.05, tau * 0.3]]);
+      DSP.chirp(d, 0, rr(q, 0.14, 0.22), rr(q, 165, 195), 120, 0.02, 0.012, 0.06); }, { g: g * rr(r, 0.85, 1.05), r, pan, filters: [{ type: 'lowpass', f: 6000, q: 0.5 }] }); },
+  /** celesta: felt hammers on steel bars over resonators: a soft, round bell */
+  celesta(ac, out, t, o = {}) { const { g = 0.05, pan = 0, decay = 1 } = o, r = sfxRng(o, t, 'celesta'), f = pitchOf(o, 2), tau = clamp(1.1 * Math.sqrt(1046 / f), 0.4, 1.6) * decay;
+    synth(ac, out, t, tau * 4, (d, q) => { DSP.modes(d, 0, [[f, 1, tau], [f * 2.0, rr(q, 0.09, 0.15), tau * 0.4], [f * rr(q, 2.72, 2.78), 0.06, tau * 0.25]]); softOnset(d, 96); },
+      { g: g * rr(r, 0.85, 1.05), r, pan, filters: [{ type: 'lowpass', f: 7000 }] }); },
+  /** glockenspiel: a hard mallet on free steel bars, bright and ringing. hard 0..1 = mallet hardness */
+  glock(ac, out, t, o = {}) { const { g = 0.045, pan = 0, decay = 1, hard = 0.6 } = o, r = sfxRng(o, t, 'glock'), f = pitchOf(o, 3), tau = clamp(1.4 * Math.sqrt(1568 / f), 0.5, 2) * decay;
+    synth(ac, out, t, tau * 4, (d, q) => { DSP.modes(d, 0, [[f, 1, tau], [f * 2.756, rr(q, 0.24, 0.36) * (0.5 + hard), tau * 0.45], [f * 5.404, 0.12 * (0.4 + hard), tau * 0.18]]);
+      DSP.burst(d, 0, 0.1 * (0.5 + hard), 0.003, 0.0006, q); }, { g: g * rr(r, 0.85, 1.05), r, pan }); },
+  /** electric piano: two-operator FM with a decaying index, plus the tine's short high ding. vel 0..1 = how hard it is played */
+  epiano(ac, out, t, o = {}) { const { g = 0.05, pan = 0, decay = 1, vel = 0.6 } = o, r = sfxRng(o, t, 'epiano'), f = pitchOf(o, 1), tau = (0.9 * Math.sqrt(262 / f) + 0.5) * decay;
+    synth(ac, out, t, tau * 3, (d, q) => { const i0 = (1.2 + 2.2 * vel) * rr(q, 0.9, 1.1), p0 = q() * TAU, bark = rr(q, 0.08, 0.16); let pc = p0, pm = 0;
+      for (let i = 0; i < d.length; i++) { const s = i / SR, idx = i0 * Math.exp(-s / 0.3) + 0.35; pm += TAU * f / SR; pc += TAU * f * 1.0007 / SR;
+        d[i] = Math.exp(-s / tau) * Math.min(1, i / 80) * (Math.sin(pc + idx * Math.sin(pm)) + bark * Math.exp(-s / 0.05) * Math.sin(TAU * f * 14 * s)); } },
+      { g: g * rr(r, 0.85, 1.05), r, pan, filters: [{ type: 'lowpass', f: 4500, q: 0.5 }, { type: 'highpass', f: 40, q: 0.5 }] }); },
+  /** plucked string: harp-like when bright, a soft bass when low. bright 0..1, t60 = seconds to die away (default by pitch) */
+  pluck(ac, out, t, o = {}) { const { g = 0.06, pan = 0, decay = 1, bright = 0.5 } = o, r = sfxRng(o, t, 'pluck'), f = pitchOf(o, 0), T = o.t60 ?? clamp(1.8 * Math.sqrt(220 / f), 0.5, 3) * decay;
+    synth(ac, out, t, T, (d, q) => { const P = SR / f, N = Math.max(2, Math.floor(P - 0.6)), D = P - 0.5 - N, C = (1 - D) / (1 + D), buf = new Float32Array(N);
+      let lp = 0; for (let i = 0; i < N; i++) { lp += (q() * 2 - 1 - lp) * (0.15 + 0.75 * bright); buf[i] = lp; }
+      const loss = 0.001 ** (1 / (T * f)); let p = 0, prev = 0, ax = 0, ay = 0;
+      for (let i = 0; i < d.length; i++) { const y = buf[p], avg = 0.5 * (y + prev); prev = y; const ap = C * avg + ax - C * ay; ax = avg; ay = ap; buf[p] = ap * loss; p = (p + 1) % N; d[i] = y; } },
+      { g: g * rr(r, 0.85, 1.05), r, pan, filters: [{ type: 'lowpass', f: 1500 + 6000 * bright, q: 0.5 }] }); },
+  /** felt piano: a soft, intimate upright with felt over the hammers. vel 0..1 = how hard it is played */
+  feltPiano(ac, out, t, o = {}) { const { g = 0.06, pan = 0, decay = 1, vel = 0.5 } = o, r = sfxRng(o, t, 'feltPiano'), f = pitchOf(o, 0), slow = clamp(2.6 * Math.sqrt(262 / f), 0.8, 4) * decay;
+    synth(ac, out, t, slow * 2.2, (d, q) => { const B = 0.0004, list = [];
+      for (let n = 1; n <= 10; n++) { const fn = n * f * Math.sqrt(1 + B * n * n); if (fn > 6000) break; const a = n ** -1.4 * Math.exp(-(n - 1) * (0.9 - vel) * 0.6), dt = 0.0006 * rr(q, 0.6, 1.4);
+        list.push([fn * (1 - dt), a * 0.45, slow / n ** 0.6], [fn * (1 + dt), a * 0.45, slow / n ** 0.6], [fn, a * 0.5, 0.2 / n ** 0.5]); }
+      DSP.modes(d, 0, list); DSP.chirp(d, 0, rr(q, 0.07, 0.13), rr(q, 125, 155), 90, 0.03, 0.02, 0.08); softOnset(d, 200); },
+      { g: g * rr(r, 0.85, 1.05), r, pan, filters: [{ type: 'lowpass', f: Math.min(5000, f * 5 + 800 * vel), q: 0.5 }] }); },
+  /** string section: one note (f or deg) or a chord (notes: [Hz, ...]; the film's I chord when neither is given), swelling in over
+   *  att s, held for dur s, released over rel s. bright 0..1 opens the filter */
+  strings(ac, out, t, o = {}) { const { dur = 3, g = 0.01, att = 1.4, rel = 1.2, bright = 0.5, pan = 0 } = o, r = sfxRng(o, t, 'strings'), ton = tonicOf(o);
+    const notes = o.notes || (o.f != null || o.deg != null ? [pitchOf(o, 0)] : [0, 4, 7].map(s => ton * 2 ** (s / 12 + (o.oct ?? 0))));
+    const lp = ac.createBiquadFilter(), hp = ac.createBiquadFilter(), top = (1200 + 1800 * bright) * rr(r, 0.9, 1.1); lp.type = 'lowpass'; lp.Q.value = 0.6; hp.type = 'highpass'; hp.frequency.value = 110;
+    lp.frequency.setValueAtTime(700, t); lp.frequency.linearRampToValueAtTime(top, t + Math.min(dur, att * 2)); lp.frequency.linearRampToValueAtTime(900, t + dur + rel);
+    lp.connect(hp).connect(out);
+    const spread = rr(r, 0.8, 1.2), v0 = g * rr(r, 0.9, 1.05);
+    notes.forEach((nf, i) => [-9, 0, 8].forEach((cents, j) => { const os = ac.createOscillator(), v = ac.createGain(), pn = ac.createStereoPanner(), lfo = ac.createOscillator(), lg = ac.createGain();
+      os.type = 'sawtooth'; os.frequency.value = nf; os.detune.value = cents * spread; lfo.frequency.value = (4.8 + 0.3 * j + 0.2 * i) * rr(r, 0.95, 1.05); lg.gain.value = 5; lfo.connect(lg).connect(os.detune);
+      pn.pan.value = clamp(pan + (j - 1) * 0.6 + (i % 2 ? 0.2 : -0.2), -1, 1);
+      v.gain.setValueAtTime(0, t); v.gain.linearRampToValueAtTime(v0, t + att); v.gain.setValueAtTime(v0, t + Math.max(att, dur)); v.gain.linearRampToValueAtTime(0, t + Math.max(att, dur) + rel);
+      os.connect(v).connect(pn).connect(lp); os.start(t); lfo.start(t); os.stop(t + Math.max(att, dur) + rel + 0.1); lfo.stop(t + Math.max(att, dur) + rel + 0.1); })); },
+};
+/*
+ * Stingers: short musical phrases in the film's key, for moments that are musical rather than physical. Each takes
+ * (ac, out, t, { tonic, g, seed, ... }) where `g` scales the whole phrase (1 = as balanced here), and varies per call
+ * (a fixed `seed` repeats the exact phrase, for a callback). They are built from the instruments above.
+ *   motif    the hero's four notes (degs, on inst), when the hero first appears; vary degs when it changes, resolve at the end
+ *   success  a quick rising arpeggio: something works, a step completes
+ *   question two rising notes that do not resolve: a question is posed, a mystery opens
+ *   oops     a falling half step on a muted string: a myth crossed out, a failed attempt
+ *   reveal   a reversed swell that starts `lead` s early and ends exactly on t, then a low boom, a bright chord and a
+ *            string swell: the big reveal (at most one or two per film). The bed ducks under it
+ *   resolve  a rolled felt-piano chord and a music-box sparkle: the end card
+ */
+const STING = {
+  motif(ac, out, t, o = {}) { const { degs = [2, 3, 4, 6], inst = 'musicBox', step = 0.22, g = 1 } = o, r = sfxRng(o, t, 'motif'), tonic = tonicOf(o);
+    let s = 0; degs.forEach((deg, i) => { INST[inst](ac, out, t + s, { deg, oct: o.oct, tonic, g: (INST_G[inst] || 0.05) * g * (i === degs.length - 1 ? 1.1 : 1), pan: (i - (degs.length - 1) / 2) * 0.2,
+      seed: o.seed != null ? o.seed * 16 + i : undefined }); s += step * rr(r, 0.96, 1.04); }); },
+  success(ac, out, t, o = {}) { const { inst = 'marimba', g = 1 } = o, r = sfxRng(o, t, 'success'), tonic = tonicOf(o), step = rr(r, 0.07, 0.09);
+    [0, 2, 3, 5].forEach((deg, i) => INST[inst](ac, out, t + i * step, { deg, tonic, g: (INST_G[inst] || 0.06) * g * (i === 3 ? 1.2 : 0.9), pan: (i - 1.5) * 0.15, seed: o.seed != null ? o.seed * 16 + i : undefined })); },
+  question(ac, out, t, o = {}) { const { inst = 'epiano', g = 1 } = o, r = sfxRng(o, t, 'question'), tonic = tonicOf(o), gap = rr(r, 0.25, 0.31);
+    [1, 4].forEach((deg, i) => INST[inst](ac, out, t + i * gap, { deg, tonic, g: (INST_G[inst] || 0.05) * g, vel: 0.45, pan: i ? 0.15 : -0.15, seed: o.seed != null ? o.seed * 16 + i : undefined })); },
+  oops(ac, out, t, o = {}) { const { g = 1 } = o, r = sfxRng(o, t, 'oops'), tonic = tonicOf(o), gap = rr(r, 0.2, 0.24);
+    INST.pluck(ac, out, t, { f: tonic * 2 ** (3 / 12), g: 0.07 * g, bright: 0.3, t60: 0.5, seed: o.seed != null ? o.seed * 16 : undefined });
+    INST.pluck(ac, out, t + gap, { f: tonic * 2 ** (2 / 12), g: 0.07 * g, bright: 0.25, t60: 0.9, seed: o.seed != null ? o.seed * 16 + 1 : undefined }); },
+  reveal(ac, out, t, o = {}) { const { lead = 1.4, g = 1 } = o, r = sfxRng(o, t, 'reveal'), tonic = tonicOf(o), t0 = Math.max(0, t - lead), L = t - t0, sd = k => o.seed != null ? o.seed * 16 + k : undefined;
+    if (L > 0.05) { synth(ac, out, t0, L, (d, q) => noiseInto(d, q, s => (s / L) ** 3), { g: 0.06 * g, r, filters: [{ type: 'highpass', f: 1500 }, { type: 'bandpass', f: rr(r, 2600, 3400), f1: rr(r, 6000, 8000), q: 0.5 }] });
+      SFX.tone(ac, out, t0, { f: tonic, f2: tonic * 2, dur: L, g: 0.02 * g, a: L * 0.9, type: 'triangle' }); }
+    const boom = rr(r, 62, 78); synth(ac, out, t, 1.6, (d, q) => { DSP.chirp(d, 0, 1, boom, boom * 0.54, 0.3, 0.45, 1.6); DSP.burst(d, 0, 0.3, 0.05, 0.01, q); }, { g: 0.22 * g, r, filters: [{ type: 'lowpass', f: 600 }] });
+    [0, 4, 7].forEach((s, i) => INST.glock(ac, out, t + i * rr(r, 0.01, 0.02), { f: tonic * 4 * 2 ** (s / 12), g: 0.035 * g, pan: (i - 1) * 0.5, seed: sd(i) }));
+    INST.strings(ac, out, t, { tonic, dur: 2.2, g: 0.009 * g, att: 0.15, rel: 1.5, bright: 0.8, seed: sd(3) }); },
+  resolve(ac, out, t, o = {}) { const { g = 1 } = o, r = sfxRng(o, t, 'resolve'), tonic = tonicOf(o), roll = rr(r, 0.06, 0.08);
+    [0, 7, 12, 14, 16].forEach((s, i) => INST.feltPiano(ac, out, t + i * roll, { f: tonic / 2 * 2 ** (s / 12), g: 0.06 * g * (i ? 0.7 : 1), vel: 0.4, seed: o.seed != null ? o.seed * 16 + i : undefined }));
+    [5, 7].forEach((deg, i) => INST.musicBox(ac, out, t + 0.6 + i * 0.25, { deg, oct: 2, tonic, g: 0.03 * g, seed: o.seed != null ? o.seed * 16 + 8 + i : undefined })); },
+};
+/** each instrument's default note level, so a stinger played on another instrument keeps its balance */
+const INST_G = { marimba: 0.07, vibes: 0.05, musicBox: 0.05, kalimba: 0.06, celesta: 0.05, glock: 0.045, epiano: 0.05, pluck: 0.06, feltPiano: 0.06, strings: 0.01 };
+Object.assign(SFX, INST, STING);   // plates cue them by name: cues: [[1.2, 'marimba', { deg: 2 }], [3.0, 'reveal']]
+/*
  * Ambience beds, in the plate `bed` shape: `bed: BED.rain`, or with options `bed: (ac, o, t, d) => BED.rain(ac, o, t, d, { heavy: 0.8 })`.
  * Layer several with BED.mix(BED.roomTone, myPad). They fade in and out over about a second, so neighbours crossfade.
  * Left and right are synthesized separately (decorrelated), so a bed is really stereo.
@@ -2582,6 +2703,8 @@ function dynamicsOf() {
   for (const p of STORY.plates) if (p.lift) pts.push([p.start, 0], [p.start + Math.min(1.5, p.dur / 2), p.lift], [p.start + p.dur, p.lift], [p.start + p.dur + 1.5, 0]);
   return pts;
 }
+/** cues that duck the bed: [depth, seconds]; a reveal's boom and chord get a deeper, longer dip */
+const CUE_DUCK = { chime: [0.25, 0.35], pop: [0.25, 0.35], crunch: [0.25, 0.35], reveal: [0.4, 0.9] };
 /**
  * renderAudio(opts): the whole track, offline. For a narrated film, opts.only = 'voice' or 'rest' renders one stem
  * (the narration alone, or everything else), without the final loudness pass, so a check can compare the two.
@@ -2632,7 +2755,7 @@ async function renderAudio(opts = {}) {
       if (p.pen !== 'none') { s(ac, fx, hd, { chars: 9, cps: 30 }); s(ac, fx, hd + 0.15, { chars: h.title.length, cps: 17 }); if (h.sub) s(ac, fx, hd + 0.7, { chars: h.sub.length, cps: 30, g: pen ? 0.012 : 0.005 }); } }
     AUDIO.tag = 'bed'; const bed = p.bed || autoBed(p); if (bed) bed(ac, bedBus, t0, p.dur);
     AUDIO.tag = 'cue';
-    for (const [ct, type, opt] of (p.cues || [])) { SFX[type](ac, fx, t0 + ct, opt || {}); if (type === 'chime' || type === 'pop' || type === 'crunch') duck(t0 + ct, 0.25, 0.35); }
+    for (const [ct, type, opt] of (p.cues || [])) { SFX[type](ac, fx, t0 + ct, opt || {}); const dk = CUE_DUCK[type]; if (dk) duck(t0 + ct, ...dk); }
   }
   writeDucks(); AUDIO.reset();
   const buf = await ac.startRendering();
