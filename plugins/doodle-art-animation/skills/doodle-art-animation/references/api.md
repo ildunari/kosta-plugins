@@ -2,7 +2,8 @@
 
 Everything a story can call. The engine lives in `toolkit/engine.js`; read that file when a detail is missing here.
 
-**Story.** Call `defineStory({ title, stages, music, dynamics, silent, twos, weave, grain, drift, plates })`, then `boot()`.
+**Story.** Call `defineStory({ title, stages, paper, music, dynamics, silent, twos, weave, grain, drift, plates })`, then `boot()`.
+- `paper: 'notebook'` picks the paper set (the default, today's cream and night papers). See **Paper** below.
 - `music: { tonic, gain }` gives every plate without a `bed` an automatic pad in that key (`references/sound.md`, "Beds").
 - `dynamics: [[t, dB], …]` is the film's loudness shape: the master level over time in film seconds, dB relative to the default, linear ramps between points (a quiet opening and a lift at the climax; `references/sound.md`, "Dynamics"). Without it, plates' `lift` fields shape the level; without either it is flat.
 
@@ -12,6 +13,7 @@ Plate fields:
 |---|---|
 | `dur` | Plate length in seconds |
 | `dark` | `true` for the night world |
+| `paper` | Another paper set for this plate alone, or a single paper (then `dark` follows that paper's tone). The two plates of a transition may sit on different papers |
 | `enter` | `{ type, dur, ease, curve, draw (custom transition), momentum, settle, match, carry, sfx, …type options (dir, k, dive, scaleFrom, from, to, fromFill, toFill, style, at, ink, drop, fall, rim, rimAlpha, rough, color, opacity, back, radius) }` |
 | `silent` (on `defineStory`) | `true` renders a silent audio track of the right length and turns off the automatic risers, transition sounds and pen scratches, which play even with no cues. Check it with `audio_check.py --silent`. |
 | `header` | `{ num, title, sub, backing }` (`backing: false` drops the glyph halo round title and subtitle; `'card'` puts them on a torn scrap) — the kicker above the title is always `PLATE <roman num>`; there is no field for other kicker text. A film's own kicker (`A FIELD STUDY IN 3 PLATES`) belongs to the title card, drawn in that plate's own `draw` |
@@ -25,7 +27,7 @@ Plate fields:
 | `overlay(t)` | Art that ignores the camera, momentum and the match-cut/carry shift (stats, callouts, cards, charts). It still leaves with its plate during a transition. Anchor to the hero with `heroOf(plate, t)`. |
 | `cues` | `[[t, name, opts]]`: at local time `t`, play `SFX[name](ac, out, plateStart + t, opts)` |
 | `bed` | `(ac, out, t0, dur) => …`, or a `BED.*` bed; replaces the automatic music pad for this plate |
-| `pen` | How the header types on: `true` pen `scratch`, `false` soft `readout` blips, `'none'` silent. Defaults to a pen on paper plates and no pen on `dark` ones |
+| `pen` | How the header types on: `true` pen `scratch`, `false` soft `readout` blips, `'none'` silent. Defaults to the paper's own header sound (`sfx.header`): a pen on the notebook's cream, blips at night |
 | `lift` | dB: this plate's level lift, ramped up over its first 1.5 s and down over 1.5 s after it ends. Used only when `defineStory` has no `dynamics` |
 | `counter`, `marks` | `false` hides the frame counter or the registration marks |
 
@@ -99,9 +101,9 @@ Plate fields:
 **Advanced:**
 - `layer(fn, slot)` draws into an offscreen canvas (it swaps `ctx`, which is why `ctx` is a `let`).
 - `heroOf(plate, t)`: the hero's screen position, including the camera and the entry shift (use it to anchor overlay art).
-- `motionOf(plate, t)` (on-screen velocity of the hero or camera, px/s), `travelOf(plate, t)` (which way the camera is effectively travelling), `follow(target, t, opts)` (tracking camera with lead room), `withCamera`, `camPoint`, `camOf`, `heroOf`, `parallax(cam, depth, fn)`, `momentum(plate, t)`, `coverR(x, y)`, `bgTex(dark)`, `about(px, py, s, tx, ty)`.
+- `motionOf(plate, t)` (on-screen velocity of the hero or camera, px/s), `travelOf(plate, t)` (which way the camera is effectively travelling), `follow(target, t, opts)` (tracking camera with lead room), `withCamera`, `camPoint`, `camOf`, `heroOf`, `parallax(cam, depth, fn)`, `momentum(plate, t)`, `coverR(x, y)`, `bgTex(dark or ground)`, `about(px, py, s, tx, ty)`.
 - Custom transitions: `enter: { type: 'custom', draw(p, X) }` (see `references/motion.md`), with `morphPose(A, B, u, poseA, poseB)`, `softReveal(fn, x, y, r, feather)`, `S.side` ('old' or 'new'), `S.trans` ({ type, p }) and `S.dark` (whether the plate being drawn is a night plate).
-- `TRANS[type](p, X)` adds a new built-in transition. It returns the share of the frame the new plate owns, and should get matching `HEADER_DELAY` and `TRANS_SFX` entries.
+- `TRANS[type](p, X)` adds a new built-in transition. It returns the share of the frame the new plate owns, and should get matching `HEADER_DELAY` and `TRANS_SFX` entries. It runs with the new plate's paper current; `X.gOld` / `X.gNew` are the two papers (`bgTex(X.gOld)` is the old plate's texture) and `X.palOld` / `X.palNew` their palettes.
 - `S.trans = { type, p }` lets plates react to their own transition.
 
 **Sound** (all synthesized; the catalogue and the event map are in `references/sound.md`):
@@ -113,4 +115,15 @@ Plate fields:
   - `synth(ac, out, t, dur, fill, { g, pan, pan1, filters, r, fade })`: renders a mono buffer that `fill(d, r)` writes sample by sample, normalized so `g` is its peak, through optional biquads (`{ type, f, f1, q, gain, curve }`). `noiseInto(d, r, env)` adds noise shaped by `env(s)`; `DSP.burst`, `DSP.chirp`, `DSP.modes`, `DSP.reson` are the grain, bubble, struck-mode and resonator primitives the v0.15 sounds are built from.
   - `note(tonic, degree)`: a degree of the major pentatonic scale over `tonic`; `SR` is the sample rate. Keep it deterministic: no `Math.random`, no clock.
 
-**Theme.** `Object.assign(PAL, { … })` at the top of the story adds subject colours. `FONT` and `FONT_LOADS` hold the three faces.
+**Theme.** `Object.assign(PAL, { … })` at the top of the story adds subject colours. `FONT` and `FONT_LOADS` hold the three faces. A paper's own `pal` fields replace these while its plates draw.
+
+**Paper.** A paper (a ground) is a texture plus the palette and finish that go with it; a paper set pairs a light paper (the paper world) with a dark one (the night world). The notebook set, `cream` and `night`, is in `engine.js`; other papers live in `toolkit/grounds/<name>.js`, and `build.py` includes a file when the story names one of its papers (`toolkit/grounds/README.md`). The look and the texture rules are in `references/style.md`, "Papers".
+- `defineGround(name, { tone, build(g, rand, W, H), pal, vignette, grain, contours, treatment, sfx, minContrast, seed })`:
+  - `tone`: `'light'` or `'dark'`, the world it stands in for. `build` paints the texture once, at the film's own size.
+  - `pal`: the `PAL` fields it sets while its plates draw: paper-world fields (`paper`, `ink`, `label`, …) on a light paper, `night*` fields on a dark one, plus shared ones such as `accent`. The other paper of its set lends only its own world's fields.
+  - `vignette` (edge colour), `grain` (film-grain strength, 0..1), `contours` (`{ colors, alpha }`, `false`, or `fn(t, ground, seed)`), `sfx: { header }` (the SFX the header types with).
+  - `treatment`: how a scene looks on the paper, applied to the plate's paper, scene and overlay on a layer, with the HUD drawn on top untreated. Any of `tooth: [share, alpha]` (holes refilled with the paper, so lines pick up its grain), `filter: 'sepia(0.4)'`, `color: [hex, amount]` (a hue tint), `glow: [px, strength]`; or a function `fn(g2d, ground, { base, raw })` that does the whole job.
+  - `minContrast: { ink, label, accent }` lowers a contrast floor for `smoke_test.py` (default 7, 4.5, 3); give the reason in a comment.
+- `definePaperSet(name, { light, dark })`: two paper names. `GROUNDS` and `PAPER_SETS` hold everything defined.
+- `paperKit` helpers for `build` (counts scale with the frame's area): `fill(g, a, b)`, `mottle(g, r, n, cols, rmin, rmax)`, `fibres(g, r, n, rgbs, …)`, `specks(g, r, n, rgb, s0, s1, a0, a1)`, `grid(g, r, step, col, alpha, lw, { every, majorAlpha, majorW })`, `swirl(g, r, x, y, R, col)`, `grain(g, amt, seed, { size: 2, mono })`.
+- While a plate draws: `S.ground` is its paper, `groundFor(dark)` the paper of either world in its set, `paperTex(dark)` that paper's texture. `withPaper(plate, fn)` runs `fn` with another plate's paper and palette current; `palView(plate)` returns a plate's palette as an object. `window.__paperProbe()` reports each paper's contrast.

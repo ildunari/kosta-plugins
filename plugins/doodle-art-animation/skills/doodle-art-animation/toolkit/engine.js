@@ -1052,7 +1052,7 @@ const paperKit = {
 
 /* the notebook: today's two papers, and the default set. Built exactly as before paper sets, so films keep their look. */
 defineGround('cream', { tone: 'light', seed: 11, vignette: 'rgba(90,60,20,0.16)', grain: 0.8, contours: { alpha: 0.16 }, sfx: { header: 'scratch' },
-  minContrast: { accent: 2.75 },   // the vermilion measures 2.8:1 on cream; it stays, so films made before paper sets look the same
+  minContrast: { accent: 2.5 },    // the vermilion measures 2.5:1 on the cream texture; it stays, so films made before paper sets look the same
   /** cream: soft-edged 45° bands, large mottles, fibres, grain */
   build(g, r, W, H) {
     const k = W * H / (1920 * 1080), span = Math.max(1700, Math.ceil(Math.hypot(W, H) / 264 + 1) * 132);   // the bands cover any frame

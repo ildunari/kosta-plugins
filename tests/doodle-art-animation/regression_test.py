@@ -153,6 +153,43 @@ else:
             rc, out = run(['node', 'speed_check.mjs', h], cwd=tk)
             check('pan twice: a bundled film with a clean pan gets no TWICE', rc == 0 and 'TWICE' not in out, out[-300:])
 
+        # ------------------------------------------------------------ paper sets (0.17): notebook unchanged, treated papers work
+        src = open(os.path.join(tk, 'story_one_drop.js'), encoding='utf-8').read()
+        nb = src.replace("defineStory({ title: 'One Drop',", "defineStory({ title: 'One Drop', paper: 'notebook',")
+        check("paper: the paper option can be injected into One Drop", nb != src)
+        open(os.path.join(tk, 'story_one_drop_nb.js'), 'w', encoding='utf-8').write(nb)
+        HASH = """const g = document.getElementById('stage').getContext('2d'), n = window.__story.frames, out = {};
+          for (const f of [Math.round(n * 0.1), Math.round(n * 0.37), Math.round(n * 0.62), n - 2]) { window.__renderFrame(f);
+            const d = g.getImageData(0, 0, 1920, 1080).data; let h = 2166136261; for (let i = 0; i < d.length; i++) h = Math.imul(h ^ d[i], 16777619); out[f] = h >>> 0; }
+          return out;"""
+        h0, h1 = build('story_one_drop.js'), build('story_one_drop_nb.js')
+        if h0 and h1:
+            r0, r1 = probe(h0, HASH), probe(h1, HASH)
+            check("paper: One Drop with paper: 'notebook' draws the same pixels as without it",
+                  bool(r0.get('result')) and r0.get('result') == r1.get('result') and not r0.get('errors') and not r1.get('errors'),
+                  f"{r0.get('result')} vs {r1.get('result')} {str(r0.get('errors'))[:200]} {str(r1.get('errors'))[:200]}")
+        os.makedirs(os.path.join(tk, 'grounds'), exist_ok=True)
+        shutil.copy2(os.path.join(FIX, 'grounds', 'zz_fixture.js'), os.path.join(tk, 'grounds'))
+        h = build('story_swatch.js')
+        if h:
+            r = probe(h, """const s = window.__story, g = document.getElementById('stage').getContext('2d'), out = { plates: s.starts.length };
+              const hash = () => { const d = g.getImageData(0, 0, 1920, 1080).data; let h = 2166136261; for (let i = 0; i < d.length; i++) h = Math.imul(h ^ d[i], 16777619); return h >>> 0; };
+              const at = (i, u) => Math.round((s.starts[i].t + u * 3) * s.fps), mid = (x, y) => Array.from(g.getImageData(x, y, 1, 1).data.slice(0, 3));
+              window.__renderFrame(at(3, 0.8)); out.fixDark = hash(); out.fixDarkPx = mid(200, 300);
+              window.__renderFrame(at(3, 0.8)); out.again = hash();
+              window.__renderFrame(at(2, 0.1)); out.seam = hash();
+              window.__renderFrame(at(1, 0.8)); out.nightPx = mid(200, 300);
+              out.papers = window.__paperProbe().map(p => [p.name, p.fails]);
+              return out;""")
+            v = r.get('result') or {}
+            check('paper: the swatch shows every set, fixture papers included, with no page errors',
+                  v.get('plates') == 4 and not r.get('errors'), f"{v.get('plates')} plates, {str(r.get('errors'))[:300]}")
+            if v:
+                check('paper: a treated paper renders the same pixels twice', v['fixDark'] == v['again'], str(v))
+                check("paper: the fixture's dark paper is blue where the notebook's night is navy",
+                      v['fixDarkPx'][2] > 90 and v['nightPx'][2] < 70, f"fixture {v['fixDarkPx']}, night {v['nightPx']}")
+                check('paper: every paper clears its contrast floors', all(not f for _, f in v['papers']), str(v['papers']))
+
 n_fail = sum(1 for _, ok, _ in results if not ok)
 print(f'\n{len(results) - n_fail} passed, {n_fail} failed' + ('  (static only)' if a.static else ''))
 if not a.work and not n_fail: shutil.rmtree(work, ignore_errors=True)
