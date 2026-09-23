@@ -25,7 +25,7 @@ Plate fields:
 | `overlay(t)` | Art that ignores the camera, momentum and the match-cut/carry shift (stats, callouts, cards, charts). It still leaves with its plate during a transition. Anchor to the hero with `heroOf(plate, t)`. |
 | `cues` | `[[t, name, opts]]`: at local time `t`, play `SFX[name](ac, out, plateStart + t, opts)` |
 | `bed` | `(ac, out, t0, dur) => …`, or a `BED.*` bed; replaces the automatic music pad for this plate |
-| `pen` | How the header types on: `true` pen `scratch`, `false` soft `readout` blips, `'none'` silent. Defaults to a pen on paper plates and no pen on `dark` ones |
+| `pen` | How the header types on. By default the plate's paper picks its writing tool (`scratch` on the notebook, `pencil` on graph paper, `chalk` on a chalkboard, `readout` blips at night: the table in `sound.md`). A sound name (`'marker'`) picks one, `true` the paper's tool (a pen where the paper has none), `false` the soft `readout` blips, `'none'` silence |
 | `lift` | dB: this plate's level lift, ramped up over its first 1.5 s and down over 1.5 s after it ends. Used only when `defineStory` has no `dynamics` |
 | `counter`, `marks` | `false` hides the frame counter or the registration marks |
 
@@ -105,8 +105,9 @@ Plate fields:
 - `S.trans = { type, p }` lets plates react to their own transition.
 
 **Sound** (all synthesized; the catalogue and the event map are in `references/sound.md`):
-- `SFX.<name>(ac, out, t, opts)`: every effect a cue can name. Events: `tick`, `scratch`, `readout`, `pop`, `chime`, `plink`, `thump`, `crunch`, `creak`, `pump`, `relay`, `hiss`, `plop`, `slosh`, `shaker`, `clink`, `pour`, `foil`, `droplet`, `pageFlip`, `pegSnap`. Motion (the transition sounds): `swell`, `riser`, `whoosh`, `glide`, `flick`, `shutter`, `bend`, `crackle`. Building blocks that do not vary by themselves: `tone`, `noise`, `pad`, `padKey`. Every varied effect takes `seed` (fixes one exact sound) and most take `g` (level). `VARIED` is the set of names that vary per call.
-- `BED.roomTone`, `BED.rain`, `BED.wind`, `BED.cityHum`: ambience beds, `(ac, out, t0, dur, opts)`, usable directly as a plate's `bed`; `BED.mix(...beds)` layers beds.
+- `SFX.<name>(ac, out, t, opts)`: every effect a cue can name. Events: `tick`, `scratch`, `readout`, `pop`, `chime`, `plink`, `thump`, `crunch`, `creak`, `pump`, `relay`, `hiss`, `plop`, `slosh`, `shaker`, `clink`, `pour`, `foil`, `droplet`, `pageFlip`, `pegSnap`, `typewriter`, `eraser`, `stamp`, `tear`, `counter`, `sonify`, `sparkle`, `pipette`, `centrifuge`, `syringe`, `pills`, `fizz`, `bubbles`, `squelch`, `heartbeat`, `beep`, `zap`, `magnet`. Writing tools (`{ chars, cps }` to type, `{ dur }` to draw): `scratch`, `pencil`, `chalk`, `marker`, `quill`, `charcoal`, `techPen`, and `readout` where there is no pen. Motion (the transition sounds): `swell`, `riser`, `whoosh`, `glide`, `flick`, `shutter`, `bend`, `crackle`. Building blocks that do not vary by themselves: `tone`, `noise`, `pad`, `padKey`. Every varied effect takes `seed` (fixes one exact sound) and most take `g` (level). `VARIED` is the set of names that vary per call.
+- `BED.roomTone`, `BED.rain`, `BED.wind`, `BED.cityHum`, `BED.body`, `BED.underwater`, `BED.forest`, `BED.ocean`, `BED.fire`, `BED.clockRoom`, `BED.micro`, `BED.vinyl`: ambience beds, `(ac, out, t0, dur, opts)`, usable directly as a plate's `bed`; `BED.mix(...beds)` layers beds.
+- `penOf(plate)`: the header's writing sound for a plate (its paper's tool, or `plate.pen`); `PAPER_PEN` maps papers to tools where a paper has no `sfx.header`.
 - `TRANS_SFX[type](ac, out, t, dur, enter)`: the automatic sound of each seam; `enter.sfx: (ac, out, t, dur) => …` replaces it for one custom transition.
 - Helpers for a story's own sounds (`SFX.drip = (ac, out, t, o = {}) => …` before `defineStory`):
   - `sfxRng(o, t, name)`: the per-call random generator the built-ins use (seeded by `o.seed`, or by the plate, the time within it, `name` and the repeat count at that instant), so a story's sound varies like theirs. `rr(r, a, b)` draws a number in `[a, b)` from it; `semis(r, n)` a pitch ratio within ±n semitones.

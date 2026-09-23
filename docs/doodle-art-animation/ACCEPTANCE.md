@@ -235,8 +235,12 @@ carrying a fact), `label` (the default: chart axes, legends, card notes), `hud` 
 ## V6 · Sound with variety, still synthesized
 - [auto] The engine's `SFX` has, besides its existing sounds: `crunch`, `creak`, `pump`, `relay`, `hiss`, `plop`,
   `slosh`, `shaker`, `clink`, `pour`, `foil`, `droplet`, `pageFlip`, `pegSnap`, and the beds `roomTone`, `rain`,
-  `wind`, `cityHum`. Each takes a `seed`, and repeated calls vary unless a seed is fixed. All are synthesized; the
-  plugin still ships no audio files.
+  `wind`, `cityHum`; and since v0.17 the writing tools `pencil`, `chalk`, `marker`, `quill`, `charcoal`, `techPen`, the
+  effects `typewriter`, `eraser`, `stamp`, `tear`, `counter`, `sonify`, `sparkle`, `pipette`, `centrifuge`, `syringe`,
+  `pills`, `fizz`, `bubbles`, `squelch`, `heartbeat`, `beep`, `zap`, `magnet`, and the beds `body`, `underwater`,
+  `forest`, `ocean`, `fire`, `clockRoom`, `micro`, `vinyl`. Each takes a `seed`, and repeated calls vary unless a seed
+  is fixed. All are synthesized; the plugin still ships no audio files. A plate header types on with its paper's
+  writing tool (`penOf`), and `plate.pen` still overrides it.
 - [auto] `references/sound.md` documents every one of them, the rule that different kinds of event get different
   sounds, and a loudness lift at the film's climax.
 - [auto] `toolkit/cue_check.mjs` exists, lists every sound the film plays with its time, flags one effect dominating

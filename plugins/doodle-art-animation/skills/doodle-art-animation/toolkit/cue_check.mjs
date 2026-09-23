@@ -27,7 +27,7 @@
 //            identical repeats are more than MAX_REPEAT_SHARE of those events
 //   SERVES   one type used for events of different kinds: as a cue and also inside a transition (the same thump for
 //            a contact and a camera move)                                                                    -> WARN
-//   PEN      a scratch cue on a night plate (no pen in that world)                                             -> WARN
+//   PEN      a writing cue (scratch, pencil, chalk ...) on a plate whose paper has no pen (night)                -> WARN
 // Calibration (v0.15): The Slow Squeeze (the review film, 172 s) has scratch at 34% of 264 events and 131 identical
 // repeats (tick x34, pop x28) on its own engine: it fails both ways. The final v0.15 review replaced the old 40-event floor (under
 // which five of the seven bundled stories went unjudged, some at 35-50% scratch) with the grace rule above, and took
@@ -68,7 +68,8 @@ try {
     if (STORY.silent) return { silent: true, plates: STORY.plates.length };
     const L = [], hasTag = typeof AUDIO === 'object' && 'tag' in AUDIO, varied = typeof VARIED === 'object' ? [...VARIED] : [];
     let depth = 0, role = null, parent = null;
-    const plates = STORY.plates.map(p => ({ start: p.start, dur: p.dur, dark: !!p.dark, pen: p.pen, hd: p.header ? p.start + headerDelay(p) : null, title: p.header ? p.header.title : null }));
+    const plates = STORY.plates.map(p => ({ start: p.start, dur: p.dur, dark: !!p.dark, pen: p.pen, hd: p.header ? p.start + headerDelay(p) : null, title: p.header ? p.header.title : null,
+      tool: typeof paperPen === 'function' ? paperPen(p) : p.dark ? 'readout' : 'scratch' }));   // the paper's writing sound
     const plateAt = t => { let k = 0; plates.forEach((p, i) => { if (t >= p.start - 1e-6) k = i; }); return k; };
     const clean = o => { try { return JSON.stringify(o || {}, (k, v) => typeof v === 'function' ? 'fn' : typeof v === 'number' ? +v.toFixed(4)
       : v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map(q => [q, v[q]])) : v); } catch { return '{}'; } };   // keys sorted: {f, g} and {g, f} are the same sound
@@ -137,7 +138,8 @@ const inTrans = {};
 for (const e of L) if (e.tag === 'transition' && e.depth > 0 && e.parent) (inTrans[e.k] ||= new Set()).add(e.parent.replace('TRANS:', ''));
 const PRIMS = new Set(['tone', 'noise']);                      // building blocks, not events
 const serves = Object.keys(inTrans).filter(k => !PRIMS.has(k) && (byTag[k] || {}).cue).map(k => ({ k, transitions: [...inTrans[k]], cues: fg.filter(e => e.k === k && e.tag === 'cue').map(e => e.t) }));
-const pen = fg.filter(e => e.k === 'scratch' && e.tag === 'cue' && plates[e.plate].dark);
+const WRITING = new Set(['scratch', 'pencil', 'chalk', 'marker', 'quill', 'charcoal', 'techPen']);   // a writing cue on a paper with no pen (its tool is the readout)
+const pen = fg.filter(e => WRITING.has(e.k) && e.tag === 'cue' && (plates[e.plate].tool ?? (plates[e.plate].dark ? 'readout' : 'scratch')) === 'readout');
 
 const fmt = t => t.toFixed(2);
 console.log(`${res.title}: ${judged.length} judged events (cues and seams), ${headers.length} typed headers, ${pulses.length} bed pulses, `
@@ -157,7 +159,7 @@ const failRep = maxSame > MAX_SAME || repShare > MAX_REPEAT_SHARE;
 console.log(`${failRep ? 'FAIL' : 'PASS'}    identical repeats: ${repeats} (${(repShare * 100).toFixed(0)}% of cues, headers and pulses, limit ${MAX_REPEAT_SHARE * 100}%); most repeated ${maxSame}x (limit ${MAX_SAME})`);
 for (const g of same.slice(0, 8)) console.log(`REPEAT  ${g.tag === 'bed' ? 'bed pulse ' : ''}${g.k} ${g.o === '{}' ? '(default options)' : g.o.slice(0, 70)} x${g.times.length} at ${g.times.slice(0, 8).map(fmt).join(', ')}${g.times.length > 8 ? ', ...' : ''} s`);
 for (const s of serves) console.log(`WARN    serves: ${s.k} plays as a cue (${s.cues.slice(0, 6).map(fmt).join(', ')} s) and inside the ${s.transitions.join('/')} transition sound; give the camera move and the on-screen event different sounds`);
-if (pen.length) console.log(`WARN    pen: scratch cue on a night plate (no pen there) at ${pen.slice(0, 8).map(e => fmt(e.t)).join(', ')} s`);
+if (pen.length) console.log(`WARN    pen: writing cue on a plate with no pen (night, a screen) at ${pen.slice(0, 8).map(e => fmt(e.t)).join(', ')} s`);
 const fail = failShare || failRep;
 console.log(`result: ${fail ? 'FAIL' : serves.length || pen.length ? 'WARN' : 'PASS'}`);
 if (res.BEDS && res.BEDS.length) console.log('BEDS    ' + res.BEDS.map(b => `${b.k} ${fmt(b.t)} s (${b.plate})`).join(', '));

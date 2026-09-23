@@ -390,7 +390,11 @@ STORIES = sorted(os.path.basename(p) for p in glob.glob(os.path.join(TK, 'story*
 SOUND = read(os.path.join(REF, 'sound.md')) or ''
 PRINC = read(os.path.join(REF, 'animation-principles.md')) or ''
 NEW_SFX = ['crunch', 'creak', 'pump', 'relay', 'hiss', 'plop', 'slosh', 'shaker', 'clink', 'pour', 'foil', 'droplet',
-           'pageFlip', 'pegSnap', 'roomTone', 'rain', 'wind', 'cityHum']
+           'pageFlip', 'pegSnap', 'roomTone', 'rain', 'wind', 'cityHum',
+           # v0.17 (sound build S2): writing tools, desk, data, lab and body effects, and the new ambience beds
+           'pencil', 'chalk', 'marker', 'quill', 'charcoal', 'techPen', 'typewriter', 'eraser', 'stamp', 'tear', 'counter',
+           'sonify', 'sparkle', 'pipette', 'centrifuge', 'syringe', 'pills', 'fizz', 'bubbles', 'squelch', 'heartbeat', 'beep',
+           'zap', 'magnet', 'body', 'underwater', 'forest', 'ocean', 'fire', 'clockRoom', 'micro', 'vinyl']
 
 if want('V1'):
     check('V1', 'toolkit/legibility_check.mjs exists', os.path.isfile(os.path.join(TK, 'legibility_check.mjs')))

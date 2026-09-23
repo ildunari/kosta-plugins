@@ -79,6 +79,11 @@ jobs:
         # that reset globalAlpha inside a fade, the zoom default, and speed_check's TWICE warning on pans.
         run: python3 tests/doodle-art-animation/regression_test.py --node-modules "$RUNNER_TEMP/pw/node_modules"
 
+      - name: Sound tests (ambiences, effects, writing sounds)
+        # tests/doodle-art-animation/effects_test.py: the sounds added in sound build S2 exist and vary, the header's writing
+        # sound follows the paper, the fixture renders the same twice with no clipping, and it passes cue_check.
+        run: python3 tests/doodle-art-animation/effects_test.py --node-modules "$RUNNER_TEMP/pw/node_modules"
+
       - name: Run smoke test
         run: >
           python "$TOOLKIT/smoke_test.py"

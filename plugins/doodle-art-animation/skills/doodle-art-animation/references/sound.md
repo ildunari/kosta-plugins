@@ -2,14 +2,14 @@
 
 Every sound is synthesized in code: the plugin ships no audio files, so a film stays one self-contained HTML. The engine renders the whole track with an `OfflineAudioContext` from the same plate start times as the picture, so the result is deterministic and exported as WAV.
 
-The layers: a music bed (pads in the film's key), ambience beds (room tone, rain, wind, traffic), effect cues on the picture's events, the automatic sounds of seams and headers, a compressor, a short reverb and real stereo.
+The layers: a music bed (pads in the film's key), ambience beds (room tone, rain, wind, traffic, the inside of the body, underwater, forest, ocean, fire, a room with a clock, the micro world, vinyl crackle), effect cues on the picture's events, the automatic sounds of seams and headers (the header writes with its paper's own tool), a compressor, a short reverb and real stereo.
 
 ## The rule: different kinds of events get different sounds
 
 A viewer hears a repeated sound as the same event happening again. So the same sound must never serve two kinds of event, and one sound must not carry the whole film.
 
 - **Different kinds of events get different sounds.** A platen touching a tablet is a `thump` or a `crunch`; a camera move is its transition sound; a label arriving is a `pop`. Never the same `thump` for a contact and a camera move.
-- **Fit the world.** A pen `scratch` belongs on paper. Inside a microscope, on a screen or on a night plate there is no pen: use `readout`, or nothing.
+- **Fit the world.** A pen `scratch` belongs on the cream notebook; each other paper has its own tool (the table under *Automatic sounds*). Inside a microscope, on a screen or on a night plate there is no pen: use `readout`, or nothing.
 - **Repeats vary on their own.** Every effect in the engine re-rolls its pitch, length and timbre on each call, and for the low sounds (`thump`, `crunch`'s body, `shutter`) the body itself varies, not just the details, so twelve `droplet`s are twelve different drops and a run of `thump`s is not one sample. The seed is the plate, the time within the plate, the sound's name and how many calls of that name at that instant came before, never the order of calls across the film: adding or retiming one cue re-rolls only that cue, and lengthening a plate leaves the later plates' sounds as they were. Pass `seed: n` only when you want the *exact* same sound again (a motif, a callback).
 - **No type dominates.** `cue_check.mjs` fails a film where one sound is more than 30% of its cues and seams plus two events of grace (so four pops and nothing else fail, and 5 of 8 fail), at any length, or where a fixed sound repeats identically more than 5 times. The automatic header typing and the pulses inside a bed (a heartbeat) are listed but do not count towards dominance.
 
@@ -22,17 +22,27 @@ A viewer hears a repeated sound as the same event happening again. So the same s
 | Liquid: a drop, a pour, stirring, something dropped in | `droplet`, `pour { dur }`, `slosh`, `plop { size }` | `rain` bed for weather |
 | Glassware, lab bench | `clink`, `shaker { dur }`, `relay`, `hiss { kind: 'vent' }`, bed `roomTone` | |
 | Steam, gas, pressure let go | `hiss` (steam), `hiss { kind: 'vent' }` | |
-| Paper, a page, a card | `pageFlip`, `flick` (the page transition) | |
-| Typed text on paper | `scratch { chars, cps }` | the header gets it automatically |
+| Paper, a page, a card | `pageFlip`, `flick` (the page transition), `tear`, `stamp` | |
+| Typed text on paper | the paper's writing tool `{ chars, cps }`: `scratch`, `pencil`, `chalk`, `marker`, `quill`, `charcoal`, `techPen` | the header gets it automatically |
+| A line drawn, a sum worked on a board, a mistake rubbed out | the paper's writing tool `{ dur }`, `eraser` | |
+| Typing on a machine, an old report | `typewriter { chars, cps }` | |
 | Typed text with no pen (screen, microscope, night) | `readout { chars, cps }` | automatic on night plates |
 | A label, callout or card appears | `pop` | |
+| A count-up runs | `counter { n, dur }` under it, the clicks slowing as the number settles | then `chime` when it lands |
 | A count-up lands, a fact resolves | `chime { f }` in key | |
+| A line graph draws | `sonify { dur, curve }`: a tone whose pitch follows the data | quiet; one per graph |
+| An idea lands, something gleams | `sparkle` in key | sparingly |
 | Arrivals, small discrete things (particles, dots) | `plink` (in key by default), `droplet` if they are wet | |
-| Blister pack, packaging | `foil` | |
+| Blister pack, packaging, pills | `foil`, `pills` | |
+| Lab work | `pipette`, `syringe`, `centrifuge { dur }`, `beep { n, f }` (an instrument ready) | |
+| Dissolving, gas, a tablet in water | `fizz { dur }`, `bubbles { dur, rate }` | |
+| Gels, mucus, anything wet and soft | `squelch` | |
+| The body | `heartbeat` (one beat), bed `BED.body` (a steady pulse) | |
+| Electricity, magnetism | `zap`, `magnet` | |
 | A camera move or a seam | the automatic transition sound | don't add a contact sound to it |
-| Time passing | a bed change (`wind` rising, `cityHum` thinning), a slow `tone` glide, or a `tick` series | not a pen scratch |
+| Time passing | a bed change (`wind` rising, `cityHum` thinning), bed `BED.clockRoom`, a slow `tone` glide, or a `tick` series | not a pen scratch |
 | A reveal | a moment of near-silence before it, then `chime` or a lift in the bed | see *Dynamics* |
-| Places | beds: `roomTone` (lab, office), `rain`, `wind` (outdoors, a fall), `cityHum` (streets) | |
+| Places | beds: `roomTone` (lab, office, classroom), `rain`, `wind` (outdoors, a fall), `cityHum` (streets), `body` (inside the body, the bloodstream), `underwater`, `forest`, `ocean`, `fire`, `clockRoom`, `micro` (inside a cell, mucus, a gel), `vinyl` (lo-fi, archival) | |
 
 ## Effect cues
 
@@ -62,6 +72,36 @@ New in v0.15 (techniques after Andy Farnell, *Designing Sound*, and K. van den D
 - `pageFlip` `{ dur = 0.45, g }`: a page turned: a rising, fluttering swish of air and the soft slap as it lands.
 - `pegSnap` `{ g }`: a clothes peg: a scrape of the spring, a woody snap and a faint ring of the coil. Also good for any small clip or latch.
 
+New in v0.17 (sound build S2). Writing tools take `{ chars, cps }` to type a line or `{ dur }` to draw one; typed, each is level-matched to the pen `scratch` (within 0.3 LU), and drawn, each sits with the other effects:
+
+- `pencil` `{ chars, cps, dur = 1.2, g, rate }`: graphite on paper, softer and grainier than the pen, in strokes (`rate` a second).
+- `chalk` `{ chars, cps, dur = 1, g, rate }`: typed, a tap onto each letter and a short dry scrape; drawn, a rough scrape with the odd squeak.
+- `marker` `{ chars, cps, dur = 0.8, g, strokes }`: a felt squeak per stroke on a whiteboard.
+- `quill` `{ chars, cps, dur = 1, g, rate }`: scratchy, the nib catching on each downstroke.
+- `charcoal` `{ chars, cps, dur = 1, g }`: soft, low and broad.
+- `techPen` `{ chars, cps, dur = 1, g }`: a technical pen on drafting film, thin and even, with a ruler click every few strokes.
+
+Paper and desk, data, lab and body, physical:
+
+- `typewriter` `{ chars = 16, cps = 9, g, bell = true }`: key strikes (spaces duller), then the margin bell and the carriage return.
+- `eraser` `{ dur = 0.9, g, rate = 7 }`: an eraser rubbed back and forth.
+- `stamp` `{ g }`: a rubber stamp's thunk and a small squish of ink.
+- `tear` `{ dur = 0.7, g }`: paper tearing, a crackling run of fibres snapping.
+- `counter` `{ n = 12, dur = 1.5, g }`: a tally counter under a count-up, `n` clicks slowing as the number settles.
+- `sonify` `{ dur = 2, curve, lo = 330, hi = 990, g }`: a soft tone whose pitch follows `curve` (values 0 to 1) as a line draws, panning left to right.
+- `sparkle` `{ n = 7, dur = 0.6, g, tonic }`: a quick cluster of high glockenspiel pings in the film's key.
+- `pipette` `{ g }`: the plunger click, the draw of liquid, the release.
+- `centrifuge` `{ dur = 4, g, top = 520 }`: spin-up whine, a steady hum, spin-down.
+- `syringe` `{ dur = 0.8, g }`: the plunger's rubber squeak and a thin hiss of liquid.
+- `pills` `{ g, shakes = 3 }`: pills rattling in a plastic bottle.
+- `fizz` `{ dur = 2.5, g }`: an effervescent tablet, thousands of tiny bubbles bursting.
+- `bubbles` `{ dur = 1.5, g, rate = 12 }`: a stream of bubbles rising.
+- `squelch` `{ dur = 0.5, g }`: a wet squelch, a resonant sweep over bubbly noise, for gels and mucus.
+- `heartbeat` `{ g }`: one lub-dub. For a steady pulse under a plate use `BED.body`.
+- `beep` `{ n = 1, f = 1000, gap = 0.18, g }`: short instrument beeps at an exact pitch.
+- `zap` `{ dur = 0.35, g }`: an electric spark, a crack and a short buzz.
+- `magnet` `{ g }`: a small magnet snapping onto metal.
+
 A story can still add its own: `SFX.drip = (ac, out, t, o = {}) => { … }` before `defineStory`, built from `SFX.tone`, `SFX.noise` or `synth(ac, out, t, dur, fill, { g, pan, filters })`. Keep it deterministic: no `Math.random`; use `sfxRng(o, t, 'drip')` so it varies per call like the built-ins.
 
 ## Beds
@@ -74,13 +114,35 @@ A story can still add its own: `SFX.drip = (ac, out, t, o = {}) => { … }` befo
   - `BED.rain { g = 0.03, heavy = 0.5 }`: a wash of noise and many small drop impacts, with the odd big drip.
   - `BED.wind { g = 0.035, strength = 0.5 }`: gusts that change level and colour slowly, a low rumble, a faint whistle on strong gusts.
   - `BED.cityHum { g = 0.03, cars = 1 }`: distant traffic, a low rumble and cars passing across the stereo field every few seconds.
+  - `BED.body { g = 0.05, bpm = 66 }`: inside the body: a slow heartbeat felt more than heard, and blood rushing in time with it.
+  - `BED.underwater { g = 0.05 }`: a muffled low wash, slow pressure swells and bubble streams rising.
+  - `BED.forest { g = 0.012, birds = 1 }`: leaves in a light breeze and a few birds calling; `birds: 0` for none.
+  - `BED.ocean { g = 0.028 }`: waves that build and break every 7 to 11 s, with a hiss of foam as each recedes.
+  - `BED.fire { g = 0.08 }`: a low roar with sparse crackles and pops.
+  - `BED.clockRoom { g = 0.1, rate = 1 }`: a quiet room with a clock ticking, for time passing.
+  - `BED.micro { g = 0.07, tonic }`: the micro world, slow viscous blobs of low sound and soft glassy tones in the film's key, for scenes inside a cell or mucus.
+  - `BED.vinyl { g = 0.1 }`: record-surface crackle and a faint hiss, quieter than the others; a layer for a lo-fi or archival feel.
   - `BED.mix(...beds)` layers beds: `bed: BED.mix(BED.roomTone, (ac, o, t, d) => SFX.pad(ac, o, t, { dur: d, notes: [220, 277.2, 329.6] }))`.
   - With options: `bed: (ac, o, t, d) => BED.rain(ac, o, t, d, { heavy: 0.8 })`.
 
 ## Automatic sounds
 
 - **Seams:** a riser before every seam except `fade` (its length and pitch vary, and it always ends on the seam), then the transition's own sound: a swell for `lensIn`/`lensOut`, a low tap for `cut`, a whoosh for `pan`/`wipe`, a flick for `page`/`roll`, a crackle for `burn`, hatching strokes for `hatch`, a bend for `morph`/`shape`, nothing for `fade`. Each seam gets its own variation. A custom transition can set `enter.sfx: (ac, out, t, dur) => …`.
-- **Headers:** the kicker, title and subtitle type on with pen `scratch` on paper plates, and with soft `readout` blips on night plates. Set `pen: true | false` on a plate to override, or `pen: 'none'` for silence.
+- **Headers:** the kicker, title and subtitle type on with the writing tool of the plate's paper, and with soft `readout` blips where there is no pen. A paper in the paper registry names its tool with `sfx: { header }`; the engine's own table (`PAPER_PEN`) covers the planned papers:
+
+  | Paper | Writing sound |
+  |---|---|
+  | cream notebook (today's paper plates) | `scratch` |
+  | night (today's dark plates), fluorescence, screens | `readout` |
+  | graph, engineering, dot grid, hexagon, semi-log (the lab set) | `pencil` |
+  | whiteboard | `marker` |
+  | chalkboard | `chalk` |
+  | parchment or laid paper, star atlas (the codex set) | `quill` |
+  | kraft, toned tan | `charcoal` |
+  | black sketchbook (gel pen) | `scratch` |
+  | whiteprint, blueprint | `techPen` |
+
+  A plate's `pen` overrides it: a sound name (`pen: 'chalk'`), `true` (the paper's tool, or the pen where the paper has none), `false` (the readout blips) or `'none'` (silence).
 - **Stereo:** small cues are panned deterministically, pads and beds are spread wide, and wipes pan with their direction.
 
 ## Dynamics: a loudness lift at the climax

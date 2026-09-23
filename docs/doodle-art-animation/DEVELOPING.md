@@ -55,6 +55,8 @@ docs/doodle-art-animation/          not shipped with the plugin
 - Regression tests for bugs found while making films, also run by CI: `python3 tests/doodle-art-animation/regression_test.py
   --node-modules <playwright>/node_modules` (`--static` for the parts that need no browser). Add a check there, and a fixture
   story when it needs one, for each bug a film turns up.
+- Sound tests, also run by CI: `python3 tests/doodle-art-animation/effects_test.py --node-modules <playwright>/node_modules` renders
+  `fixtures/story_sounds.js` (one of each sound added in v0.17) and checks the header's writing sound follows the paper.
 - Load it in a session: `claude --plugin-dir plugins/doodle-art-animation`, then `/reload-plugins` after edits.
 - The skill copies its toolkit with `cp -R "${CLAUDE_SKILL_DIR}"/toolkit/. .`. Never build films inside the plugin folder.
 
