@@ -45,6 +45,9 @@ docs/doodle-art-animation/          not shipped with the plugin
   HANDOFF.md                        history, measurements, known weaknesses (paths in it refer to the original handoff zip)
   history/  reference/  examples/   design review, reference-film study images, an older story file
                                     (The Long Release now lives in the toolkit as story_example.js)
+  examples/narrated/                the narrated example, "Salt in Water": story_narrated.js, its Kokoro clips and
+                                    vo/voice.json (made by make_voice.py). It lives here, not in the toolkit, because
+                                    the plugin ships no audio files; a film folder's own vo/ holds its narration
 ```
 
 ## Testing the plugin
@@ -56,6 +59,11 @@ docs/doodle-art-animation/          not shipped with the plugin
 - Regression tests for bugs found while making films, also run by CI: `python3 tests/doodle-art-animation/regression_test.py
   --node-modules <playwright>/node_modules` (`--static` for the parts that need no browser). Add a check there, and a fixture
   story when it needs one, for each bug a film turns up.
+- Narration test, also run by CI: `python3 tests/doodle-art-animation/narration_test.py --node-modules <playwright>/node_modules`
+  (`--static` for the parts that need no browser). It builds the narrated example and checks the engine's voice track:
+  clips embedded, plates timed by the voice, cues on word marks, captions, the levels, the music under the voice, an MP4
+  segment with the voice, the animatic and a build without the voice. Change the example and its clips together:
+  `make_voice.py` in its folder regenerates them (needs `kokoro-onnx`, `faster-whisper` and ffmpeg).
 - Load it in a session: `claude --plugin-dir plugins/doodle-art-animation`, then `/reload-plugins` after edits.
 - The skill copies its toolkit with `cp -R "${CLAUDE_SKILL_DIR}"/toolkit/. .`. Never build films inside the plugin folder.
 
@@ -147,5 +155,6 @@ CI: `.github/workflows/doodle-smoke.yml` runs it on ubuntu-latest for pushes to 
 ## Conventions
 
 - Plain, readable wording in SKILL.md and references. Explain terms; no invented shorthand.
-- Keep renders, frames, WAVs and QA folders out of git (`.gitignore`).
+- Keep renders, frames, WAVs and QA folders out of git (`.gitignore`). The narrated example's Opus clips are the one
+  exception: they are small (about 70 KB each) and the example needs them to build.
 - Bump `version` in `plugin.json` when the plugin changes in a way users would notice.

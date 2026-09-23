@@ -1,6 +1,6 @@
-import sys, re, os, glob, base64
-# usage: python3 build.py story.js film.html [--fonts google|local|<node_modules dir>]
-# -> one self-contained HTML: engine, then kit files, then the story.
+import sys, re, os, glob, base64, json, hashlib, shutil, subprocess
+# usage: python3 build.py story.js film.html [--fonts google|local|<node_modules dir>] [--voice vo/voice.json|none] [--animatic]
+# -> one self-contained HTML: narration (if any), engine, then kit files, then the story.
 # Kits: kits/_*.js (shared helpers) always, plus each kits/<name>.js the story calls as KIT.<name>. If the story refers
 # to KIT in a way that can't be read (KIT[...], passing KIT around, an unknown name), every kit is included.
 # Papers: grounds/_*.js always, plus each grounds/<file>.js that defines a paper or paper set the story names
@@ -55,10 +55,74 @@ def apply_fonts(shell, fonts):
     return re.sub(r'<!--fonts-->.*?<!--/fonts-->', lambda m: local_fonts(fonts), shell, flags=re.S)
 # ---- end fonts option ----
 
+# ---- narration (--voice): embed the clips of vo/voice.json, so the film plays, renders and is checked with its voice ----
+USAGE = 'usage: python3 build.py story.js film.html [--fonts google|local|<node_modules dir>] [--voice vo/voice.json|none] [--animatic]'
+def pop_opt(argv, name, flag=False):
+    """Pull --name VALUE / --name=VALUE (or a bare --name when flag) out of argv. Returns (value or None, rest)."""
+    rest, val, i = [], None, 0
+    while i < len(argv):
+        a = argv[i]
+        if a.startswith(name + '='): val = a.split('=', 1)[1]
+        elif a == name:
+            if flag: val = True
+            elif i + 1 >= len(argv) or argv[i + 1].startswith('--'): sys.exit(f'{name} needs a value\n{USAGE}')
+            else: val = argv[i + 1]; i += 1
+        else: rest.append(a)
+        i += 1
+    return val, rest
+
+KBPS = 64    # Opus, mono: transparent for speech, about 0.5 MB per minute of narration
+
+def clip_bytes(src, cache):
+    """A clip as Opus in Ogg (transcoded with ffmpeg once, then cached by content), or the file itself when it is
+    already Opus or ffmpeg is missing. Returns (bytes, mime)."""
+    raw = open(src, 'rb').read()
+    if raw[:4] == b'OggS' and b'OpusHead' in raw[:64]: return raw, 'audio/ogg'
+    if not shutil.which('ffmpeg'):
+        print(f'--voice: ffmpeg not found, embedding {os.path.basename(src)} uncompressed (install ffmpeg for Opus)', file=sys.stderr)
+        return raw, 'audio/wav' if raw[:4] == b'RIFF' else 'application/octet-stream'
+    key = hashlib.sha1(raw + str(KBPS).encode()).hexdigest()[:16]
+    out = os.path.join(cache, key + '.ogg')
+    if not os.path.isfile(out):
+        os.makedirs(cache, exist_ok=True)
+        r = subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', src, '-ac', '1', '-ar', '48000', '-c:a', 'libopus',
+                            '-b:a', f'{KBPS}k', '-application', 'voip', out + '.part.ogg'], capture_output=True, text=True)
+        if r.returncode: sys.exit(f'--voice: ffmpeg could not read {src}:\n{r.stderr[-400:]}')
+        os.replace(out + '.part.ogg', out)
+    return open(out, 'rb').read(), 'audio/ogg'
+
+def voice_script(path):
+    """window.__VOICE_DATA: voice.json with each unit's clip embedded as base64 Opus. Clip paths are relative to the
+    film folder (the folder holding vo/), else to voice.json's own folder."""
+    try: data = json.load(open(path, encoding='utf-8'))
+    except (OSError, ValueError) as e: sys.exit(f'--voice: cannot read {path}: {e}')
+    vdir = os.path.dirname(os.path.abspath(path))
+    film = os.path.dirname(vdir) if os.path.basename(vdir) == 'vo' else vdir
+    units, secs, size = [], 0.0, 0
+    for u in data.get('units', []):
+        if 'id' not in u or 'file' not in u: sys.exit(f'--voice: every unit in {path} needs an "id" and a "file" (got {sorted(u)})')
+        src = next((c for c in (os.path.join(film, u['file']), os.path.join(vdir, u['file']), u['file']) if os.path.isfile(c)), None)
+        if not src: sys.exit(f'--voice: clip {u["file"]} for {u["id"]} not found (looked in {film} and {vdir})')
+        audio, mime = clip_bytes(src, os.path.join(vdir, '.opus'))
+        keep = {k: u[k] for k in ('id', 'plate', 'dur', 'sentences', 'marks', 'text', 'timing', 'lufs', 'lead', 'tail') if k in u}
+        units.append({**keep, 'mime': mime, 'audio': base64.b64encode(audio).decode()})
+        secs += float(u.get('dur') or 0); size += len(audio)
+    head = {k: data[k] for k in ('version', 'provider', 'model', 'voice', 'style') if k in data}
+    js = 'window.__VOICE_DATA = ' + json.dumps({**head, 'units': units}, ensure_ascii=False).replace('</', '<\\/') + ';'
+    return js, f'voice: {len(units)} clips, {secs:.1f} s ({size // 1024} KB)'
+# ---- end narration ----
+
 fonts, args = parse_fonts_arg(sys.argv[1:])
-if len(args) < 2: sys.exit('usage: python3 build.py story.js film.html [--fonts google|local|<node_modules dir>]')
+voice, args = pop_opt(args, '--voice')
+animatic, args = pop_opt(args, '--animatic', flag=True)
+if len(args) < 2: sys.exit(USAGE)
 here = os.path.dirname(os.path.abspath(__file__)); rd = lambda p: open(p, encoding='utf-8').read()
 story, out = rd(args[0]), args[1]
+# a story whose plates say vo: '...' picks up vo/voice.json next to it on its own; --voice none builds without narration
+auto = os.path.join(os.path.dirname(os.path.abspath(args[0])), 'vo', 'voice.json')
+if voice is None and re.search(r'\bvo\s*:', story) and os.path.isfile(auto): voice = auto
+vjs, vnote = voice_script(voice) if voice and voice != 'none' else ('', '')
+if animatic: vjs += '\nwindow.__ANIMATIC = true;'
 files = sorted(glob.glob(os.path.join(here, 'kits', '*.js')))
 base = [p for p in files if os.path.basename(p).startswith('_')]
 kits = {os.path.basename(p)[:-3]: p for p in files if p not in base}
@@ -101,10 +165,12 @@ gpick, unknown = papers(story, engine)
 for n in unknown:
     print(f"build.py: warning: paper '{n}' is not defined in engine.js, toolkit/grounds/ or the story; the film will stop at boot",
           file=sys.stderr)
-parts = {'__TITLE__': m.group(1), '__ENGINE__': engine, '__KITS__': '\n'.join(rd(p) for p in pick + gpick), '__STORY__': story}
+if '__VOICE__' not in shell: shell = shell.replace('__ENGINE__', '__VOICE__\n__ENGINE__')
+parts = {'__TITLE__': m.group(1), '__VOICE__': vjs, '__ENGINE__': engine, '__KITS__': '\n'.join(rd(p) for p in pick + gpick), '__STORY__': story}
 html = re.sub('|'.join(parts), lambda mm: parts[mm.group(0)], shell)   # one pass, so inserted code is never re-scanned
 open(out, 'w', encoding='utf-8').write(html)
 names = [os.path.basename(p)[:-3] for p in pick if p not in base]
 gnames = [os.path.basename(p)[:-3] for p in gpick if not os.path.basename(p).startswith('_')]
 print(out, len(html) // 1024, 'KB, kits:', ('all' if ambiguous and kits else ', '.join(names) or 'none'),
-      *(['papers:', ', '.join(gnames)] if gnames else []), '(fonts embedded)' if fonts and fonts != 'google' else '')
+      *(['papers:', ', '.join(gnames)] if gnames else []), '(fonts embedded)' if fonts and fonts != 'google' else '',
+      ('· ' + vnote) if vnote else '', '· animatic' if animatic else '')
