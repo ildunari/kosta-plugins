@@ -2510,7 +2510,7 @@ const SFX = {
   },
 };
 /*
- * New in v0.17 (sound build S2): writing tools for each paper, paper and desk sounds, data sounds, lab and body sounds,
+ * New in v0.16.4 (sound build S2): writing tools for each paper, paper and desk sounds, data sounds, lab and body sounds,
  * and two physical ones. Seeded like the v0.15 sounds (opts.seed fixes one exact sound); each fill is normalized, so
  * `g` is the sound's peak before the master chain.
  *
@@ -2684,7 +2684,7 @@ const BED = {
       synth(ac, out, t0 + s, len, (d, q) => noiseInto(d, q, x => Math.sin(Math.PI * x / len) ** 3), { g: g * rr(r, 0.5, 1), r, pan: -0.8 * dir, pan1: 0.8 * dir,
         filters: [{ type: 'bandpass', f, f1: f * 0.6, q: 0.7 }] }); } },
   /** layer beds: bed: BED.mix(BED.roomTone, (ac, o, t, d) => SFX.pad(ac, o, t, { dur: d })) */
-  /* ---- new in v0.17 (sound build S2): settings for body, water, nature, time and the micro world ---- */
+  /* ---- new in v0.16.4 (sound build S2): settings for body, water, nature, time and the micro world ---- */
   /** inside the body: a slow heartbeat you feel more than hear (bpm), and blood rushing in time with it */
   body(ac, out, t0, dur, o = {}) { const { g = 0.05, bpm = 66 } = o, r = sfxRng(o, t0, 'body'), P = 60 / bpm, ph = r() * P;
     const beatEnv = s => { const x = ((s + ph) % P) / P; return 0.25 + Math.exp(-(((x - 0.08) / 0.05) ** 2)) + 0.7 * Math.exp(-(((x - 0.3) / 0.06) ** 2)); };

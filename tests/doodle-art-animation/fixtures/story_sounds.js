@@ -1,4 +1,4 @@
-/* =====================  FIXTURE: story_sounds  ·  every sound added in sound build S2 (v0.17)  ===================== */
+/* =====================  FIXTURE: story_sounds  ·  every sound added in sound build S2 (v0.16.4)  ===================== */
 /* One cue of each new effect, one plate per new ambience bed, and headers typed with each writing tool (through
    plate.pen, so the fixture needs no paper registry). effects_test.py renders its audio and runs cue_check on it.
    Build: python3 build.py story_sounds.js story_sounds.html */

@@ -391,7 +391,7 @@ SOUND = read(os.path.join(REF, 'sound.md')) or ''
 PRINC = read(os.path.join(REF, 'animation-principles.md')) or ''
 NEW_SFX = ['crunch', 'creak', 'pump', 'relay', 'hiss', 'plop', 'slosh', 'shaker', 'clink', 'pour', 'foil', 'droplet',
            'pageFlip', 'pegSnap', 'roomTone', 'rain', 'wind', 'cityHum',
-           # v0.17 (sound build S2): writing tools, desk, data, lab and body effects, and the new ambience beds
+           # v0.16.4 (sound build S2): writing tools, desk, data, lab and body effects, and the new ambience beds
            'pencil', 'chalk', 'marker', 'quill', 'charcoal', 'techPen', 'typewriter', 'eraser', 'stamp', 'tear', 'counter',
            'sonify', 'sparkle', 'pipette', 'centrifuge', 'syringe', 'pills', 'fizz', 'bubbles', 'squelch', 'heartbeat', 'beep',
            'zap', 'magnet', 'body', 'underwater', 'forest', 'ocean', 'fire', 'clockRoom', 'micro', 'vinyl']
@@ -481,8 +481,8 @@ if want('REL'):
     pj = json.loads(read(os.path.join(PLUG, '.claude-plugin', 'plugin.json')) or '{}')
     mj = json.loads(read(os.path.join(REPO, '.claude-plugin', 'marketplace.json')) or '{}')
     mv = next((p.get('version') for p in mj.get('plugins', []) if p.get('name') == 'doodle-art-animation'), None)
-    check('REL', 'plugin.json version 0.16.3', pj.get('version') == '0.16.3', str(pj.get('version')))
-    check('REL', 'marketplace entry version 0.16.3', mv == '0.16.3', str(mv))
+    check('REL', 'plugin.json version 0.16.4', pj.get('version') == '0.16.4', str(pj.get('version')))
+    check('REL', 'marketplace entry version 0.16.4', mv == '0.16.4', str(mv))
 
 # ---------------------------------------------------------------- full checks (build, probe, render)
 def run(cmd, cwd=None, timeout=1800):
