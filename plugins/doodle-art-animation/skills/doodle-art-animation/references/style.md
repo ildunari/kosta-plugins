@@ -11,6 +11,23 @@ Read this before drawing any plate. It covers the two worlds, palette, type, lin
 
 Both worlds carry four large, smooth topographic loops that drift slowly (muted pink, teal, yellow and periwinkle), plus crosshair registration marks in the corners. The end card is always night.
 
+## Papers
+
+The two worlds above are the **notebook** paper set, and it is the default. A paper set keeps the same two-world idea on a different paper: `defineStory({ paper: 'blueprint' })` puts every paper-world plate on the set's light paper and every night plate on its dark one. `plate.paper` changes one plate. Each paper brings its own palette, vignette, grain strength, topographic loops, header sound and, optionally, a treatment that changes how the whole scene looks on it (a blue tint, sepia, chalk tooth, a glow). The HUD is never treated.
+
+| Set | Paper world | Night world | Status |
+|---|---|---|---|
+| `notebook` | `cream` | `night` | In `engine.js`; the default |
+| Others (blueprint, lab, chalk, codex, toned) | | | Planned; each lands as `toolkit/grounds/<name>.js` |
+
+Pick one set per film and switch only with a reason (a flashback on another paper, say). Subject colours that read on cream may not read on a coloured paper, so check them on the chosen set's `story_swatch.js` plates.
+
+Texture rules for new papers. Short-form video is re-encoded hard (TikTok, YouTube Shorts), and these keep a texture from turning into mush or bands:
+- Grain in specks of 2 px or more (`paperKit.grain(g, amt, seed)` does this by default). Single-pixel grain is the first thing re-encoding removes.
+- Grid lines at least 1.5 px wide, at least 8/255 brighter or darker than the paper (a different hue alone is not enough, because colour is stored at lower resolution), and never closer together than 30 px.
+- Put mottles over a dark gradient, or it bands. The night gradient spans only about 9 brightness levels across the frame.
+- Contrast against the texture: ink 7:1 or more, label text 4.5:1 or more, the accent (a graphic, not text) 3:1 or more. `smoke_test.py` checks this on every paper. The notebook's vermilion measures 2.5:1 on cream and keeps a lowered floor so older films look the same.
+
 ## Palette
 
 | Role | Hex | Role | Hex |
