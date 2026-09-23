@@ -53,7 +53,7 @@ Save it as `script.md` in the working folder. The reviewers look for it there.
 
 ## 5. Gate 1 — script review (blocking)
 
-Only once `script.md` is saved, run `doodle-art-animation:script-reviewer` with the Agent tool. Give it the absolute path to `script.md`, `brief.md` and `facts.md`, the user's request word for word, and the intake answers (say so if there were none).
+Only once `script.md` is saved, run `doodle-art-animation:script-reviewer` with the Agent tool. Give it the absolute path to `script.md`, `brief.md` and `facts.md`, the user's request word for word, and the intake answers (say so if there were none). Give it the source's path only for spot-checks, with the page or line range behind each fact in `facts.md`; don't point it at the whole paper or its figure images. It reviews the plan, not the science, and on biomedical papers a reviewer reading the full text and figures has been stopped part-way by an automated safety check. If a reviewer stops that way anyway, say so plainly, with the message it gave.
 
 Nothing else runs yet. Don't start `sound-designer` here and don't open a build lane; both need the script the review is about to change.
 
@@ -67,7 +67,7 @@ There is no clock to run: you cannot time ten minutes, and a reply typed now wou
 
 - the working folder already exists from step 1; copy the toolkit into it now, from the skill path resolved in step 1 (`cp -R "<skill>/toolkit/." .`, where `<skill>` is `${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation`, or `${CLAUDE_SKILL_DIR}/../doodle-art-animation` when that is empty);
 - `helpers.js`: the film's palette names, the hero function and its ID tag, shared shapes, and **any constant a seam anchors to** (a landing point, a hand-off position) — the seam list names those, and a plate whose `enter` reads one from another plate's file cannot build on its own;
-- the sound plan: `doodle-art-animation:sound-designer` on the reviewed `script.md`, saved as `cues.md`.
+- the sound plan: `doodle-art-animation:sound-designer` on the reviewed `script.md`, saved as `cues.md`. Hand it the script, the brief and the request, not the sources: it designs to beats and mood.
 
 This may **not** start: any art lane, any `plate_*.js`, any build of the film. If the user comes back with changes, a drawn plate is wasted work.
 

@@ -40,7 +40,7 @@ plugins/doodle-art-animation/       the plugin
                                     script.md -> checked, timed voice clips and vo/voice.json)
 docs/doodle-art-animation/          not shipped with the plugin
   DEVELOPING.md                     this file
-  v0.14-state.md … v0.16-state.md   what each release changed, how it was checked, its known limits
+  v0.14-state.md … v0.16.1-state.md what each release changed, how it was checked, its known limits
   ACCEPTANCE.md                     the go/no-go rules (L1-L17 films and toolkit, W1-W9 workflow)
   HANDOFF.md                        history, measurements, known weaknesses (paths in it refer to the original handoff zip)
   history/  reference/  examples/   design review, reference-film study images, an older story file
@@ -56,6 +56,9 @@ docs/doodle-art-animation/          not shipped with the plugin
 - Voice tool tests, also run by CI: `node tests/doodle-art-animation/voice_test.mjs`. They use the fake voice and pretend
   Gemini, OpenAI and proxy servers, so they need no network, no keys and cost nothing. `DOODLE_TEST_KOKORO=1` adds a real
   Kokoro run (needs `python3 -m pip install kokoro-onnx` and downloads a 325 MB model from GitHub the first time).
+- Regression tests for bugs found while making films, also run by CI: `python3 tests/doodle-art-animation/regression_test.py
+  --node-modules <playwright>/node_modules` (`--static` for the parts that need no browser). Add a check there, and a fixture
+  story when it needs one, for each bug a film turns up.
 - Load it in a session: `claude --plugin-dir plugins/doodle-art-animation`, then `/reload-plugins` after edits.
 - The skill copies its toolkit with `cp -R "${CLAUDE_SKILL_DIR}"/toolkit/. .`. Never build films inside the plugin folder.
 
