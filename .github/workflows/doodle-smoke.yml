@@ -10,6 +10,7 @@ on:
       - "plugins/doodle-art-animation/**"
       - "tests/doodle-art-animation/**"
       - "docs/doodle-art-animation/ACCEPTANCE.md"
+      - "docs/doodle-art-animation/examples/narrated/**"
       - ".claude-plugin/marketplace.json"
       - ".github/workflows/doodle-smoke.yml"
   pull_request:
@@ -17,6 +18,7 @@ on:
       - "plugins/doodle-art-animation/**"
       - "tests/doodle-art-animation/**"
       - "docs/doodle-art-animation/ACCEPTANCE.md"
+      - "docs/doodle-art-animation/examples/narrated/**"
       - ".claude-plugin/marketplace.json"
       - ".github/workflows/doodle-smoke.yml"
   workflow_dispatch:
@@ -58,6 +60,10 @@ jobs:
       - name: Install numpy
         run: python -m pip install --upgrade numpy
 
+      - name: Voice tool tests
+        # toolkit/voice.mjs with its fake voice and pretend Gemini, OpenAI, Grok, ElevenLabs, Inworld and proxy servers: no network, keys or cost
+        run: node tests/doodle-art-animation/voice_test.mjs
+
       - name: Acceptance rules (static)
         # docs/doodle-art-animation/ACCEPTANCE.md, items L1-L17 and W1-W9. The --full tier needs
         # Playwright and a render, which the smoke job below already covers for the toolkit.
@@ -78,6 +84,12 @@ jobs:
         # tests/doodle-art-animation/regression_test.py: story parts in smoke_test, audio_check's seam swell, plates
         # that reset globalAlpha inside a fade, the zoom default, and speed_check's TWICE warning on pans.
         run: python3 tests/doodle-art-animation/regression_test.py --node-modules "$RUNNER_TEMP/pw/node_modules"
+
+      - name: Narration test (the engine's voice track)
+        # tests/doodle-art-animation/narration_test.py on the narrated example (docs/doodle-art-animation/examples/narrated):
+        # embedded clips, plates timed by the voice, cues on word marks, captions, levels, music under the voice,
+        # an MP4 segment with the voice, the animatic, and a build without the voice.
+        run: python3 tests/doodle-art-animation/narration_test.py --node-modules "$RUNNER_TEMP/pw/node_modules"
 
       - name: Run smoke test
         run: >

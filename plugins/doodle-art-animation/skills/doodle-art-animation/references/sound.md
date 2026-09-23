@@ -1,8 +1,8 @@
 # Sound
 
-Every sound is synthesized in code: the plugin ships no audio files, so a film stays one self-contained HTML. The engine renders the whole track with an `OfflineAudioContext` from the same plate start times as the picture, so the result is deterministic and exported as WAV.
+Every sound is synthesized in code: the plugin ships no audio files, so a film stays one self-contained HTML. The one recording a film may carry is its own narration, which `build.py` embeds in the HTML (see "Narration" below). The engine renders the whole track with an `OfflineAudioContext` from the same plate start times as the picture, so the result is deterministic and exported as WAV.
 
-The layers: a music bed (pads in the film's key), ambience beds (room tone, rain, wind, traffic), effect cues on the picture's events, the automatic sounds of seams and headers, a compressor, a short reverb and real stereo.
+The layers: a music bed (pads in the film's key), ambience beds (room tone, rain, wind, traffic), effect cues on the picture's events, instruments and short musical stingers in the film's key, the automatic sounds of seams and headers, a compressor, a short reverb and real stereo.
 
 ## The rule: different kinds of events get different sounds
 
@@ -31,7 +31,13 @@ A viewer hears a repeated sound as the same event happening again. So the same s
 | Blister pack, packaging | `foil` | |
 | A camera move or a seam | the automatic transition sound | don't add a contact sound to it |
 | Time passing | a bed change (`wind` rising, `cityHum` thinning), a slow `tone` glide, or a `tick` series | not a pen scratch |
-| A reveal | a moment of near-silence before it, then `chime` or a lift in the bed | see *Dynamics* |
+| A reveal | a moment of near-silence before it, then `chime` or a lift in the bed; for the film's one big reveal, the `reveal` stinger | see *Dynamics* |
+| The hero first appears; changes; the end | `motif { degs }` (its four notes), varied `degs` when it changes, and ending on the tonic at the end | one motif per film |
+| Something works, a step completes | `success` | musical, so keep it for real wins |
+| A question is posed, a mystery opens | `question` | |
+| A myth crossed out, a failed attempt | `oops` | |
+| The end card | `resolve` (a rolled chord) | |
+| A melody or a counted series in key | an instrument: `marimba`, `kalimba`, `musicBox`, `celesta`, `glock`, `vibes`, `epiano`, `pluck`, `feltPiano`, `strings` | `{ deg }` keeps it in key |
 | Places | beds: `roomTone` (lab, office), `rain`, `wind` (outdoors, a fall), `cityHum` (streets) | |
 
 ## Effect cues
@@ -62,11 +68,39 @@ New in v0.15 (techniques after Andy Farnell, *Designing Sound*, and K. van den D
 - `pageFlip` `{ dur = 0.45, g }`: a page turned: a rising, fluttering swish of air and the soft slap as it lands.
 - `pegSnap` `{ g }`: a clothes peg: a scrape of the spring, a woody snap and a faint ring of the coil. Also good for any small clip or latch.
 
+## Instruments and stingers (new in v0.16.4)
+
+Ten pitched instruments play one note per call, in the film's key, and vary per call like the effects (a fixed `seed` repeats one exact note). Every one takes `{ f, deg, oct, tonic, g, pan, decay, seed }`: `f` is the pitch in Hz; without it, `deg` (a degree of the engine's `note()` scale, 0 = the tonic) is played in the film's key (`tonic`, else `music.tonic`, else 220 Hz), `oct` octaves above the tonic, starting from the instrument's home octave. `g` is the note's peak and `decay` stretches or shortens its ring (1 = as built). The pitch never varies by more than 2 cents per call, and a test checks every instrument's tuning by FFT to within 5 cents.
+
+- `marimba { hard }` (home: one octave up): a wooden bar, soft mallet, short and woody. `hard` 0..1 is the mallet.
+- `vibes { trem }` (one up): a long metal bar with the motor's tremolo (`trem` Hz, 0 = motor off).
+- `musicBox` (two up): a plucked steel comb tine, bright, with the pin's click.
+- `kalimba` (one up): a thumb-plucked tine over a wooden box, warm.
+- `celesta` (two up): a soft, round bell.
+- `glock { hard }` (three up): a glockenspiel, bright and ringing.
+- `epiano { vel }` (one up): an electric piano, bright when struck and mellowing; `vel` 0..1 is how hard.
+- `pluck { bright, t60 }` (the tonic's octave): a plucked string, harp-like when bright, a soft bass when low.
+- `feltPiano { vel }` (the tonic's octave): a soft upright with felt over the hammers.
+- `strings { dur, att, rel, bright, notes }`: a string section swelling in over `att` s, held `dur` s, released over `rel` s; one note (`f` or `deg`), a chord (`notes: [Hz, ...]`), or the film's I chord when neither is given.
+
+How each is made is in the comment above `INST` in `engine.js`: struck bars and tines are modal synthesis (a few decaying sines at the object's mode ratios), the electric piano is FM, the plucked string is Karplus-Strong, the felt piano sums a stiff string's stretched overtones, and the strings are detuned sawtooth waves through a slowly opening filter.
+
+Six stingers are short musical phrases in the film's key, built from the instruments. Each takes `{ tonic, g, seed }`, where `g` scales the whole phrase (1 = as balanced), and varies per call:
+
+- `motif { degs = [2, 3, 4, 6], inst = 'musicBox', step = 0.22, oct }`: the hero's four notes, when it first appears. Change `degs` when the hero changes; end on the tonic (`0`) at the end.
+- `success { inst = 'marimba' }`: a quick rising arpeggio.
+- `question { inst = 'epiano' }`: two rising notes that do not resolve.
+- `oops`: a falling half step on a muted string.
+- `reveal { lead = 1.4 }`: a reversed swell that starts `lead` s before the cue and ends exactly on it, then a low boom, a bright chord and a string swell. The bed ducks by 40% for 0.9 s under it. Use it once or twice per film, on the moment itself (a cue's time is the hit, not the start of the swell).
+- `resolve`: a rolled felt-piano chord and a music-box sparkle, for the end card.
+
+`One Drop` (`story_one_drop.js`) uses five of them: its motif when the drop appears and again, ending on the tonic, under the end card; `oops` as the teardrop myth is crossed out; `reveal` as the camera settles on the whole route; `success` as the route closes; `resolve` under the end card's rule line. Music beds with a pulse (arpeggios, lo-fi, the pulse bed) are not built yet; today's pad is still the default bed.
+
 A story can still add its own: `SFX.drip = (ac, out, t, o = {}) => { … }` before `defineStory`, built from `SFX.tone`, `SFX.noise` or `synth(ac, out, t, dur, fill, { g, pan, filters })`. Keep it deterministic: no `Math.random`; use `sfxRng(o, t, 'drip')` so it varies per call like the built-ins.
 
 ## Beds
 
-`bed: (ac, out, t0, dur) => …` on a plate plays on a bus that ducks by 50% under every transition and by 25% under a `chime`, `pop` or `crunch`. Overlapping ducks combine as the deepest one at each moment, so a cue inside a transition's duck never pulls the bed back up early.
+`bed: (ac, out, t0, dur) => …` on a plate plays on a bus that ducks by 50% under every transition, by 25% under a `chime`, `pop` or `crunch`, and by 40% under a `reveal`. Overlapping ducks combine as the deepest one at each moment, so a cue inside a transition's duck never pulls the bed back up early.
 
 - **Music bed:** `defineStory({ music: { tonic: 220, gain } })` gives every plate without a `bed` an automatic pad. Stage `n` plays chord `n` of a I–vi–IV–V–ii–V loop; night plates drop an octave, darken and add a low noise bed; the end card resolves to I with an added 9th. `SFX.pad` and `SFX.padKey` build your own.
 - **Ambience beds** (`BED.*`, in the bed shape, each takes `(ac, out, t0, dur, opts)` and fades in and out over about a second; left and right are synthesized separately so they are really stereo):
@@ -91,6 +125,17 @@ A film that sits at −20 dB from start to end sounds flat, however good its cue
 - Shorter: `lift: dB` on the climax plate ramps up over its first 1.5 s and back down over 1.5 s after it ends (used only when `dynamics` is absent).
 - Density does the rest: fewer, sparser cues early; the climax gets a fuller bed and its strongest cue. A beat of near-silence just before the climax makes the lift land harder.
 - The compressor (threshold −16 dB, 4:1) softens lifts at the loudest moments, so a +3 dB lift reads as about +2. Keep lifts within ±6 dB and re-check the level.
+
+## Narration
+
+A narrated film (plates with `vo`, clips from `toolkit/voice.mjs`, embedded by `build.py`; `references/api.md`, "Narration") mixes differently, because the words must always win.
+
+- **The voice channel.** Each clip is first brought to −18 LUFS on its own (measured on the clip, so clips from different providers or takes match), then all of them go through one chain: a high-pass at 80 Hz (no rumble or plosive thumps), a gentle compressor (−26 dB threshold, 2.5:1, fast attack) and a touch of the same room the effects use. The voice is centred and never goes through the music's compressor, so neither pumps the other.
+- **Ducking.** The music and ambience beds dip 14 dB under every sentence, starting 0.25 s before it and recovering over 0.6 s after it; sentences less than about a second apart share one dip, so the bed does not bob between them. The effects dip 3 dB, so a cue on a word still lands. The engine's own ducks under transitions and chimes still apply on top.
+- **Levels.** The finished track is brought to **−16 LUFS integrated** (the usual target for web video and podcasts) with a look-ahead limiter holding **true peaks under −1.5 dBTP**, so the MP4 measures at or under −1 dBTP after AAC. While the voice speaks, the music and effects sit **15–20 dB under it** (the example measures 16.9 dB). For short-form uploads, `defineStory({ voice: { lufs: -14 } })`. The RMS level and loudness range targets under "Levels and checks" are for films without narration; they are reported, not judged, for a narrated film.
+- **Settings.** `defineStory({ voice: { level: -18, lufs: -16, peak: -1.5, duck: 14, fxDuck: 3, reverb: 0.12 } })` are the defaults. Raise `duck` when the music competes with the words, lower it when the music vanishes; `reverb` is the room's share. A dense passage of cues under a line is better moved to a pause in the narration than ducked harder.
+- **Checks.** `audio_check.py film.mp4 --narrated` judges loudness (−16 LUFS ±1; `--lufs -14` for another target) and true peak (−1 dBTP or lower). `node render.mjs film.html --stems --dir qa` writes the voice and everything else as two WAVs with the sentence times, and `audio_check.py film.mp4 --narrated --stems qa` adds `under`: how far the music and effects sit under the voice while it speaks (median over 400 ms windows, target 15–20 dB). `cue_check` is unchanged: the narration is not a cue, so it never counts towards a sound dominating the film.
+- **Stems.** `window.__audioWav({ only: 'voice' })` and `({ only: 'rest' })` render one side alone, for a reviewer or a separate mix; both skip the final loudness pass, so they add up to the track before it.
 
 ## Levels and checks
 
