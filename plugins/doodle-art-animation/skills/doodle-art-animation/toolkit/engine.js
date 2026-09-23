@@ -1175,12 +1175,17 @@ function buildTextures() {
  *   glow: [8, 0.6]          a blurred copy added on top (px, strength), as fluorescence glows
  * A function instead of the object does the whole job itself: fn(g2d, ground, { base, raw }), on the layer at identity.
  */
-const TREAT = { scratch: null, holes: new Map() };
-function holePattern(share) {
-  let p = TREAT.holes.get(share); if (p) return p;
-  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'), im = g.createImageData(128, 128), r = mulberry(91);
+const TREAT = { scratch: null, masks: new Map() };
+/** toothMask(share, w, h): holes in 2 px specks over a whole paper (share of full holes, as many again half-open), built
+    once per size. One drawImage of it costs far less per frame than filling the frame with a scaled pattern. */
+function toothMask(share, w, h) {
+  const key = `${share}:${w}x${h}`; let c = TREAT.masks.get(key); if (c) return c;
+  const w2 = Math.ceil(w / 2), h2 = Math.ceil(h / 2), sm = Object.assign(document.createElement('canvas'), { width: w2, height: h2 });
+  const sg = sm.getContext('2d'), im = sg.createImageData(w2, h2), r = mulberry(91);
   for (let i = 0; i < im.data.length; i += 4) { const v = r(); im.data[i + 3] = v < share ? 255 : v < share * 1.8 ? 90 : 0; }
-  g.putImageData(im, 0, 0); p = g.createPattern(c, 'repeat'); TREAT.holes.set(share, p); return p;
+  sg.putImageData(im, 0, 0);
+  c = Object.assign(document.createElement('canvas'), { width: w, height: h }); const g = c.getContext('2d');
+  g.imageSmoothingEnabled = false; g.drawImage(sm, 0, 0, w2 * 2, h2 * 2); TREAT.masks.set(key, c); return c;
 }
 function treatScratch(src) {
   const c = TREAT.scratch && TREAT.scratch.width === src.width && TREAT.scratch.height === src.height ? TREAT.scratch : (TREAT.scratch = Object.assign(document.createElement('canvas'), { width: src.width, height: src.height }));
@@ -1196,9 +1201,9 @@ function treat(g2d, gr, base, raw) {
     // keep every kind on the paper's own rectangle: outside it the layer is empty, and a blend or a blur would fill that
     g2d.setTransform(base); g2d.beginPath(); g2d.rect(0, 0, raw.width, raw.height); g2d.setTransform(1, 0, 0, 1, 0, 0); g2d.clip();
     if (tr.tooth) {                                                        // holes in 2 px specks, fixed to the paper
-      const [share, a] = tr.tooth, pat = holePattern(share); pat.setTransform(base.multiply(new DOMMatrix([2, 0, 0, 2, 0, 0])));
-      g2d.globalCompositeOperation = 'destination-out'; g2d.globalAlpha = a; g2d.fillStyle = pat; g2d.fillRect(0, 0, c.width, c.height);
-      g2d.globalAlpha = 1; g2d.globalCompositeOperation = 'destination-over'; g2d.setTransform(base); g2d.drawImage(raw, 0, 0); g2d.setTransform(1, 0, 0, 1, 0, 0);
+      const [share, a] = tr.tooth;
+      g2d.globalCompositeOperation = 'destination-out'; g2d.globalAlpha = a; g2d.setTransform(base); g2d.drawImage(toothMask(share, raw.width, raw.height), 0, 0);
+      g2d.globalAlpha = 1; g2d.globalCompositeOperation = 'destination-over'; g2d.drawImage(raw, 0, 0); g2d.setTransform(1, 0, 0, 1, 0, 0);
     }
     if (tr.filter) { const s = treatScratch(c); g2d.globalCompositeOperation = 'copy'; g2d.globalAlpha = 1; g2d.filter = tr.filter; g2d.drawImage(s, 0, 0); g2d.filter = 'none'; }
     if (tr.color) { const [col, a] = tr.color; g2d.globalCompositeOperation = 'color'; g2d.globalAlpha = a; g2d.fillStyle = col; g2d.fillRect(0, 0, c.width, c.height); }

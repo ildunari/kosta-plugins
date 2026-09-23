@@ -3,18 +3,6 @@
    dark hole. The lift measures how far each drawn pixel is from the board (a 'difference' blend of the plate's layer
    with the bare board), punches the board's tooth through that, and adds it back onto the board. The board stays as
    it was, pale ink comes out as chalk white, and dark fills come out as pale chalk of their own hue. */
-/** the board's tooth as one frame-sized mask (2 px holes), built once: a single drawImage per frame costs far less than
-    filling the frame with a scaled pattern, and CSS filters are avoided for the same reason (both are slow without a GPU) */
-const CHALK_TOOTH = { c: null };
-function chalkTooth(raw) {
-  if (CHALK_TOOTH.c && CHALK_TOOTH.c.width === raw.width && CHALK_TOOTH.c.height === raw.height) return CHALK_TOOTH.c;
-  const w = Math.ceil(raw.width / 2), h = Math.ceil(raw.height / 2), small = Object.assign(document.createElement('canvas'), { width: w, height: h });
-  const sg = small.getContext('2d'), im = sg.createImageData(w, h), r = mulberry(91);
-  for (let i = 0; i < im.data.length; i += 4) { const v = r(); im.data[i + 3] = v < 0.24 ? 255 : v < 0.43 ? 90 : 0; }
-  sg.putImageData(im, 0, 0);
-  const c = Object.assign(document.createElement('canvas'), { width: raw.width, height: raw.height }), g = c.getContext('2d');
-  g.imageSmoothingEnabled = false; g.drawImage(small, 0, 0, w * 2, h * 2); return (CHALK_TOOTH.c = c);
-}
 defineGround('chalkboard', {
   tone: 'dark',
   pal: { night: '#2a3831', night2: '#243029', nightInk: '#efefe6', nightMuted: '#9aa89f', nightLabel: '#c6cfc7',
@@ -42,7 +30,7 @@ defineGround('chalkboard', {
   treatment(g2d, gr, { base, raw }) {
     const c = g2d.canvas, s = treatScratch(c), sg = s.getContext('2d');
     sg.save(); sg.globalCompositeOperation = 'difference'; sg.setTransform(base); sg.drawImage(raw, 0, 0); sg.restore();   // s: |plate − board|
-    sg.save(); sg.globalCompositeOperation = 'destination-out'; sg.globalAlpha = 0.8; sg.setTransform(base); sg.drawImage(chalkTooth(raw), 0, 0); sg.restore();   // the board's tooth
+    sg.save(); sg.globalCompositeOperation = 'destination-out'; sg.globalAlpha = 0.8; sg.setTransform(base); sg.drawImage(toothMask(0.24, raw.width, raw.height), 0, 0); sg.restore();   // the board's tooth
     g2d.setTransform(base); g2d.beginPath(); g2d.rect(0, 0, raw.width, raw.height); g2d.clip();
     g2d.drawImage(raw, 0, 0); g2d.setTransform(1, 0, 0, 1, 0, 0);          // the bare board
     g2d.globalCompositeOperation = 'lighter'; g2d.drawImage(s, 0, 0);     // the chalk, once as drawn and a third again brighter
