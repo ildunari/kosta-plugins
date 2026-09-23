@@ -44,7 +44,7 @@ plugins/doodle-art-animation/       the plugin
                                     check runs it)
 docs/doodle-art-animation/          not shipped with the plugin
   DEVELOPING.md                     this file
-  v0.14-state.md … v0.17.2-state.md what each release changed, how it was checked, its known limits
+  v0.14-state.md … v0.17.3-state.md what each release changed, how it was checked, its known limits
   ACCEPTANCE.md                     the go/no-go rules (L1-L17 films and toolkit, W1-W9 workflow)
   HANDOFF.md                        history, measurements, known weaknesses (paths in it refer to the original handoff zip)
   history/  reference/  examples/   design review, reference-film study images, an older story file
@@ -90,7 +90,7 @@ node render.mjs film.html --stills 150,480,700 --dir qa_stills   # --sheet clear
 node render.mjs film.html --sheet 1                 # qa/contact_sheet.jpg
 node render.mjs film.html --strips                  # qa/strip_NN_type.jpg, one per transition
 node render.mjs film.html --seams                   # qa/seam_NN_type.jpg, both sides of each transition
-node render.mjs reel.html --strips --dir qa_reel    # all 14 transition types
+node render.mjs reel.html --strips --dir qa_reel    # all 15 transition types
 node render.mjs film.html film.mp4                  # full render (one worker per CPU core, at most 8)
 python3 motion_check.py film.mp4                    # target: median >= 1.5, still < 5%
 python3 audio_check.py film.mp4                     # level, peak, clipping, stereo, silence, length

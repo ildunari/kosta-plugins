@@ -182,7 +182,7 @@ A story can still add its own: `SFX.drip = (ac, out, t, o = {}) => { … }` befo
 
 ## Automatic sounds
 
-- **Seams:** a riser before every seam except `fade` (its length and pitch vary, and it always ends on the seam), then the transition's own sound: a swell for `lensIn`/`lensOut`, a low tap for `cut`, a whoosh for `pan`/`wipe`, a flick for `page`/`roll`, a crackle for `burn`, hatching strokes for `hatch`, a bend for `morph`/`shape`, nothing for `fade`. Each seam gets its own variation. A custom transition can set `enter.sfx: (ac, out, t, dur) => …`.
+- **Seams:** a riser before every seam except `fade` (its length and pitch vary, and it always ends on the seam), then the transition's own sound: a swell for `lensIn`/`lensOut`, a low tap for `cut`, a whoosh for `pan`/`wipe`, a flick for `page`/`roll`, a crackle for `burn`, hatching strokes for `hatch`, felt rubbing for `erase`, a bend for `morph`/`shape`, nothing for `fade`. Each seam gets its own variation. A custom transition can set `enter.sfx: (ac, out, t, dur) => …`.
 - **Headers:** the kicker, title and subtitle type on with the writing tool of the plate's paper, and with soft `readout` blips where there is no pen. A paper in the paper registry names its tool with `sfx: { header }`; the engine's own table (`PAPER_PEN`) covers the planned papers:
 
   | Paper | Writing sound |
