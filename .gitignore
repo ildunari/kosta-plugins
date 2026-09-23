@@ -4,6 +4,7 @@
 # doodle-art-animation: renders and QA output never go in git
 *.mp4
 *.wav
+*.mp3
 *_frames/
 qa/
 qa_*/
