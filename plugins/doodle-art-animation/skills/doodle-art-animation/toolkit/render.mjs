@@ -10,6 +10,10 @@
 //        top row: old plate's last drawing | the two overlaid | new plate once settled; bottom row: 4 drawings inside the transition
 //   node render.mjs film.html --sheet-range A-B [--fps 6] [--dir qa]         frames from A to B seconds, tiled -> qa/range_A-B.jpg
 //   node render.mjs film.html --sheet-range A-B --crop x,y,w,h [--fps 6]    the same frames, cropped first -> qa/range_A-B_crop.jpg (a detail sheet; both files are written when --crop is given)
+//   node render.mjs film.html --srt [film.srt]                  a narrated film's captions only (a full render writes film.srt next to the MP4 by itself)
+//   node render.mjs film.html --stems [--dir qa]                a narrated film's voice and the rest as two WAVs + speech.json (audio_check.py --stems)
+//   --animatic (any mode): each plate's drawing replaced by a placeholder with its beats, marks and the line being spoken
+//        (the pacing check before any art; engine.js, "animatic")
 import { createRequire } from 'module';
 import { pathToFileURL } from 'url';
 import fs from 'fs'; import os from 'os'; import path from 'path'; import { execFileSync } from 'child_process';
@@ -23,6 +27,7 @@ const file = path.resolve(args[0]);
 const opt = (k, d) => { const i = args.indexOf('--' + k); return i < 0 ? d : (args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : true); };
 const out = args[1] && !args[1].startsWith('--') ? path.resolve(args[1]) : null;
 const strictFonts = !!opt('strict-fonts', false);   // exit non-zero if any page fell back to other fonts
+const animatic = !!opt('animatic', false);           // ?animatic=1 on every page
 // Headless Chromium draws the canvas on the CPU, so one page per core is the fastest: on a 4-core machine the 55 s One
 // Drop film drew in 187 s with 2 pages and 105 s with 4. More pages than cores gain nothing and cost ~450 MB each.
 const cores = (os.availableParallelism ? os.availableParallelism() : os.cpus().length) || 4;
@@ -48,7 +53,7 @@ async function openPage() {
   // not networkidle: a silent font server would stall it. When the first page fell back, later pages skip the font wait
   // (?nofonts) and freeze the same fallback, so they neither wait the cap again nor pick up fonts that arrive late.
   const q = fontWarnings.length && fontWarnings[0] ? '&nofonts=1' : '';
-  await page.goto(pathToFileURL(file).href + '?render=1' + q, { waitUntil: 'domcontentloaded' });
+  await page.goto(pathToFileURL(file).href + '?render=1' + q + (animatic ? '&animatic=1' : ''), { waitUntil: 'domcontentloaded' });
   const ready = page.waitForFunction(() => window.__ready === true, null, { timeout: 90000, polling: 250 });
   ready.catch(() => {});                                     // handled below; keeps the race from warning
   let state = await Promise.race([ready.then(() => 'ready'), errored.then(() => 'error')]);
@@ -70,11 +75,33 @@ async function openPage() {
   if (fontWarnings.length && fam(warn) !== fam(fontWarnings[0])) fail(`pages disagree on fonts (page 1: ${fontWarnings[0] || 'all loaded'}; page ${fontWarnings.length + 1}: ${warn || 'all loaded'})`);
   fontWarnings.push(warn);
   if (warn && strictFonts) fail('--strict-fonts: ' + warn);
+  const vw = fontWarnings.length === 1 && await page.evaluate(() => window.__voiceWarning || null);   // a clip missing, unused, or a mark it lacks
+  if (vw) console.warn('\x1b[33mWARNING: narration:', vw, '\x1b[0m');
   return page;
 }
 const first = await openPage();
 const info = await first.evaluate(() => window.__story);
-console.log(`${info.title}: ${info.frames} frames @ ${info.fps} fps = ${(info.frames / info.fps).toFixed(1)} s`);
+console.log(`${info.title}: ${info.frames} frames @ ${info.fps} fps = ${(info.frames / info.fps).toFixed(1)} s` + (info.narrated ? ', narrated' : '') + (info.animatic ? ', animatic' : ''));
+// captions: every line of a narrated film, timed from its sentences (engine.js captions()); '' for a film without narration
+const srtText = () => first.evaluate(() => window.__srt ? window.__srt() : '');
+if (opt('srt', null) && !out) {
+  const dest = path.resolve(typeof opt('srt') === 'string' ? opt('srt') : file.replace(/\.html?$/, '') + '.srt'), text = await srtText();
+  if (!text) fail('--srt: this film has no narration (no clips embedded; build with vo/voice.json)');
+  fs.writeFileSync(dest, text); console.log(`captions: ${dest} (${text.split('-->').length - 1} lines)`);
+  await browser.close(); process.exit(0);
+}
+// stems: the narration alone and everything else, before the final loudness pass, plus when each sentence is spoken,
+// so audio_check.py --stems can measure how far the music and effects sit under the voice
+if (opt('stems', null) && !out) {
+  const units = await first.evaluate(() => window.__voice ? window.__voice().units : []);
+  if (!units.length) fail('--stems: this film has no narration (no clips embedded; build with vo/voice.json)');
+  fs.mkdirSync(dir, { recursive: true });
+  for (const only of ['voice', 'rest'])
+    fs.writeFileSync(path.join(dir, `stem_${only}.wav`), Buffer.from(await first.evaluate(o => window.__audioWav({ only: o }), only), 'base64'));
+  fs.writeFileSync(path.join(dir, 'speech.json'), JSON.stringify(units.flatMap(u => u.sentences.map(([a, b]) => [+a.toFixed(3), +b.toFixed(3)]))));
+  console.log(`stems: ${path.join(dir, 'stem_voice.wav')}, stem_rest.wav, speech.json (check: python3 audio_check.py film.mp4 --narrated --stems ${path.relative(process.cwd(), dir) || '.'})`);
+  await browser.close(); process.exit(0);
+}
 const grab = async (page, f, name) => {
   const b64 = await page.evaluate(([f, t]) => window.__frameData(f, t, 0.95), [f, png ? 'image/png' : 'image/jpeg']);
   fs.writeFileSync(path.join(dir, name), Buffer.from(b64, 'base64'));
@@ -180,6 +207,7 @@ const tf = Date.now() - t0;
 console.log(`frames: ${(tf / 1000).toFixed(1)} s, ${(tf / Math.max(1, done)).toFixed(0)} ms/frame with ${workers} workers`);
 await audio;
 if (audioError) { await browser.close(); throw audioError; }
+const captionText = out && from === 0 && to === info.frames ? await srtText() : '';   // captions belong to the whole film, not a segment
 await browser.close();
 if (out) {
   const te = Date.now();
@@ -189,6 +217,7 @@ if (out) {
     '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-c:a', 'aac', '-b:a', '192k', '-shortest', out], { stdio: 'inherit' });
   const mb = fs.statSync(out).size / 1048576, perMin = mb / (((to - from) / info.fps) / 60);
   console.log(`wrote ${out}: ${mb.toFixed(0)} MB (${perMin.toFixed(0)} MB/min), encode ${((Date.now() - te) / 1000).toFixed(0)} s, total ${((Date.now() - t0) / 1000).toFixed(0)} s`);
+  if (captionText) { const srt = out.replace(/\.mp4$/, '') + '.srt'; fs.writeFileSync(srt, captionText); console.log(`captions: ${srt}`); }
   // the grain and gate weave change every drawing, so constant-quality encodes spend their bits on noise
   if (!bitrate && perMin > 100 && (to - from) / info.fps >= 10) console.warn('\x1b[33mlarge file: use --bitrate 3800k for anything you share (≈ 30 MB/min)\x1b[0m');
 }

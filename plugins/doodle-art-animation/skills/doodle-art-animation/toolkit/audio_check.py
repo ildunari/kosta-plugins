@@ -1,5 +1,5 @@
 """audio_check.py — is the film's sound in range?
-usage: python3 audio_check.py film.mp4 [--starts 3.2,8.0,...] [--profile] [--silent]
+usage: python3 audio_check.py film.mp4 [--starts 3.2,8.0,...] [--profile] [--silent] [--narrated [--lufs -16] [--stems qa]]
 
 Measures the audio track with ffmpeg and numpy and prints PASS / WARN / FAIL lines.
   level     RMS mean (what `ffmpeg -af volumedetect` calls mean_volume), target -21..-18 dB
@@ -15,7 +15,14 @@ Measures the audio track with ffmpeg and numpy and prints PASS / WARN / FAIL lin
   cues      with --starts (transition times in seconds): the nearest sound onset to each; none within 0.25 s warns
 Exit code 1 only on hard failures (no audio, mono, clipping, duration mismatch). --profile prints dB per second.
 --silent: the film was made with defineStory({ silent: true }); it passes when the track is silence of the right
-length, and fails if any sound got in."""
+length, and fails if any sound got in.
+--narrated: the film has a voice track, so the level targets are the narration ones (sound.md, "Narration"): about
+-16 LUFS integrated (--lufs sets another, e.g. -14 for short-form uploads), true peak at or under -1 dBTP. The RMS level
+and loudness range targets are for films without narration and are only reported.
+--stems DIR (with --narrated): the folder `node render.mjs film.html --stems --dir DIR` wrote (stem_voice.wav,
+stem_rest.wav, speech.json). Compares the two stems' momentary loudness (400 ms windows) while the voice speaks:
+  under     how far the music, beds and effects sit under the voice, as the median over the speaking moments;
+            target 15-20 dB (under 15 the music competes with the words, over 20 it vanishes), outside it warns"""
 import json, subprocess, sys
 import numpy as np
 
@@ -64,11 +71,16 @@ if '--silent' in args:
     sys.exit(1 if fails else 0)
 
 # level and peak
+narrated = '--narrated' in args
+target = float(opt('--lufs') or -16)
 rms, peak = db(np.sqrt(np.mean(x ** 2))), db(np.abs(x).max())
-line('PASS' if -21.5 <= rms <= -17.5 else 'WARN', 'level',
-     f'mean {rms:.1f} dB (target -21..-18)' + ('' if -23 <= rms <= -16 else ' - out of range, adjust cue gains / music gain'))
-line('PASS' if -6 <= peak <= -1 else 'WARN', 'peak',
-     f'peak {peak:.1f} dB (target about -3)' + (' - too hot, little headroom' if peak > -1 else ' - quiet, room to raise' if peak < -6 else ''))
+if narrated:   # the voice sets the level: the engine brings the whole track to the target and limits the peaks
+    line('INFO', 'level', f'mean {rms:.1f} dB, peak {peak:.1f} dB (narrated: judged by loudness and true peak below)')
+else:
+    line('PASS' if -21.5 <= rms <= -17.5 else 'WARN', 'level',
+         f'mean {rms:.1f} dB (target -21..-18)' + ('' if -23 <= rms <= -16 else ' - out of range, adjust cue gains / music gain'))
+    line('PASS' if -6 <= peak <= -1 else 'WARN', 'peak',
+         f'peak {peak:.1f} dB (target about -3)' + (' - too hot, little headroom' if peak > -1 else ' - quiet, room to raise' if peak < -6 else ''))
 
 # EBU R128
 er = subprocess.run(['ffmpeg', '-nostats', '-v', 'info', '-i', path, '-map', '0:a:0', '-af', 'ebur128=peak=true', '-f', 'null', '-'],
@@ -76,12 +88,41 @@ er = subprocess.run(['ffmpeg', '-nostats', '-v', 'info', '-i', path, '-map', '0:
 summ = er[er.rfind('Summary:'):]
 grab = lambda key: next((float(l.split(':')[1].split()[0]) for l in summ.splitlines() if l.strip().startswith(key + ':')), None)
 lufs, lra, tp = grab('I'), grab('LRA'), grab('Peak')
-if lufs is not None:
+if lufs is not None and narrated:
+    ok_l, ok_p = abs(lufs - target) <= 1, (tp if tp is not None else -99) <= -1
+    line('PASS' if ok_l else 'WARN', 'loudness', f'{lufs:.1f} LUFS integrated (narrated target {target:.0f} ±1)'
+         + ('' if ok_l else ' - the engine sets this itself: was the film built with its narration and rendered by render.mjs?'))
+    line('PASS' if ok_p else 'WARN', 'truepeak', f'{tp} dBTP (narrated target -1 or lower)' + ('' if ok_p else ' - too hot for web delivery'))
+    if lra is not None: line('INFO', 'range', f'loudness range {lra:.1f} LU (not judged for a narrated film: the voice sets the level)')
+elif lufs is not None:
     line('WARN' if (tp or -99) > 0 else 'PASS', 'loudness', f'{lufs:.1f} LUFS integrated, range {lra} LU, true peak {tp} dBTP'
          + (' - true peak above 0 dBTP' if (tp or -99) > 0 else ''))
-if lra is not None:
+if lra is not None and not narrated:
     line('PASS' if lra >= 6 else 'WARN', 'range', f'loudness range {lra:.1f} LU (target 6 or more)'
          + ('' if lra >= 6 else ' - flat from start to end: give the climax a lift (sound.md, "Dynamics")'))
+
+# music under the voice, from the two stems of a narrated film (render.mjs --stems)
+if narrated and opt('--stems'):
+    import os, re
+    sd = opt('--stems')
+    def momentary(f):   # [(end time of the 400 ms window, momentary loudness LUFS)] every 100 ms
+        r = subprocess.run(['ffmpeg', '-nostats', '-v', 'verbose', '-i', f, '-af', 'ebur128=framelog=verbose', '-f', 'null', '-'],
+                           capture_output=True, text=True).stderr
+        return {round(float(t), 1): float(m) for t, m in re.findall(r't:\s*([\d.]+)\s+TARGET:.*?M:\s*(-?[\d.]+)', r)}
+    try:
+        mv, mr = momentary(os.path.join(sd, 'stem_voice.wav')), momentary(os.path.join(sd, 'stem_rest.wav'))
+        spans = json.load(open(os.path.join(sd, 'speech.json')))
+    except (OSError, ValueError) as e:
+        mv, mr, spans = {}, {}, []
+        line('WARN', 'under', f'cannot read the stems in {sd} ({e}): write them with node render.mjs film.html --stems --dir {sd}')
+    d = np.array([m - mr[t] for t, m in mv.items() if t in mr and m > -45 and any(a + 0.4 <= t <= b for a, b in spans)])
+    if len(d) >= 5:
+        med = float(np.median(d)); ok = 15 <= med <= 20
+        line('PASS' if ok else 'WARN', 'under', f'music and effects {med:.1f} dB under the voice while it speaks (target 15-20; '
+             f'closest 10% of moments {np.percentile(d, 10):.1f} dB)' + ('' if ok else ' - the music competes with the words: raise defineStory({ voice: { duck } }) or lower the beds'
+             if med < 15 else ' - the music all but vanishes under the voice: lower defineStory({ voice: { duck } })'))
+    elif mv:
+        line('WARN', 'under', f'only {len(d)} speaking moments to compare: are these the stems of this film?')
 
 # clipping: consecutive samples at full scale. 6+ is real clipping; 3-5 can be AAC decode overshoot near 0 dBFS.
 full = np.abs(x) >= 0.999
