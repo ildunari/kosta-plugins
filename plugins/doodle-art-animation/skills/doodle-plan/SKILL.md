@@ -51,6 +51,8 @@ Pick the one subject the viewer follows through every plate and give it an ID ta
 
 While you write it, plan how the motion flows (`references/animation-principles.md`): inside a scene the animations overlap, stagger and hand off instead of stopping and starting, and each seam carries motion from one scene into the next. Check as you go that the durations add up to the length in `brief.md`, that every line of text has time to be read, that the film uses 4–6 transition types once it has five or more seams, and never the same one three times in a row, and `fade` only into the end card.
 
+Pick the paper set from the topic (`references/style.md`, "Choosing the paper set"): `notebook` for general stories, `blueprint` for devices and processes, `lab` for cell and molecular work. Write it as the first line of `script.md`, `Paper: <set> (why)`, and note in a plate's row any plate that names its own paper. Ask the user only when the look is clearly a matter of taste.
+
 For a narrated film, write the narration in the same pass, as `references/voice.md` describes: first as one continuous piece that works read aloud on its own, then split into a `## Narration` section with one block per plate, keyed by the plate table's `#` column, with `{marks}` on the words the beats land on (`references/writing.md`, "Narration"). Then check the timing without spending anything: from the working folder run `node "<skill>/toolkit/voice.mjs" lines script.md --facts facts.md --preset <preset from brief.md>` (it writes `vo/lines.json` and prints each plate's estimated spoken length against its `Dur`, at the preset's pace), and lengthen any plate the narration outgrows or cut words from it.
 
 Save it as `script.md` in the working folder. The reviewers look for it there.

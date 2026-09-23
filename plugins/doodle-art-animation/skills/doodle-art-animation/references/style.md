@@ -180,3 +180,33 @@ The first four rows are drawn by the engine in fixed places, so they are facts t
 | Big stat | In open paper near the top of the scene, clear of the header band and the Journey Log, and on the side of the frame the subject is not | Kicker, count-up number, italic note giving the assumption |
 | Bottom card | Along the bottom edge, between the stage dial and the frame counter, below anything the scene needs the viewer to watch | Distribution bar, log ruler, budget equation |
 | Side card | Beside the subject, below the Journey Log, on whichever side the scene leaves empty | `FIG. 2` panels: charts, size series, cutaways |
+
+## Choosing the paper set
+
+A paper set is a light paper for the paper plates and a dark paper for the night plates. A story picks one with `defineStory({ paper: '<set>' })` and every plate keeps its `dark: true / false`, so the two-world grammar above still holds. The planner picks the set from the topic and writes it at the top of `script.md` as `Paper: <set> (why)`. Defaults:
+
+| Topic | Set | Light / dark paper |
+|---|---|---|
+| General stories, nature, anything that doesn't fit below | `notebook` | cream / night (the default) |
+| Devices and processes: presses, dies, pumps, microfluidic chips, manufacturing | `blueprint` | whiteprint / blueprint |
+| Cell and molecular work, drug delivery, imaging | `lab` | graph / fluorescence |
+| The same, with a greener, engineering feel | `engineering` | graphgreen / fluorescence |
+| History of science, discovery stories | `codex` | laid paper / star atlas (build C) |
+| Lecture-style shorts | `chalk` | whiteboard / chalkboard (build C) |
+
+One film uses one set. A single plate may name another paper (`plate.paper = 'semilog'`) when that scene is a different kind of page, such as a release curve on semi-log paper; say why in the plate's row of the script. Mixing two whole sets in one film needs a reason the viewer would see, such as a "then and now" story.
+
+### Blueprint
+
+- **Whiteprint (light):** off-white `#eeede4` with a faint non-photo-blue drafting grid and soft developer streaks. The treatment tints the whole scene toward diazo blue `#2a3f96`, so every subject becomes a shade of one blue. Ink `#1d3470` (10.1:1), labels `#3c4c80` (7.0:1), a red-pencil accent `#c2412d` (4.4:1).
+- **Blueprint (dark):** Prussian-blue gradient `#1f4d8b → #194377` with uneven exposure, a white grid at 8% or less, two fold creases, white fibres and specks. The treatment tints toward `#2d62b0` and punches a light paper tooth through the drawing. Ink `#eef4ff` (7.6:1 at the top, 9.0:1 at the bottom), labels `#c4d6f0`, accent warm yellow `#ffd166` (5.8:1): the vermilion is only 2.7:1 here.
+- **Linework:** real cyanotype lines are pale cyan, `PAL.bpLine` (`#9bc4d3`). It measures only 4.0–4.5:1, so use it for lines and fills, never for text; text stays near-white.
+- **What the tint does to meaning:** the treatment removes hue from everything inside the scene (the HUD keeps its colours). Two subjects that differ only in colour, such as a red and a green particle, look alike on these plates. Tell them apart by shape, size, hatching or a label instead.
+
+### Lab
+
+- **Graph (light):** warm white `#f1efe6`, a teal 30 px grid with a heavier line every 150 px, and a red lab-book margin rule at x 58 (behind the stage dial). No treatment: lab notebooks are drawn in colour. Ink `#1a2130` (14.0:1), labels `#465063` (7.0:1), accent `#c8452a` (4.2:1).
+- **Fluorescence (dark):** near-black `#07080b` (never pure black, which causes halation on phone screens) with faint out-of-focus coloured glows. The treatment raises saturation (`saturate(1.35)`) and adds a soft bloom, so fills glow the way stained cells do. It is the one treatment with a measurable cost, about 30 ms a frame on its plates. Ink `#e6eeff` (17.2:1), labels `#aeb8cc` (10.0:1), accent `#ff7a45` (7.7:1).
+- **Channel colours:** on fluorescence plates `PAL.pink`, `PAL.mint`, `PAL.cyan` and `PAL.navyFill` become the colour-blind-safe channels, also available as `FLUOR.magenta` `#ff4df0`, `FLUOR.green` `#3dff7a`, `FLUOR.cyan` `#33e1ff` and `FLUOR.dapi` `#4f7bff`. Pair magenta with green or cyan, never red with green. DAPI is lifted from pure blue, which is only 2.3:1 on black.
+- **Scale bar:** `KIT.lab.scaleBar(t, { x, y, len, label })` draws a microscope scale bar (a solid bar with its length above it) for fluorescence plates.
+- **Single papers for one plate:** `graphgreen` (pale green engineering pad), `dotgrid` (bullet journal, a dot every 30 px), `hexpaper` (hexagon lattice for chemistry), `semilog` (linear across, three log decades up, for release and clearance curves). Each is a light paper, so naming it on a plate puts that plate in the paper world.
