@@ -10,8 +10,8 @@
 
    FLUOR holds the colour-blind-safe channel colours for fluorescence plates: magenta with green or cyan, never red with
    green, and DAPI lifted to a blue that reads on black. They are also PAL.pink / mint / cyan / navyFill on those plates.
-   Header sounds: the grid papers type with 'pencil' and fluorescence with 'readout'; the engine falls back to scratch
-   for a sound it doesn't have yet. */
+   Header sounds come from PAPER_PEN in engine.js (pencil on the grids, readout blips on fluorescence). graphgreen and
+   hexpaper are not in that table, so they name 'pencil' themselves. */
 var FLUOR = globalThis.FLUOR || { dapi: '#4f7bff', magenta: '#ff4df0', green: '#3dff7a', cyan: '#33e1ff', gold: '#ffd24a' };
 globalThis.FLUOR = FLUOR;
 
@@ -34,7 +34,7 @@ defineGround('graph', {
     paperKit.grid(g, r, 30, '#5f9ea8', 0.24, 1.5, { every: 5, majorAlpha: 0.40, majorW: 1.8 });
     labMargin(g, H); labFinish(g, r, 5);
   },
-  vignette: 'rgba(40,60,70,0.12)', grain: 0.7, contours: false, sfx: { header: 'pencil' },
+  vignette: 'rgba(40,60,70,0.12)', grain: 0.7, contours: false,
 });
 
 /** graphgreen: the engineering computation pad, pale green with a green grid */
@@ -60,7 +60,7 @@ defineGround('dotgrid', {
       g.fillStyle = `rgba(110,110,118,${(0.38 + r() * 0.14).toFixed(3)})`; g.beginPath(); g.arc(x, y, 1.8, 0, TAU); g.fill(); }
     paperKit.fibres(g, r, 900, ['120,120,120', '170,170,170'], 0.03, 0.06); paperKit.grain(g, 9, 6);
   },
-  vignette: 'rgba(40,40,40,0.10)', grain: 0.7, contours: false, sfx: { header: 'pencil' },
+  vignette: 'rgba(40,40,40,0.10)', grain: 0.7, contours: false,
 });
 
 /** hexpaper: organic-chemistry paper, a lattice of flat-topped hexagons (36 px sides) */
@@ -95,7 +95,7 @@ defineGround('semilog', {
     for (const [y, major] of ticks) { if (!major && Math.abs(last - y) < 30) continue; line(0, y, W, y, major ? 0.42 : 0.22, major ? 1.8 : 1.5); last = y; }
     g.restore(); labMargin(g, H); labFinish(g, r, 9);
   },
-  vignette: 'rgba(40,60,70,0.12)', grain: 0.7, contours: false, sfx: { header: 'pencil' },
+  vignette: 'rgba(40,60,70,0.12)', grain: 0.7, contours: false,
 });
 
 /** fluorescence: near-black (never pure #000, to avoid halation on phones) with faint out-of-focus coloured glows */
@@ -118,7 +118,6 @@ defineGround('fluorescence', {
   },
   vignette: 'rgba(0,0,0,0.62)', grain: 0.5, contours: false,
   treatment: { filter: 'saturate(1.35)', glow: [8, 0.6] },
-  sfx: { header: 'readout' },
 });
 
 definePaperSet('lab', { light: 'graph', dark: 'fluorescence' });
