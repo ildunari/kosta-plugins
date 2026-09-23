@@ -111,6 +111,27 @@ A story can still add its own: `SFX.drip = (ac, out, t, o = {}) => { … }` befo
   - `BED.mix(...beds)` layers beds: `bed: BED.mix(BED.roomTone, (ac, o, t, d) => SFX.pad(ac, o, t, { dur: d, notes: [220, 277.2, 329.6] }))`.
   - With options: `bed: (ac, o, t, d) => BED.rain(ac, o, t, d, { heavy: 0.8 })`.
 
+## The score: a tempo grid, beds that keep time, the hero's motif
+
+`defineStory({ music: { style, bpm, tonic, chords, tension, motif } })`. `style: 'classic'` (or no style) is the pad above and changes nothing else. Every other style runs one tempo through the whole film, so the pulse carries straight through the seams instead of restarting at each plate.
+
+| Style | Bed | Tempo range (bpm) | Feel |
+|---|---|---|---|
+| `classic` (default) | the soft pad | no grid | quiet, neutral |
+| `notebook` | marimba arpeggio in eighths, felt-piano chords, plucked bass | 100 to 120 | warm, hand-made; suits the notebook look |
+| `kalimba` | the same on kalimba | 100 to 120 | softer, a little playful |
+| `lofi` | e-piano chords, brushed backbeat, soft kick, swung shaker, vinyl crackle | 84 to 96 | short-form, relaxed |
+| `calm` | phasing loops (each note repeats on its own period) over a drone | 84 to 100 | slow, night, microscope |
+
+- **Scene starts on bar lines.** Without narration the picture follows the music: every plate but the last is lengthened (never shortened) to whole bars, at the tempo in the style's range that adds the least time (a 55 s film grows by 2 to 3 s). `bpm` fixes the tempo. With narration the voice sets the lengths, so the engine picks the tempo, and where the first downbeat falls, that puts the most plate starts on bar lines after moving each plate's tail by up to `nudge` s (default 0.15; a tail only gets shorter if its line still ends 0.3 s before the cut). A plate that still misses plays the pad in free time, and the pulse comes back on the next plate that lands. So write narrated scripts with some slack in the tails.
+- **Chord plan.** By default the film opens on I, plays ii then V into the climax plate and resolves home to I on the end card, walking I, vi, IV, ii in between. `chords: [0, 1, 2, 4, 3, 0]` sets one index of I–vi–IV–V–ii–V per plate.
+- **Tension and layers.** Tension is 0 to 1 per plate: a plate's own `tension`, else `music.tension` (`[[t, value], ...]` in film seconds, or a function of the timed plates) at the plate's middle, else a rise from 0.2 to 1 at the climax (`climax: true`, else the plate with the biggest `lift`, else the plate 70% of the way through) and 0.3 on the end card. Layers join as it rises: the plucked bass at 0.35, the full arpeggio (or the lo-fi drums) at 0.5, strings at 0.8, and a plucked pulse builds under the plate just before the climax.
+- **Per plate:** `music: 'pad' | 'arp' | 'lofi' | 'pulse' | 'phasing'` picks that plate's bed; night plates play the pad; `bed:` still replaces the music outright.
+- **The hero's motif.** `music.motif: { degs: [2, 3, 4, 6], inst: 'musicBox' }`. A plate with `motif: true` plays it on the first beat after its transition lands; `motif: 'vary'` plays it one scale step higher (the hero changed); the end card resolves it home automatically (`motif: 'resolve'` anywhere else). The notes fall on eighth notes of the grid.
+- **Musical cues on the beat.** Instruments, stingers and `chime` that fall within 40 ms of a half beat move onto it. Effects stay on their frame, and the grid never bends for one small event. A `reveal` keeps its exact time.
+- **Seams.** A transition ducks a rhythmic bed by 25% instead of 50%, so the pulse carries through.
+- **Planning in bars.** At 120 bpm a bar is 2 s; at 96 bpm 2.5 s. Write plate lengths in bars (a 6-bar plate at 120 is 12 s) and beats as bar.beat, so the film needs no stretching. `window.__story.music` reports `{ bpm, bar, t0, free }` after the film loads.
+
 ## Automatic sounds
 
 - **Seams:** a riser before every seam except `fade` (its length and pitch vary, and it always ends on the seam), then the transition's own sound: a swell for `lensIn`/`lensOut`, a low tap for `cut`, a whoosh for `pan`/`wipe`, a flick for `page`/`roll`, a crackle for `burn`, hatching strokes for `hatch`, a bend for `morph`/`shape`, nothing for `fade`. Each seam gets its own variation. A custom transition can set `enter.sfx: (ac, out, t, dur) => …`.
