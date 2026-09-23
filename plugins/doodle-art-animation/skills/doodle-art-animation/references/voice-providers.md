@@ -13,6 +13,10 @@
 | Local server | `local` | Kokoro through an OpenAI-style server, af_heart | free | from the pauses | no |
 | Kokoro in-process | `kokoro` | Kokoro-82M, af_heart | free | every sentence, exact | no |
 
+On Gemini, pick the voice with a narrator preset rather than by name: five voices Kosta chose, each with eight
+deliveries (`node voice.mjs presets`, `--preset` on `lines`). Which to use for which film is in
+`references/voice-presets.md`.
+
 "Every word" means the provider reports when each word is spoken, so a beat on a mark like `{count}` lands on the
 word itself. "From the pauses" places sentence starts at the pauses in the clip and marks inside a sentence by
 syllable count, which can be about 0.3 s off.
