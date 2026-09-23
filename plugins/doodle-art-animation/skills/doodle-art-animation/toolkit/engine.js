@@ -2751,16 +2751,18 @@ function fitScore(story) {
     GRID.bpm = best.bpm; const bar = GRID.bar(); P.slice(0, -1).forEach(p => { p.dur = Math.ceil(p.dur / bar - 1e-6) * bar; });
   } else {                                                             // the voice sets the lengths: fit the tempo, nudge the tails
     const nudge = m.nudge ?? 0.15, vEndOf = p => Math.max(0, ...(p.voice || []).filter(v => v.unit).map(v => v.at + v.dur));
-    const trial = bpm => { const bar = barOf(bpm), durs = P.map(p => p.dur), free = []; let t = 0, hits = 0;
-      for (let i = 0; i < P.length - 1; i++) { const s = t + durs[i], b = Math.round(s / bar) * bar, dl = b - s;
+    const trial = (bpm, t0) => { const bar = barOf(bpm), durs = P.map(p => p.dur), free = []; let t = 0, hits = 0;
+      for (let i = 0; i < P.length - 1; i++) { const s = t + durs[i], b = t0 + Math.round((s - t0) / bar) * bar, dl = b - s;
         if (Math.abs(dl) <= 0.025) hits++;
         else if (Math.abs(dl) <= nudge && (dl > 0 || durs[i] + dl >= vEndOf(P[i]) + 0.3)) { durs[i] += dl; hits++; }
         else free.push(i + 1);
         t += durs[i]; }
-      return { bpm, hits, durs, free }; };
-    let best = null;
-    for (let bpm = lo; bpm <= hi + 1e-9; bpm += 0.05) { const r = trial(+bpm.toFixed(2)); if (!best || r.hits > best.hits) best = r; }
-    GRID.bpm = best.bpm; P.forEach((p, i) => { p.dur = best.durs[i]; p.free = best.free.includes(i); });
+      return { bpm, t0, hits, durs, free }; };
+    // the downbeat may sit a little after 0 (the first plate opens on a pickup), so try putting it under each seam in turn
+    let best = null, t = 0; const seams = P.slice(0, -1).map(p => t += p.dur);
+    for (let bpm = lo; bpm <= hi + 1e-9; bpm += 0.05) { const b = +bpm.toFixed(2), bar = barOf(b);
+      for (const t0 of [0, ...seams.map(x => x % bar)]) { const r = trial(b, t0); if (!best || r.hits > best.hits) best = r; } }
+    GRID.bpm = best.bpm; GRID.t0 = best.t0; P.forEach((p, i) => { p.dur = best.durs[i]; p.free = best.free.includes(i); });
   }
   let t = 0; P.forEach(p => { p.start = t; t += p.dur; });
 }
@@ -3069,7 +3071,7 @@ async function loadFonts() {
 async function boot() {
   await loadFonts();
   buildTextures();
-  window.__story = { fps: FPS, frames: TOTAL_F, width: W, height: H, title: STORY.title, silent: !!STORY.silent, music: GRID.on ? { bpm: GRID.bpm, bar: GRID.bar(), free: STORY.plates.filter(p => p.free).map(p => p.i) } : null, starts: STORY.plates.map(p => ({ t: p.start, type: p.enter ? p.enter.type : null, dur: p.enter ? p.enter.dur : 0, settle: p.enter ? p.enter.settle ?? 0.9 : 0 })),
+  window.__story = { fps: FPS, frames: TOTAL_F, width: W, height: H, title: STORY.title, silent: !!STORY.silent, music: GRID.on ? { bpm: GRID.bpm, bar: GRID.bar(), t0: GRID.t0, free: STORY.plates.filter(p => p.free).map(p => p.i) } : null, starts: STORY.plates.map(p => ({ t: p.start, type: p.enter ? p.enter.type : null, dur: p.enter ? p.enter.dur : 0, settle: p.enter ? p.enter.settle ?? 0.9 : 0 })),
     narrated: voiceTrack().length > 0, animatic: ANIMATIC };
   window.__renderFrame = f => { renderFrame(f); return true; };
   window.__frameData = (f, type = 'image/jpeg', q = 0.94) => { renderFrame(f); return cvs.toDataURL(type, q).split(',')[1]; };
