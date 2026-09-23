@@ -235,8 +235,12 @@ carrying a fact), `label` (the default: chart axes, legends, card notes), `hud` 
 ## V6 · Sound with variety, still synthesized
 - [auto] The engine's `SFX` has, besides its existing sounds: `crunch`, `creak`, `pump`, `relay`, `hiss`, `plop`,
   `slosh`, `shaker`, `clink`, `pour`, `foil`, `droplet`, `pageFlip`, `pegSnap`, and the beds `roomTone`, `rain`,
-  `wind`, `cityHum`. Each takes a `seed`, and repeated calls vary unless a seed is fixed. All are synthesized; the
-  plugin still ships no audio files.
+  `wind`, `cityHum`; and since v0.16.6 the writing tools `pencil`, `chalk`, `marker`, `quill`, `charcoal`, `techPen`, the
+  effects `typewriter`, `eraser`, `stamp`, `tear`, `counter`, `sonify`, `sparkle`, `pipette`, `centrifuge`, `syringe`,
+  `pills`, `fizz`, `bubbles`, `squelch`, `heartbeat`, `beep`, `zap`, `magnet`, and the beds `body`, `underwater`,
+  `forest`, `ocean`, `fire`, `clockRoom`, `micro`, `vinyl`. Each takes a `seed`, and repeated calls vary unless a seed
+  is fixed. All are synthesized; the plugin still ships no audio files. A plate header types on with its paper's
+  writing tool (`penOf`), and `plate.pen` still overrides it.
 - [auto] `references/sound.md` documents every one of them, the rule that different kinds of event get different
   sounds, and a loudness lift at the film's climax.
 - [auto] `toolkit/cue_check.mjs` exists, lists every sound the film plays with its time, flags one effect dominating
@@ -251,7 +255,7 @@ carrying a fact), `label` (the default: chart axes, legends, card notes), `hud` 
   engine, cue-able by name, listed in `VARIED` and documented in `sound.md`. `regression_test.py` checks every
   instrument's tuning by FFT to within 5 cents over its range, that a fixed seed repeats one exact note while plain
   calls vary, and that each stinger renders sound without clipping.
-- [auto] (v0.16.6) The score: `defineStory({ music: { style } })` with `notebook`, `kalimba`, `lofi` or `calm` puts every
+- [auto] (v0.16.7) The score: `defineStory({ music: { style } })` with `notebook`, `kalimba`, `lofi` or `calm` puts every
   plate start within 25 ms of a bar line of one tempo, only ever lengthening plates; `classic` (the default) leaves a
   film's timing and pad unchanged. The motif plays on a `motif: true` plate and resolves on the end card, and tension
   rises to the climax. `regression_test.py` checks all of this on One Drop in three styles, and that each renders
@@ -285,7 +289,7 @@ carrying a fact), `label` (the default: chart axes, legends, card notes), `hud` 
   byte-identical except the pan seam's sheets, which changed because of the fix above.
 
 ## Release
-- [auto] `plugin.json` and the marketplace entry say `0.16.6`.
+- [auto] `plugin.json` and the marketplace entry say `0.16.7`.
 - [auto] `smoke_test.py` passes on every bundled story, including `story_brushes.js`.
 - [eye] Final independent review against this file and the ledger; example films and gallery re-rendered and
   sent to Kosta.

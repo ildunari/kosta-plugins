@@ -42,7 +42,7 @@ plugins/doodle-art-animation/       the plugin
                                     on those clips; voice.mjs check runs it)
 docs/doodle-art-animation/          not shipped with the plugin
   DEVELOPING.md                     this file
-  v0.14-state.md … v0.16.6-state.md what each release changed, how it was checked, its known limits
+  v0.14-state.md … v0.16.7-state.md what each release changed, how it was checked, its known limits
   ACCEPTANCE.md                     the go/no-go rules (L1-L17 films and toolkit, W1-W9 workflow)
   HANDOFF.md                        history, measurements, known weaknesses (paths in it refer to the original handoff zip)
   history/  reference/  examples/   design review, reference-film study images, an older story file
@@ -71,6 +71,8 @@ docs/doodle-art-animation/          not shipped with the plugin
   clips embedded, plates timed by the voice, cues on word marks, captions, the levels, the music under the voice, an MP4
   segment with the voice, the animatic and a build without the voice. Change the example and its clips together:
   `make_voice.py` in its folder regenerates them (needs `kokoro-onnx`, `faster-whisper` and ffmpeg).
+- Sound tests, also run by CI: `python3 tests/doodle-art-animation/effects_test.py --node-modules <playwright>/node_modules` renders
+  `fixtures/story_sounds.js` (one of each sound added in v0.16.6) and checks the header's writing sound follows the paper.
 - Load it in a session: `claude --plugin-dir plugins/doodle-art-animation`, then `/reload-plugins` after edits.
 - The skill copies its toolkit with `cp -R "${CLAUDE_SKILL_DIR}"/toolkit/. .`. Never build films inside the plugin folder.
 
