@@ -12,6 +12,7 @@ film.html
 reel.html
 gallery.html
 node_modules/
+.opus/
 
 __pycache__/
 
