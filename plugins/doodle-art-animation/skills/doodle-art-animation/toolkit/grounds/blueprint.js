@@ -28,7 +28,7 @@ defineGround('whiteprint', {
   vignette: 'rgba(40,50,90,0.12)', grain: 0.7,
   contours: { alpha: 0.10 },
   treatment: { color: ['#2a3f96', 0.8] },
-  sfx: { header: 'scratch' },
+  sfx: { header: 'techPen' },   // technical-pen header sound (sound build); falls back to scratch until it lands
 });
 
 /** blueprint: Prussian-blue cyanotype with uneven exposure, a faint white grid (8% or less, as the plan asks), fold
@@ -59,7 +59,7 @@ defineGround('blueprint', {
   vignette: 'rgba(4,14,40,0.45)', grain: 0.5,
   contours: { colors: ['#9bc4d3', '#c4d6f0', '#8fb0dc', '#b5cde9'], alpha: 0.09 },
   treatment: { color: ['#2d62b0', 0.72], tooth: [0.06, 0.6] },
-  sfx: { header: 'readout' },
+  sfx: { header: 'techPen' },
 });
 
 definePaperSet('blueprint', { light: 'whiteprint', dark: 'blueprint' });

@@ -9,7 +9,9 @@
    green pad with fluorescence.
 
    FLUOR holds the colour-blind-safe channel colours for fluorescence plates: magenta with green or cyan, never red with
-   green, and DAPI lifted to a blue that reads on black. They are also PAL.pink / mint / cyan / navyFill on those plates. */
+   green, and DAPI lifted to a blue that reads on black. They are also PAL.pink / mint / cyan / navyFill on those plates.
+   Header sounds: the grid papers type with 'pencil' and fluorescence with 'readout'; the engine falls back to scratch
+   for a sound it doesn't have yet. */
 var FLUOR = globalThis.FLUOR || { dapi: '#4f7bff', magenta: '#ff4df0', green: '#3dff7a', cyan: '#33e1ff', gold: '#ffd24a' };
 globalThis.FLUOR = FLUOR;
 
@@ -32,7 +34,7 @@ defineGround('graph', {
     paperKit.grid(g, r, 30, '#5f9ea8', 0.24, 1.5, { every: 5, majorAlpha: 0.40, majorW: 1.8 });
     labMargin(g, H); labFinish(g, r, 5);
   },
-  vignette: 'rgba(40,60,70,0.12)', grain: 0.7, contours: false, sfx: { header: 'scratch' },
+  vignette: 'rgba(40,60,70,0.12)', grain: 0.7, contours: false, sfx: { header: 'pencil' },
 });
 
 /** graphgreen: the engineering computation pad, pale green with a green grid */
@@ -44,7 +46,7 @@ defineGround('graphgreen', {
     paperKit.grid(g, r, 30, '#8fbf8a', 0.45, 1.5, { every: 5, majorAlpha: 0.7, majorW: 1.8 });
     labFinish(g, r, 6);
   },
-  vignette: 'rgba(40,70,40,0.12)', grain: 0.7, contours: false, sfx: { header: 'scratch' },
+  vignette: 'rgba(40,70,40,0.12)', grain: 0.7, contours: false, sfx: { header: 'pencil' },
 });
 
 /** dotgrid: bullet-journal paper, a dot every 30 px */
@@ -58,7 +60,7 @@ defineGround('dotgrid', {
       g.fillStyle = `rgba(110,110,118,${(0.38 + r() * 0.14).toFixed(3)})`; g.beginPath(); g.arc(x, y, 1.8, 0, TAU); g.fill(); }
     paperKit.fibres(g, r, 900, ['120,120,120', '170,170,170'], 0.03, 0.06); paperKit.grain(g, 9, 6);
   },
-  vignette: 'rgba(40,40,40,0.10)', grain: 0.7, contours: false, sfx: { header: 'scratch' },
+  vignette: 'rgba(40,40,40,0.10)', grain: 0.7, contours: false, sfx: { header: 'pencil' },
 });
 
 /** hexpaper: organic-chemistry paper, a lattice of flat-topped hexagons (36 px sides) */
@@ -75,7 +77,7 @@ defineGround('hexpaper', {
       g.stroke(); }
     g.restore(); labFinish(g, r, 8);
   },
-  vignette: 'rgba(40,60,70,0.12)', grain: 0.7, contours: false, sfx: { header: 'scratch' },
+  vignette: 'rgba(40,60,70,0.12)', grain: 0.7, contours: false, sfx: { header: 'pencil' },
 });
 
 /** semilog: linear across, three log decades up; the decade lines are heavier */
@@ -93,7 +95,7 @@ defineGround('semilog', {
     for (const [y, major] of ticks) { if (!major && Math.abs(last - y) < 30) continue; line(0, y, W, y, major ? 0.42 : 0.22, major ? 1.8 : 1.5); last = y; }
     g.restore(); labMargin(g, H); labFinish(g, r, 9);
   },
-  vignette: 'rgba(40,60,70,0.12)', grain: 0.7, contours: false, sfx: { header: 'scratch' },
+  vignette: 'rgba(40,60,70,0.12)', grain: 0.7, contours: false, sfx: { header: 'pencil' },
 });
 
 /** fluorescence: near-black (never pure #000, to avoid halation on phones) with faint out-of-focus coloured glows */
