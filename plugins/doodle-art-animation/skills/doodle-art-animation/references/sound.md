@@ -79,7 +79,7 @@ A story can still add its own: `SFX.drip = (ac, out, t, o = {}) => { … }` befo
 
 ## Automatic sounds
 
-- **Seams:** a riser before every seam except `fade` (its length and pitch vary, and it always ends on the seam), then the transition's own sound: a swell for `lensIn`/`lensOut`, a low tap for `cut`, a whoosh for `pan`/`wipe`, a flick for `page`/`roll`, a crackle for `burn`, hatching strokes for `hatch`, a bend for `morph`/`shape`, nothing for `fade`. Each seam gets its own variation. A custom transition can set `enter.sfx: (ac, out, t, dur) => …`.
+- **Seams:** a riser before every seam except `fade` (its length and pitch vary, and it always ends on the seam), then the transition's own sound: a swell for `lensIn`/`lensOut`, a low tap for `cut`, a whoosh for `pan`/`wipe`, a flick for `page`/`roll`, a crackle for `burn`, hatching strokes for `hatch`, felt rubbing for `erase`, a bend for `morph`/`shape`, nothing for `fade`. Each seam gets its own variation. A custom transition can set `enter.sfx: (ac, out, t, dur) => …`.
 - **Headers:** the kicker, title and subtitle type on with pen `scratch` on paper plates, and with soft `readout` blips on night plates. Set `pen: true | false` on a plate to override, or `pen: 'none'` for silence.
 - **Stereo:** small cues are panned deterministically, pads and beds are spread wide, and wipes pan with their direction.
 

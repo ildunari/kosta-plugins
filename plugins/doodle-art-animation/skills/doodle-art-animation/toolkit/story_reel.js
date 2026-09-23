@@ -31,6 +31,7 @@ const P = [
   mk(4, 'wipe', false), mk(5, 'bleed', true), mk(6, 'zoom', true, { dir: 'in', k: 6 }),
   mk(7, 'shape', false, { dur: 1.1, from: circAt(6, 40), to: () => STAR(...HEROS[0], 95) }), mk(8, 'iris', false),
   mk(9, 'burn', false), mk(10, 'cut', false), mk(11, 'hatch', true), mk(12, 'page', false), mk(13, 'roll', true), mk(14, 'page', false, { dir: 'right' }), mk(15, 'through', false, { from: { at: HEROS[0], r: 70 }, to: { at: HEROS[1], r: 70 } }),
+  mk(16, 'erase', true),
 ];
 defineStory({ title: 'Transition Reel', stages: 1, music: { tonic: 220 }, plates: P });
 boot();

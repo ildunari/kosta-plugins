@@ -264,8 +264,11 @@ function partial(p, frac, closed) {
  * opts: closed, w, color, fill, fillAlpha, amp (wobble px), seed, draw (0..1 draw-on), alpha, dash, cap,
  *       double (faint second contour), fillReveal ('sweep' fills left-to-right during the last 45% of draw)
  */
+/** strokeW(w): a line's width on the current paper. A paper with stroke: { min, from } (the chalkboard) draws every pen() and
+    ink() line of `from` px or more at least `min` px wide, as chalk is; thinner lines (hatching, HUD rules) keep their width */
+const strokeW = w => { const k = S.ground && S.ground.stroke; return k && w >= (k.from ?? 2.5) ? Math.max(w, k.min) : w; };
 function ink(pts, o = {}) {
-  const { closed = false, w = 3, color = PAL.ink, fill = null, amp = 1.2, seed = 1, draw = 1, alpha = 1, dash = null, fillAlpha = 1, fillReveal = null, double = false } = o;
+  const { closed = false, w: w0 = 3, color = PAL.ink, fill = null, amp = 1.2, seed = 1, draw = 1, alpha = 1, dash = null, fillAlpha = 1, fillReveal = null, double = false } = o, w = strokeW(w0);
   if (draw <= 0 || alpha <= 0) return pts;
   const p = wobble(pts, closed, amp, seed);
   ctx.save(); ctx.globalAlpha *= alpha; ctx.lineJoin = 'round'; ctx.lineCap = o.cap || 'round';
@@ -286,7 +289,7 @@ function ink(pts, o = {}) {
  * opts: w, color, seed, amp, draw, alpha, taper (fraction of length), minW, closed, pressure(u) -> 0..1
  */
 function pen(pts, o = {}) {
-  const { w = 3.5, color = PAL.ink, seed = 1, amp = 1.0, draw = 1, alpha = 1, taper = 0.16, closed = false, minW = 0.25 } = o;
+  const { w: w0 = 3.5, color = PAL.ink, seed = 1, amp = 1.0, draw = 1, alpha = 1, taper = 0.16, closed = false, minW = 0.25 } = o, w = strokeW(w0);
   if (draw <= 0 || alpha <= 0) return;
   let p = wobble(pts, closed, amp, seed); if (closed) p = p.concat([p[0]]);
   const Lfull = pathLen(p); if (Lfull <= 0) return;
@@ -977,6 +980,7 @@ function wash(poly, o) { return brush.wash(poly, o); }
  *   contours: { colors, alpha } | false | fn(t, ground, seed),   the drifting topographic loops (default: PAL.topo)
  *   treatment: { tooth, filter, color, glow } | fn(g2d, ground, { base, raw }) | null,   how a scene looks on it (treat())
  *   sfx: { header: 'scratch' },      the SFX a plate header types with; it takes { chars, cps, g }
+ *   stroke: { min: 5, from: 2.5 },  pen() and ink() lines of `from` px or more are drawn at least `min` px wide (chalk)
  *   minContrast: { ink, label, accent },   lowered contrast floors for the smoke test (default 7, 4.5, 3), with a reason
  *   seed,                            seeds rand (default: from the name)
  * })
@@ -2181,19 +2185,51 @@ const TRANS = {
 };
 /** header start delay per transition (a bare hold after a lens-in, none after a lens-out) */
 /** where each transition lands (90% of its travel), as a share of its length; the title starts 0.3 s after that */
-const LAND_AT = { lensIn: 0.62, lensOut: 0.62, shape: 0.6, morph: 0.6, roll: 0.61, iris: 0.8, zoom: 0.7, through: 0.85, bleed: 0.85, page: 0.78, burn: 0.82, wipe: 0.75, hatch: 0.8, pan: 0.75 };
+const LAND_AT = { lensIn: 0.62, lensOut: 0.62, shape: 0.6, morph: 0.6, roll: 0.61, iris: 0.8, zoom: 0.7, through: 0.85, bleed: 0.85, page: 0.78, burn: 0.82, wipe: 0.75, hatch: 0.8, pan: 0.75, erase: 0.85 };
 /** landAt(tr): seconds after a plate starts when its entering move has landed (use it to time beats) */
 const landAt = tr => !tr ? 0 : tr.type === 'cut' ? 0 : (tr.land ?? LAND_AT[tr.type] ?? 0.85) * (tr.dur || 0);
 /** lensOut keeps an instant title: the new world is already open */
 const HEADER_DELAY = { cut: () => 0.25, lensOut: () => 0.05, fade: d => d * 0.6 + 0.2 };
 function headerDelay(pl) { const tr = pl.enter; if (!tr || pl.i === 0) return 0.1; const h = HEADER_DELAY[tr.type]; return h ? h(tr.dur || 0) : landAt(tr) + 0.3; }
+/** eraser wipe: a board eraser rubs across the old plate in overlapping zigzag swipes and the new plate shows where it has
+    been. Made for the chalk papers (a whiteboard or chalkboard film), though it works on any. Options: dir 'lr' | 'rl', band (px). */
+TRANS.erase = function (p, X) {
+  const e = X.ez(p, E.ramp(0.12, 0.2)), band = X.tr.band ?? 190, step = band * 0.6, rl = X.tr.dir === 'rl', r = mulberry(X.seed + 41);
+  const path = [];                                                     // up and down swipes, each leaning a little, drifting across the frame
+  for (let i = 0, x = -band * 0.3; x < W + band * 0.6; i++, x += step) {   // step + lean stays under band, so swipes overlap edge to edge
+    const y0 = i % 2 ? H + band : -band, y1 = i % 2 ? -band : H + band, lean = 20 + r() * 15;
+    for (let k = 0; k <= 8; k++) { const u = k / 8, px = x + lean * u + Math.sin(u * Math.PI) * (r() - 0.5) * 24;
+      path.push([rl ? W - px : px, lerp(y0, y1, u)]); }
+  }
+  X.drawOld();
+  const done = partial(path, e, false);
+  if (done.length > 1) {
+    const L = layer(() => {
+      X.drawNew(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = 'destination-in';
+      trace(done, false); ctx.lineWidth = band; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#000'; ctx.stroke();
+    }, 1);
+    ctx.drawImage(L, 0, 0);
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); trace(done, false); ctx.lineWidth = band * 0.85; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = X.darkNew ? 'rgba(225,232,222,0.045)' : 'rgba(80,90,110,0.035)'; ctx.stroke(); ctx.restore();   // what the eraser leaves: a faint smear
+    if (p > 0.01 && p < 0.99) {                                        // the eraser itself: a wooden back on a felt pad
+      const [hx, hy] = done[done.length - 1], [qx, qy] = done[Math.max(0, done.length - 3)], a = Math.atan2(hy - qy, hx - qx) - Math.PI / 2;
+      ctx.save(); ctx.translate(hx, hy); ctx.rotate(clamp(a, -0.35, 0.35) * 0.5 + (rl ? 0.08 : -0.08));
+      ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.roundRect(-band * 0.28 + 8, -band * 0.55 + 10, band * 0.56, band * 1.1, 14); ctx.fill();
+      ctx.fillStyle = '#9a7650'; ctx.beginPath(); ctx.roundRect(-band * 0.28, -band * 0.55, band * 0.56, band * 1.1, 14); ctx.fill();
+      ctx.fillStyle = '#3d3c42'; ctx.beginPath(); ctx.roundRect(band * 0.06, -band * 0.55, band * 0.22, band * 1.1, [0, 14, 14, 0]); ctx.fill();
+      ctx.strokeStyle = '#1b1518'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.roundRect(-band * 0.28, -band * 0.55, band * 0.56, band * 1.1, 14); ctx.stroke();
+      ctx.restore();
+    }
+  }
+  return e;
+};
 TRANS.morph = TRANS.shape;   // v2 name
 
 /* ---------- timeline ---------- */
 /** presets whose main easing enter.ease replaces (see renderFrame) */
-const EASED = { lensIn: 1, lensOut: 1, fade: 1, zoom: 1, pan: 1, wipe: 1, bleed: 1, burn: 1, page: 1, roll: 1, shape: 1, hatch: 1 };
+const EASED = { lensIn: 1, lensOut: 1, fade: 1, zoom: 1, pan: 1, wipe: 1, bleed: 1, burn: 1, page: 1, roll: 1, shape: 1, hatch: 1, erase: 1 };
 /** transition length when a plate's enter has no dur (seconds) */
-const DEFAULT_DUR = { custom: 1.6, through: 1.8, cut: 0, lensIn: 1.6, lensOut: 1.6, zoom: 1.9, pan: 0.8, wipe: 1.0, bleed: 1.6, burn: 1.4, iris: 1.6, shape: 1.4, morph: 1.4, hatch: 1.2, page: 1.6, roll: 1.3, fade: 1.0 };
+const DEFAULT_DUR = { custom: 1.6, through: 1.8, cut: 0, lensIn: 1.6, lensOut: 1.6, zoom: 1.9, pan: 0.8, wipe: 1.0, bleed: 1.6, burn: 1.4, iris: 1.6, shape: 1.4, morph: 1.4, hatch: 1.2, page: 1.6, roll: 1.3, fade: 1.0, erase: 1.4 };
 let STORY = null, TOTAL_T = 0, TOTAL_F = 0;
 function defineStory(story) {
   STORY = story; let t = 0;
@@ -2814,6 +2850,7 @@ const TRANS_SFX = {
   wipe: (ac, o, t, d, tr) => SFX.whoosh(ac, o, t, { dur: d, dir: tr.dir }), iris: (ac, o, t, d) => SFX.shutter(ac, o, t, { dur: d }),
   zoom: (ac, o, t, d, tr) => SFX.glide(ac, o, t, { dur: d, up: !zoomOut(tr) }),
   hatch: (ac, o, t, d) => { const r = sfxRng({}, t, 'hatch'); SFX.noise(ac, o, t, { dur: d, g: 0.06, f0: rr(r, 1000, 1400), f1: rr(r, 3000, 4000), q: 2, lfo: rr(r, 11, 17) }); },   // hatching strokes
+  erase: (ac, o, t, d) => { const r = sfxRng({}, t, 'erase'); SFX.noise(ac, o, t, { dur: d, g: 0.07, f0: rr(r, 500, 700), f1: rr(r, 1600, 2200), q: 1.2, lfo: rr(r, 5, 7) }); },   // felt rubbing, one swipe per wobble
   page: (ac, o, t, d) => SFX.flick(ac, o, t, { dur: d }), roll: (ac, o, t, d) => SFX.flick(ac, o, t, { dur: d }), morph: (ac, o, t, d) => SFX.bend(ac, o, t, { dur: d }),
   shape: (ac, o, t, d) => { SFX.bend(ac, o, t, { dur: d }); SFX.swell(ac, o, t, { dur: d, up: true }); },
   bleed: (ac, o, t, d) => { const r = sfxRng({}, t, 'bleed'); SFX.noise(ac, o, t, { dur: d + 0.3, g: 0.07, f0: rr(r, 200, 300), f1: rr(r, 1200, 1700), q: 0.7, a: d * 0.5 }); SFX.tone(ac, o, t + d * 0.3, { f: rr(r, 95, 125), f2: 70, dur: 0.5, g: 0.06 }); },

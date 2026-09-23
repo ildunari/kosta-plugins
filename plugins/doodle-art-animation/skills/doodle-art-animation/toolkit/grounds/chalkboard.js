@@ -24,6 +24,7 @@ defineGround('chalkboard', {
     nightCounter: 'rgba(210,218,208,0.6)', nightCurtain: '#1c2621', nightRim: [20, 28, 24], nightPageBack: 'rgba(200,215,205,0.18)',
     navyFill: '#3c5a8a', accent: '#f4a259' },   // accent: orange chalk (the vermilion is 3.4:1 here, orange 5.9:1)
   vignette: 'rgba(5,10,8,0.5)', grain: 0.5, contours: false,
+  stroke: { min: 5, from: 2.5 },   // chalk lines at least 5 px wide, so they survive phone compression
   sfx: { header: 'chalk' },
   build(g, rand, W, H) {
     paperKit.fill(g, '#2a3831', '#243029');
