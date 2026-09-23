@@ -59,7 +59,7 @@ docs/doodle-art-animation/          not shipped with the plugin
   file rules, and `--full --node-modules <playwright>/node_modules` for builds, page probes, renders and timing.
   They are the written form of what was agreed with the owner; extend them when the plugin gains a feature.
 - Voice tool tests, also run by CI: `node tests/doodle-art-animation/voice_test.mjs`. They use the fake voice and pretend
-  Gemini, OpenAI and proxy servers, so they need no network, no keys and cost nothing. `DOODLE_TEST_KOKORO=1` adds a real
+  Gemini, OpenAI, Grok, ElevenLabs, Inworld and proxy servers, so they need no network, no keys and cost nothing. `DOODLE_TEST_KOKORO=1` adds a real
   Kokoro run (needs `python3 -m pip install kokoro-onnx` and downloads a 325 MB model from GitHub the first time).
 - Regression tests for bugs found while making films, also run by CI: `python3 tests/doodle-art-animation/regression_test.py
   --node-modules <playwright>/node_modules` (`--static` for the parts that need no browser). Add a check there, and a fixture
@@ -164,7 +164,7 @@ CI: `.github/workflows/doodle-smoke.yml` runs it on ubuntu-latest for pushes to 
   exception: they are small (about 70 KB each) and the example needs them to build.
 - Narration (`voice.mjs`): API keys come only from environment variables or `~/.config/doodle-art-animation/keys.env`,
   never from the repo, project files or memory, and the tool never prints one. Its files (`vo/lines.json`,
-  `vo/voice.json`) are described at the top of `voice.mjs`; the engine reads `vo/voice.json`, so a change to that
+  `vo/voice.json`) are described at the top of `voice.mjs`, and the providers in `references/voice-providers.md`; the engine reads `vo/voice.json`, so a change to that
   format changes both sides together. Requests go through `HTTPS_PROXY` with the tool's own tunnel, because Node's
   `fetch` ignores that variable and would connect directly, skipping the claude.ai proxy that adds the Gemini key.
 - Bump `version` in `plugin.json` when the plugin changes in a way users would notice.
