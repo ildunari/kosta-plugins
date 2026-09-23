@@ -30,14 +30,16 @@ refuses, the tool stops and names the variable to set.
 
 ## Provider notes
 
-- **Grok.** Voices for calm narration: orion, lux, perseus (luna and lumen are listed for education). A pause tag
+- **Grok.** Voices for calm narration: orion, lux, perseus (luna and lumen are listed for education); list them
+  with `GET https://api.x.ai/v1/tts/voices`. A pause tag
   becomes `[pause]` or `[long-pause]`; Grok's own sound tags (`[breath]`, `[sigh]`, `[laugh]`) pass through; other
   tags are dropped. Speed 0.7 to 1.5.
-- **ElevenLabs.** A voice can be its name on your account (Darian, Finley, Elara, Talia, Sawyer) or its 20-character
-  voice ID. Voice Library voices must be added to your account first. `eleven_v3` acts tags like `[curious]` and
+- **ElevenLabs.** A voice can be a name on your account, its 20-character voice ID, or one of the narrators that
+  replace the retiring default voices (Darian, Sawyer, Finley, Eldrin, Elara, Talia), which the tool knows by ID.
+  Library voices through the API need a paid plan. `eleven_v3` acts tags like `[curious]` and
   gets `...` for a pause; `eleven_multilingual_v2` is steadier over long passages and takes `<break>` pauses up to
   3 s. The free plan forbids commercial use; published films need at least the Starter plan. Speed 0.7 to 1.2.
-- **Inworld.** Voices: Dennis, Ashley, Malcolm, Edward (list them with `GET https://api.inworld.ai/tts/v1/voices`).
+- **Inworld.** Voices: Dennis, Ashley, Malcolm, Edward (list them with `GET https://api.inworld.ai/voices/v1/voices`).
   The key from Inworld's portal is already encoded and is sent as it is; an `id:secret` pair is encoded by the tool.
   At most 2,000 characters per plate. `inworld-tts-2` follows the film's direction and plain-English tags like
   `[curious]` (they stay in force until another tag); Flash ignores both. Speed 0.5 to 1.5.

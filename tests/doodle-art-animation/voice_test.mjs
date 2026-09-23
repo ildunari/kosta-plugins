@@ -335,7 +335,7 @@ function timingChecks(name, d, seen, textOf) {
     if (!r.headers.authorization) return send(401, { code: 'unauthorized', error: 'Incorrect API key provided: missing.' });
     const sp = speak(r.body.text);
     send(200, { audio: sp.pcm.toString('base64'), content_type: 'audio/pcm', duration: sp.pcm.length / 48000,
-      audio_timestamps: { graph_chars: sp.chars.map(c => c[0]), graph_times: sp.chars.map(c => [c[1], c[2]]) } });
+      audio_timestamps: { graph_chars: sp.chars.map(c => c[0]), graph_times: sp.chars.map(c => ({ start: c[1], end: c[2] })) } });
   });
   const port = await listen(srv), env = { DOODLE_XAI_BASE_URL: `http://127.0.0.1:${port}/v1` }, key = 'xai-' + 'g'.repeat(40);
   const d = film('xai');
@@ -369,12 +369,15 @@ function timingChecks(name, d, seen, textOf) {
   seen.length = 0;
   const g = await run(d, ['generate'], { ...env, ELEVENLABS_API_KEY: key });
   const r = seen.find(s => /vein/.test(s.body.text || ''));
-  check('elevenlabs: the voice name is looked up, then /with-timestamps as 24 kHz PCM', g.code === 0 && seen[0]?.url === '/v1/voices'
+  check('elevenlabs: the voice name is looked up, then /with-timestamps as 24 kHz PCM', g.code === 0 && /^\/v2\/voices\?/.test(seen[0]?.url || '')
     && r?.url === `/v1/text-to-speech/${VID}/with-timestamps?output_format=pcm_24000` && r.body.model_id === 'eleven_v3' && r.headers['xi-api-key'] === key && !g.all.includes(key), g.all + JSON.stringify(r));
   check('elevenlabs: v3 gets "..." for a pause and no direction', /vein\. \.\.\. It is/.test(r?.body.text || '') && !/\[short pause\]|Say calmly/.test(r?.body.text || ''), r?.body.text);
   timingChecks('elevenlabs', d, seen, b => b?.text);
   const n = await run(d, ['generate', '--retake', 'P1', '--voice', 'Nobody'], { ...env, ELEVENLABS_API_KEY: key });
   check('elevenlabs: an unknown voice name lists the voices on the account (exit 2)', n.code === 2 && /no voice called "Nobody"/.test(n.err) && /Elara/.test(n.err), n.all);
+  seen.length = 0;
+  const kn = await run(d, ['generate', '--retake', 'P1', '--voice', 'Finley'], { ...env, ELEVENLABS_API_KEY: key });
+  check('elevenlabs: a known narrator not on the account is used by its ID', kn.code === 0 && seen.some(s => /\/text-to-speech\/fnYMz3F5gMEDGMWcH1ex\//.test(s.url)), kn.all);
   seen.length = 0;
   const v2 = film('elevenlabs-v2');
   await run(v2, ['lines', 'script.md', '--provider', 'elevenlabs', '--model', 'eleven_multilingual_v2', '--voice', VID]);

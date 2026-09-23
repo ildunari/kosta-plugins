@@ -662,22 +662,28 @@ ADAPTERS.xai = {
     if (!b64) throw new Retryable('Grok returned no audio');
     const ts = j.audio_timestamps || j.timestamps || {}, cs = ts.graph_chars || ts.chars || [], tt = ts.graph_times || ts.times || [];
     // one time per character; if only starts are given, a character ends where the next begins
-    const chars = cs.map((c, i) => { const t = tt[i], s = Array.isArray(t) ? t[0] : t, e = Array.isArray(t) ? t[1] : (Array.isArray(tt[i + 1]) ? tt[i + 1][0] : tt[i + 1] ?? s + 0.08);
-      return [c, +s, +e]; }).filter(c => Number.isFinite(c[1]));
+    // xAI's guide shows [start, end] pairs and its API reference { start, end } objects; plain start times also work
+    const se = t => Array.isArray(t) ? [t[0], t[1]] : t && typeof t === 'object' ? [t.start, t.end] : [t, undefined];
+    const chars = cs.map((c, i) => { const [s, e] = se(tt[i]); return [c, +s, +(e ?? se(tt[i + 1])[0] ?? s + 0.08)]; }).filter(c => Number.isFinite(c[1]) && Number.isFinite(c[2]));
     const ms = chars.length && chars.at(-1)[2] > 600;                          // times in milliseconds
     return { ...decodeAudio(Buffer.from(b64, 'base64'), rate), chars: plan.text.length,
       words: chars.length ? wordTimes(plan.parsed, plan.pairs, { chars: ms ? chars.map(([c, s, e]) => [c, s / 1000, e / 1000]) : chars }) : null };
   },
 };
 const ELEVEN_ID = /^[A-Za-z0-9]{20}$/;
+// the replacements ElevenLabs names for its retiring default voices (Voice Library voices, used by ID when they are not
+// on the account); from its "default voices" help page, read 2026-09-23
+const ELEVEN_KNOWN = { darian: 'gOupLcAkjEnguROwi4oS', sawyer: '8dEUmyPMdDdK91vboYih', finley: 'fnYMz3F5gMEDGMWcH1ex',
+  eldrin: '6WwXjDDEMyNmFG95zycZ', elara: 'WQP7cQUF5aAS6Axh5yaa', talia: 'OZ0L6eISlOejga3XjDFt' };
 let elevenVoices = null;
 async function elevenVoice(name, key) {
   if (ELEVEN_ID.test(name)) return name;
   const headers = key ? { 'xi-api-key': key.value } : {};
-  elevenVoices ||= call('elevenlabs', key, `${baseUrl('DOODLE_ELEVENLABS_BASE_URL', 'https://api.elevenlabs.io/v1')}/voices`, { headers, timeout: 30000 })
+  elevenVoices ||= call('elevenlabs', key, `${baseUrl('DOODLE_ELEVENLABS_BASE_URL', 'https://api.elevenlabs.io/v1').replace(/\/v1$/, '')}/v2/voices?page_size=100`, { headers, timeout: 30000 })
     .then(r => parseJson(r, 'ElevenLabs').voices || []);
   const vs = await elevenVoices, n = name.toLowerCase();
   const v = vs.find(x => x.name?.toLowerCase() === n) || vs.find(x => x.name?.toLowerCase().split(/\s+[-–—(]|,/)[0].trim() === n);
+  if (!v && ELEVEN_KNOWN[n]) return ELEVEN_KNOWN[n];
   if (!v) throw new SetupError(`ElevenLabs has no voice called "${name}" on this account. Use a voice ID, or one of: ${vs.map(x => x.name).slice(0, 25).join(', ') || '(none listed)'}. Voices from the Voice Library must be added to your account first.`);
   return v.voice_id;
 }
@@ -1187,9 +1193,9 @@ async function cmdKeys() {
     ['gemini', () => `${(process.env.DOODLE_GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/+$/, '')}/models?pageSize=1`, k => k ? { 'x-goog-api-key': k.value } : {}],
     ['openai', () => `${(process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '')}/models`, k => k ? { authorization: `Bearer ${k.value}` } : {}],
     ['local', () => `${(process.env.DOODLE_TTS_BASE_URL || 'http://localhost:8880/v1').replace(/\/+$/, '')}/models`, k => k ? { authorization: `Bearer ${k.value}` } : {}],
-    ['xai', () => `${baseUrl('DOODLE_XAI_BASE_URL', 'https://api.x.ai/v1')}/models`, k => k ? { authorization: `Bearer ${k.value}` } : {}],
-    ['elevenlabs', () => `${baseUrl('DOODLE_ELEVENLABS_BASE_URL', 'https://api.elevenlabs.io/v1')}/voices`, k => k ? { 'xi-api-key': k.value } : {}],
-    ['inworld', () => `${baseUrl('DOODLE_INWORLD_BASE_URL', 'https://api.inworld.ai')}/tts/v1/voices`, k => k ? { authorization: `Basic ${k.value.includes(':') ? Buffer.from(k.value).toString('base64') : k.value}` } : {}],
+    ['xai', () => `${baseUrl('DOODLE_XAI_BASE_URL', 'https://api.x.ai/v1')}/tts/voices`, k => k ? { authorization: `Bearer ${k.value}` } : {}],
+    ['elevenlabs', () => `${baseUrl('DOODLE_ELEVENLABS_BASE_URL', 'https://api.elevenlabs.io/v1').replace(/\/v1$/, '')}/v2/voices?page_size=1`, k => k ? { 'xi-api-key': k.value } : {}],
+    ['inworld', () => `${baseUrl('DOODLE_INWORLD_BASE_URL', 'https://api.inworld.ai')}/voices/v1/voices`, k => k ? { authorization: `Basic ${k.value.includes(':') ? Buffer.from(k.value).toString('base64') : k.value}` } : {}],
   ];
   let bad = 0;
   for (const [p, url, hdr] of tests) {
