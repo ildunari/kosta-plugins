@@ -27,9 +27,10 @@
 // (0, I, II ... End) or by P<n>, under a "### I · Title" heading (an unheaded "I · Title" line also starts a block
 // when I is in the table). Words in braces are marks: named points that beats can land on; the mark's time is
 // the start of the word right after it. Square brackets are delivery tags; Gemini acts them ([short pause] 0.25 s,
-// [medium pause] 0.5 s, [long pause] 1 s, [curious], [serious] ...). The other providers drop them, and Kokoro turns
-// a pause tag between sentences into that much silence. Optional @voice, @direction, @speed, @lead and @tail lines
-// override the film's settings for one plate. A block reading "(none)" has no narration.
+// [medium pause] 0.5 s, [long pause] 1 s, [curious], [serious], [sigh] ...; see GEMINI 3.8 below for how they are
+// sent). The other providers drop them, and Kokoro turns a pause tag between sentences into that much silence.
+// Optional @voice, @direction, @speed, @lead and @tail lines override the film's settings for one plate. A block
+// reading "(none)" has no narration.
 //     ## Narration
 //     ### I · Into the Blood
 //     One particle slips into the vein. [short pause]
@@ -58,7 +59,8 @@
 // is placed by its share of the sentence's syllables, so it can be off by about 0.3 s; a mark on a sentence's first
 // word is as exact as the sentence start.
 //
-// PROVIDERS. gemini (default; gemini-3.1-flash-tts-preview, about $0.03 a minute), openai (gpt-4o-mini-tts, about
+// PROVIDERS. gemini (default; gemini-3.8-flash-tts, about $0.02 a minute in 2026 and $0.04 from 2027;
+// gemini-3.8-flash-lite-tts is cheaper, and gemini-3.1-flash-tts-preview still works), openai (gpt-4o-mini-tts, about
 // $0.015 a minute), local (any OpenAI-style speech server, e.g. Kokoro-FastAPI at DOODLE_TTS_BASE_URL, default
 // http://localhost:8880/v1), kokoro (Kokoro-82M in-process through voice_kokoro.py and the kokoro-onnx Python package;
 // free, CPU only, model files from GitHub), xai (Grok's /v1/tts, voice orion, about $0.015 a minute), elevenlabs
@@ -69,6 +71,15 @@
 // pauses into [pause] / [long-pause] and keeps its own sound tags ([breath], [sigh], [laugh] ...); eleven_v3 acts
 // [curious]-style tags and gets "..." for a pause; older ElevenLabs models and Inworld get <break time="..."/>;
 // Inworld TTS-2 also acts the other tags; OpenAI and local servers drop them. docs: references/voice-providers.md.
+//
+// GEMINI 3.8. The 3.8 TTS models speak every word of the text they get, so nothing may be written into it for the
+// voice to act on. The tool sends them the words alone through the Interactions API (POST /v1beta/interactions,
+// store: false), with the direction as the text's speech_metadata style ("Say slowly, with wonder:" becomes
+// "slowly, with wonder"). Tags become Gemini's angle-bracket tags: a short or medium pause is <short pause>, a long
+// one <long pause>, and a vocal sound Gemini knows (sigh, breath, laugh, chuckle ...) is <sigh> and so on. Any other
+// tag, like [curious], changes how the rest of the plate is read: the words after it become a new part of the same
+// request, whose style is the direction plus "; curious". The older models (gemini-3.1-flash-tts-preview, the 2.5
+// previews) still get one prompt of direction and words through generateContent, with the tags in square brackets.
 // Clips are cached by a fingerprint of exactly what was sent (text, provider, model, voice, direction, speed), so
 // generating again after editing one plate pays only for that plate. A new lufs target re-levels cached clips for free.
 // Gemini has no speed setting (a speed there is ignored, with a warning). Kokoro reads faster than a narrator, so
@@ -114,18 +125,18 @@ const STYLES = {   // preset: the narrator preset a Gemini film of this style ge
 // NARRATOR PRESETS (Gemini only). A preset is a voice plus a delivery: the written direction and the pace that
 // direction really reads at. Kosta chose the five voices by ear in September 2026 from all 30 of Gemini's. Each pace
 // is the middle of the five voices reading the same 24-word line with that direction, rounded to 5 words a minute,
-// so plate estimates and the pace check match the voice instead of the style's target. A preset is named after the
-// narrator (its usual delivery) or <narrator>-<delivery>, like charon-storyteller. When to use which:
-// references/voice-presets.md.
+// so plate estimates and the pace check match the voice instead of the style's target: wpm on Gemini 3.8 Flash TTS,
+// wpm31 on 3.1 Flash TTS (3.8 reads the same directions faster). A preset is named after the narrator (its usual
+// delivery) or <narrator>-<delivery>, like charon-storyteller. When to use which: references/voice-presets.md.
 const DELIVERIES = {
-  plain: { wpm: 120, direction: 'Say in a calm, measured voice, at a natural conversational pace:' },
-  british: { wpm: 120, direction: 'Say in a calm, measured voice with a British English accent, at a natural conversational pace:' },
-  professor: { wpm: 120, direction: 'Say warmly, like a favourite professor explaining something they love, with a hint of a smile, at a natural pace:' },
-  hushed: { wpm: 115, direction: 'Say softly, in a hushed and slightly awed tone, like a nature documentary narrator:' },
-  wry: { wpm: 120, direction: 'Say with dry, understated wit, like a narrator who finds this quietly amusing, at a natural pace:' },
-  lively: { wpm: 160, direction: 'Say with bright energy at a brisk pace, like an enthusiastic science explainer:' },
-  storyteller: { wpm: 105, direction: 'Say low and intimate, like a late-night radio storyteller, unhurried but not slow:' },
-  intimate: { wpm: 110, direction: 'Say warmly and intimately, in a soft, slightly husky voice, like talking to one close friend, with a playful smile, at a natural conversational pace:' },
+  plain: { wpm: 125, wpm31: 120, direction: 'Say in a calm, measured voice, at a natural conversational pace:' },
+  british: { wpm: 135, wpm31: 120, direction: 'Say in a calm, measured voice with a British English accent, at a natural conversational pace:' },
+  professor: { wpm: 140, wpm31: 120, direction: 'Say warmly, like a favourite professor explaining something they love, with a hint of a smile, at a natural pace:' },
+  hushed: { wpm: 120, wpm31: 115, direction: 'Say softly, in a hushed and slightly awed tone, like a nature documentary narrator:' },
+  wry: { wpm: 135, wpm31: 120, direction: 'Say with dry, understated wit, like a narrator who finds this quietly amusing, at a natural pace:' },
+  lively: { wpm: 185, wpm31: 160, direction: 'Say with bright energy at a brisk pace, like an enthusiastic science explainer:' },
+  storyteller: { wpm: 130, wpm31: 105, direction: 'Say low and intimate, like a late-night radio storyteller, unhurried but not slow:' },
+  intimate: { wpm: 130, wpm31: 110, direction: 'Say warmly and intimately, in a soft, slightly husky voice, like talking to one close friend, with a playful smile, at a natural conversational pace:' },
 };
 const NARRATORS = {   // pitch is the median of the voice's plain read, measured
   charon: { voice: 'Charon', delivery: 'plain', sounds: 'male, mid-low (about 118 Hz), informative; the house narrator' },
@@ -134,14 +145,16 @@ const NARRATORS = {   // pitch is the median of the voice's plain read, measured
   leda: { voice: 'Leda', delivery: 'plain', sounds: 'female, light and youthful (about 200 Hz)' },
   pulcherrima: { voice: 'Pulcherrima', delivery: 'intimate', sounds: 'female, low, warm and slightly husky (about 135 Hz)' },
 };
-function preset(name) {
+// a preset by name, with the pace its direction reads at on this model (3.8 and later unless it is an older one)
+function preset(name, model = PROVIDERS.gemini.model) {
   const [who, how] = String(name).trim().toLowerCase().split(/-(.+)/), N = NARRATORS[who], d = how || N?.delivery;
   if (!N || !DELIVERIES[d]) throw new SetupError(`unknown preset "${name}": use a narrator (${Object.keys(NARRATORS).join(', ')}), optionally with -<delivery> (${Object.keys(DELIVERIES).join(', ')}), like charon-storyteller. node voice.mjs presets lists them`);
-  return { name: d === N.delivery ? who : `${who}-${d}`, narrator: who, voice: N.voice, delivery: d, ...DELIVERIES[d] };
+  const { wpm, wpm31, direction } = DELIVERIES[d];
+  return { name: d === N.delivery ? who : `${who}-${d}`, narrator: who, voice: N.voice, delivery: d, direction, wpm: legacyGemini(model) ? wpm31 : wpm };
 }
 const KOKORO_VOICES = { calm: ['af_heart', 'bm_george', 'am_michael'], upbeat: ['af_heart', 'af_nova', 'am_puck'] };
 const PROVIDERS = {
-  gemini: { name: 'Gemini', model: 'gemini-3.1-flash-tts-preview', voice: 'Charon',
+  gemini: { name: 'Gemini', model: 'gemini-3.8-flash-tts', voice: 'Charon',
     audition: { calm: ['Charon', 'Orus', 'Erinome', 'Leda', 'Pulcherrima'], upbeat: ['Charon', 'Orus', 'Erinome', 'Leda'] },
     // with no voices or directions named, a Gemini audition compares narrator presets instead of voices x directions
     presets: { calm: ['charon', 'orus', 'erinome', 'leda', 'pulcherrima'], upbeat: ['charon-lively', 'orus-lively', 'erinome-lively', 'leda-lively'] } },
@@ -163,8 +176,11 @@ const KOKORO_CURVE = [[0.5, 0.41], [0.7, 0.683], [0.85, 0.889], [1, 1], [1.3, 1.
 const KEY_VARS = { gemini: ['GEMINI_API_KEY', 'GOOGLE_API_KEY'], openai: ['OPENAI_API_KEY'], xai: ['XAI_API_KEY'],
   elevenlabs: ['ELEVENLABS_API_KEY'], inworld: ['INWORLD_API_KEY'], local: ['DOODLE_TTS_API_KEY'] };
 const KEY_NAMES = { gemini: 'Gemini', openai: 'OpenAI', xai: 'Grok (xAI)', elevenlabs: 'ElevenLabs', inworld: 'Inworld', local: 'Local server' };
-// about what the voice costs, in US dollars (read 2026-09-22; prices change, so these are estimates)
-const PRICE = { 'gemini-3.1-flash-tts-preview': { in: 1e-6, out: 20e-6 }, 'gemini-2.5-flash-preview-tts': { in: 0.5e-6, out: 10e-6 },
+// about what the voice costs, in US dollars (read 2026-09-22, Gemini 3.8 on 2026-09-23; prices change, so these are
+// estimates). later: [date, prices] is a price Google has announced from that date on
+const PRICE = { 'gemini-3.8-flash-tts': { in: 0.5e-6, out: 9e-6, later: ['2027-01-01', { in: 1e-6, out: 18e-6 }] },
+  'gemini-3.8-flash-lite-tts': { in: 0.5e-6, out: 6e-6, later: ['2027-01-01', { in: 1e-6, out: 12e-6 }] },
+  'gemini-3.1-flash-tts-preview': { in: 1e-6, out: 20e-6 }, 'gemini-2.5-flash-preview-tts': { in: 0.5e-6, out: 10e-6 },
   'gemini-2.5-pro-preview-tts': { in: 1e-6, out: 20e-6 }, 'gpt-4o-mini-tts': { perSec: 0.00025 }, 'tts-1': { perChar: 15e-6 }, 'tts-1-hd': { perChar: 30e-6 },
   'grok-tts': { perChar: 15e-6 }, eleven_v3: { perChar: 100e-6 }, eleven_multilingual_v2: { perChar: 100e-6 }, eleven_flash_v2_5: { perChar: 50e-6 },
   eleven_flash_v2: { perChar: 50e-6 }, eleven_turbo_v2_5: { perChar: 50e-6 }, 'inworld-tts-2': { perChar: 25e-6 }, 'inworld-tts-2-flash': { perChar: 15e-6 } };
@@ -406,6 +422,31 @@ function applyPron(text, pairs) {
 }
 const NAMED_PAUSE = new Set(['short pause', 'medium pause', 'long pause']);
 const geminiTag = t => { const p = pauseOf(t); return p && !NAMED_PAUSE.has(t.trim().toLowerCase()) ? (p < 0.4 ? 'short pause' : p < 0.8 ? 'medium pause' : 'long pause') : t; };
+// Gemini 3.8 (see GEMINI 3.8 at the top). Models before it take the direction and words as one prompt
+const legacyGemini = model => /^gemini-(2\.5|3\.1)-/.test(model);
+// the vocal sounds Gemini 3.8 acts inline, from its TTS guide; it has a short and a long pause but no medium one
+const VOCAL = new Set(['argh', 'breath', 'heavy breath', 'exhales', 'cackle', 'cheer', 'chuckle', 'chuckles', 'cough', 'cry',
+  'gasp', 'giggle', 'groan', 'growl', 'grunt', 'grr', 'hiss', 'laugh', 'laughter', 'moan', 'pant', 'pff', 'phew', 'scream',
+  'shout', 'shriek', 'sigh', 'sighs', 'sneeze', 'snicker', 'snort', 'sob', 'throat-clearing', 'tsk', 'whimper', 'whispers',
+  'whispering', 'yawn']);
+const geminiStyle = d => String(d || '').trim().replace(/[:.]\s*$/, '').replace(/^say\s+/i, '').trim();
+// a plate's words for Gemini 3.8 as parts of one request: pauses and vocal sounds become <tags> in the words, and any
+// other tag starts a new part that is read with that tag added to the style
+function geminiTurns(parsed, pairs) {
+  const turns = [{ tag: null, words: [] }];
+  for (const s of parsed.sents) for (const t of s.toks) {
+    if (t.tag == null) { turns.at(-1).words.push(t.text); continue; }
+    const low = t.tag.trim().toLowerCase(), p = pauseOf(low);
+    if (p) turns.at(-1).words.push(p < 0.8 ? '<short pause>' : '<long pause>');
+    else if (VOCAL.has(low)) turns.at(-1).words.push(`<${low}>`);
+    else {                                 // the step to a new part is a pause of about a second already
+      const w = turns.at(-1).words; while (/^<(short|long) pause>$/.test(w.at(-1))) w.pop();
+      turns.push({ tag: t.tag.trim(), words: [] });
+    }
+  }
+  return turns.map(t => ({ tag: t.tag, text: applyPron(t.words.join(' '), pairs) }))
+    .filter(t => /[A-Za-z0-9]/.test(t.text.replace(/<[^>]*>/g, '')));
+}
 
 // ---------------------------------------------------------------- audio: WAV, loudness, speech and pauses
 function readWav(buf) {
@@ -585,24 +626,46 @@ function joinChunks(parts, rate, speed = 1) {
 const ADAPTERS = {
   gemini: {
     direction: () => true, speed: false,
-    prepare: (parsed, pairs) => ({ text: applyPron(parsed.sents.map(s => s.toks.map(t => t.tag != null ? `[${geminiTag(t.tag)}]` : t.text).join(' ')).join(' '), pairs) }),
+    // 3.8 on: the words alone, in parts (turns), each with its style; text is what the fingerprint and sidecar record
+    prepare(parsed, pairs, plan) {
+      if (legacyGemini(plan.model)) return { text: applyPron(parsed.sents.map(s => s.toks.map(t => t.tag != null ? `[${geminiTag(t.tag)}]` : t.text).join(' ')).join(' '), pairs) };
+      const turns = geminiTurns(parsed, pairs);
+      return { turns, text: turns.map(t => (t.tag ? `[${t.tag}] ` : '') + t.text).join(' ') };
+    },
     async synth(plan) {
       const key = findKey('gemini'), base = (process.env.DOODLE_GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/+$/, '');
-      const dir = (plan.direction || '').trim(), prompt = dir ? `${/[:.!?]$/.test(dir) ? dir : dir + ':'} ${plan.text}` : plan.text;
-      const body = JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseModalities: ['AUDIO'],
-        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: plan.voice } } } } });
       const headers = { 'content-type': 'application/json' }; if (key) headers['x-goog-api-key'] = key.value;
-      const res = await call('gemini', key, `${base}/models/${encodeURIComponent(plan.model)}:generateContent`, { method: 'POST', headers, body });
-      let j; try { j = JSON.parse(res.body.toString()); } catch { throw new Retryable('Gemini answered with something that is not JSON'); }
-      const parts = j?.candidates?.[0]?.content?.parts || [], audio = parts.find(p => p.inlineData?.data);
-      if (!audio) {
-        const txt = parts.map(p => p.text).filter(Boolean).join(' ').slice(0, 120), why = j?.candidates?.[0]?.finishReason;
-        throw new Retryable(`Gemini returned no audio${why ? ` (finish reason ${why})` : ''}${txt ? `; it wrote text instead: "${txt}"` : ''}`);
+      const audioOf = (mime = '', b64) => { const buf = Buffer.from(b64, 'base64');
+        return /wav/i.test(mime) ? readWav(buf) : decodeAudio(buf, +(mime.match(/rate=(\d+)/)?.[1] || 24000)); };
+      let j;
+      const json = res => { try { return JSON.parse(res.body.toString()); } catch { throw new Retryable('Gemini answered with something that is not JSON'); } };
+      if (!plan.turns) {                                  // 3.1 and the 2.5 previews: the direction, then the words
+        const dir = (plan.direction || '').trim(), prompt = dir ? `${/[:.!?]$/.test(dir) ? dir : dir + ':'} ${plan.text}` : plan.text;
+        const body = JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseModalities: ['AUDIO'],
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: plan.voice } } } } });
+        j = json(await call('gemini', key, `${base}/models/${encodeURIComponent(plan.model)}:generateContent`, { method: 'POST', headers, body }));
+        const parts = j?.candidates?.[0]?.content?.parts || [], audio = parts.find(p => p.inlineData?.data);
+        if (!audio) {
+          const txt = parts.map(p => p.text).filter(Boolean).join(' ').slice(0, 120), why = j?.candidates?.[0]?.finishReason;
+          throw new Retryable(`Gemini returned no audio${why ? ` (finish reason ${why})` : ''}${txt ? `; it wrote text instead: "${txt}"` : ''}`);
+        }
+        const u = j.usageMetadata || {};
+        return { ...audioOf(audio.inlineData.mimeType, audio.inlineData.data), tokens: { in: u.promptTokenCount || 0, out: u.candidatesTokenCount || 0 } };
       }
-      const mime = audio.inlineData.mimeType || '', buf = Buffer.from(audio.inlineData.data, 'base64');
-      const w = /wav/i.test(mime) ? readWav(buf) : { samples: pcm16le(buf), rate: +(mime.match(/rate=(\d+)/)?.[1] || 24000) };
-      const u = j.usageMetadata || {};
-      return { ...w, tokens: { in: u.promptTokenCount || 0, out: u.candidatesTokenCount || 0 } };
+      const style = geminiStyle(plan.direction);
+      const content = plan.turns.map(t => { const s = [style, t.tag].filter(Boolean).join('; ');
+        return { type: 'text', text: t.text, ...(s ? { annotations: [{ type: 'speech_metadata', style: s }] } : {}) }; });
+      const body = JSON.stringify({ model: plan.model, input: [{ type: 'user_input', content }], response_format: { type: 'audio' },
+        generation_config: { speech_config: [{ voice: plan.voice }] }, store: false });
+      j = json(await call('gemini', key, `${base}/interactions`, { method: 'POST', headers, body }));
+      const parts = [...(j?.steps || []).flatMap(s => s?.content || []), ...(j?.outputs || [])];
+      const audio = parts.filter(p => p?.type === 'audio' && p.data).at(-1);
+      if (!audio) {
+        const txt = parts.map(p => p?.text).filter(Boolean).join(' ').slice(0, 120);
+        throw new Retryable(`Gemini returned no audio${j?.status && j.status !== 'completed' ? ` (status ${j.status})` : ''}${txt ? `; it wrote text instead: "${txt}"` : ''}`);
+      }
+      const u = j.usage || {};
+      return { ...audioOf(audio.mime_type || audio.mimeType, audio.data), tokens: { in: u.total_input_tokens || 0, out: u.total_output_tokens || 0 } };
     },
   },
   openai: {
@@ -803,7 +866,7 @@ function runConfig(L) {
   const own = provider === (L.provider || provider), P = PROVIDERS[provider], style = L.style || 'documentary';
   if (!STYLES[style]) throw new SetupError(`unknown style "${style}" (use ${Object.keys(STYLES).join(', ')})`);
   const model = flags.model || (own && L.model) || P.model, speed = +(own && L.speed) || 0;
-  const pre = L.preset && provider === 'gemini' ? preset(L.preset) : null;    // lines.json's own fields still win
+  const pre = L.preset && provider === 'gemini' ? preset(L.preset, model) : null;    // lines.json's own fields still win
   return { provider, own, style, model, preset: pre?.name, voice: flags.voice || (own && L.voice) || pre?.voice || P.voice,
     wpm: +L.wpm || pre?.wpm || STYLES[style].wpm, direction: L.direction ?? pre?.direction ?? STYLES[style].directions[0],
     // Kokoro reads faster than a narrator, so unless lines.json or the plate sets a speed, each plate gets the speed
@@ -847,9 +910,10 @@ function planUnit(u, cfg) {
   return plan;
 }
 function cost(meta) {
-  const p = PRICE[meta.model]; if (!p) return null;
+  let p = PRICE[meta.model]; if (!p) return null;
+  if (p.later && (meta.created || new Date().toISOString()).slice(0, 10) >= p.later[0]) p = { ...p, ...p.later[1] };
   if (p.out && meta.tokens) return meta.tokens.in * p.in + meta.tokens.out * p.out;
-  if (p.out) return meta.dur * 25 * p.out;
+  if (p.out) return meta.dur * 33 * p.out;          // Gemini bills about 33 audio tokens a second of speech (measured)
   if (p.perSec) return meta.dur * p.perSec;
   if (p.perChar) return (meta.chars || 0) * p.perChar;
   return null;
@@ -1083,16 +1147,19 @@ async function cmdLines() {
   // and so does one whose style changes while it still has the old style's preset
   const envVoice = provider === (process.env.DOODLE_TTS_PROVIDER || 'gemini') && process.env.DOODLE_TTS_VOICE;
   const keep = same && old.preset && !(flags.style && flags.style !== old.style && old.preset === STYLES[old.style || 'documentary']?.preset);
-  const pre = provider !== 'gemini' ? null : flags.preset ? preset(flags.preset) : keep ? preset(old.preset)
-    : !flags.voice && !(same && old.voice && !old.preset) && !envVoice ? preset(STYLES[style].preset) : null;
+  const model = flags.model || (same && old.model) || PROVIDERS[provider].model;
+  const pre = provider !== 'gemini' ? null : flags.preset ? preset(flags.preset, model) : keep ? preset(old.preset, model)
+    : !flags.voice && !(same && old.voice && !old.preset) && !envVoice ? preset(STYLES[style].preset, model) : null;
   const fresh = pre && (flags.preset || !keep);
+  // a kept preset on a new model (3.1 to 3.8) takes that model's pace, unless the pace was set by hand
+  const repace = keep && old.model && old.model !== model && +old.wpm === preset(old.preset, old.model).wpm;
   const facts = flags.facts || old.facts, fp2 = facts && path.resolve(DIR, facts);           // remembered for later runs
   if (fp2 && !fs.existsSync(fp2)) throw new SetupError(`${fp2} not found (--facts)`);
   const pron = { ...(fp2 ? pronunciations(fs.readFileSync(fp2, 'utf8')) : {}), ...pronunciations(md) };
-  const L = { version: FORMAT, script, ...(facts ? { facts } : {}), provider, model: flags.model || (same && old.model) || PROVIDERS[provider].model,
+  const L = { version: FORMAT, script, ...(facts ? { facts } : {}), provider, model,
     ...(pre ? { preset: pre.name } : {}),
     voice: flags.voice || (fresh && pre.voice) || (same && old.voice) || envVoice || PROVIDERS[provider].voice,
-    style, ...(fresh ? { wpm: pre.wpm } : old.wpm ? { wpm: old.wpm } : {}),
+    style, ...(fresh || repace ? { wpm: pre.wpm } : old.wpm ? { wpm: old.wpm } : {}),
     direction: fresh ? pre.direction : (pre ? old.direction : flags.style && flags.style !== old.style ? null : old.direction) ?? STYLES[style].directions[0],
     ...(old.speed ? { speed: old.speed } : {}), lufs: old.lufs ?? TARGET_LUFS, lead: old.lead ?? LEAD, tail: old.tail ?? TAIL, pronounce: pron, units,
     ...(old.audition ? { audition: old.audition } : {}) };
@@ -1269,7 +1336,7 @@ async function cmdAudition() {
   // provider's default set when no voices or directions are named either
   const named = flags.presets ? list(flags.presets) : flags.voices || flags.voice ? null : cfg.own && au.presets?.length ? au.presets : null;
   if (named && cfg.provider !== 'gemini') throw new SetupError(`presets are Gemini voices; this film uses ${PROVIDERS[cfg.provider].name}`);
-  const presets = (named || (!flags.voices && !flags.voice && !(cfg.own && (au.voices?.length || au.directions?.length)) && PROVIDERS[cfg.provider].presets?.[STYLES[cfg.style].mood]) || []).map(preset);
+  const presets = (named || (!flags.voices && !flags.voice && !(cfg.own && (au.voices?.length || au.directions?.length)) && PROVIDERS[cfg.provider].presets?.[STYLES[cfg.style].mood]) || []).map(n => preset(n, cfg.model));
   const voices = presets.length ? [...new Set(presets.map(q => q.voice))]
     : flags.voices ? list(flags.voices) : flags.voice ? [flags.voice] : cfg.own && au.voices?.length ? au.voices : PROVIDERS[cfg.provider].audition[STYLES[cfg.style].mood];
   const probe = planUnit({ id: 'A', text: texts[0] }, { ...cfg, voice: voices[0] });
@@ -1320,12 +1387,12 @@ async function cmdAudition() {
 }
 function cmdPresets() {
   const all = Object.keys(NARRATORS).flatMap(n => [preset(n), ...Object.keys(DELIVERIES).filter(d => d !== NARRATORS[n].delivery).map(d => preset(`${n}-${d}`))]);
-  if (flags.json) { out(JSON.stringify(all.map(q => ({ preset: q.name, provider: 'gemini', voice: q.voice, delivery: q.delivery, wpm: q.wpm, direction: q.direction, sounds: NARRATORS[q.narrator].sounds })), null, 1)); return 0; }
+  if (flags.json) { out(JSON.stringify(all.map(q => ({ preset: q.name, provider: 'gemini', voice: q.voice, delivery: q.delivery, wpm: q.wpm, wpm_3_1: DELIVERIES[q.delivery].wpm31, direction: q.direction, sounds: NARRATORS[q.narrator].sounds })), null, 1)); return 0; }
   out('Narrator presets (Gemini). Name a narrator for its usual delivery, or <narrator>-<delivery> for another, like charon-storyteller.');
   out('Use: node voice.mjs lines script.md --preset NAME, or compare a few: node voice.mjs audition --presets A,B,C. Which to pick: references/voice-presets.md\n');
   printTable(['narrator', 'Gemini voice', 'usual delivery', 'sounds'], Object.entries(NARRATORS).map(([n, N]) => [n, N.voice, N.delivery, N.sounds]));
   out('');
-  printTable(['delivery', 'pace', 'direction sent before the words'], Object.entries(DELIVERIES).map(([d, D]) => [d, `${D.wpm} wpm`, D.direction]));
+  printTable(['delivery', 'pace', 'on 3.1', 'direction (the style on 3.8; said before the words on 3.1)'], Object.entries(DELIVERIES).map(([d, D]) => [d, `${D.wpm} wpm`, `${D.wpm31} wpm`, D.direction]));
   return 0;
 }
 async function cmdKeys() {

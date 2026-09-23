@@ -10,9 +10,10 @@ loudness) and merges its flags into vo/voice.json. Run it by hand for the listen
 
 What it checks, per clip:
   words     a transcript of the clip compared with the script. A missing word fails; three or more extra words
-            fail (usually a style direction read aloud), one or two warn. Numbers, "%" and letter-by-letter
-            acronyms are matched in either spelling ("430" = "four hundred thirty"), and near-misses of one word
-            ("meloxicam" / "meloxicom") pass, because transcripts misspell rare words the voice said correctly.
+            fail (usually a style direction read aloud), one or two warn, and extra words that are the direction or
+            a delivery tag ("short pause") fail and say so. Numbers, "%" and letter-by-letter acronyms are matched
+            in either spelling ("430" = "four hundred thirty"), and near-misses of one word ("meloxicam" /
+            "meloxicom") pass, because transcripts misspell rare words the voice said correctly.
   pace      words a minute over the speech (first to last sound), against voice.json's wpm_target: more than 35%
             off fails (a wrong-speed clip), more than 15% warns. (Skipped with --no-basic.)
   silence   a clip with no speech fails; a gap over 1.2 s inside the speech warns. (Skipped with --no-basic.)
@@ -214,6 +215,24 @@ def words_of(text):
             if not (w == 'and' and 0 < k < len(out) - 1 and out[k - 1] == 'hundred' and out[k + 1] in num)]
 
 
+SMALL = {'a', 'an', 'the', 'and', 'or', 'with', 'in', 'at', 'on', 'of', 'to', 'like', 'but', 'not', 'it', 'is', 'this', 'that'}
+
+
+def read_aloud(extra, direction, tags):
+    """what among the extra words heard was meant for the voice, not the listener: the direction, or a delivery tag.
+    A tag counts when its words were heard together; the direction when two or more of its own words (not small
+    ones like "with") were heard and make up at least half of the extra words."""
+    found, heard = [], ' ' + ' '.join(extra) + ' '
+    hits = [w for w in extra if w in set(words_of(direction or '')) - SMALL]
+    if len(hits) >= 3 or (len(hits) >= 2 and len(hits) * 2 >= len(extra)):
+        found.append('the direction')
+    for tag in dict.fromkeys(tags):
+        w = ' '.join(words_of(tag))
+        if w and f' {w} ' in heard:
+            found.append(f'the tag [{tag}]')
+    return found
+
+
 def compare(script, heard):
     """missing and extra words between the script and a transcript, forgiving spelling and spacing differences"""
     a, b = words_of(script), words_of(heard)
@@ -360,7 +379,11 @@ for u in units:
         r['missing'], r['extra'] = missing, extra
         if missing:
             flags.append(f'fail: {len(missing)} word{"s" if len(missing) > 1 else ""} of the script not heard: {" ".join(missing[:12])}')
-        if len(extra) >= 3:
+        line = lines_by_id.get(uid, {})
+        said = read_aloud(extra, line.get('direction') or L.get('direction'), [t.strip() for t in re.findall(r'\[([^\]]*)\]', line.get('text', ''))])
+        if said:
+            flags.append(f'fail: {" and ".join(said)} {"was" if len(said) == 1 else "were"} read aloud; heard {len(extra)} words that are not in the script: {" ".join(extra[:12])}')
+        elif len(extra) >= 3:
             flags.append(f'fail: {len(extra)} words heard that are not in the script (a direction read aloud?): {" ".join(extra[:12])}')
         elif extra:
             flags.append(f'warn: heard {" ".join(extra)}, which is not in the script')

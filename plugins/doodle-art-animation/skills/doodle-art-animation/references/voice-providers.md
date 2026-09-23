@@ -5,7 +5,7 @@
 
 | Provider | `--provider` | Default model and voice | About per minute | Timing | Written direction |
 |---|---|---|---|---|---|
-| Gemini (default) | `gemini` | `gemini-3.1-flash-tts-preview`, Charon | $0.03 | from the pauses | yes |
+| Gemini (default) | `gemini` | `gemini-3.8-flash-tts`, Charon | $0.02 ($0.04 from 2027) | from the pauses | yes |
 | OpenAI | `openai` | `gpt-4o-mini-tts`, cedar | $0.015 | from the pauses | yes (not on `tts-1`) |
 | Grok (xAI) | `xai` | its `/v1/tts` voice, orion | $0.015 | every word, from the provider | no |
 | ElevenLabs | `elevenlabs` | `eleven_v3`, Darian | $0.09 ($0.045 on `eleven_flash_v2_5`) | every word, from the provider | no |
@@ -34,6 +34,18 @@ refuses, the tool stops and names the variable to set.
 
 ## Provider notes
 
+- **Gemini.** The default is `gemini-3.8-flash-tts` (released September 2026). It reads the text it is given word
+  for word, so the tool sends it the words alone through the Interactions API (`POST /v1beta/interactions`, with
+  `store: false` so Google keeps no copy), the direction as the words' style, and the tags in Gemini's own form:
+  `<short pause>`, `<long pause>`, `<sigh>`, `<breath>`, `<laugh>` and its other vocal sounds. A mood tag such as
+  `[curious]` starts a new part of the same request, read with that mood added to the style. It reads the preset
+  directions faster than 3.1 did, and the preset paces were measured again on it. `gemini-3.8-flash-lite-tts` is
+  the cheaper model (audio $6 per million tokens against $9 until the end of 2026, then $12 against $18); it
+  takes the same request. `gemini-3.1-flash-tts-preview` (audio $20 per million) still works and is sent the older
+  way: one prompt with the direction first and the tags in square brackets. Pick a model with `--model` on
+  `lines`; a film whose `vo/lines.json` already names a model keeps it, so films made on 3.1 stay on 3.1 until
+  moved. Gemini bills about 33 audio tokens per second of speech. Voices: the 30 named ones (Charon, Orus,
+  Erinome ...) work on every model; 3.8 also lists more than 2,000 others at `GET /v1beta/voices`.
 - **Grok.** Voices for calm narration: orion, lux, perseus (luna and lumen are listed for education); list them
   with `GET https://api.x.ai/v1/tts/voices`. A pause tag
   becomes `[pause]` or `[long-pause]`; Grok's own sound tags (`[breath]`, `[sigh]`, `[laugh]`) pass through; other

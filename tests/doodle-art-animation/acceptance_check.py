@@ -501,7 +501,7 @@ if want('N1'):
     check('N1', 'doodle-build stops on a narrated film whose voice is not locked', bool(re.search(r'locked[\s\S]{0,200}stop and point the user at `/doodle-art-animation:doodle-voice', skill('doodle-build'))))
 if want('N2'):
     check('N2', 'references/voice.md exists', bool(VOICE))
-    miss = [w for w in ('120', '160', 'Charon', 'gemini-3.1-flash-tts-preview', 'references/voice-presets.md', 'keys.env') if w not in VOICE]
+    miss = [w for w in ('120', '160', 'Charon', 'gemini-3.8-flash-tts', 'references/voice-presets.md', 'keys.env') if w not in VOICE]
     check('N2', 'voice.md covers styles and paces, the default provider and the narrator presets', not miss, 'missing ' + ', '.join(miss))
     check('N2', 'voice.md says narration is off unless asked', bool(re.search(r'off (by default|unless)', VOICE, re.I)))
     check('N2', 'voice.md says keys are never printed or written down', bool(re.search(r'never (print|written|write)', VOICE, re.I)))
@@ -532,8 +532,8 @@ if want('REL'):
     pj = json.loads(read(os.path.join(PLUG, '.claude-plugin', 'plugin.json')) or '{}')
     mj = json.loads(read(os.path.join(REPO, '.claude-plugin', 'marketplace.json')) or '{}')
     mv = next((p.get('version') for p in mj.get('plugins', []) if p.get('name') == 'doodle-art-animation'), None)
-    check('REL', 'plugin.json version 0.17.3', pj.get('version') == '0.17.3', str(pj.get('version')))
-    check('REL', 'marketplace entry version 0.17.3', mv == '0.17.3', str(mv))
+    check('REL', 'plugin.json version 0.17.4', pj.get('version') == '0.17.4', str(pj.get('version')))
+    check('REL', 'marketplace entry version 0.17.4', mv == '0.17.4', str(mv))
 
 # ---------------------------------------------------------------- full checks (build, probe, render)
 def run(cmd, cwd=None, timeout=1800):
