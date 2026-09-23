@@ -1,0 +1,29 @@
+{
+  "provider": "kokoro",
+  "model": "kokoro-v1.0 (kokoro-onnx)",
+  "voice": "af_heart",
+  "speed": 0.76,
+  "style": "calm documentary",
+  "units": [
+    {
+      "id": "P0",
+      "plate": 0,
+      "text": "{drop}Drop a pinch of salt into water, and it seems to vanish."
+    },
+    {
+      "id": "P1",
+      "plate": 1,
+      "text": "The crystals sink, and in a minute or so they are {gone}gone. [pause] Nothing has disappeared, though. The salt has only come apart."
+    },
+    {
+      "id": "P2",
+      "plate": 2,
+      "text": "A salt crystal is a stack of {ions}sodium and chloride ions. Water molecules crowd its edges, {pull}pull the ions loose one by one, and {shell}carry each away in a shell of water."
+    },
+    {
+      "id": "P3",
+      "plate": 3,
+      "text": "Nothing vanished. It came apart, one ion at a time."
+    }
+  ]
+}
