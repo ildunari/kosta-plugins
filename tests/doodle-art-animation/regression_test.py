@@ -158,6 +158,31 @@ else:
                 check('stingers: all six render sound without clipping', len(v['stingers']) == 6 and not quiet, str(v['stingers']))
                 check('instruments: deg plays note() of the film key in the home octave', abs(v['deg']) < 0.01, str(v['deg']))
 
+        # ---------------------------------------------------------------- the score: tempo grid and beds (sound build S3)
+        SCORE = """const s = window.__story, b = await renderAudio(), L = b.getChannelData(0); let pk = 0;
+          for (let i = 0; i < L.length; i += 7) pk = Math.max(pk, Math.abs(L[i]));
+          const m = s.music, off = m ? s.starts.map(x => Math.abs(((x.t - m.t0) / m.bar - Math.round((x.t - m.t0) / m.bar)) * m.bar)) : [];
+          return { total: s.frames / s.fps, music: m, worst: Math.max(0, ...off), peak: pk,
+            motif: STORY.plates.map(p => motifCues(p).length), tension: STORY.plates.map(p => +tensionOf(p).toFixed(2)) };"""
+        src = open(os.path.join(tk, 'story_one_drop.js')).read()
+        h = build('story_one_drop.js')
+        base = (probe(h, SCORE).get('result') or {}) if h else {}
+        check('score: classic (no style) keeps the film untimed and gridless', base.get('music') is None and abs(base.get('total', 0) - 55) < 0.05, str(base)[:200])
+        for style in ('notebook', 'lofi', 'calm'):
+            open(os.path.join(tk, f'story_score_{style}.js'), 'w').write(src.replace("music: { tonic: 220 }",
+                f"music: {{ tonic: 220, style: '{style}', motif: {{ degs: [2, 3, 4, 6] }} }}").replace('const P1 = {', 'const P1 = { motif: true,', 1))
+            h = build(f'story_score_{style}.js')
+            if not h: continue
+            r = probe(h, SCORE); v = r.get('result') or {}
+            check(f'score {style}: renders with no page errors', bool(v) and not r.get('errors'), str(r.get('errors'))[:300])
+            if v:
+                check(f"score {style}: every plate starts within 25 ms of a bar line (bpm {(v['music'] or {}).get('bpm')})",
+                      bool(v['music']) and v['worst'] <= 0.025, str(v)[:300])
+                check(f'score {style}: plates only grow, by less than a bar each', 55 <= v['total'] <= 55 + 6 * v['music']['bar'], str(v['total']))
+                check(f'score {style}: the motif plays on the hero plate and resolves on the end card', v['motif'][1] == 1 and v['motif'][-1] == 1, str(v['motif']))
+                check(f"score {style}: tension rises to the climax", v['tension'][0] < max(v['tension']) == 1, str(v['tension']))
+                check(f'score {style}: audible and unclipped', 0.05 < v['peak'] < 1, str(v['peak']))
+
         h = build('story_pan_twice.js')
         if h:
             rc, out = run(['node', 'speed_check.mjs', h], cwd=tk)

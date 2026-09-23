@@ -1,6 +1,6 @@
 {
   "name": "doodle-art-animation",
-  "version": "0.16.6",
+  "version": "0.16.7",
   "description": "Hand-inked, notebook-style explainer films drawn entirely in canvas code, from any topic, dataset or source, rendered to MP4 with synthesized sound.",
   "author": {
     "name": "Kosta Milovanovic"
