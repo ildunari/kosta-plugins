@@ -8,7 +8,8 @@
 //   node voice.mjs audition          a few test lines in several voices and directions -> vo/audition/<voice>-<n>.mp3
 //                                    and vo/audition/audition.md (pace, loudness and flags per voice, best first)
 //   node voice.mjs generate          one clip per plate -> vo/clips/<fingerprint>.wav and vo/voice.json
-//   node voice.mjs check             re-measures every clip against vo/lines.json and flags problems
+//   node voice.mjs check             re-measures every clip against vo/lines.json and flags problems; also runs
+//                                    voice_check.py (transcript against the script, voice consistency)
 //   node voice.mjs lock              marks vo/voice.json locked and lengthens the plates in script.md the voice outgrew
 //   node voice.mjs keys [--test]     where each provider's key was found (never the key itself); --test sends one
 //                                    free request per provider to see whether the key works
@@ -80,7 +81,7 @@
 // Other settings: DOODLE_TTS_PROVIDER, DOODLE_TTS_VOICE (defaults for `lines`), DOODLE_TTS_COOLDOWN (seconds to
 // wait after a 429 rate limit, default 60), DOODLE_GEMINI_BASE_URL, OPENAI_BASE_URL, DOODLE_XAI_BASE_URL,
 // DOODLE_ELEVENLABS_BASE_URL, DOODLE_INWORLD_BASE_URL (other servers speaking the same API; tests), DOODLE_PYTHON, DOODLE_KOKORO_DIR,
-// DOODLE_TTS_FAKE_FAULT (tests: "P2:silent,P3:slow,P1:silent-once,P4:loud,P5:gap").
+// DOODLE_TTS_FAKE_FAULT (tests: "P2:silent,P3:slow,P1:silent-once,P4:loud,P5:gap,P6:odd").
 // Exit codes: 0 fine, 1 a clip failed a check or a request failed, 2 something to fix first (no lines.json, a key
 // the provider refused, a missing Python package, a bad option).
 import fs from 'fs'; import path from 'path'; import os from 'os'; import crypto from 'crypto';
@@ -619,7 +620,7 @@ const ADAPTERS = {
     // a stand-in voice for tests: each syllable is a 0.25 s hum, words are 0.05 s apart, sentences 0.4 s apart
     async synth(plan) {
       const rate = 24000, fault = fakeFault(plan.id), speed = (plan.speed || 1) * (fault === 'slow' ? 0.4 : 1);
-      const seed = parseInt(plan.fp.slice(0, 8), 16), f0 = 105 + (seed % 7) * 9 + (plan.voice.charCodeAt(plan.voice.length - 1) % 5) * 12;
+      const f0 = (110 + (plan.voice.charCodeAt(plan.voice.length - 1) % 5) * 12) * (fault === 'odd' ? 1.6 : 1);   // one pitch per voice; 'odd' is another person
       const pieces = [], truth = []; let t = 0;
       const add = (sec, fn) => { const n = Math.round(sec * rate), y = new Float32Array(n); if (fn) for (let i = 0; i < n; i++) y[i] = fn(i / rate, sec); pieces.push(y); t += sec; };
       add(0.2);
@@ -1133,7 +1134,7 @@ async function cmdCheck() {
   const vc = path.join(HERE, 'voice_check.py');
   if (fs.existsSync(vc) && r.units.length) {                     // the deeper checks (transcript, voice consistency), when present
     const tmp = path.join(os.tmpdir(), `doodle-voice-check-${process.pid}.json`);
-    const p = spawnSync(process.env.DOODLE_PYTHON || 'python3', [vc, VOICE, '--lines', LINES, '--json', tmp], { stdio: ['ignore', 'inherit', 'inherit'], cwd: DIR });
+    const p = spawnSync(process.env.DOODLE_PYTHON || 'python3', [vc, VOICE, '--lines', LINES, '--json', tmp, '--no-basic'], { stdio: ['ignore', 'inherit', 'inherit'], cwd: DIR });
     const res = readJson(tmp, 'voice_check output'); fs.rmSync(tmp, { force: true });
     if (p.status !== 0 && !res) note('voice: voice_check.py failed; only the built-in checks ran');
     for (const u of r.units) { const x = res?.units?.[u.id]; if (!x) continue;
