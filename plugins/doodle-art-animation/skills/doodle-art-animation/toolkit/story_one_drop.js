@@ -94,7 +94,7 @@ const T0 = {
   dur: 6, dark: false,
   cam: t => ({ x: W / 2, y: H / 2, s: kf(t, [[0, 1.14], [6, 1.0]], E.inOutSine), dy: kf(t, [[0, -70], [6, 0]], E.inOutSine) }),
   hero: t => ({ x: DROP_X, y: t < 4.2 ? dropY(t) : 684, r: 26, alpha: inv(2.6, 3.0, t) }),
-  cues: [[0.3, 'noise', { dur: 1.4, g: 0.05, f0: 300, f1: 1500, q: 0.8 }], [2.6, 'plink', { f: 1760 }], [4.2, 'plink', { f: 880 }], [4.25, 'chime', { f: 523 }], [0.6, 'scratch', { chars: 25, cps: 34 }], [1.0, 'scratch', { chars: 8, cps: 13 }]],
+  cues: [[0.3, 'noise', { dur: 1.4, g: 0.05, f0: 300, f1: 1500, q: 0.8 }], [2.6, 'motif', { degs: [2, 3, 4, 6] }], [4.2, 'plink', { f: 880 }], [4.25, 'chime', { f: 523 }], [0.6, 'scratch', { chars: 25, cps: 34 }], [1.0, 'scratch', { chars: 8, cps: 13 }]],
   draw(t) {
     landscape(t, { draw: E.out3(inv(0, 1.4, t)) });
     lobedCloud(560 + 12 * Math.sin(t * 0.5), 400, CLOUD, { draw: inv(0.3, 2.2, t), seed: 21 });
@@ -202,7 +202,7 @@ const P4 = {
   log: t => ({ title: `JOURNEY LOG · ${HERO}`, rows: [['ELAPSED', 'T+ 3 h 20 min'], ['ALTITUDE', `${fmt(Math.round(lerp(1200, 300, t / 7)))} m`]], states: STATES, state: 1 }),
   drift: false,
   hero: t => ({ x: 960, y: 400 + 8 * Math.sin(t * 2.2), label: HERO, r: 140 }),
-  cues: [[1.3, 'pop'], [1.5, 'scratch', { chars: 17 }], [2.8, 'pop'], [4.8, 'hiss', { dur: 0.9 }], [0, 'noise', { dur: 7, g: 0.05, f0: 900, q: 0.5, a: 1 }]],
+  cues: [[1.3, 'pop'], [1.5, 'scratch', { chars: 17 }], [2.8, 'pop'], [3.4, 'oops'], [4.8, 'hiss', { dur: 0.9 }], [0, 'noise', { dur: 7, g: 0.05, f0: 900, q: 0.5, a: 1 }]],
   draw(t) {
     const fall = E.inOutSine(clamp(t / 7));
     ctx.save(); ctx.translate(0, -700 * fall);                                  // the sky slides up as we fall
@@ -248,8 +248,8 @@ const P5 = {
   log: t => { const u = routeU(t); return { title: `JOURNEY LOG · ${HERO}`, rows: [['ELAPSED', `T+ ${Math.max(1, Math.round(9 * u))} day${Math.round(9 * u) > 1 ? 's' : ''}`], ['PLACE', u < 0.12 ? 'CLOUD' : u < 0.3 ? 'SLOPE' : u < 0.68 ? 'RIVER' : u < 0.86 ? 'SEA' : 'AIR']],
     states: STATES, state: u < 0.12 || u > 0.9 ? 0 : 1 }; },
   hero: t => { const [x, y] = along(ROUTE, routeU(t)); return { x, y, label: HERO, r: 26 }; },
-  cues: [[1.0, 'noise', { dur: 2.5, g: 0.04, f0: 400, f1: 1600, q: 0.7 }], [2.2, 'plink', { f: note(660, 0) }], [3.2, 'plink', { f: note(660, 2) }], [3.4, 'scratch', { chars: 24 }],
-    [4.4, 'plink', { f: note(660, 4) }], [4.6, 'chime', { f: 587 }], [5.6, 'pop'], [5.9, 'scratch', { chars: 26 }], [6.6, 'plink', { f: note(660, 5) }], [7.4, 'chime', { f: 784 }]],
+  cues: [[1.0, 'noise', { dur: 2.5, g: 0.04, f0: 400, f1: 1600, q: 0.7 }], [2.2, 'plink', { f: note(660, 0) }], [3.0, 'reveal', { lead: 1.2, g: 0.7 }], [3.4, 'scratch', { chars: 24 }],
+    [4.4, 'plink', { f: note(660, 4) }], [4.6, 'chime', { f: 587 }], [5.6, 'pop'], [5.9, 'scratch', { chars: 26 }], [6.6, 'plink', { f: note(660, 5) }], [7.4, 'chime', { f: 784 }], [8.4, 'success']],
   draw(t) {
     const fd = k => E.out3(inv(0.9 + k * 0.5, 2.6 + k * 0.5, t));             // the flows draw on one after another
     sun(1650, 330, t);
@@ -294,7 +294,7 @@ const P5 = {
 const END = {
   dur: 10, dark: true, enter: { type: 'page', dur: 1.4 }, counter: false, focus: () => [960, 400],
   hero: t => ({ x: 960, y: 400, r: 70, tag: false, alpha: inv(0.3, 1, t) }),
-  cues: [[1.4, 'readout', { chars: 34, cps: 22 }], [1.7, 'chime', { f: 392 }], [3.0, 'plink', { f: 880 }], [4.0, 'plink', { f: 660 }]],
+  cues: [[1.4, 'readout', { chars: 34, cps: 22 }], [1.7, 'chime', { f: 392 }], [3.0, 'resolve'], [4.6, 'motif', { degs: [2, 3, 4, 0], step: 0.3, g: 0.8 }]],
   draw(t) {
     for (let k = 0; k < 4; k++) { const q = ((t - 1.0 + k * 0.45) % 1.8) / 1.8; if (t < 1.0 - k * 0.45 + 0.001 || q < 0) continue;   // ripples, one every 0.45 s
       ink(shape.ellipse(960, 400, 80 + q * 420, (80 + q * 420) * 0.42, 0, 64), { closed: true, w: 3 - 1.5 * q, color: '#b9bbef', alpha: 0.9 * (1 - q), amp: 0.5, seed: k }); }
@@ -311,6 +311,9 @@ const END = {
     ['NOTES  ·  ROUNDED VALUES  ·  THE VALLEY SPLIT IS ILLUSTRATIVE', 'VAPOUR STAY: VAN DER ENT & TUINENBURG 2017'].forEach((src, k) => text(typed(src, t - 3.8 - k * 0.4, 70), 960 - measure(src, so) / 2, 912 + k * 36, so));
   },
 };
+// instruments and stingers (v0.16.2): the drop's motif when it first appears (title) and resolved to the tonic at the end, an
+// 'oops' as the teardrop myth is crossed out (IV), a 'reveal' as the camera settles on the whole route and 'success' as the
+// route closes (V), the rolled 'resolve' under the end card's rule line
 defineStory({ title: 'One Drop', stages: 5, music: { tonic: 220 }, plates: [T0, P1, P2, P3, P4, P5, END],
   dynamics: [[0, -5], [6, -4.5], [13.5, -4], [27.5, -2], [34, -1], [36, 3], [44, 3], [46, 0], [55, -1]] });   // sound: quiet valley, a lift for the whole route (plate V)
 boot();
