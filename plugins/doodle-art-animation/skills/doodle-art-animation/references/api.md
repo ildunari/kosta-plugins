@@ -2,15 +2,18 @@
 
 Everything a story can call. The engine lives in `toolkit/engine.js`; read that file when a detail is missing here.
 
-**Story.** Call `defineStory({ title, stages, music, dynamics, silent, twos, weave, grain, drift, plates })`, then `boot()`.
+**Story.** Call `defineStory({ title, stages, music, dynamics, silent, twos, weave, grain, drift, voice, plates })`, then `boot()`.
 - `music: { tonic, gain }` gives every plate without a `bed` an automatic pad in that key (`references/sound.md`, "Beds").
 - `dynamics: [[t, dB], …]` is the film's loudness shape: the master level over time in film seconds, dB relative to the default, linear ramps between points (a quiet opening and a lift at the climax; `references/sound.md`, "Dynamics"). Without it, plates' `lift` fields shape the level; without either it is flat.
+  - It can also be a function of the timed plates, `P => [[t, dB], …]`, for a narrated film, where the voice decides when each plate starts: `P => [[0, -4], [P[2].start, -2], [markAt('pull'), 1.5], [P[3].start + 0.5, 0]]`.
+- `voice: { lead, tail, gap, level, lufs, peak, duck, fxDuck, reverb }` overrides the narration defaults (see **Narration** below, and `references/sound.md`, "Narration").
 
 Plate fields:
 
 | Field | Meaning |
 |---|---|
-| `dur` | Plate length in seconds |
+| `dur` | Plate length in seconds. On a plate with narration it is the drawing's minimum: the plate lasts until its narration ends plus the tail, whichever is longer, and `dur` may be left out when the voice sets the length |
+| `vo` | The plate's narration clip, by its id in `vo/voice.json`: `'P2'`, a list `['P3a', 'P3b']` played in order, or `{ id, at, gap, tail, marks }` (see **Narration**) |
 | `dark` | `true` for the night world |
 | `enter` | `{ type, dur, ease, curve, draw (custom transition), momentum, settle, match, carry, sfx, …type options (dir, k, dive, scaleFrom, from, to, fromFill, toFill, style, at, ink, drop, fall, rim, rimAlpha, rough, color, opacity, back, radius) }` |
 | `silent` (on `defineStory`) | `true` renders a silent audio track of the right length and turns off the automatic risers, transition sounds and pen scratches, which play even with no cues. Check it with `audio_check.py --silent`. |
@@ -23,7 +26,8 @@ Plate fields:
 | `drift` | Override the automatic push-in (a fraction, or `false`) |
 | `draw(t)` | The scene. While `draw` and `overlay` run, `ctx.globalAlpha` counts from the alpha the plate was handed: during a transition's fade, `ctx.globalAlpha = 1` means "back to the fade", not full strength, so a plate cannot undo its own fade. `ctx.save()` / `*=` / `ctx.restore()` still reads best |
 | `overlay(t)` | Art that ignores the camera, momentum and the match-cut/carry shift (stats, callouts, cards, charts). It still leaves with its plate during a transition. Anchor to the hero with `heroOf(plate, t)`. |
-| `cues` | `[[t, name, opts]]`: at local time `t`, play `SFX[name](ac, out, plateStart + t, opts)` |
+| `cues` | `[[t, name, opts]]`: at local time `t`, play `SFX[name](ac, out, plateStart + t, opts)`. `t` may be a mark of the narration, `'gone'` or `'gone+0.2'`, so the sound lands on the word |
+| `beats` | `[[t, label]]`: what happens when, for the animatic (`t` may be a mark). Without it the animatic lists the plate's cues |
 | `bed` | `(ac, out, t0, dur) => …`, or a `BED.*` bed; replaces the automatic music pad for this plate |
 | `pen` | How the header types on. By default the plate's paper picks its writing tool (`scratch` on the notebook, `pencil` on graph paper, `chalk` on a chalkboard, `readout` blips at night: the table in `sound.md`). A sound name (`'marker'`) picks one, `true` the paper's tool (a pen where the paper has none), `false` the soft `readout` blips, `'none'` silence |
 | `lift` | dB: this plate's level lift, ramped up over its first 1.5 s and down over 1.5 s after it ends. Used only when `defineStory` has no `dynamics` |
@@ -113,5 +117,14 @@ Plate fields:
   - `sfxRng(o, t, name)`: the per-call random generator the built-ins use (seeded by `o.seed`, or by the plate, the time within it, `name` and the repeat count at that instant), so a story's sound varies like theirs. `rr(r, a, b)` draws a number in `[a, b)` from it; `semis(r, n)` a pitch ratio within ±n semitones.
   - `synth(ac, out, t, dur, fill, { g, pan, pan1, filters, r, fade })`: renders a mono buffer that `fill(d, r)` writes sample by sample, normalized so `g` is its peak, through optional biquads (`{ type, f, f1, q, gain, curve }`). `noiseInto(d, r, env)` adds noise shaped by `env(s)`; `DSP.burst`, `DSP.chirp`, `DSP.modes`, `DSP.reson` are the grain, bubble, struck-mode and resonator primitives the v0.15 sounds are built from.
   - `note(tonic, degree)`: a degree of the major pentatonic scale over `tonic`; `SR` is the sample rate. Keep it deterministic: no `Math.random`, no clock.
+
+**Narration** (the voice track; `vo/voice.json` and its clips come from `toolkit/voice.mjs`, and `build.py` embeds them):
+- A narrated film carries its narration in the HTML: `build.py story.js film.html` finds `vo/voice.json` next to the story by itself when a plate has `vo`, and embeds each clip as Opus (`--voice path/to/voice.json` names another, `--voice none` builds without). The player, the render and every check then hear it. Without embedded narration, `vo` is ignored and every plate keeps its `dur`, so a film builds and plays before its voice exists.
+- **The picture follows the voice.** A plate's clip starts once its header's title has typed on, plus `voice.lead` (0.25 s), and never before the `lead` voice.json gives the clip; on a plate with no header, once its transition has landed. `vo: { at }` sets the start in plate seconds (a negative `at` starts it during the previous plate: a J-cut). The plate lasts until the clip ends plus `tail` (from `vo`, else the clip's own in voice.json, else `voice.tail`, 0.8 s), or its drawing's `dur` if that is longer. A negative `tail` lets the line run on into the next plate (an L-cut). Several clips on one plate play `gap` seconds apart (`voice.gap`, 0.45 s).
+- **Marks.** Words the script marks in braces (`{count}about four hundred`) are marks with their times in the clip. `mark('count')` is the plate time the word is spoken, for use inside `draw`, `overlay` and `log`; `mark('count', plate)` puts it on another plate's clock; `markAt('count')` is film time. When two plates' narrations use the same name, name the clip too: `mark('P2.count')`. A cue or beat time can be the mark's name as a string, with an offset: `'count'`, `'count+0.3'`, `'P2.count-0.1'`. `vo.marks: { count: 4.2 }` gives estimates in plate seconds, used until the narration exists.
+- **The mix.** The voice has its own channel, centred, and the music beds duck under every sentence and the effects a little. The finished track of a narrated film is brought to −16 LUFS integrated with true peaks under −1.5 dBTP. `references/sound.md`, "Narration", has the numbers and how to check them.
+- **Captions.** `window.__srt()` gives the narration as an `.srt` file, one caption per sentence (or part of a long one), two lines of 42 characters at most. A full render writes `film.srt` next to the MP4; `render.mjs --srt` writes it alone. In the player, `c` (or `?cc`) shows them over the picture; the render never draws them into the frames.
+- **Animatic.** `build.py --animatic`, `render.mjs --animatic` or `?animatic` replaces each plate's drawing with a placeholder: the header, sound, transitions and narration stay, and the frame shows the line being spoken, the plate's beats (or cues) as they come, and a timeline of the plate with its sentences and marks. A plate with no `draw` is drawn this way too. Use it to judge the pacing with the voice before any art is drawn.
+- Hooks for checks: `window.__voice()` (the narration on the film clock: each clip's plate, start, length, sentences and marks, plus warnings such as a clip a plate asks for that voice.json lacks), `window.__audioWav({ only: 'voice' | 'rest' })` (one stem, before the final loudness pass), `window.__story.narrated` and `.animatic`, and `window.__loudness` after a full audio render.
 
 **Theme.** `Object.assign(PAL, { … })` at the top of the story adds subject colours. `FONT` and `FONT_LOADS` hold the three faces.

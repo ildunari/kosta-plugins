@@ -36,7 +36,8 @@ plugins/doodle-art-animation/       the plugin
                                     smoke_test.py, story_example.js (The Long Release), story_one_drop.js,
                                     story_seams.js, story_reel.js, story_gallery.js, story_components.js,
                                     story_brushes.js, kits/ (_kit.js, earth, life, settle, tech, ai,
-                                    space, lab, studio)
+                                    space, lab, studio), voice.mjs and voice_kokoro.py (narration:
+                                    script.md -> checked, timed voice clips and vo/voice.json)
 docs/doodle-art-animation/          not shipped with the plugin
   DEVELOPING.md                     this file
   v0.14-state.md … v0.16.1-state.md what each release changed, how it was checked, its known limits
@@ -44,6 +45,9 @@ docs/doodle-art-animation/          not shipped with the plugin
   HANDOFF.md                        history, measurements, known weaknesses (paths in it refer to the original handoff zip)
   history/  reference/  examples/   design review, reference-film study images, an older story file
                                     (The Long Release now lives in the toolkit as story_example.js)
+  examples/narrated/                the narrated example, "Salt in Water": story_narrated.js, its Kokoro clips and
+                                    vo/voice.json (made by make_voice.py). It lives here, not in the toolkit, because
+                                    the plugin ships no audio files; a film folder's own vo/ holds its narration
 ```
 
 ## Testing the plugin
@@ -52,9 +56,17 @@ docs/doodle-art-animation/          not shipped with the plugin
 - Acceptance checks, also run by CI on every push and PR: `python3 tests/doodle-art-animation/acceptance_check.py` for the text and
   file rules, and `--full --node-modules <playwright>/node_modules` for builds, page probes, renders and timing.
   They are the written form of what was agreed with the owner; extend them when the plugin gains a feature.
+- Voice tool tests, also run by CI: `node tests/doodle-art-animation/voice_test.mjs`. They use the fake voice and pretend
+  Gemini, OpenAI and proxy servers, so they need no network, no keys and cost nothing. `DOODLE_TEST_KOKORO=1` adds a real
+  Kokoro run (needs `python3 -m pip install kokoro-onnx` and downloads a 325 MB model from GitHub the first time).
 - Regression tests for bugs found while making films, also run by CI: `python3 tests/doodle-art-animation/regression_test.py
   --node-modules <playwright>/node_modules` (`--static` for the parts that need no browser). Add a check there, and a fixture
   story when it needs one, for each bug a film turns up.
+- Narration test, also run by CI: `python3 tests/doodle-art-animation/narration_test.py --node-modules <playwright>/node_modules`
+  (`--static` for the parts that need no browser). It builds the narrated example and checks the engine's voice track:
+  clips embedded, plates timed by the voice, cues on word marks, captions, the levels, the music under the voice, an MP4
+  segment with the voice, the animatic and a build without the voice. Change the example and its clips together:
+  `make_voice.py` in its folder regenerates them (needs `kokoro-onnx`, `faster-whisper` and ffmpeg).
 - Sound tests, also run by CI: `python3 tests/doodle-art-animation/effects_test.py --node-modules <playwright>/node_modules` renders
   `fixtures/story_sounds.js` (one of each sound added in v0.17) and checks the header's writing sound follows the paper.
 - Load it in a session: `claude --plugin-dir plugins/doodle-art-animation`, then `/reload-plugins` after edits.
@@ -148,5 +160,11 @@ CI: `.github/workflows/doodle-smoke.yml` runs it on ubuntu-latest for pushes to 
 ## Conventions
 
 - Plain, readable wording in SKILL.md and references. Explain terms; no invented shorthand.
-- Keep renders, frames, WAVs and QA folders out of git (`.gitignore`).
+- Keep renders, frames, WAVs, MP3s and QA folders out of git (`.gitignore`). The narrated example's Opus clips are the one
+  exception: they are small (about 70 KB each) and the example needs them to build.
+- Narration (`voice.mjs`): API keys come only from environment variables or `~/.config/doodle-art-animation/keys.env`,
+  never from the repo, project files or memory, and the tool never prints one. Its files (`vo/lines.json`,
+  `vo/voice.json`) are described at the top of `voice.mjs`; the engine reads `vo/voice.json`, so a change to that
+  format changes both sides together. Requests go through `HTTPS_PROXY` with the tool's own tunnel, because Node's
+  `fetch` ignores that variable and would connect directly, skipping the claude.ai proxy that adds the Gemini key.
 - Bump `version` in `plugin.json` when the plugin changes in a way users would notice.

@@ -1,0 +1,125 @@
+{
+  "version": 1,
+  "provider": "kokoro",
+  "model": "kokoro-v1.0 (kokoro-onnx)",
+  "voice": "af_heart",
+  "style": "calm documentary",
+  "units": [
+    {
+      "id": "P0",
+      "plate": 0,
+      "file": "vo/clips/P0.ogg",
+      "dur": 4.288,
+      "lufs": -20.0,
+      "sentences": [
+        [
+          0.0,
+          4.288,
+          "Drop a pinch of salt into water, and it seems to vanish."
+        ]
+      ],
+      "marks": {
+        "drop": 0.0
+      },
+      "timing": "sentences+whisper",
+      "checks": {
+        "wpm": 168,
+        "missing": [],
+        "extra": [],
+        "flags": []
+      }
+    },
+    {
+      "id": "P1",
+      "plate": 1,
+      "file": "vo/clips/P1.ogg",
+      "dur": 9.74,
+      "lufs": -20.0,
+      "sentences": [
+        [
+          0.0,
+          3.904,
+          "The crystals sink, and in a minute or so they are gone."
+        ],
+        [
+          4.654,
+          6.915,
+          "Nothing has disappeared, though."
+        ],
+        [
+          7.265,
+          9.74,
+          "The salt has only come apart."
+        ]
+      ],
+      "marks": {
+        "gone": 3.12
+      },
+      "timing": "sentences+whisper",
+      "checks": {
+        "wpm": 136,
+        "missing": [],
+        "extra": [],
+        "flags": []
+      }
+    },
+    {
+      "id": "P2",
+      "plate": 2,
+      "file": "vo/clips/P2.ogg",
+      "dur": 14.217,
+      "lufs": -20.0,
+      "sentences": [
+        [
+          0.0,
+          4.757,
+          "A salt crystal is a stack of sodium and chloride ions."
+        ],
+        [
+          5.107,
+          14.217,
+          "Water molecules crowd its edges, pull the ions loose one by one, and carry each away in a shell of water."
+        ]
+      ],
+      "marks": {
+        "ions": 2.38,
+        "pull": 8.227,
+        "shell": 11.607
+      },
+      "timing": "sentences+whisper",
+      "checks": {
+        "wpm": 135,
+        "missing": [],
+        "extra": [],
+        "flags": []
+      }
+    },
+    {
+      "id": "P3",
+      "plate": 3,
+      "file": "vo/clips/P3.ogg",
+      "dur": 4.894,
+      "lufs": -20.0,
+      "sentences": [
+        [
+          0.0,
+          1.493,
+          "Nothing vanished."
+        ],
+        [
+          1.843,
+          4.894,
+          "It came apart, one ion at a time."
+        ]
+      ],
+      "marks": {},
+      "timing": "sentences+whisper",
+      "checks": {
+        "wpm": 123,
+        "missing": [],
+        "extra": [],
+        "flags": []
+      }
+    }
+  ]
+}
