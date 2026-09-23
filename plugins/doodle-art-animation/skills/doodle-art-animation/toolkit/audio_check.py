@@ -12,7 +12,10 @@ Measures the audio track with ffmpeg and numpy and prints PASS / WARN / FAIL lin
   stereo    side/mid ratio; one channel, or channels the same (side/mid < -35 dB) -> FAIL, below -20 dB warns "nearly mono"
   silence   stretches of 1.5 s or more below -50 dBFS, or 0.5 s or more at the very start -> WARN
   duration  audio vs video length, difference over 0.2 s             -> FAIL
-  cues      with --starts (transition times in seconds): the nearest sound onset to each; none within 0.25 s warns
+  cues      with --starts (transition times in seconds): the nearest sound onset to each; none within 0.25 s warns,
+            unless the level swells instead: a climb of 6 dB or more within 0.5 s, starting in the transition's
+            first 0.3 s. That is how the engine builds a seam (the riser stops, the bed ducks, the new plate's pad
+            rises from zero), so its soft seams pass as a swell rather than warning for a missing attack.
 Exit code 1 only on hard failures (no audio, mono, clipping, duration mismatch). --profile prints dB per second.
 --silent: the film was made with defineStory({ silent: true }); it passes when the track is silence of the right
 length, and fails if any sound got in.
@@ -184,13 +187,27 @@ else:
 if starts:
     prev = np.array([wdb[max(0, k - 5):k].mean() if k else wdb[0] for k in range(nw)])
     on = np.where((wdb - prev >= 6) & (wdb > -45))[0] * 0.05
+    def swell(s):
+        """the biggest climb (dB) from a window starting in [s - 0.1, s + 0.3] s to the loudest window up to 0.5 s later"""
+        best = None
+        for i in range(max(0, int(round((s - 0.1) / 0.05))), min(nw - 2, int(round((s + 0.3) / 0.05))) + 1):
+            seg = wdb[i + 1:i + 11]
+            j = int(np.argmax(seg))
+            if seg[j] > -45 and (best is None or seg[j] - wdb[i] > best[0]):
+                best = (float(seg[j] - wdb[i]), i * 0.05 - s, (i + 1 + j) * 0.05 - s)
+        return best
     for s in starts:
         near = on[np.abs(on - s) <= 0.5]
-        if len(near):
-            d = near[np.argmin(np.abs(near - s))] - s
-            line('PASS' if abs(d) <= 0.25 else 'WARN', 'cues', f'transition {s:.2f} s: nearest onset {d:+.2f} s')
+        d = near[np.argmin(np.abs(near - s))] - s if len(near) else None
+        sw = swell(s) if d is None or abs(d) > 0.25 else None
+        if d is not None and abs(d) <= 0.25:
+            line('PASS', 'cues', f'transition {s:.2f} s: nearest onset {d:+.2f} s')
+        elif sw and sw[0] >= 6:
+            line('PASS', 'cues', f'transition {s:.2f} s: swells {sw[0]:.0f} dB from {sw[1]:+.2f} s to {sw[2]:+.2f} s (a soft seam, no sharp onset)')
+        elif d is not None:
+            line('WARN', 'cues', f'transition {s:.2f} s: nearest onset {d:+.2f} s')
         else:
-            line('WARN', 'cues', f'transition {s:.2f} s: no clear sound onset within 0.5 s')
+            line('WARN', 'cues', f'transition {s:.2f} s: no clear sound onset or swell within 0.5 s')
 
 if '--profile' in args:
     print('dB per second:', ' '.join(f'{20 * np.log10(max(np.sqrt((x[k * sr:(k + 1) * sr] ** 2).mean()), 1e-10)):.0f}'

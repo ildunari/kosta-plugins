@@ -111,6 +111,20 @@ function beat(t, t0, t1 = null, o = {}) {
 const stagger = (i, t, { t0 = 0, step = 0.08, dur = 0.4, ease = E.out3 } = {}) => ease(inv(t0 + i * step, t0 + i * step + dur, t));
 /** run fn with globalAlpha scaled; skipped entirely at 0 */
 function withAlpha(a, fn) { if (a <= 0) return; ctx.save(); ctx.globalAlpha *= clamp(a); fn(); ctx.restore(); }
+/**
+ * relAlpha(fn): run story code with globalAlpha measured from the alpha it was handed. Plates often write
+ * ctx.globalAlpha = 0.4 … ctx.globalAlpha = 1; inside a transition that threw the fade away, so the art stayed at full
+ * strength and vanished in one drawing. While fn runs, reading globalAlpha gives 1 at the start and writing x sets
+ * x × the fade, so `= 1` means "back to what I was handed". Engine code keeps using *=, which reads the same either way.
+ */
+const ALPHA_PROP = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'globalAlpha');
+function relAlpha(fn) {
+  const c = ctx, base = ALPHA_PROP.get.call(c); if (base >= 1) return fn();
+  const had = Object.getOwnPropertyDescriptor(c, 'globalAlpha');     // nested: this layer's base is the outer native value
+  Object.defineProperty(c, 'globalAlpha', { configurable: true,
+    get() { return ALPHA_PROP.get.call(this) / base; }, set(v) { if (v >= 0 && v <= 1) ALPHA_PROP.set.call(this, v * base); } });   // out of range is ignored, as the canvas does
+  try { return fn(); } finally { if (had) Object.defineProperty(c, 'globalAlpha', had); else delete c.globalAlpha; }
+}
 /** seconds a line needs on screen: 12 chars/s reading + 0.8 s hold */
 const readTime = s => s.length / 12 + 0.8;
 
@@ -1540,13 +1554,15 @@ function entryShift(pl, t) {
   const cov = (h, dd, span) => Math.max(1, (h + dd) / (h + 20), (span - h - dd) / (span + 20 - h));   // scenes bleed ~20 px past the edges
   return { dx, dy, s: Math.max(cov(hx, dx, W), cov(hy, dy, H)) };
 }
+/** a zoom goes in (the camera dives toward the hero) unless its enter says dir: 'out'. Before v0.16.1 it went out by default */
+function zoomOut(tr) { return tr.dir === 'out'; }
 function momentum(pl, t) {
   let s = 1;
   const nx = STORY.plates[pl.i + 1], lead = nx && nx.enter && nx.enter.momentum !== false && LEAD[nx.enter.type];
   // the lead is still accelerating at the cut and keeps going (half-way) into the transition, so the dive picks up its speed
   if (lead) s *= lerp(1, lead, E.inOutSine(inv(pl.dur - 0.5, pl.dur + 0.5, t)));
   const tr = pl.enter, on = tr && pl.i > 0 && tr.momentum !== false;
-  if (on && (PUSH[tr.type] || (tr.type === 'zoom' && tr.dir === 'in'))) { const d = tr.dur || 0; s *= zlerp(1, PUSH_ON, SETTLE_EASE(inv(d * 0.7, d + (tr.settle ?? 1.2), t))); }
+  if (on && (PUSH[tr.type] || (tr.type === 'zoom' && !zoomOut(tr)))) { const d = tr.dur || 0; s *= zlerp(1, PUSH_ON, SETTLE_EASE(inv(d * 0.7, d + (tr.settle ?? 1.2), t))); }
   else if (on && SETTLE[tr.type]) { const d = tr.dur || 0; s *= zlerp(SETTLE[tr.type], 1, SETTLE_EASE(inv(d * 0.7, d + (tr.settle ?? 1.0), t))); }
   return s;
 }
@@ -1658,9 +1674,9 @@ const TRANS = {
   },
   /** plain crossfade: only into the end card */
   fade(p, X) { const e = X.ez(p, E.inOut3); X.drawOld(); withAlpha(e, X.drawNew); return e; },
-  /** one step on the scale ladder in the same world (tr.dir 'out' | 'in', tr.k): old shrinks (or grows) away while the new scale grows in around the hero */
+  /** one step on the scale ladder in the same world (tr.dir 'in', the default, or 'out'; tr.k): the old scale grows (or shrinks) away while the new one settles in around the hero */
   zoom(p, X) {
-    const { tr } = X, e = X.ez(p, E.arriveSoft), k = tr.k ?? 3.5, out = (tr.dir || 'out') === 'out';
+    const { tr } = X, e = X.ez(p, E.arriveSoft), k = tr.k ?? 3.5, out = zoomOut(tr);
     const sOld = out ? zlerp(1, 1 / k, e) : zlerp(1, k, e), sNew = out ? zlerp(k, 1, e) : zlerp(1 / k, 1, e);
     const [ox, oy] = X.focusOld, [nx, ny] = X.focusNew, px = lerp(ox, nx, e), py = lerp(oy, ny, e), a = E.inOut3(inv(0.15, 0.6, p));   // the new scale is in before the release, so the eye lands while it settles
     // a plate shrunk below 1 would show its world's hard edges (a ground band ending mid-frame): draw it through a soft
@@ -2145,14 +2161,14 @@ function drawPlate(pl, t, o = {}) {
   ctx.save();                                                          // scene: entry shift + momentum + camera
   if (ms) ctx.translate(ms.dx, ms.dy);
   if (mo !== 1) { const [hx, hy] = focusOf(pl, t); ctx.translate(hx, hy); ctx.scale(mo, mo); ctx.translate(-hx, -hy); }
-  withCamera(cam, () => pl.draw(t, pl));
+  withCamera(cam, () => relAlpha(() => pl.draw(t, pl)));
   if (pl.hero && !S.noReticle) { const hh = pl.hero(t); if (hh.label !== undefined || hh.r) {
     const h = heroRaw(pl, t), m = ctx.getTransform(), sc = Math.hypot(m.a, m.b) || 1;       // counter-scale: the reticle is furniture
     withAlpha((h.alpha ?? 1) * clamp(hud * 1.5), () => { ctx.translate(h.x, h.y); ctx.scale(1 / sc, 1 / sc); reticle(0, 0, t, { label: h.label, r: h.r ?? 34, dark: pl.dark, tag: h.tag ?? !!h.label }); }); } }
   ctx.restore();
   // overlay: art that must not move with the camera. Camera, momentum and entry shift don't apply (they would slide
   // cards and stats off the frame before a lens or zoom); a transition's xf still does, so it leaves with its plate.
-  if (pl.overlay) pl.overlay(t, pl);
+  if (pl.overlay) relAlpha(() => pl.overlay(t, pl));
   ctx.restore();
   }
   if (hud > 0 && chrome) {
@@ -2536,7 +2552,7 @@ const TRANS_SFX = {
   cut: (ac, o, t) => { const r = sfxRng({}, t, 'cut'); SFX.tone(ac, o, t, { f: rr(r, 120, 160), f2: rr(r, 55, 70), dur: rr(r, 0.12, 0.18), g: 0.2 }); SFX.tick(ac, o, t); },
   fade: () => {}, burn: (ac, o, t, d) => SFX.crackle(ac, o, t, { dur: d }),
   wipe: (ac, o, t, d, tr) => SFX.whoosh(ac, o, t, { dur: d, dir: tr.dir }), iris: (ac, o, t, d) => SFX.shutter(ac, o, t, { dur: d }),
-  zoom: (ac, o, t, d, tr) => SFX.glide(ac, o, t, { dur: d, up: tr.dir === 'in' }),
+  zoom: (ac, o, t, d, tr) => SFX.glide(ac, o, t, { dur: d, up: !zoomOut(tr) }),
   hatch: (ac, o, t, d) => { const r = sfxRng({}, t, 'hatch'); SFX.noise(ac, o, t, { dur: d, g: 0.06, f0: rr(r, 1000, 1400), f1: rr(r, 3000, 4000), q: 2, lfo: rr(r, 11, 17) }); },   // hatching strokes
   page: (ac, o, t, d) => SFX.flick(ac, o, t, { dur: d }), roll: (ac, o, t, d) => SFX.flick(ac, o, t, { dur: d }), morph: (ac, o, t, d) => SFX.bend(ac, o, t, { dur: d }),
   shape: (ac, o, t, d) => { SFX.bend(ac, o, t, { dur: d }); SFX.swell(ac, o, t, { dur: d, up: true }); },
@@ -2808,7 +2824,7 @@ async function boot() {
     switch (tr.type) {
       case 'lensIn': { const e = ez(p, E.arrive); out.scaleOld = zlerp(1, tr.dive ?? 2, e); out.maskR = lerp(16, coverR(ox, oy), e); break; }
       case 'lensOut': { const e = ez(p, E.arrive); out.scaleNew = zlerp(tr.dive ?? 2, 1, e); out.maskR = lerp(coverR(ox, oy), 20, e); break; }
-      case 'zoom': { const e = ez(p, E.arriveSoft), k = tr.k ?? 3.5, isOut = (tr.dir || 'out') === 'out';
+      case 'zoom': { const e = ez(p, E.arriveSoft), k = tr.k ?? 3.5, isOut = zoomOut(tr);
         out.scaleOld = isOut ? zlerp(1, 1 / k, e) : zlerp(1, k, e); out.scaleNew = isOut ? zlerp(k, 1, e) : zlerp(1 / k, 1, e); break; }
       case 'shape': case 'morph': { const e = ez(p, E.arrive); out.scaleOld = zlerp(1, 1.6, e); out.scaleNew = zlerp(0.7, 1, e);
         out.maskR = lerp(6, coverR((ox + nx) / 2, (oy + ny) / 2), E.arrive(inv(0.05, 0.9, p))); break; }
@@ -2825,7 +2841,12 @@ async function boot() {
         const vert = dir === 'up' || dir === 'down', sg = (dir === 'left' || dir === 'up') ? -1 : 1, span = vert ? H : W;
         const [mvx, mvy] = motionOf(prev, prev.dur - 1e-3), mv = vert ? mvy : mvx;
         const v0 = Math.sign(mv) === sg ? clamp(Math.abs(mv) * (dur || 0.8) / span, 0, 1.2) : 0;
-        out.panOff = sg * span * ez(p, E.whip(v0)); break; }
+        out.panOff = sg * span * ez(p, E.whip(v0));
+        // where each plate's hero is on screen as the sheets slide, and its reticle size under its own camera:
+        // speed_check warns when both are in frame at once (the hero seen twice, worst across a scale jump)
+        const hs = (q, tq, [x, y], d) => { if (!q.hero) return null; const cam = camOf(q, tq), r = (q.hero(tq).r ?? 34) * (cam && cam.s ? cam.s : 1);
+          return vert ? [x, y + out.panOff + d, r] : [x + out.panOff + d, y, r]; };
+        out.heroOld = hs(prev, pt, [ox, oy], 0); out.heroNew = hs(pl, t, [nx, ny], -sg * span); break; }
       case 'wipe': { const e = ez(p, E.ramp(0.25, 0.35)), dir = tr.dir || 'lr', span = dir === 'tb' ? H : W;
         out.frontPos = lerp(-180, span + 180, dir === 'rl' ? 1 - e : e); break; }
       case 'bleed': { const fall = tr.fall ?? 0.22;
