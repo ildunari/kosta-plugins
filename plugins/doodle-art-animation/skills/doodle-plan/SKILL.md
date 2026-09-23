@@ -49,6 +49,8 @@ Pick the one subject the viewer follows through every plate and give it an ID ta
 
 While you write it, plan how the motion flows (`references/animation-principles.md`): inside a scene the animations overlap, stagger and hand off instead of stopping and starting, and each seam carries motion from one scene into the next. Check as you go that the durations add up to the length in `brief.md`, that every line of text has time to be read, that the film uses 4–6 transition types once it has five or more seams, and never the same one three times in a row, and `fade` only into the end card.
 
+Pick the paper set from the topic (`references/style.md`, "Choosing the paper set"): `notebook` for general stories, `blueprint` for devices and processes, `lab` for cell and molecular work. Write it as the first line of `script.md`, `Paper: <set> (why)`, and note in a plate's row any plate that names its own paper. Ask the user only when the look is clearly a matter of taste.
+
 Save it as `script.md` in the working folder. The reviewers look for it there.
 
 ## 5. Gate 1 — script review (blocking)
