@@ -10,7 +10,7 @@ defineGround('laid', {
     dialShadow: 'rgba(70,40,15,0.12)', figShadow: 'rgba(70,40,15,0.14)', counter: 'rgba(90,60,35,0.65)', rim: [80, 45, 20], pageBack: 'rgba(250,238,210,0.35)' },
   vignette: 'rgba(90,45,10,0.38)', grain: 0.8,
   contours: { colors: ['#a8452c', '#7a6a40', '#a8452c', '#6a5030'], alpha: 0.12 },
-  treatment: { tooth: [0.08, 0.5], filter: 'sepia(0.45) saturate(0.8)' },
+  treatment: { tooth: [0.08, 0.5], color: ['#8b5e34', 0.42] },   // a sepia wash: the 'color' blend is far cheaper than a CSS sepia filter
   sfx: { header: 'scratch' },
   build(g, rand, W, H) {
     paperKit.fill(g, '#e4d0a2');

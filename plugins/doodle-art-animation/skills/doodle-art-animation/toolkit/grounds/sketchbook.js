@@ -1,6 +1,6 @@
 /* sketchbook: the dark page of the Toned set. Warm black sketchbook paper with white and gold gel pen. The treatment
-   (a light tooth and slightly flattened colour) makes fills read as opaque gel ink on paper, which is what sets it
-   apart from the notebook's night paper. */
+   takes a fifth of the saturation out of the scene, so fills read as gel ink on paper rather than glowing colour, and
+   the warm black and gold ink set it apart from the notebook's night paper. */
 defineGround('sketchbook', {
   tone: 'dark',
   pal: { night: '#1d1b19', night2: '#191715', nightInk: '#f2ede3', nightMuted: '#8f887c', nightLabel: '#c0b8aa',
@@ -11,7 +11,7 @@ defineGround('sketchbook', {
     navyFill: '#34405e', accent: '#e0b04a' },   // accent: gold gel pen
   vignette: 'rgba(0,0,0,0.5)', grain: 0.5,
   contours: { colors: ['#8a7a5a', '#5a7a7a', '#9a8a4a', '#6a6a8a'], alpha: 0.10 },
-  treatment: { tooth: [0.06, 0.45], filter: 'saturate(0.8) contrast(1.05)' },
+  treatment: { color: ['#808080', 0.2] },
   sfx: { header: 'readout' },
   build(g, rand, W, H) {
     paperKit.fill(g, '#1d1b19', '#191715');
