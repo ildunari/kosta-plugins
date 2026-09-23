@@ -60,6 +60,10 @@ jobs:
       - name: Install numpy
         run: python -m pip install --upgrade numpy
 
+      - name: Voice tool tests
+        # toolkit/voice.mjs with its fake voice and pretend Gemini, OpenAI, Grok, ElevenLabs, Inworld and proxy servers: no network, keys or cost
+        run: node tests/doodle-art-animation/voice_test.mjs
+
       - name: Acceptance rules (static)
         # docs/doodle-art-animation/ACCEPTANCE.md, items L1-L17 and W1-W9. The --full tier needs
         # Playwright and a render, which the smoke job below already covers for the toolkit.
