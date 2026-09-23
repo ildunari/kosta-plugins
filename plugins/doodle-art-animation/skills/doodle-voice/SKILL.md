@@ -21,25 +21,25 @@ The order is words, then voice, then picture. Recorded speech cannot be stretche
 ## 2. Lines, provider and key
 
 ```
-node voice.mjs lines script.md --facts facts.md     # writes vo/lines.json, prints each plate's estimate against its Dur
-node voice.mjs keys --test                          # where the provider's key was found (never the key), and whether it works
+node voice.mjs lines script.md --facts facts.md --preset charon   # writes vo/lines.json, prints each plate's estimate against its Dur
+node voice.mjs keys --test                                        # where the provider's key was found (never the key), and whether it works
 ```
 
-- The provider, voice, style and direction come from `brief.md`. The defaults are Gemini (`gemini-3.1-flash-tts-preview`), the voice Charon, the documentary style and the direction "Say calmly, with quiet curiosity:" (`references/voice.md`, "Providers and voices"). Set them in `vo/lines.json` or pass `--provider`, `--voice`.
+- The provider, style and narrator preset come from `brief.md`; pass the preset `brief.md` names to `--preset`. The default is Gemini (`gemini-3.1-flash-tts-preview`) with the style's preset: `charon` for documentary. If `brief.md` names no preset yet, choose one now by the rules in `references/voice-presets.md`, "Picking the preset", and write it into `brief.md` with its reason. On another provider there are no presets: pass `--provider` and, if the user named one, `--voice`.
 - If `keys --test` fails for the chosen provider, say which variable to set and where (`references/voice.md`, "API keys"), and stop. Never ask for the key in the conversation, and never write it to any file, `brief.md` or memory. In a claude.ai cloud environment the network proxy may add the Gemini key itself, so a missing variable is not a failure until the provider refuses.
 - If a plate's estimate runs well past its `Dur`, that is fine: `lock` lengthens it. If the whole film runs more than about 15% past the length in `brief.md`, cut words now, before paying for them.
 
-## 3. Pick the voice
+## 3. Confirm the voice
 
-- If `brief.md` names a house narrator, use that voice and skip the audition.
-- Otherwise use the audition from the plan card if `vo/audition/audition.md` exists, or run one now: `node voice.mjs audition` (about 10 cents on Gemini). It ranks the voices by pace, loudness and flags, best first.
-- The user picks when they are here to pick. In unattended runs, and when the user said to just make it, take the top voice in `audition.md` that has no flags, write the choice and the reason into `brief.md`, attach the audition MP3s to the thread for the record, and carry on.
+- The preset in `brief.md` is the voice. There is no audition by default: the rules in `references/voice-presets.md` pick the preset, including not reusing the narrator of the last two films.
+- Audition only when two or three presets fit the film equally well: `node voice.mjs audition --presets orus-wry,charon-wry` (about a cent per preset). It ranks them by pace, loudness and flags, best first, in `vo/audition/audition.md`. If the plan already ran one, use it.
+- The user picks when they are here to pick. In unattended runs, and when the user said to just make it, take the top preset in `audition.md` that has no flags, write the choice and the reason into `brief.md`, re-run `lines` with that `--preset`, attach the audition MP3s to the thread for the record, and carry on.
 
 ## 4. Generate, check, retake
 
 ```
 node voice.mjs generate                   # one clip per plate, cached by exactly what was sent
-node voice.mjs check                      # every clip against its line: length, pace, gaps, loudness (and missing words once voice_check.py is in the toolkit)
+node voice.mjs check                      # every clip against its line: length, pace, gaps, loudness, and the transcript against the script (voice_check.py)
 ```
 
 `generate` already retakes a clip that fails a check (twice by default). For what still fails, follow the table in `references/voice.md`, "When a check fails": a new take (`node voice.mjs generate --retake P2`), a rewritten line, or a pause tag. Only the plates whose text or settings changed cost anything. After two rounds, keep the best take, list its flags, and carry on; don't circle.
@@ -71,7 +71,7 @@ Watch for a plate whose line starts before its title has typed, a beat whose mar
 
 ## 7. Report and hand off
 
-- **Voice:** provider, model, voice and why it was picked; the audition winner's line from `audition.md`.
+- **Voice:** provider, model, preset (or voice, off Gemini) and why it was picked; the audition winner's line from `audition.md` if one ran.
 - **Clips:** one line per plate: its length, pace in words a minute, and any flag `check` still reports.
 - **Timing:** the film's length before and after `lock`, and which plates got longer.
 - **Cost:** the rough cost `generate` printed.

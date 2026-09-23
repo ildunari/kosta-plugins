@@ -35,7 +35,7 @@ Candidate areas, roughly in order of how much they change the build:
 
 ### Narration
 
-Narration is off by default: the answer is "none" unless the request asks for narration or a voice-over. Ask the question only when the request leaves it open and the run is interactive; in an unattended run, take the default without asking (none, or the documentary narrator when a voice-over was asked for). When a film is narrated, the brief also records the provider and the voice: Gemini with the house narrator (Charon) unless the user named another. The key is never written into `brief.md`. The styles, the voice phase and the keys are in `references/voice.md`.
+Narration is off by default: the answer is "none" unless the request asks for narration or a voice-over. Ask the question only when the request leaves it open and the run is interactive; in an unattended run, take the default without asking (none, or the documentary style when a voice-over was asked for). When a film is narrated, the brief also records the narrator preset and a reason of a few words, picked by the rules in `references/voice-presets.md` (what the user asked for, else the film's character, else the style's preset, and not the narrator of the last two films). A request for a voice ("a woman's voice", "British", "warm") is answered by a preset there, not by a question. The key is never written into `brief.md`. The styles, the voice phase and the keys are in `references/voice.md`; the presets are in `references/voice-presets.md`.
 
 ## 3. Shape each question
 

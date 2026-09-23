@@ -497,8 +497,8 @@ if want('N1'):
     check('N1', 'doodle-build stops on a narrated film whose voice is not locked', bool(re.search(r'locked[\s\S]{0,200}stop and point the user at `/doodle-art-animation:doodle-voice', skill('doodle-build'))))
 if want('N2'):
     check('N2', 'references/voice.md exists', bool(VOICE))
-    miss = [w for w in ('130', '145', '160', 'Charon', 'gemini-3.1-flash-tts-preview', 'house narrator', 'keys.env') if w not in VOICE]
-    check('N2', 'voice.md covers styles and rates, the default voice and the house narrator', not miss, 'missing ' + ', '.join(miss))
+    miss = [w for w in ('120', '160', 'Charon', 'gemini-3.1-flash-tts-preview', 'references/voice-presets.md', 'keys.env') if w not in VOICE]
+    check('N2', 'voice.md covers styles and paces, the default provider and the narrator presets', not miss, 'missing ' + ', '.join(miss))
     check('N2', 'voice.md says narration is off unless asked', bool(re.search(r'off (by default|unless)', VOICE, re.I)))
     check('N2', 'voice.md says keys are never printed or written down', bool(re.search(r'never (print|written|write)', VOICE, re.I)))
     check('N2', 'voice.md says what to do when a clip fails a check', bool(re.search(r'fails a check', VOICE)))
@@ -506,8 +506,8 @@ if want('N3'):
     check('N3', 'intake.md asks about narration', bool(re.search(r'narrat', read(os.path.join(REF, 'intake.md')) or '', re.I)))
     check('N3', 'writing.md describes the narration block, marks and pronunciation', all(w in WRITING for w in ('## Narration', '{', '## Pronunciation')))
     DP = skill('doodle-plan')
-    miss = [w for w in ('voice.mjs\" lines', 'voice.mjs audition', 'doodle-voice', '## Narration', '## Pronunciation') if w not in DP]
-    check('N3', 'doodle-plan writes, times and auditions the narration and hands off to doodle-voice', not miss, 'missing ' + ', '.join(miss))
+    miss = [w for w in ('voice.mjs\" lines', '--preset', 'voice-presets.md', 'voice.mjs audition', 'doodle-voice', '## Narration', '## Pronunciation') if w not in DP]
+    check('N3', 'doodle-plan writes and times the narration, picks its preset and hands off to doodle-voice', not miss, 'missing ' + ', '.join(miss))
 if want('N4'):
     SR, SD, AR, FR, SE = (agent(n) for n in ('script-reviewer', 'sound-designer', 'audio-reviewer', 'film-reviewer', 'seam-reviewer'))
     check('N4', 'script-reviewer checks narration length, marks and pronunciation', all(re.search(p, SR, re.I) for p in (r'narrat', r'mark', r'pronunciation', r'words a minute|wpm')))

@@ -292,15 +292,16 @@ film's request or intake asks for it; a film without narration is made, checked 
   `skills/doodle-build/SKILL.md` stops on a narrated film whose `vo/voice.json` is not locked.
 
 ## N2 · One reference for narration
-- [auto] `references/voice.md` exists and covers the styles and their speaking rates, narration off by default,
-  Gemini with the voice Charon as the default, the house narrator, keys that are never printed or written into the
-  repo, project files or memory, and what to do when a clip fails a check.
+- [auto] `references/voice.md` exists and covers the styles and their paces, narration off by default, Gemini as
+  the default provider with its voice chosen through the narrator presets (`references/voice-presets.md`, Charon by
+  default), keys that are never printed or written into the repo, project files or memory, and what to do when a clip
+  fails a check.
 
 ## N3 · The plan carries the narration
 - [auto] `references/intake.md` asks about narration; `references/writing.md` describes the `## Narration` block with
   `{marks}` and the `## Pronunciation` list; `skills/doodle-plan/SKILL.md` writes the narration with the script,
-  checks its estimated length with `voice.mjs lines`, runs the audition while the plan card stands, and hands a
-  narrated film to `doodle-voice` rather than `doodle-build`.
+  records the narrator preset, checks its estimated length with `voice.mjs lines --preset`, auditions presets only
+  when two or three fit equally, and hands a narrated film to `doodle-voice` rather than `doodle-build`.
 
 ## N4 · Every reviewer knows about the voice
 - [auto] `script-reviewer` checks narration length against each plate, marks named in beats, and the pronunciation

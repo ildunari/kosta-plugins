@@ -18,18 +18,20 @@ The reason is that code can stretch to fit any timing and recorded speech cannot
 
 Narration is **off by default**. A film is narrated only when the request asks for narration or a voice-over, or the intake answer says so (`references/intake.md`). Otherwise the film tells its story in on-screen text, as described in `references/writing.md`.
 
-Kosta's films run unattended, so never stop to ask whether to narrate. If the request is silent on it, the answer is no narration; if it asks for a voice-over without saying which kind, use the documentary style below with the house narrator.
+Kosta's films run unattended, so never stop to ask whether to narrate. If the request is silent on it, the answer is no narration; if it asks for a voice-over without saying which kind, use the documentary style below, with the narrator preset chosen as `references/voice-presets.md` describes.
 
 ## Styles
 
-The style is chosen at intake and recorded in `brief.md`. It sets the writing rules, the speaking rate (in words a minute) and the direction the voice is given. The script has the same shape in every style.
+The style is chosen at intake and recorded in `brief.md`. It sets the writing rules and, when no narrator preset is chosen on purpose, the preset the film gets. The script has the same shape in every style.
 
-| Style | Sounds like | Speaking rate | Writing rules |
+| Style | Sounds like | Default preset (pace) | Writing rules |
 |---|---|---|---|
-| **Documentary** (default) | A curious, unhurried narrator, like a nature documentary | 130–145 words a minute | Sentences up to about 20 words, one idea each. Pauses before reveals |
-| Explainer | Friendly and clear, a little quicker | 145–160 | The same, with fewer long pauses |
-| Short-form | Energetic, for Reels, Shorts or TikTok | about 160 | A hook in the first 2–3 seconds. Sentences under about 12 words. Few pauses |
-| Two voices | A host and an expert talking, like a podcast | 150–170 each | **Planned, not built.** Don't offer it as available |
+| **Documentary** (default) | A curious, unhurried narrator, like a nature documentary | `charon` (120 words a minute) | Sentences up to about 20 words, one idea each. Pauses before reveals |
+| Explainer | Friendly and clear | `charon-professor` (120) | The same, with fewer long pauses |
+| Short-form | Energetic, for Reels, Shorts or TikTok | `charon-lively` (160) | A hook in the first 2–3 seconds. Sentences under about 12 words. Few pauses |
+| Two voices | A host and an expert talking, like a podcast | none | **Planned, not built.** Don't offer it as available |
+
+The pace a film is written and checked against is its preset's (`references/voice-presets.md` lists all of them, from 105 words a minute for `storyteller` to 160 for `lively`). On a provider other than Gemini there are no presets, and the style sets the pace instead: 138 words a minute for documentary, 152 for explainer, 160 for short-form.
 
 The engine renders 16:9 landscape only, so a short-form narration still goes on a landscape film.
 
@@ -53,7 +55,7 @@ The `script-reviewer` agent checks each plate's word count against its length at
 
 These are conventions, not measured rules; the animatic (below) is where they get tuned.
 
-- **Film budget.** Narration fills about 70–80% of the running time; the rest is transitions, reveals and holds. At 145 words a minute that is about 100–115 words for a 60-second film and 300–350 for a 3-minute film.
+- **Film budget.** Narration fills about 70–80% of the running time; the rest is transitions, reveals and holds. At 120 words a minute (most presets) that is about 85–95 words for a 60-second film and 250–290 for a 3-minute film; scale it to the film's own pace.
 - **Plate estimate.** A plate's length is roughly: 1–1.5 s before the first line (the transition landing and the title typing) + words ÷ rate + planned pauses + a tail of about 0.8 s before the next seam. `node voice.mjs lines script.md` prints this estimate against each plate's `Dur`.
 - **Silence before reveals.** Leave 0.75–1.5 s of silence before a reveal or the climax, so it lands. The sound design already asks for near-silence there.
 - **Most seams are unnarrated.** The transition's own sound carries the cut, and the narrator starts again once the new plate has settled.
@@ -64,8 +66,8 @@ These are conventions, not measured rules; the animatic (below) is where they ge
 
 Run these in the film folder, with `voice.mjs` from the copied toolkit. Everything is read from and written to `./vo/`.
 
-1. **Lines.** `node toolkit/voice.mjs lines script.md` reads the `## Narration` and `## Pronunciation` sections into `vo/lines.json` and prints each plate's estimated spoken length against its `Dur`. No audio, no cost. Add `--style explainer` (or `short-form`) when the brief asks for it, and `--facts facts.md` when the pronunciation list lives there. `vo/lines.json` can be edited freely afterwards (provider, voice, direction, speed, lead and tail).
-2. **Audition.** `node toolkit/voice.mjs audition` reads a few test lines in several voices and directions, and writes `vo/audition/<voice>-<n>.mp3` and `vo/audition/audition.md`: pace, loudness and flags per voice, best first. Skip it when the house narrator is already set (below).
+1. **Lines.** `node toolkit/voice.mjs lines script.md --preset charon` reads the `## Narration` and `## Pronunciation` sections into `vo/lines.json` and prints each plate's estimated spoken length against its `Dur`, at the preset's pace. No audio, no cost. Name the preset chosen for the film (`references/voice-presets.md`); without `--preset`, a Gemini film gets its style's preset. Add `--style explainer` (or `short-form`) when the brief asks for it, and `--facts facts.md` when the pronunciation list lives there. `vo/lines.json` can be edited freely afterwards (provider, voice, direction, speed, lead and tail), and a later `lines` run keeps those edits.
+2. **Audition, only when it is a close call.** When two or three presets fit the film equally well, `node toolkit/voice.mjs audition --presets orus-wry,charon-wry` reads the same few lines in each and writes `vo/audition/<preset>.mp3` and `vo/audition/audition.md`: pace, loudness and flags per preset, best first. Otherwise skip it; the rules in `references/voice-presets.md` decide.
 3. **Generate.** `node toolkit/voice.mjs generate` makes one clip per plate (`vo/clips/<fingerprint>.wav`) and writes `vo/voice.json`. A clip that fails a check is retaken automatically up to twice (`--retakes N` changes that).
 4. **Check.** `node toolkit/voice.mjs check` measures every clip again against `vo/lines.json` and flags problems. What to do with a flag is in the table below.
 5. **Lock.** `node toolkit/voice.mjs lock` marks `vo/voice.json` locked and lengthens every plate in `script.md` whose narration outgrew its `Dur`. It refuses while a clip fails; `--force` locks anyway (say so in the delivery).
@@ -90,9 +92,7 @@ Clips are cached by a fingerprint of exactly what was sent (text, provider, mode
 
 Each provider's voices, tags and quirks are in `references/voice-providers.md`.
 
-- **The house narrator** is Gemini's **Charon** (Google describes it as "informative"). Once a voice has been chosen for Kosta's films, it is the house narrator: later films reuse it without auditioning, so every film sounds like the same person. Record it in `brief.md` and in project memory.
-- **Audition candidates on Gemini:** Charon, Sadaltager and Sulafat for calm styles; Puck, Laomedeia and Sadachbia for short-form.
-- **The direction** is a short line sent before the text that tells the voice how to read it: `Say calmly, with quiet curiosity:` for documentary, `Say in a friendly, clear voice, like a science explainer:` for explainer, `Say with upbeat energy, like a short science video:` for short-form. Keep it to one line ending in a colon; a longer one is more likely to be read aloud.
+**On Gemini, choose the voice with a narrator preset** (`references/voice-presets.md`). A preset is one of the five voices Kosta chose by ear (Charon, Orus, Erinome, Leda, Pulcherrima) plus a delivery: the one-line direction sent before the words and the pace it really reads at. That file says which preset suits which film, and how to vary the narrator from one film to the next. `node voice.mjs presets` lists them all. On the other providers, use that provider's default voice (or one the user named) with the style's direction.
 
 ## API keys
 
@@ -104,9 +104,9 @@ Each provider's voices, tags and quirks are in `references/voice-providers.md`.
 
 Nothing in phase 2b waits for Kosta.
 
-- **With a house narrator,** skip the audition and generate with it.
-- **Without one,** run the audition, pick the winner from the measurements in `audition.md` (it lists the voices best first: pace nearest the target, no flags), attach the audition clips to the thread so the choice can be heard later, and carry on with that voice.
-- Say in the delivery which voice was used and why, in one line.
+- **Pick the preset by the rules** in `references/voice-presets.md`, "Picking the preset", without an audition, and write it into `brief.md` with a reason of a few words.
+- **When two or three presets fit equally well,** audition just those (`--presets`), take the top one in `audition.md` that has no flags, and attach the audition clips to the thread so the choice can be heard later.
+- Say in the delivery which preset was used and why, in one line.
 
 ## When a check fails
 
@@ -123,4 +123,4 @@ Nothing in phase 2b waits for Kosta.
 
 ## Cost
 
-Small enough not to ration. An audition is about 4 minutes of audio, roughly 10 cents on Gemini. A full 3-minute narration costs 5–30 cents depending on the provider and the retakes (Gemini is about 3 cents a minute). The tool prints what each run's new clips cost; cached clips cost nothing.
+Small enough not to ration. An audition costs about a cent per preset on Gemini. A full 3-minute narration costs 5–30 cents depending on the provider and the retakes (Gemini is about 3 cents a minute). The tool prints what each run's new clips cost; cached clips cost nothing.
