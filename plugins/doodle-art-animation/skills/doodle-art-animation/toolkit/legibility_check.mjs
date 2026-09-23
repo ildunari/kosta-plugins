@@ -146,6 +146,7 @@ const setup = ({ GRAD, RING, OUTER, BIN, CR_SPAN, BUSY_SPAN, DECOR_LEN }) => {
   window.haloText = function __lgHalo(s, x, y, o = {}) {
     const on = !!s && o.halo !== false && (o.alpha ?? 1) > 0;
     halo.push(on ? (o.haloWidth ?? 0.25) : 0); try { return origHalo.apply(this, arguments); } finally { halo.pop(); } };
+  const alphaOf = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'globalAlpha').get;
   window.text = function __lgText(s, x, y, o = {}) {
     if (hide) { const ga = ctx.globalAlpha; ctx.globalAlpha = 0; try { return origText.apply(this, arguments); } finally { ctx.globalAlpha = ga; } }
     const w = origText.apply(this, arguments);
@@ -168,7 +169,7 @@ const setup = ({ GRAD, RING, OUTER, BIN, CR_SPAN, BUSY_SPAN, DECOR_LEN }) => {
     const L = x - m.actualBoundingBoxLeft, R = x + m.actualBoundingBoxRight, U = y - m.actualBoundingBoxAscent, D = y + m.actualBoundingBoxDescent;
     const pts = [[L, U], [R, U], [L, D], [R, D]].map(([px, py]) => [T.a * px + T.c * py + T.e, T.b * px + T.d * py + T.f]);
     const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]), box = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
-    const col = typeof color === 'string' ? rgba(color) : null, a = ctx.globalAlpha * alpha * (col ? col[3] : 1);
+    const col = typeof color === 'string' ? rgba(color) : null, a = alphaOf.call(ctx) * alpha * (col ? col[3] : 1);   // the real alpha, not a plate's relative view (engine relAlpha)
     const hw = halo.length ? halo[halo.length - 1] : 0, font = `${kind} ${size} w${weight}${italic ? 'i' : ''}`;
     const part = { s: str, x, y, M, L, R, size, draw: { font: `${italic ? 'italic ' : ''}${weight} ${size}px ${FONT[kind]}`, ls, align, base },
       c: [(box[0] + box[2]) / 2, (box[1] + box[3]) / 2] };

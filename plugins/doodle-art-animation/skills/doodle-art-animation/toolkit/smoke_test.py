@@ -9,6 +9,8 @@ usage:
 Which stories: every story*.js next to this script (or in --src). In a film folder, where your own
 story sits beside the bundled examples, only your own stories are tested (the bundled examples are
 skipped) unless --stories names them. The MP4 segment uses your own story too (story.js first).
+Pieces of an assembled story are not stories: story_tail.js, any file assemble.sh concatenates, and any
+file whose whole text sits inside another story*.js are skipped (they are tested inside story.js).
 
 What it checks, for each story:
   1. build.py builds it (non-zero exit fails).
@@ -338,6 +340,29 @@ def check_video(story, work, out_dir, workers, seconds, meta):
     return res
 
 
+def story_parts(src, names):
+    """The story*.js files that are pieces of an assembled story rather than stories of their own.
+    doodle-build writes story.js with assemble.sh (cat helpers.js plate_*.js story_tail.js > story.js), so a film folder
+    holds story_tail.js: the defineStory call on its own, which cannot build without the plates. A file is a part when
+    it is story_tail.js, when assemble.sh reads it, or when its whole text sits inside another story file."""
+    parts = {n for n in names if n == 'story_tail.js'}
+    asm = os.path.join(src, 'assemble.sh')
+    if os.path.isfile(asm):
+        text = open(asm, encoding='utf-8', errors='replace').read()
+        for cmd in re.findall(r'\bcat\b([^>|;&]*)>', text):          # cat a.js b.js … > story.js: the inputs are parts
+            parts |= {n for n in re.findall(r'[\w.-]+\.js', cmd) if n in names}
+    body = {}
+    for n in names:
+        try:
+            body[n] = open(os.path.join(src, n), encoding='utf-8', errors='replace').read().strip()
+        except OSError:
+            body[n] = ''
+    for n in names:
+        if n not in parts and body[n] and any(m != n and len(body[m]) > len(body[n]) and body[n] in body[m] for m in names):
+            parts.add(n)
+    return parts
+
+
 def setup_error(msg):
     print(f'smoke_test: setup problem: {msg}')
     return 2
@@ -372,6 +397,8 @@ def main():
 
     # which stories
     found = sorted(os.path.basename(p) for p in glob.glob(os.path.join(src, 'story*.js')))
+    parts = story_parts(src, found)                   # story_tail.js and friends: tested through the story they assemble into
+    found = [s for s in found if s not in parts]
     own = [s for s in found if s not in BUNDLED]
     skip = {s.strip() for s in a.skip.split(',') if s.strip()}
     if a.stories:
@@ -427,7 +454,8 @@ def main():
     pw = out.strip().splitlines()[-1]
     workers = max(1, a.workers)
     tested_note = '' if a.stories or not own else f' (your own; bundled examples skipped: {len(found) - len(own)})'
-    print(f'smoke_test: {len(stories)} stories from {src}{tested_note}\n  work dir {work}\n  playwright {pw}; workers {workers}')
+    parts_note = '' if a.stories or not parts else f'\n  story parts skipped (built as part of the story they assemble into): {", ".join(sorted(parts))}'
+    print(f'smoke_test: {len(stories)} stories from {src}{tested_note}{parts_note}\n  work dir {work}\n  playwright {pw}; workers {workers}')
 
     t0 = time.time()
     results = {}

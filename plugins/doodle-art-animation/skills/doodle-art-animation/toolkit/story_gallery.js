@@ -163,7 +163,7 @@ const SETTLE_A = {
 };
 
 const SETTLE_B = {
-  dur: DUR, cam: FLOAT(10), enter: { type: 'zoom', dur: 1.5 }, header: header(10, 'Settle kit · land and routes', 'village, skyline, road, bridge, fields, market, map, ruins'),
+  dur: DUR, cam: FLOAT(10), enter: { type: 'zoom', dir: 'out', dur: 1.5 }, header: header(10, 'Settle kit · land and routes', 'village, skyline, road, bridge, fields, market, map, ruins'),
   draw(t) {
     KIT.settle.skyline(t, { x: 560, y: 400, w: 780, h: 250, era: 'old', draw: DR(t, 0), seed: 81 });
     KIT.settle.bridge(t, { x: 1400, y: 270, w: 430, h: 180, draw: DR(t, 1), seed: 82 });

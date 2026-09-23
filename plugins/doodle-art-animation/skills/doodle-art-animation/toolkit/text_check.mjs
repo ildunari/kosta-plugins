@@ -47,6 +47,7 @@ const setup = () => {
   if (typeof window.reticle === 'function') window.reticle = tag(window.reticle, 'reticle');
   STORY.plates.forEach(p => { if (p.overlay) p.overlay = tag(p.overlay, 'overlay'); });
   const orig = window.text;
+  const alphaOf = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'globalAlpha').get;   // the real alpha, not a plate's relative view (engine relAlpha)
   window.__tc = [];
   window.text = function (s, x, y, o = {}) {
     const w = orig.apply(this, arguments);
@@ -58,7 +59,7 @@ const setup = () => {
       [x - m.actualBoundingBoxLeft, y + m.actualBoundingBoxDescent], [x + m.actualBoundingBoxRight, y + m.actualBoundingBoxDescent]].map(([px, py]) => [T.a * px + T.c * py + T.e, T.b * px + T.d * py + T.f]);
     const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
     window.__tc.push({ s: String(s), role, font: `${kind} ${size} ${weight}${italic ? 'i' : ''} ${align}`, ax: T.a * x + T.c * y + T.e, ay: T.b * x + T.d * y + T.f,
-      box: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)], sc: Math.hypot(T.a, T.b), a: ctx.globalAlpha * alpha, tr: !!S.trans });
+      box: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)], sc: Math.hypot(T.a, T.b), a: alphaOf.call(ctx) * alpha, tr: !!S.trans });
     return w;
   };
   // Only the text() calls are needed, not the pixels, so the frame's queued drawing is thrown away (reset) instead of

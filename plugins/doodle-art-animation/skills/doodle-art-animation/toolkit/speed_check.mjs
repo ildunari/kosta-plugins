@@ -42,6 +42,10 @@
 // pop", crossed by a clear margin. `hard cut` / `cut` transitions (dur 0, or no `enter` at all) are exempt, same
 // as motion_check.py's cut exemption.
 //
+// TWICE (a warning, not part of the exit code): during a `pan`, both plates' heroes (their reticle discs) are in frame
+// at once for three or more drawings, so the viewer sees the hero twice; the line adds the size jump when the heroes' reticle radius
+// (hero(t).r, 34 when unset, times the plate's camera scale) differs by 2x or more. A pan keeps one scale: a 14x jump
+// across one (the biocoating film's gel seam) reads as the camera passing our object and finding a different one.
 // Camera-jump lines (informational, not part of the exit code): for each plate, the largest per-drawing scale/pan
 // step from __camProbe across its own life, and, at every cut, the camera's speed in the last drawing before it
 // and the first drawing after — flagged "stall?" when one side is clearly moving (> 15 px/s equivalent, i.e. more
@@ -157,7 +161,20 @@ async function main() {
     console.log(`seam ${i} @ ${s.t.toFixed(2)}s (${type}, dur ${dur.toFixed(2)}s): ${worst.verdict}` +
       (worst.verdict !== 'ok' ? ` — ${worst.key} peak ${fmt(worst.v)} at drawing ${worst.k}/${n - 1}` : '') +
       (peakStr ? `  [${peakStr}]` : '') + (jerks.length ? `  jerks: ${jerks.join(', ')}` : ''));
-    report.seams.push({ i, t: s.t, type, dur, verdict: worst.verdict, worst, peaks: peakByKey, jerks });
+    // a whip pan slides both sheets at once: when both heroes are in frame together the viewer sees the hero twice,
+    // and across a big scale jump the second copy reads as a different object (a warning, not part of the exit code)
+    const inFrame = h => h && h[0] >= -h[2] && h[0] <= info.width + h[2] && h[1] >= -h[2] && h[1] <= info.height + h[2];   // any of its reticle disc
+    const both = samples.filter(q => q && inFrame(q.heroOld) && inFrame(q.heroNew)).length;
+    let twice = null;
+    if (both >= 3) {
+      const r0 = samples[0].heroOld && samples[0].heroOld[2], r1 = samples[samples.length - 1].heroNew && samples[samples.length - 1].heroNew[2];
+      const ratio = r0 > 0 && r1 > 0 ? Math.max(r0, r1) / Math.min(r0, r1) : 1;
+      twice = { drawings: both, rOld: r0, rNew: r1, ratio };
+      console.log(`  TWICE  seam ${i}: the hero is on screen twice for ${both} drawings as the sheets slide` +
+        (ratio >= 2 ? ` and its size jumps ${fmt(ratio)}x (reticle r ${fmt(r0)} -> ${fmt(r1)}): a pan keeps one scale, so use zoom, lensIn/lensOut or through,` : ':') +
+        ' or let the old hero leave the frame before the new one enters (warning)');
+    }
+    report.seams.push({ i, t: s.t, type, dur, verdict: worst.verdict, worst, peaks: peakByKey, jerks, twice });
   }
 
   // ---- per-plate camera(t) across its life, and velocity just before/after each cut ----
