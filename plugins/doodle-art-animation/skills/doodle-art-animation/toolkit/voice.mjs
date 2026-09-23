@@ -44,15 +44,24 @@
 // (24 kHz for Gemini, OpenAI and Kokoro), trimmed to 0.03 s of silence before the first word and 0.15 s after the
 // last, and normalized to -20 LUFS integrated (ITU-R BS.1770) with peaks under -1 dBFS.
 //
-// TIMING. timing "sentence-clips" (Kokoro: each sentence is its own request, so sentence starts are exact),
-// "silence+estimate" (Gemini, OpenAI, local, fake: sentence starts are the pauses in the clip, matched to the script
-// in order), or "estimate" (no usable pauses). A mark inside a sentence is placed by its share of the sentence's
-// syllables, so it can be off by about 0.3 s; a mark on a sentence's first word is as exact as the sentence start.
+// TIMING. timing "words" (Grok, ElevenLabs, Inworld: the provider reports when each word or character is spoken, so
+// sentences and marks are exact to about 0.05 s), "sentence-clips" (Kokoro: each sentence is its own request, so
+// sentence starts are exact), "silence+estimate" (Gemini, OpenAI, local, fake: sentence starts are the pauses in the
+// clip, matched to the script in order), or "estimate" (no usable pauses). Without word times a mark inside a sentence
+// is placed by its share of the sentence's syllables, so it can be off by about 0.3 s; a mark on a sentence's first
+// word is as exact as the sentence start.
 //
 // PROVIDERS. gemini (default; gemini-3.1-flash-tts-preview, about $0.03 a minute), openai (gpt-4o-mini-tts, about
 // $0.015 a minute), local (any OpenAI-style speech server, e.g. Kokoro-FastAPI at DOODLE_TTS_BASE_URL, default
 // http://localhost:8880/v1), kokoro (Kokoro-82M in-process through voice_kokoro.py and the kokoro-onnx Python package;
-// free, CPU only, model files from GitHub), fake (synthetic tones for tests; no network, no cost).
+// free, CPU only, model files from GitHub), xai (Grok's /v1/tts, voice orion, about $0.015 a minute), elevenlabs
+// (eleven_v3, voice Darian, about $0.09 a minute; a voice is a name on your account or a voice ID), inworld
+// (inworld-tts-2, voice Dennis, about $0.02 a minute; inworld-tts-2-flash is cheaper and ignores directions),
+// fake (synthetic tones for tests; no network, no cost). Only Gemini, OpenAI and Inworld TTS-2 take a written
+// direction; Grok and ElevenLabs get the words and tags only. Tags per provider: Gemini acts them all; Grok turns
+// pauses into [pause] / [long-pause] and keeps its own sound tags ([breath], [sigh], [laugh] ...); eleven_v3 acts
+// [curious]-style tags and gets "..." for a pause; older ElevenLabs models and Inworld get <break time="..."/>;
+// Inworld TTS-2 also acts the other tags; OpenAI and local servers drop them. docs: references/voice-providers.md.
 // Clips are cached by a fingerprint of exactly what was sent (text, provider, model, voice, direction, speed), so
 // generating again after editing one plate pays only for that plate.
 //
@@ -66,7 +75,8 @@
 // skips the proxy and any key it would add, so the tool opens the proxy tunnel itself.
 //
 // Other settings: DOODLE_TTS_PROVIDER, DOODLE_TTS_VOICE (defaults for `lines`), DOODLE_TTS_COOLDOWN (seconds to
-// wait after a 429 rate limit, default 60), DOODLE_GEMINI_BASE_URL, OPENAI_BASE_URL, DOODLE_PYTHON, DOODLE_KOKORO_DIR,
+// wait after a 429 rate limit, default 60), DOODLE_GEMINI_BASE_URL, OPENAI_BASE_URL, DOODLE_XAI_BASE_URL,
+// DOODLE_ELEVENLABS_BASE_URL, DOODLE_INWORLD_BASE_URL (other servers speaking the same API; tests), DOODLE_PYTHON, DOODLE_KOKORO_DIR,
 // DOODLE_TTS_FAKE_FAULT (tests: "P2:silent,P3:slow,P1:silent-once,P4:loud,P5:gap").
 // Exit codes: 0 fine, 1 a clip failed a check or a request failed, 2 something to fix first (no lines.json, a key
 // the provider refused, a missing Python package, a bad option).
@@ -99,6 +109,10 @@ const PROVIDERS = {
   openai: { name: 'OpenAI', model: 'gpt-4o-mini-tts', voice: 'cedar', audition: { calm: ['cedar', 'marin', 'ash'], upbeat: ['coral', 'nova', 'marin'] } },
   local: { name: 'the local speech server', model: 'kokoro', voice: 'af_heart', audition: KOKORO_VOICES, pace: 167 },
   kokoro: { name: 'Kokoro', model: 'kokoro-v1.0', voice: 'af_heart', audition: KOKORO_VOICES, pace: 167 },
+  // Grok, ElevenLabs and Inworld: calm picks from each provider's own descriptions; the upbeat picks are guesses to audition
+  xai: { name: 'Grok', model: 'grok-tts', voice: 'orion', audition: { calm: ['orion', 'lux', 'perseus'], upbeat: ['eve', 'lumen', 'luna'] } },
+  elevenlabs: { name: 'ElevenLabs', model: 'eleven_v3', voice: 'Darian', audition: { calm: ['Darian', 'Finley', 'Elara'], upbeat: ['Talia', 'Sawyer', 'Darian'] } },
+  inworld: { name: 'Inworld', model: 'inworld-tts-2', voice: 'Dennis', audition: { calm: ['Dennis', 'Ashley', 'Malcolm'], upbeat: ['Ashley', 'Edward', 'Dennis'] } },
   fake: { name: 'the fake voice', model: 'fake-1', voice: 'fake-a', audition: { calm: ['fake-a', 'fake-b'], upbeat: ['fake-a', 'fake-c'] } },
 };
 const KEY_VARS = { gemini: ['GEMINI_API_KEY', 'GOOGLE_API_KEY'], openai: ['OPENAI_API_KEY'], xai: ['XAI_API_KEY'],
@@ -106,7 +120,9 @@ const KEY_VARS = { gemini: ['GEMINI_API_KEY', 'GOOGLE_API_KEY'], openai: ['OPENA
 const KEY_NAMES = { gemini: 'Gemini', openai: 'OpenAI', xai: 'Grok (xAI)', elevenlabs: 'ElevenLabs', inworld: 'Inworld', local: 'Local server' };
 // about what the voice costs, in US dollars (read 2026-09-22; prices change, so these are estimates)
 const PRICE = { 'gemini-3.1-flash-tts-preview': { in: 1e-6, out: 20e-6 }, 'gemini-2.5-flash-preview-tts': { in: 0.5e-6, out: 10e-6 },
-  'gemini-2.5-pro-preview-tts': { in: 1e-6, out: 20e-6 }, 'gpt-4o-mini-tts': { perSec: 0.00025 }, 'tts-1': { perChar: 15e-6 }, 'tts-1-hd': { perChar: 30e-6 } };
+  'gemini-2.5-pro-preview-tts': { in: 1e-6, out: 20e-6 }, 'gpt-4o-mini-tts': { perSec: 0.00025 }, 'tts-1': { perChar: 15e-6 }, 'tts-1-hd': { perChar: 30e-6 },
+  'grok-tts': { perChar: 15e-6 }, eleven_v3: { perChar: 100e-6 }, eleven_multilingual_v2: { perChar: 100e-6 }, eleven_flash_v2_5: { perChar: 50e-6 },
+  eleven_flash_v2: { perChar: 50e-6 }, eleven_turbo_v2_5: { perChar: 50e-6 }, 'inworld-tts-2': { perChar: 25e-6 }, 'inworld-tts-2-flash': { perChar: 15e-6 } };
 
 // ---------------------------------------------------------------- output, errors, options
 class SetupError extends Error {}          // exit 2: something to fix before anything can run
@@ -122,7 +138,7 @@ class KeyProblem extends SetupError {
 }
 const SECRETS = new Set();
 const redact = s => { let t = String(s); for (const k of SECRETS) if (k.length >= 8) t = t.split(k).join('[hidden]');
-  return t.replace(/AIza[0-9A-Za-z_-]{30,}/g, '[hidden]').replace(/\b(sk|xai)-[A-Za-z0-9_-]{20,}/g, '[hidden]'); };
+  return t.replace(/AIza[0-9A-Za-z_-]{30,}/g, '[hidden]').replace(/\b(sk|xai)[-_][A-Za-z0-9_-]{20,}/g, '[hidden]'); };
 const out = (...a) => process.stdout.write(redact(a.join(' ')) + '\n');
 const note = (...a) => process.stderr.write(redact(a.join(' ')) + '\n');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -160,7 +176,7 @@ function fileKeys() {
   return FILEKEYS;
 }
 for (const vars of Object.values(KEY_VARS)) for (const n of vars)          // every key we might see, so none is ever printed
-  for (const v of [process.env[n], process.env['CLAUDE_PLUGIN_OPTION_' + n], fileKeys()[n]]) if (v) SECRETS.add(v);
+  for (const v of [process.env[n], process.env['CLAUDE_PLUGIN_OPTION_' + n], fileKeys()[n]]) if (v) { SECRETS.add(v); SECRETS.add(Buffer.from(v).toString('base64')); }
 let warnedPerm = false;
 function findKey(provider) {
   const vars = KEY_VARS[provider] || [];
@@ -440,16 +456,55 @@ function alignSentences(sents, m) {
   }
   return { times: sents.map((s, j) => [j ? bnd[j - 1][1] : on, j < B ? bnd[j][0] : off]), matched };
 }
-function markTimes(sents, times) {
-  const marks = {};
+function markTimes(sents, times, words = null) {
+  const marks = {}; let base = 0;
   sents.forEach((s, j) => {
     const [a, b] = times[j];
     for (const [name, wi] of Object.entries(s.marks)) {
+      if (words) { marks[name] = r3(words[base + wi][0]); continue; }            // the provider said when the word starts
       const before = s.words.slice(0, wi).reduce((t, w) => t + w.syl + w.after, 0);
       marks[name] = r3(a + (b - a) * (s.weight ? before / s.weight : 0));
     }
+    base += s.words.length;
   });
   return marks;
+}
+// the start and end of each of our words from the provider's own timing. Grok and ElevenLabs time every character
+// they were sent, Inworld every word. What they timed can differ from our words (a respelling, a tag, a number they
+// wrote out), so both sides are cut down to letters and digits and matched with a longest-common-subsequence
+// alignment; each of our words takes the times of its matched letters, and a word with nothing matched is placed
+// between its neighbours by its syllables. Returns null when too little matched to trust (then the pauses are used).
+// timed: { chars: [[c, start, end]] } or { words: [[word, start, end]] }, in seconds from the start of the audio
+function wordTimes(parsed, pairs, timed) {
+  const ours = parsed.sents.flatMap(s => s.words.map(w => ({ w, key: applyPron(w.text, pairs).toLowerCase().replace(/[^a-z0-9]/g, '') })));
+  const theirs = [];
+  if (timed?.chars) for (const [c, t0, t1] of timed.chars) { const k = String(c).toLowerCase().replace(/[^a-z0-9]/g, ''); for (const ch of k) theirs.push([ch, t0, t1]); }
+  else if (timed?.words) for (const [w, t0, t1] of timed.words) {
+    const k = String(w).toLowerCase().replace(/[^a-z0-9]/g, ''), d = (t1 - t0) / Math.max(1, k.length);
+    [...k].forEach((ch, i) => theirs.push([ch, t0 + d * i, t0 + d * (i + 1)]));
+  }
+  const A = ours.flatMap((o, wi) => [...o.key].map(ch => [ch, wi])), n = A.length, m = theirs.length;
+  if (!n || !m || n * m > 3e7) return null;
+  const W = m + 1, L = new Uint16Array((n + 1) * W);                   // L[i][j]: longest match of A[i..] and theirs[j..]
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--)
+    L[i * W + j] = A[i][0] === theirs[j][0] ? L[(i + 1) * W + j + 1] + 1 : Math.max(L[(i + 1) * W + j], L[i * W + j + 1]);
+  if (L[0] < 0.6 * n) return null;
+  const span = ours.map(() => null);
+  for (let i = 0, j = 0; i < n && j < m;) {
+    if (A[i][0] === theirs[j][0] && L[i * W + j] === L[(i + 1) * W + j + 1] + 1) {
+      const wi = A[i][1], [, t0, t1] = theirs[j];
+      span[wi] = span[wi] ? [Math.min(span[wi][0], t0), Math.max(span[wi][1], t1)] : [t0, t1]; i++; j++;
+    } else if (L[(i + 1) * W + j] >= L[i * W + j + 1]) i++; else j++;
+  }
+  for (let k = 0; k < span.length; k++) {                               // words with nothing matched: share the gap
+    if (span[k]) continue;
+    let e = k; while (e < span.length && !span[e]) e++;
+    const lo = k ? span[k - 1][1] : (span[e]?.[0] ?? 0), hi = e < span.length ? span[e][0] : lo;
+    const syl = ours.slice(k, e).map(o => o.w.syl), tot = syl.reduce((a, b) => a + b, 0) || 1; let t = lo;
+    for (let q = k; q < e; q++) { const d = (hi - lo) * syl[q - k] / tot; span[q] = [t, t + d]; t += d; }
+    k = e - 1;
+  }
+  return span.map(([a, b]) => [r3(a), r3(Math.max(a, b))]);
 }
 
 // ---------------------------------------------------------------- providers
@@ -504,6 +559,8 @@ const ADAPTERS = {
     prepare: (parsed, pairs) => ({ text: applyPron(parsed.sents.map(s => s.plain).join(' '), pairs) }),
     async synth(plan, cfg) {
       const local = cfg.provider === 'local', key = findKey(local ? 'local' : 'openai');
+      if (!local && /realtime|audio-preview/i.test(plan.model)) throw new SetupError(`${plan.model} is a realtime or chat model; voice.mjs uses OpenAI's plain speech endpoint (/audio/speech). Use gpt-4o-mini-tts, tts-1 or tts-1-hd.`);
+      if (!local && /^tts-1/.test(plan.model) && /^(ballad|verse|marin|cedar)$/.test(plan.voice)) throw new SetupError(`${plan.model} has no voice ${plan.voice} (it is only on gpt-4o-mini-tts); pick alloy, ash, coral, echo, fable, nova, onyx, sage or shimmer`);
       const base = (local ? process.env.DOODLE_TTS_BASE_URL || 'http://localhost:8880/v1' : process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
       const body = { model: plan.model, voice: plan.voice, input: plan.text, response_format: 'wav' };
       if (this.direction(plan) && plan.direction) body.instructions = plan.direction.replace(/:\s*$/, '.');
@@ -574,6 +631,98 @@ const ADAPTERS = {
 };
 ADAPTERS.local = ADAPTERS.openai;
 
+// the three providers that report timing. Each returns the audio, its word times (see wordTimes) and the characters billed.
+const baseUrl = (v, d) => (process.env[v] || d).replace(/\/+$/, '');
+const decodeAudio = (buf, rate) => buf.length >= 12 && buf.toString('ascii', 0, 4) === 'RIFF' ? readWav(buf) : { samples: pcm16le(buf), rate };
+const clampSpeed = (s, lo, hi, P) => { const v = Math.min(hi, Math.max(lo, s || 1)); if (Math.abs(v - (s || 1)) > 1e-6) note(`voice: ${P} takes speeds from ${lo} to ${hi}; using ${v}`); return v; };
+function tooLong(plan, max, P) {
+  if (plan.text.length > max) throw new SetupError(`${plan.id}: its narration is ${plan.text.length} characters and ${P} takes at most ${max} in one request; split it across two plates`);
+}
+function parseJson(res, P) { try { return JSON.parse(res.body.toString()); } catch { throw new Retryable(`${P} answered with something that is not JSON`); } }
+// our tags for each provider: a pause tag becomes that provider's pause, other tags are kept where the voice acts them
+function tagText(parsed, pairs, tag) {
+  return applyPron(parsed.sents.map(s => s.toks.map(t => t.tag != null ? tag(t.tag) : t.text).filter(Boolean).join(' ')).join(' '), pairs).replace(/\s+/g, ' ').trim();
+}
+const GROK_TAGS = new Set(['pause', 'long-pause', 'breath', 'inhale', 'exhale', 'sigh', 'laugh', 'chuckle', 'hum', 'tsk', 'giggle', 'cry']);
+const breakTag = (t, max = 10) => { const p = pauseOf(t); return p ? `<break time="${Math.min(max, p)}s" />` : null; };
+ADAPTERS.xai = {
+  direction: () => false,
+  prepare: (parsed, pairs) => ({ text: tagText(parsed, pairs, t => { const p = pauseOf(t), k = t.trim().toLowerCase();
+    return p ? (p >= 0.8 ? '[long-pause]' : '[pause]') : GROK_TAGS.has(k) ? `[${k}]` : ''; }) }),
+  async synth(plan) {
+    tooLong(plan, 15000, 'Grok');
+    const key = findKey('xai'), rate = 24000, body = { text: plan.text, voice_id: plan.voice, language: 'en', with_timestamps: true,
+      output_format: { codec: 'pcm', sample_rate: rate } };
+    if (plan.model && plan.model !== PROVIDERS.xai.model) body.model = plan.model;
+    if (plan.speed && plan.speed !== 1) body.speed = clampSpeed(plan.speed, 0.7, 1.5, 'Grok');
+    const headers = { 'content-type': 'application/json' }; if (key) headers.authorization = `Bearer ${key.value}`;
+    const res = await call('xai', key, `${baseUrl('DOODLE_XAI_BASE_URL', 'https://api.x.ai/v1')}/tts`, { method: 'POST', headers, body: JSON.stringify(body) });
+    if (!/json/i.test(res.headers['content-type'] || '')) return { ...decodeAudio(res.body, rate), chars: plan.text.length };
+    const j = parseJson(res, 'Grok'), b64 = j.audio ?? j.audio_base64 ?? j.data;
+    if (!b64) throw new Retryable('Grok returned no audio');
+    const ts = j.audio_timestamps || j.timestamps || {}, cs = ts.graph_chars || ts.chars || [], tt = ts.graph_times || ts.times || [];
+    // one time per character; if only starts are given, a character ends where the next begins
+    const chars = cs.map((c, i) => { const t = tt[i], s = Array.isArray(t) ? t[0] : t, e = Array.isArray(t) ? t[1] : (Array.isArray(tt[i + 1]) ? tt[i + 1][0] : tt[i + 1] ?? s + 0.08);
+      return [c, +s, +e]; }).filter(c => Number.isFinite(c[1]));
+    const ms = chars.length && chars.at(-1)[2] > 600;                          // times in milliseconds
+    return { ...decodeAudio(Buffer.from(b64, 'base64'), rate), chars: plan.text.length,
+      words: chars.length ? wordTimes(plan.parsed, plan.pairs, { chars: ms ? chars.map(([c, s, e]) => [c, s / 1000, e / 1000]) : chars }) : null };
+  },
+};
+const ELEVEN_ID = /^[A-Za-z0-9]{20}$/;
+let elevenVoices = null;
+async function elevenVoice(name, key) {
+  if (ELEVEN_ID.test(name)) return name;
+  const headers = key ? { 'xi-api-key': key.value } : {};
+  elevenVoices ||= call('elevenlabs', key, `${baseUrl('DOODLE_ELEVENLABS_BASE_URL', 'https://api.elevenlabs.io/v1')}/voices`, { headers, timeout: 30000 })
+    .then(r => parseJson(r, 'ElevenLabs').voices || []);
+  const vs = await elevenVoices, n = name.toLowerCase();
+  const v = vs.find(x => x.name?.toLowerCase() === n) || vs.find(x => x.name?.toLowerCase().split(/\s+[-–—(]|,/)[0].trim() === n);
+  if (!v) throw new SetupError(`ElevenLabs has no voice called "${name}" on this account. Use a voice ID, or one of: ${vs.map(x => x.name).slice(0, 25).join(', ') || '(none listed)'}. Voices from the Voice Library must be added to your account first.`);
+  return v.voice_id;
+}
+ADAPTERS.elevenlabs = {
+  direction: () => false,
+  // eleven_v3 acts audio tags like [curious] and ignores <break>, so a pause becomes an ellipsis; the older models
+  // take <break time="..."/> (at most 3 s) and would read other tags aloud
+  prepare: (parsed, pairs, plan) => ({ text: /v3/.test(plan.model) ? tagText(parsed, pairs, t => pauseOf(t) ? '...' : `[${t}]`) : tagText(parsed, pairs, t => breakTag(t, 3) || '') }),
+  async synth(plan) {
+    tooLong(plan, /v3/.test(plan.model) ? 5000 : 10000, 'ElevenLabs');
+    const key = findKey('elevenlabs'), rate = 24000, voice = await elevenVoice(plan.voice, key);
+    const body = { text: plan.text, model_id: plan.model, voice_settings: { stability: /v3/.test(plan.model) ? 0.5 : 0.6, similarity_boost: 0.75,
+      ...(plan.speed && plan.speed !== 1 ? { speed: clampSpeed(plan.speed, 0.7, 1.2, 'ElevenLabs') } : {}) } };
+    const headers = { 'content-type': 'application/json' }; if (key) headers['xi-api-key'] = key.value;
+    const res = await call('elevenlabs', key, `${baseUrl('DOODLE_ELEVENLABS_BASE_URL', 'https://api.elevenlabs.io/v1')}/text-to-speech/${encodeURIComponent(voice)}/with-timestamps?output_format=pcm_${rate}`,
+      { method: 'POST', headers, body: JSON.stringify(body) });
+    const j = parseJson(res, 'ElevenLabs');
+    if (!j.audio_base64) throw new Retryable('ElevenLabs returned no audio');
+    const al = j.alignment || j.normalized_alignment, cs = al?.characters || [];
+    const chars = cs.map((c, i) => [c, +al.character_start_times_seconds[i], +(al.character_end_times_seconds?.[i] ?? al.character_start_times_seconds[i])]);
+    return { ...decodeAudio(Buffer.from(j.audio_base64, 'base64'), rate), chars: plan.text.length, words: chars.length ? wordTimes(plan.parsed, plan.pairs, { chars }) : null };
+  },
+};
+ADAPTERS.inworld = {
+  // inworld-tts-2 follows a written direction and plain-English tags like [curious]; the Flash model ignores both
+  direction: plan => !/flash/i.test(plan.model),
+  prepare: (parsed, pairs, plan) => ({ text: tagText(parsed, pairs, t => breakTag(t, 10) || (/flash/i.test(plan.model) ? '' : `[${t}]`)) }),
+  async synth(plan) {
+    tooLong(plan, 2000, 'Inworld');
+    const key = findKey('inworld'), rate = 24000;
+    const body = { text: plan.text, voiceId: plan.voice, modelId: plan.model, timestampType: 'WORD',
+      audioConfig: { audioEncoding: 'LINEAR16', sampleRateHertz: rate, ...(plan.speed && plan.speed !== 1 ? { speakingRate: clampSpeed(plan.speed, 0.5, 1.5, 'Inworld') } : {}) } };
+    if (plan.direction) body.instruction = plan.direction.replace(/:\s*$/, '.');
+    // the key from Inworld's portal is already Base64 and is sent as it is; an "id:secret" pair is encoded here
+    const headers = { 'content-type': 'application/json' };
+    if (key) headers.authorization = `Basic ${key.value.includes(':') ? Buffer.from(key.value).toString('base64') : key.value}`;
+    const res = await call('inworld', key, `${baseUrl('DOODLE_INWORLD_BASE_URL', 'https://api.inworld.ai')}/tts/v1/voice`, { method: 'POST', headers, body: JSON.stringify(body) });
+    const j = parseJson(res, 'Inworld');
+    if (!j.audioContent) throw new Retryable('Inworld returned no audio');
+    const wa = j.timestampInfo?.wordAlignment, ws = wa?.words || [];
+    const words = ws.map((w, i) => [w, +wa.wordStartTimeSeconds[i], +wa.wordEndTimeSeconds[i]]).filter(w => Number.isFinite(w[1]));
+    return { ...decodeAudio(Buffer.from(j.audioContent, 'base64'), rate), chars: plan.text.length, words: words.length ? wordTimes(plan.parsed, plan.pairs, { words }) : null };
+  },
+};
+
 // ---------------------------------------------------------------- settings, plans, clips
 function readJson(file, what) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
@@ -604,7 +753,8 @@ function planUnit(u, cfg) {
   const plan = { id: u.id, plate: u.plate, key: u.key, parsed, provider: cfg.provider, model: cfg.model,
     voice: flags.voice || (cfg.own && u.voice) || cfg.voice, direction: u.direction ?? cfg.direction, speed: +(u.speed ?? cfg.speed) || 1,
     lead: +(u.lead ?? cfg.lead), tail: +(u.tail ?? cfg.tail) };
-  Object.assign(plan, A.prepare(parsed, sayAs(cfg.pron, cfg.provider)));
+  plan.pairs = sayAs(cfg.pron, cfg.provider);
+  Object.assign(plan, A.prepare(parsed, plan.pairs, plan));
   if (!A.direction(plan)) plan.direction = '';
   plan.fp = crypto.createHash('sha256').update(JSON.stringify([FORMAT, plan.provider, plan.model, plan.voice, plan.direction, plan.speed,
     plan.text ?? plan.chunks])).digest('hex').slice(0, 12);
@@ -638,6 +788,7 @@ function saveClip(plan, cfg, res, take, clipDir) {
   }
   const shift = t => r3(Math.max(0, Math.min(y.length / rate, t - a / rate)));
   if (res.sentences) meta.sentences = res.sentences.map(([s, e]) => [shift(s), shift(e)]);
+  if (res.words) meta.words = res.words.map(([s, e]) => [shift(s), shift(e)]);
   if (res.truth) meta.truth = res.truth.map(([s, e]) => [shift(s), shift(e)]);
   meta.dur = r3(y.length / rate); meta.cost = cost(meta);
   fs.mkdirSync(clipDir, { recursive: true });
@@ -649,8 +800,12 @@ function saveClip(plan, cfg, res, take, clipDir) {
 function describe(plan, cfg, clipDir) {
   const meta = readJson(path.join(clipDir, plan.fp + '.json'), 'a clip sidecar') || {};
   const w = readWav(fs.readFileSync(path.join(clipDir, plan.fp + '.wav'))), m = speechMap(w.samples, w.rate), fl = [];
-  const s = plan.parsed.sents; let times, timing;
+  const s = plan.parsed.sents; let times, timing, words = null;
   if (m.onset == null) { fl.push('fail: no speech in the clip (the provider returned silence)'); times = s.map(() => [0, 0]); timing = 'estimate'; }
+  else if (meta.words?.length === plan.parsed.words) {                      // the provider said when every word starts
+    words = meta.words; timing = 'words'; let k = 0;
+    times = s.map(x => { const a = words[k][0], b = words[k + x.words.length - 1][1]; k += x.words.length; return [a, b]; });
+  }
   else if (meta.sentences?.length === s.length) { times = meta.sentences; timing = 'sentence-clips'; }
   else { const al = alignSentences(s, m); times = al.times; timing = al.matched || s.length === 1 ? 'silence+estimate' : 'estimate'; }
   let wpm = 0;
@@ -671,7 +826,7 @@ function describe(plan, cfg, clipDir) {
     id: plan.id, plate: plan.plate, file: path.relative(DIR, path.join(clipDir, plan.fp + '.wav')).split(path.sep).join('/'), fp: plan.fp,
     take: meta.take || 1, voice: plan.voice, dur: r3(w.samples.length / w.rate), lufs: m.onset == null ? null : r2(lufs(w.samples, w.rate)),
     lead: plan.lead, tail: plan.tail, text: s.map(x => x.plain).join(' '),
-    sentences: s.map((x, j) => [r3(times[j][0]), r3(times[j][1]), x.plain]), marks: markTimes(s, times), timing,
+    sentences: s.map((x, j) => [r3(times[j][0]), r3(times[j][1]), x.plain]), marks: markTimes(s, times, words), timing,
     checks: { wpm, missing: [], extra: [], flags: fl }, _raw: meta.raw_lufs, _cost: meta.cost, _truth: meta.truth,
   };
 }
@@ -1027,18 +1182,21 @@ async function cmdKeys() {
   printTable(['provider', 'key', 'variable'], rows);
   const kf = keysFile(); out(`keys file: ${kf}${fs.existsSync(kf) ? '' : ' (not there)'}`);
   if (!findKey('gemini')) out('Without a Gemini key, requests go out with no key; in a claude.ai cloud environment the network proxy may add one. Run keys --test to see.');
-  out('Grok, ElevenLabs and Inworld keys are listed for later; this version of voice.mjs speaks with gemini, openai, local, kokoro and fake.');
   if (!flags.test) return 0;
   const tests = [
     ['gemini', () => `${(process.env.DOODLE_GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/+$/, '')}/models?pageSize=1`, k => k ? { 'x-goog-api-key': k.value } : {}],
     ['openai', () => `${(process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '')}/models`, k => k ? { authorization: `Bearer ${k.value}` } : {}],
     ['local', () => `${(process.env.DOODLE_TTS_BASE_URL || 'http://localhost:8880/v1').replace(/\/+$/, '')}/models`, k => k ? { authorization: `Bearer ${k.value}` } : {}],
+    ['xai', () => `${baseUrl('DOODLE_XAI_BASE_URL', 'https://api.x.ai/v1')}/models`, k => k ? { authorization: `Bearer ${k.value}` } : {}],
+    ['elevenlabs', () => `${baseUrl('DOODLE_ELEVENLABS_BASE_URL', 'https://api.elevenlabs.io/v1')}/voices`, k => k ? { 'xi-api-key': k.value } : {}],
+    ['inworld', () => `${baseUrl('DOODLE_INWORLD_BASE_URL', 'https://api.inworld.ai')}/tts/v1/voices`, k => k ? { authorization: `Basic ${k.value.includes(':') ? Buffer.from(k.value).toString('base64') : k.value}` } : {}],
   ];
   let bad = 0;
   for (const [p, url, hdr] of tests) {
     const k = findKey(p);
     try { await call(p, k, url(), { headers: hdr(k), timeout: 20000, netTries: 0 }); out(`${KEY_NAMES[p]}: works${k ? ` (key from ${k.where})` : ' (no key sent; the network added one or none is needed)'}`); }
-    catch (e) { if (p !== 'local' || findKey('local') || process.env.DOODLE_TTS_BASE_URL) bad++; out(`${KEY_NAMES[p]}: ${e.message.split('. ')[0]}`); }
+    // counted as a failure: Gemini (the default), a key that was found and refused, or a local server that was named
+    catch (e) { if (p === 'gemini' || k || (p === 'local' && process.env.DOODLE_TTS_BASE_URL)) bad++; out(`${KEY_NAMES[p]}: ${e.message.split('. ')[0]}`); }
   }
   return bad ? 1 : 0;
 }

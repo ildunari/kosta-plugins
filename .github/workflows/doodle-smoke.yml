@@ -59,7 +59,7 @@ jobs:
         run: python -m pip install --upgrade numpy
 
       - name: Voice tool tests
-        # toolkit/voice.mjs with its fake voice and pretend Gemini, OpenAI and proxy servers: no network, keys or cost
+        # toolkit/voice.mjs with its fake voice and pretend Gemini, OpenAI, Grok, ElevenLabs, Inworld and proxy servers: no network, keys or cost
         run: node tests/doodle-art-animation/voice_test.mjs
 
       - name: Acceptance rules (static)
