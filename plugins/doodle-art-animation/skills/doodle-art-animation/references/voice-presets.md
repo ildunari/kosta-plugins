@@ -3,8 +3,9 @@
 Read this when a film is narrated on Gemini, before running `node voice.mjs lines`. It says which narrator and which
 delivery to use, and how to keep Kosta's films from all sounding alike.
 
-A **preset** is one of Gemini's voices plus a **delivery**: the one-line direction sent before the words ("Say warmly,
-like a favourite professor…") and the pace that direction really reads at. Kosta listened to all 30 of Gemini's voices
+A **preset** is one of Gemini's voices plus a **delivery**: a one-line direction ("Say warmly, like a favourite
+professor…", which Gemini 3.8 gets as the voice's style, apart from the words) and the pace that direction really
+reads at. Kosta listened to all 30 of Gemini's voices
 in September 2026 and kept five. The rest were set aside on purpose: most of the male voices sounded alike, and none
 of the other female voices appealed. Don't bring one back unless the user names it.
 
@@ -23,21 +24,24 @@ The pitch in brackets is the median measured on each voice's plain read. A prese
 
 ## The eight deliveries
 
-| Delivery | What it does | Pace | When to use it |
-|---|---|---|---|
-| `plain` | Calm and measured, at a natural conversational pace | 120 wpm | The default. Any topic |
-| `british` | The same calm read with a British English accent. It lifts the pitch a lot (Charon goes from about 118 to 178 Hz), so it sounds like a new voice | 120 wpm | Variety; a formal or historical subject |
-| `professor` | Warm, with a hint of a smile, like a favourite professor explaining something they love | 120 wpm | Explaining how something works, step by step. The explainer style's default |
-| `hushed` | Soft and slightly awed, like a nature documentary | 115 wpm | Reveals of the very small or the very large: inside a cell, a lens dive, deep space |
-| `wry` | Dry, understated wit | 120 wpm | Myth-busting, a surprising or ironic finding, a light topic |
-| `lively` | Bright and brisk, like an enthusiastic science explainer | 160 wpm | Short-form (Reels, Shorts, TikTok). The short-form style's default |
-| `storyteller` | Low and intimate, like a late-night radio storyteller | 105 wpm | The history of a discovery, an origin story, a slow reflective film |
-| `intimate` | Warm, soft and slightly husky, like talking to one close friend | 110 wpm | Personal stakes (a patient, a researcher's life), a quiet ending |
+| Delivery | What it does | Pace | On 3.1 | When to use it |
+|---|---|---|---|---|
+| `plain` | Calm and measured, at a natural conversational pace | 125 wpm | 120 | The default. Any topic |
+| `british` | The same calm read with a British English accent. It lifts the pitch a lot (Charon goes from about 118 to 178 Hz), so it sounds like a new voice | 135 wpm | 120 | Variety; a formal or historical subject |
+| `professor` | Warm, with a hint of a smile, like a favourite professor explaining something they love | 140 wpm | 120 | Explaining how something works, step by step. The explainer style's default |
+| `hushed` | Soft and slightly awed, like a nature documentary | 120 wpm | 115 | Reveals of the very small or the very large: inside a cell, a lens dive, deep space |
+| `wry` | Dry, understated wit | 135 wpm | 120 | Myth-busting, a surprising or ironic finding, a light topic |
+| `lively` | Bright and brisk, like an enthusiastic science explainer | 185 wpm | 160 | Short-form (Reels, Shorts, TikTok). The short-form style's default |
+| `storyteller` | Low and intimate, like a late-night radio storyteller | 130 wpm | 105 | The history of a discovery, an origin story, a slow reflective film |
+| `intimate` | Warm, soft and slightly husky, like talking to one close friend | 130 wpm | 110 | Personal stakes (a patient, a researcher's life), a quiet ending |
 
-The pace is words a minute, measured on the five voices reading the same line; one take can differ from another by
-about 10%. `voice.mjs` uses the preset's pace for the plate estimates in `lines` and for the pace check, so a slow
-delivery gets longer plates instead of a warning. Budget the words to match: a 10-second plate has about 7.5 seconds
-of speech after its lead-in and tail, which holds about 13 words at 105 words a minute and 18 at 138.
+The pace is words a minute, measured on the five voices reading the same 24-word line: "Pace" on Gemini 3.8 Flash
+TTS (the default, September 2026), "On 3.1" on the older 3.1 Flash TTS, where Kosta first heard them. 3.8 reads the
+same directions faster, most of all the slow ones: `storyteller` and `intimate` are no longer much slower than
+`plain`. One take can differ from another by about 10%. `voice.mjs` uses the pace for the film's model in the plate
+estimates in `lines` and in the pace check, so a slow delivery gets longer plates instead of a warning. Budget the
+words to match: a 10-second plate has about 7.5 seconds of speech after its lead-in and tail, which holds about 15
+words at 120 words a minute and 23 at 185.
 
 ## Picking the preset
 
@@ -94,9 +98,11 @@ automatic checks, for about a cent per preset.
 
 - Presets are Gemini voices. `--preset` refuses another provider, and a film on OpenAI, Grok, ElevenLabs, Inworld or
   Kokoro uses that provider's voice and the style's direction (`references/voice-providers.md`).
-- The directions are one line ending in a colon. A longer one is more likely to be read aloud; every preset's
-  direction was checked by transcribing its take, and none was.
-- The `intimate` and `storyteller` deliveries are slow. On a fact-dense plate they may run long; cut words rather
-  than switching to a faster delivery for one plate.
+- The directions are one line ending in a colon. On 3.8 they go to Gemini as the voice's style, not as words, so
+  they are not read aloud; on 3.1 they come before the words, where a longer one is more likely to be read aloud
+  (every preset's direction was checked there by transcribing its take, and none was).
+- The `hushed` delivery is the slowest on 3.8. `intimate` and `storyteller` keep their directions, but on 3.8 they
+  are not much slower than `plain`. On a fact-dense plate a slow delivery may run long; cut words rather than
+  switching to a faster delivery for one plate.
 - None of the five voices imitates a real person. `pulcherrima` was chosen as the lowest and huskiest of Gemini's
   female voices when Kosta asked for a warm, close female narrator.

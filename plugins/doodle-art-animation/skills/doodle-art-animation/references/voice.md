@@ -26,12 +26,12 @@ The style is chosen at intake and recorded in `brief.md`. It sets the writing ru
 
 | Style | Sounds like | Default preset (pace) | Writing rules |
 |---|---|---|---|
-| **Documentary** (default) | A curious, unhurried narrator, like a nature documentary | `charon` (120 words a minute) | Sentences up to about 20 words, one idea each. Pauses before reveals |
-| Explainer | Friendly and clear | `charon-professor` (120) | The same, with fewer long pauses |
-| Short-form | Energetic, for Reels, Shorts or TikTok | `charon-lively` (160) | A hook in the first 2–3 seconds. Sentences under about 12 words. Few pauses |
+| **Documentary** (default) | A curious, unhurried narrator, like a nature documentary | `charon` (125 words a minute) | Sentences up to about 20 words, one idea each. Pauses before reveals |
+| Explainer | Friendly and clear | `charon-professor` (140) | The same, with fewer long pauses |
+| Short-form | Energetic, for Reels, Shorts or TikTok | `charon-lively` (185) | A hook in the first 2–3 seconds. Sentences under about 12 words. Few pauses |
 | Two voices | A host and an expert talking, like a podcast | none | **Planned, not built.** Don't offer it as available |
 
-The pace a film is written and checked against is its preset's (`references/voice-presets.md` lists all of them, from 105 words a minute for `storyteller` to 160 for `lively`). On a provider other than Gemini there are no presets, and the style sets the pace instead: 138 words a minute for documentary, 152 for explainer, 160 for short-form.
+The pace a film is written and checked against is its preset's (`references/voice-presets.md` lists all of them, from 120 words a minute for `hushed` to 185 for `lively` on the default model, Gemini 3.8 Flash TTS; 3.1 read the same directions more slowly, from 105 to 160). On a provider other than Gemini there are no presets, and the style sets the pace instead: 138 words a minute for documentary, 152 for explainer, 160 for short-form.
 
 The engine renders 16:9 landscape only, so a short-form narration still goes on a landscape film.
 
@@ -46,7 +46,7 @@ Write the narration first as one continuous piece, then split it across the plat
 - **The title is not read aloud.** The header types on by itself, and the first line starts once the title has finished typing.
 - **Keep a pronunciation list.** Every technical term the narrator says gets a "say it as" spelling in a `## Pronunciation` section (`- meloxicam: mel-OX-i-cam`). The voice is sent the respelling; the script and the screen keep the real word.
 - **Marks go in braces.** `{count}` before a word names the moment that word is spoken, so a beat can land on it (`stat ≈430 billion per mg at {count}`). Marks are removed before the text is sent to the voice.
-- **Delivery tags go in square brackets:** `[short pause]` (0.25 s), `[medium pause]` (0.5 s), `[long pause]` (1 s), `[curious]`, `[serious]`. Gemini acts them; the other providers drop them, and Kokoro turns a pause tag between sentences into that much silence.
+- **Delivery tags go in square brackets:** `[short pause]` (0.25 s), `[medium pause]` (0.5 s), `[long pause]` (1 s), a vocal sound like `[sigh]` or `[breath]`, or a mood like `[curious]` or `[serious]`. Gemini acts them; the other providers drop them, and Kokoro turns a pause tag between sentences into that much silence. Gemini 3.8 speaks every word it is sent, so the tool rewrites the tags for it: a short or medium pause becomes `<short pause>` (3.8 has no medium one), a long one `<long pause>`, a vocal sound `<sigh>`, and a mood tag makes the rest of the plate a new part of the request with that mood added to the direction. The step to a new part is itself a pause of about a second, so a mood tag is best placed at a sentence break.
 - **A plate with nothing to say** gets a block reading `(none)`, so it is clear the silence is meant.
 
 The `script-reviewer` agent checks each plate's word count against its length at the style's rate, that the narration reads naturally, that it does not repeat on-screen sentences, that every mark a beat names exists, that numbers agree with `facts.md`, and that technical terms are in the pronunciation list.
@@ -81,7 +81,7 @@ Clips are cached by a fingerprint of exactly what was sent (text, provider, mode
 
 | Provider | Model | Cost | Notes |
 |---|---|---|---|
-| **gemini** (default) | `gemini-3.1-flash-tts-preview` | about 3 cents a minute | Acts delivery tags and plain-English directions. No speed setting. Returns no word timing, so marks inside a sentence are estimated (off by up to about 0.3 s) |
+| **gemini** (default) | `gemini-3.8-flash-tts` | about 2 cents a minute (4 from January 2027) | Acts delivery tags and plain-English directions, which it gets as a separate style, never as words. No speed setting. Returns no word timing, so marks inside a sentence are estimated (off by up to about 0.3 s). `gemini-3.8-flash-lite-tts` is about a third cheaper; `gemini-3.1-flash-tts-preview` still works (`--model` on `lines`) |
 | openai | `gpt-4o-mini-tts` | about 1.5 cents a minute | Voices `cedar` (default), `marin`, `ash` |
 | xai (Grok) | Grok's `/v1/tts`, voice `orion` | about 1.5 cents a minute | Reports when each word is spoken, so marks are exact. No written direction; keeps its own sound tags |
 | elevenlabs | `eleven_v3`, voice `Darian` | about 9 cents a minute | Exact word timing. No written direction; acts `[curious]`-style tags |
@@ -92,7 +92,7 @@ Clips are cached by a fingerprint of exactly what was sent (text, provider, mode
 
 Each provider's voices, tags and quirks are in `references/voice-providers.md`.
 
-**On Gemini, choose the voice with a narrator preset** (`references/voice-presets.md`). A preset is one of the five voices Kosta chose by ear (Charon, Orus, Erinome, Leda, Pulcherrima) plus a delivery: the one-line direction sent before the words and the pace it really reads at. That file says which preset suits which film, and how to vary the narrator from one film to the next. `node voice.mjs presets` lists them all. On the other providers, use that provider's default voice (or one the user named) with the style's direction.
+**On Gemini, choose the voice with a narrator preset** (`references/voice-presets.md`). A preset is one of the five voices Kosta chose by ear (Charon, Orus, Erinome, Leda, Pulcherrima) plus a delivery: the one-line direction (sent to Gemini as the voice's style) and the pace it really reads at. That file says which preset suits which film, and how to vary the narrator from one film to the next. `node voice.mjs presets` lists them all. On the other providers, use that provider's default voice (or one the user named) with the style's direction.
 
 ## API keys
 
@@ -118,9 +118,9 @@ Nothing in phase 2b waits for Kosta.
 | Pace more than 15% off the target | The voice read too fast or too slowly for the style | Adjust the text (cut or add words) or set `@speed` for that plate (not on Gemini, which has no speed setting; change the direction instead) |
 | An unplanned gap over about 1.2 s | A pause the script does not ask for | Retake |
 | A take much louder or quieter than the others before levelling | Often a different-sounding take | Retake |
-| Far longer than expected ("the direction may have been read aloud") | Gemini read its direction as part of the line | Retake; if it repeats, shorten the direction |
+| Far longer than expected ("the direction may have been read aloud"), or "the direction was read aloud" / "the tag [short pause] was read aloud" from the transcript check | Gemini spoke its direction or a tag as part of the line. Rare on 3.8, which gets them apart from the words; more likely on 3.1 | Retake; if it repeats, shorten the direction, or check that the tag is spelled as the list above has it |
 | Still failing after retakes | | Use the best take, lock with `--force`, and name the plate and the flag in the delivery |
 
 ## Cost
 
-Small enough not to ration. An audition costs about a cent per preset on Gemini. A full 3-minute narration costs 5–30 cents depending on the provider and the retakes (Gemini is about 3 cents a minute). The tool prints what each run's new clips cost; cached clips cost nothing.
+Small enough not to ration. An audition costs about a cent per preset on Gemini. A full 3-minute narration costs 5–30 cents depending on the provider and the retakes (Gemini 3.8 Flash is about 2 cents a minute of finished narration until the end of 2026 and about 4 cents from January 2027, when Google doubles its price; 3.1 was about 4 cents). The tool prints what each run's new clips cost; cached clips cost nothing.

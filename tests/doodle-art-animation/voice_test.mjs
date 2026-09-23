@@ -52,6 +52,22 @@ function wavOf(pcm, rate = 24000, badSize = false) {
   return Buffer.concat([h, pcm]);
 }
 function listen(server) { return new Promise(r => server.listen(0, '127.0.0.1', () => r(server.address().port))); }
+// what a pretend Gemini server was asked for, in either request format: Gemini 3.8 (the Interactions API: the words in
+// parts, the direction as each part's style) or the older models (generateContent: one prompt, direction first)
+function geminiAsk(j) {
+  if (j.input) { const c = j.input[0].content;
+    return { voice: j.generation_config?.speech_config?.[0]?.voice, style: c[0]?.annotations?.[0]?.style, parts: c, text: c.map(x => x.text).join(' ') }; }
+  const t = j.contents?.[0]?.parts?.[0]?.text || '';
+  return { voice: j.generationConfig?.speechConfig?.voiceConfig?.prebuiltVoiceConfig?.voiceName, style: t.match(/^(Say[^:]*):/)?.[1], prompt: t, text: t.replace(/^Say[^:]*:\s*/, '') };
+}
+// its answer: a WAV in steps[].content for 3.8, raw 24 kHz PCM in candidates for the older models
+function geminiReply(j, pcm) {
+  if (j.input) return { id: 'test', status: 'completed', steps: [{ type: 'model_output', content: [{ type: 'audio', mime_type: 'audio/wav', data: wavOf(pcm).toString('base64') }] }],
+    usage: { total_input_tokens: 30, total_output_tokens: 250 } };
+  return { candidates: [{ content: { parts: [{ inlineData: { mimeType: 'audio/L16;codec=pcm;rate=24000', data: pcm.toString('base64') } }] } }],
+    usageMetadata: { promptTokenCount: 30, candidatesTokenCount: 250 } };
+}
+const unspoken = t => t.replace(/\[[^\]]*\]|<[^>]*>/g, '');
 
 const SCRIPT = `# Script · Test Film
 
@@ -241,29 +257,29 @@ let ffmpegClip = null;
       const j = body ? JSON.parse(body) : {}; seen.push({ url: req.url, headers: req.headers, body: j });
       const send = (code, obj) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(obj)); };
       if (mode === '429-once' && calls === 1) return send(429, { error: { code: 429, details: [{ retryDelay: '0.05s' }] }, retryDelay: '0.05s' });
-      if (mode === 'text-once' && calls === 1) return send(200, { candidates: [{ content: { parts: [{ text: 'I cannot read that.' }] }, finishReason: 'OTHER' }] });
+      if (mode === 'text-once' && calls === 1) return send(200, j.input ? { id: 'test', status: 'completed', steps: [{ type: 'model_output', content: [{ type: 'text', text: 'I cannot read that.' }] }] }
+        : { candidates: [{ content: { parts: [{ text: 'I cannot read that.' }] }, finishReason: 'OTHER' }] });
       if (req.method === 'GET') return send(200, { models: [], data: [] });
       if (mode === '403') return send(403, { error: { code: 403, message: `API key not valid: ${req.headers['x-goog-api-key'] || 'none'}` } });
-      const text = j.contents[0].parts[0].text.replace(/^Say[^:]*:\s*/, '').replace(/\[[^\]]*\]/g, '');
-      send(200, { candidates: [{ content: { parts: [{ inlineData: { mimeType: 'audio/L16;codec=pcm;rate=24000', data: tonePcm(text).toString('base64') } }] } }],
-        usageMetadata: { promptTokenCount: 30, candidatesTokenCount: 250 } });
+      send(200, geminiReply(j, tonePcm(unspoken(geminiAsk(j).text))));
     });
   });
   const port = await listen(srv), env = { DOODLE_GEMINI_BASE_URL: `http://127.0.0.1:${port}/v1beta` };
+  const ask = s => (s.body.input || s.body.contents) ? geminiAsk(s.body) : { text: '' };
   const d = film('gemini');
   await run(d, ['lines', 'script.md', '--provider', 'gemini']);
   mode = '429-once'; calls = 0;
   const g = await run(d, ['generate', '--jobs', '1'], env);
   check('gemini: generate works against the API format', g.code === 0, g.all);
-  const req = seen.find(s => s.body.contents?.[0]?.parts?.[0]?.text?.includes('vein'));
-  const cfg = req?.body.generationConfig;
-  check('gemini: the model is in the URL and the voice in speechConfig', /\/v1beta\/models\/gemini-3\.1-flash-tts-preview:generateContent$/.test(req?.url || '')
-    && cfg?.responseModalities?.[0] === 'AUDIO' && cfg?.speechConfig?.voiceConfig?.prebuiltVoiceConfig?.voiceName === 'Charon', JSON.stringify(req));
-  const t = req?.body.contents[0].parts[0].text || '';
-  check('gemini: direction first, pause tags kept, marks removed', /^Say in a calm, measured voice, at a natural conversational pace: One particle/.test(t) && t.includes('[short pause]') && !/[{}]/.test(t), t);
+  const req = seen.find(s => ask(s).text.includes('vein')), a = req ? ask(req) : {};
+  check('gemini: 3.8 is the default, asked through the Interactions API with the voice and nothing stored', req?.url === '/v1beta/interactions'
+    && req.body.model === 'gemini-3.8-flash-tts' && a.voice === 'Charon' && req.body.response_format?.type === 'audio' && req.body.store === false, JSON.stringify(req));
+  check('gemini: on 3.8 the direction is the style, never words to speak', a.style === 'in a calm, measured voice, at a natural conversational pace'
+    && /^One particle slips into the vein\./.test(a.text) && !/\bSay\b/.test(a.text), JSON.stringify(a));
+  check('gemini: on 3.8 a pause tag is sent as <short pause>, and marks are removed', a.text.includes('<short pause>') && !/[[\]{}]/.test(a.text), a.text);
   check('gemini: no key header when no key is set (the cloud proxy may add it)', seen.every(s => !('x-goog-api-key' in s.headers)), JSON.stringify(seen.map(s => Object.keys(s.headers))));
   check('gemini: a 429 is waited out and retried', /rate-limiting/.test(g.err) && seen.length >= 4, g.all);
-  check('gemini: the per-plate direction is sent for that plate', seen.some(s => /^Say slowly, with wonder: Within seconds/.test(s.body.contents?.[0]?.parts?.[0]?.text || '')), '');
+  check('gemini: the per-plate direction is sent for that plate', seen.some(s => ask(s).style === 'slowly, with wonder' && /^Within seconds/.test(ask(s).text)), JSON.stringify(seen.map(s => ask(s).style)));
   const V = readJson(path.join(d, 'vo/voice.json'));
   check('gemini: 24 kHz clips with sentence times from the pauses', V.units.every(u => wavInfo(path.join(d, u.file)).rate === 24000) && V.units[0].sentences.length === 2
     && V.units[0].sentences[1][0] > V.units[0].sentences[0][1], JSON.stringify(V.units[0]));
@@ -271,6 +287,33 @@ let ffmpegClip = null;
   const GL = readJson(path.join(d, 'vo/lines.json')); GL.units[0].speed = 0.8; fs.writeFileSync(path.join(d, 'vo/lines.json'), JSON.stringify(GL, null, 2));
   const n0 = seen.length, sp = await run(d, ['generate'], env);
   check('gemini: a speed is ignored with a warning, not paid for with a new take', sp.code === 0 && /no speed setting/.test(sp.err) && seen.length === n0, sp.all);
+
+  // tags on 3.8: pauses and vocal sounds become <tags>, any other tag starts a part with that tag added to the style
+  const dt = film('gemini-tags', SCRIPT.replace('One particle slips into the vein. [short pause]', 'One particle slips into the vein. [medium pause]')
+    .replace('Meloxicam waits inside.', '[curious] Meloxicam waits inside. [long pause] [sigh] It waits.'));
+  await run(dt, ['lines', 'script.md', '--provider', 'gemini']);
+  mode = 'ok'; seen.length = 0;
+  const gt = await run(dt, ['generate'], env);
+  const p1 = seen.map(ask).find(x => /vein/.test(x.text)), p2 = seen.map(ask).find(x => /Within seconds/.test(x.text));
+  check('gemini: on 3.8 a medium pause is sent as <short pause> (3.8 has no medium one)', gt.code === 0 && /vein\. <short pause> It is one/.test(p1?.text || ''), gt.all + JSON.stringify(p1));
+  check('gemini: on 3.8 [curious] starts a new part whose style adds it; [long pause] and [sigh] stay in the words as <tags>', p2?.parts?.length === 2
+    && p2.parts[0].annotations[0].style === 'slowly, with wonder' && /corona\.$/.test(p2.parts[0].text)
+    && p2.parts[1].annotations[0].style === 'slowly, with wonder; curious' && p2.parts[1].text === 'mel-OX-ih-kam waits inside. <long pause> <sigh> It waits.', JSON.stringify(p2?.parts));
+  const Vt = readJson(path.join(dt, 'vo/voice.json'));
+  check('gemini: on 3.8 the clip, its words and times come back from the WAV in the answer', Vt.units.length === 3 && Vt.units.every(u => wavInfo(path.join(dt, u.file)).rate === 24000)
+    && Vt.units[1].text.endsWith('Meloxicam waits inside. It waits.'), JSON.stringify(Vt.units[1]));
+
+  // the older models still work, in their own format: one prompt, direction first, tags in square brackets
+  const dl = film('gemini-3.1');
+  await run(dl, ['lines', 'script.md', '--provider', 'gemini', '--model', 'gemini-3.1-flash-tts-preview']);
+  seen.length = 0;
+  const gl = await run(dl, ['generate', '--model', 'gemini-3.1-flash-tts-preview'], env);
+  const rl = seen.find(s => ask(s).text.includes('vein')), cl = rl?.body.generationConfig, tl = rl ? ask(rl).prompt : '';
+  check('gemini 3.1: the model is in the URL and the voice in speechConfig', gl.code === 0 && /\/v1beta\/models\/gemini-3\.1-flash-tts-preview:generateContent$/.test(rl?.url || '')
+    && cl?.responseModalities?.[0] === 'AUDIO' && cl?.speechConfig?.voiceConfig?.prebuiltVoiceConfig?.voiceName === 'Charon', gl.all + JSON.stringify(rl));
+  check('gemini 3.1: direction first, pause tags kept in square brackets, marks removed', /^Say in a calm, measured voice, at a natural conversational pace: One particle/.test(tl) && tl.includes('[short pause]') && !/[{}]/.test(tl), tl);
+  const Vl = readJson(path.join(dl, 'vo/voice.json'));
+  check('gemini 3.1: its clips are priced as 3.1 (three clips of 250 audio tokens: about $0.02, against $0.0068 on 3.8)', Vl.model === 'gemini-3.1-flash-tts-preview' && /about \$0\.02\b/.test(gl.out) && /about \$0\.0068\b/.test(g.out), gl.out + JSON.stringify(Vl).slice(0, 200));
 
   mode = 'text-once'; calls = 0; seen.length = 0;
   const tx = await run(d, ['generate', '--retake', 'P1', '--jobs', '1'], env);
@@ -301,10 +344,8 @@ let ffmpegClip = null;
     let body = ''; req.on('data', c => body += c);
     req.on('end', () => {
       const j = body ? JSON.parse(body) : {}; seen.push(j);
-      const text = j.contents[0].parts[0].text.replace(/^Say[^:]*:\s*/, '').replace(/\[[^\]]*\]/g, '');
       res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ candidates: [{ content: { parts: [{ inlineData: { mimeType: 'audio/L16;codec=pcm;rate=24000', data: tonePcm(text).toString('base64') } }] } }],
-        usageMetadata: { promptTokenCount: 30, candidatesTokenCount: 250 } }));
+      res.end(JSON.stringify(geminiReply(j, tonePcm(unspoken(geminiAsk(j).text)))));
     });
   });
   const port = await listen(srv), env = { DOODLE_GEMINI_BASE_URL: `http://127.0.0.1:${port}/v1beta` };
@@ -317,10 +358,10 @@ let ffmpegClip = null;
 
   const d = film('presets');
   const r0 = await run(d, ['lines', 'script.md', '--provider', 'gemini']), L0 = lj(d);
-  check('presets: a new Gemini film gets its style\'s preset (documentary: charon)', r0.code === 0 && L0.preset === 'charon' && L0.voice === 'Charon' && L0.wpm === 120
+  check('presets: a new Gemini film gets its style\'s preset (documentary: charon) at its pace on 3.8', r0.code === 0 && L0.preset === 'charon' && L0.voice === 'Charon' && L0.wpm === 125
     && /^Say in a calm, measured voice/.test(L0.direction) && /preset charon/.test(r0.out), JSON.stringify(L0) + r0.all);
   const r1 = await run(d, ['lines', 'script.md', '--preset', 'Orus-Storyteller']), L1 = lj(d);
-  check('lines --preset: sets the voice, direction and pace', r1.code === 0 && L1.preset === 'orus-storyteller' && L1.voice === 'Orus' && L1.wpm === 105
+  check('lines --preset: sets the voice, direction and pace', r1.code === 0 && L1.preset === 'orus-storyteller' && L1.voice === 'Orus' && L1.wpm === 130
     && /late-night radio storyteller/.test(L1.direction) && L1.units.length === 3, JSON.stringify(L1) + r1.all);
   fs.writeFileSync(path.join(d, 'vo/lines.json'), JSON.stringify({ ...L1, direction: 'Say it my way:' }, null, 2));
   const r2 = await run(d, ['lines', 'script.md']), L2 = lj(d);
@@ -328,27 +369,40 @@ let ffmpegClip = null;
   const r3 = await run(d, ['lines', 'script.md', '--preset', 'charon-plain']), L3 = lj(d);
   check('lines --preset: charon-plain is charon', r3.code === 0 && L3.preset === 'charon' && L3.voice === 'Charon', JSON.stringify(L3));
   const r4 = await run(d, ['lines', 'script.md', '--style', 'short-form']), L4 = lj(d);
-  check('lines --style: a film on its style\'s preset moves to the new style\'s preset', r4.code === 0 && L4.preset === 'charon-lively' && L4.wpm === 160 && L4.style === 'short-form', JSON.stringify(L4));
+  check('lines --style: a film on its style\'s preset moves to the new style\'s preset', r4.code === 0 && L4.preset === 'charon-lively' && L4.wpm === 185 && L4.style === 'short-form', JSON.stringify(L4));
   const bad = await run(d, ['lines', 'script.md', '--preset', 'hal-9000']);
   check('lines --preset: an unknown preset is an error that lists the narrators (exit 2)', bad.code === 2 && /unknown preset "hal-9000".*charon, orus/.test(bad.err), bad.all);
   const mix = await run(d, ['lines', 'script.md', '--preset', 'leda', '--provider', 'openai']);
   check('lines --preset: refuses another provider (exit 2)', mix.code === 2 && /Gemini voice/.test(mix.err), mix.all);
+  check('presets: each has its pace on 3.8 and on 3.1', P.find(q => q.preset === 'charon')?.wpm === 125 && P.find(q => q.preset === 'charon')?.wpm_3_1 === 120
+    && P.find(q => q.preset === 'pulcherrima')?.wpm === 130 && P.find(q => q.preset === 'pulcherrima')?.wpm_3_1 === 110, JSON.stringify(P.slice(0, 1)));
+
+  // a film made on 3.1 stays on 3.1 at 3.1's pace; moving it to 3.8 moves the pace too, unless it was set by hand
+  const dm = film('presets-3.1');
+  const m1 = await run(dm, ['lines', 'script.md', '--preset', 'charon-storyteller', '--model', 'gemini-3.1-flash-tts-preview']), M1 = lj(dm);
+  const m2 = await run(dm, ['lines', 'script.md']), M2 = lj(dm);
+  check('lines: a film on 3.1 keeps 3.1 and its pace when lines runs again', m1.code === 0 && M1.wpm === 105 && m2.code === 0 && M2.model === 'gemini-3.1-flash-tts-preview' && M2.wpm === 105, JSON.stringify([M1.model, M1.wpm, M2.model, M2.wpm]));
+  const m3 = await run(dm, ['lines', 'script.md', '--model', 'gemini-3.8-flash-tts']), M3 = lj(dm);
+  check('lines --model: moving a film from 3.1 to 3.8 takes the preset\'s 3.8 pace', m3.code === 0 && M3.model === 'gemini-3.8-flash-tts' && M3.preset === 'charon-storyteller' && M3.wpm === 130, JSON.stringify(M3));
+  fs.writeFileSync(path.join(dm, 'vo/lines.json'), JSON.stringify({ ...M3, model: 'gemini-3.1-flash-tts-preview', wpm: 99 }, null, 2));
+  const m4 = await run(dm, ['lines', 'script.md', '--model', 'gemini-3.8-flash-tts']), M4 = lj(dm);
+  check('lines --model: a pace set by hand stays when the model changes', m4.code === 0 && M4.model === 'gemini-3.8-flash-tts' && M4.wpm === 99, JSON.stringify(M4));
 
   await run(d, ['lines', 'script.md', '--preset', 'pulcherrima']);
   seen.length = 0;
   const g = await run(d, ['generate', '--jobs', '1'], env), V = g.code === 0 ? readJson(path.join(d, 'vo/voice.json')) : {};
-  const sent = seen.map(j => [j.generationConfig?.speechConfig?.voiceConfig?.prebuiltVoiceConfig?.voiceName, j.contents[0].parts[0].text]);
-  check('presets: generate sends the preset\'s voice and direction, and voice.json names it', g.code === 0 && V.preset === 'pulcherrima' && V.wpm_target === 110
-    && sent.length === 3 && sent.every(([v, t]) => v === 'Pulcherrima' && /^Say (warmly and intimately|slowly, with wonder)/.test(t))
-    && sent.filter(([, t]) => /^Say warmly and intimately/.test(t)).length === 2, JSON.stringify(sent) + g.all);
-  check('presets: a plate\'s own @direction still wins', sent.some(([, t]) => /^Say slowly, with wonder: Within seconds/.test(t)), JSON.stringify(sent));
+  const sent = seen.map(j => { const a = geminiAsk(j); return [a.voice, a.style, a.text]; });
+  check('presets: generate sends the preset\'s voice and direction (as the style), and voice.json names it', g.code === 0 && V.preset === 'pulcherrima' && V.wpm_target === 130
+    && sent.length === 3 && sent.every(([v, s]) => v === 'Pulcherrima' && /^(warmly and intimately|slowly, with wonder)/.test(s))
+    && sent.filter(([, s]) => /^warmly and intimately/.test(s)).length === 2, JSON.stringify(sent) + g.all);
+  check('presets: a plate\'s own @direction still wins', sent.some(([, s, t]) => s === 'slowly, with wonder' && /^Within seconds/.test(t)), JSON.stringify(sent));
 
   seen.length = 0;
   const a = await run(d, ['audition', '--presets', 'orus-wry,leda-lively'], env), A = a.code === 0 ? readJson(path.join(d, 'vo/audition/audition.json')) : {};
-  const pairs = [...new Set(seen.map(j => `${j.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName}|${j.contents[0].parts[0].text.split(':')[0]}`))].sort();
+  const pairs = [...new Set(seen.map(j => { const a = geminiAsk(j); return `${a.voice}|${a.style}`; }))].sort();
   check('audition --presets: one voice and direction per preset, files named after them', a.code === 0 && JSON.stringify(A.presets) === '["orus-wry","leda-lively"]'
     && A.results.every(x => /^(orus-wry|leda-lively)\.(mp3|wav)$/.test(path.basename(x.file)))
-    && JSON.stringify(pairs) === JSON.stringify(['Leda|Say with bright energy at a brisk pace, like an enthusiastic science explainer', 'Orus|Say with dry, understated wit, like a narrator who finds this quietly amusing, at a natural pace']),
+    && JSON.stringify(pairs) === JSON.stringify(['Leda|with bright energy at a brisk pace, like an enthusiastic science explainer', 'Orus|with dry, understated wit, like a narrator who finds this quietly amusing, at a natural pace']),
     JSON.stringify(pairs) + a.all);
   const md = fs.readFileSync(path.join(d, 'vo/audition/audition.md'), 'utf8');
   check('audition --presets: audition.md has a Preset column', /\| Preset \| Voice \| Direction/.test(md) && /\| orus-wry \| Orus \|/.test(md), md);

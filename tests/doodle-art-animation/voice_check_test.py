@@ -49,7 +49,7 @@ SCRIPT = """# Test film
 One particle slips into the vein and drifts toward the liver.
 
 ### II · Two
-Proteins from the blood land on its surface, one by one, until it is coated.
+Proteins from the blood land on its surface, [medium pause] one by one, until it is coated.
 
 ### III · Three
 The polymer swells slowly in water, and the drug begins to leave the core.
@@ -72,8 +72,8 @@ V = json.load(open(os.path.join(film, 'vo', 'voice.json')))
 text = {u['id']: u['text'] for u in V['units']}
 
 transcripts = {
-    'P0': text['P0'].replace(' toward', ''),                                          # one word missing
-    'P1': 'Say calmly, with quiet curiosity: ' + text['P1'],                          # the direction read aloud
+    'P0': text['P0'].replace(' toward', ' quiet'),                                    # one word missing, one stray word that is in the direction
+    'P1': 'Say calmly, with quiet curiosity: ' + text['P1'].replace('surface, ', 'surface, medium pause '),   # the direction and a tag read aloud
     'P2': text['P2'],
     'P4': 'It is one of four hundred and thirty billion in a single milligram, and P C L holds twenty five percent of the drug.',
 }
@@ -87,7 +87,8 @@ check('voice_check: exits 1 when a clip fails', code == 1, out)
 R = json.load(open(res_path))['units']
 fl = {k: ' | '.join(v['flags']) for k, v in R.items()}
 check('words: a planted missing word fails and is named', R['P0']['missing'] == ['toward'] and 'fail: 1 word of the script not heard: toward' in fl['P0'], json.dumps(R['P0']))
-check('words: a direction read aloud fails as extra words', re.search(r'fail: 5 words heard that are not in the script', fl['P1']) is not None, fl['P1'])
+check('words: a direction and a tag read aloud fail, and are named', re.search(r'fail: the direction and the tag \[medium pause\] were read aloud; heard 7 words that are not in the script', fl['P1']) is not None, fl['P1'])
+check('words: one stray word that happens to be in the direction only warns', 'warn: heard quiet, which is not in the script' in fl['P0'] and 'read aloud' not in fl['P0'], fl['P0'])
 check('voice: another person\'s voice is flagged', 'different voice' in fl['P1'] and 'pitch' in fl['P1'], fl['P1'])
 check('voice: the other clips are not flagged as a different voice', not any('different voice' in fl[k] for k in ('P0', 'P2', 'P4')), json.dumps(fl))
 check('pace: a wrong-speed clip fails', re.search(r'fail: pace \d+ words a minute .* too slow', fl['P2']) is not None, fl['P2'])
