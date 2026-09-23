@@ -40,7 +40,7 @@ plugins/doodle-art-animation/       the plugin
                                     script.md -> checked, timed voice clips and vo/voice.json)
 docs/doodle-art-animation/          not shipped with the plugin
   DEVELOPING.md                     this file
-  v0.14-state.md … v0.16.1-state.md what each release changed, how it was checked, its known limits
+  v0.14-state.md … v0.16.3-state.md what each release changed, how it was checked, its known limits
   ACCEPTANCE.md                     the go/no-go rules (L1-L17 films and toolkit, W1-W9 workflow)
   HANDOFF.md                        history, measurements, known weaknesses (paths in it refer to the original handoff zip)
   history/  reference/  examples/   design review, reference-film study images, an older story file
