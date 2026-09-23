@@ -16,6 +16,7 @@ Turn an approved scene script into a built film: phases 3 to 5 of the workflow i
 - The script is the second argument, otherwise `script.md`. Wherever this command says `script.md` below, it means that resolved file — pass its real path to every agent and every freshness comparison. **If there is no script, stop**: say that this command builds an approved plan and that the user should run `/doodle-art-animation:doodle-plan` first. Don't invent a script here.
 - If `script.md` exists but nothing shows it went through Gate 1 (no review notes, no approval in this conversation), say so and offer to run `doodle-art-animation:script-reviewer` on it now. Building against an unreviewed script is how a film gets drawn twice.
 - Read `brief.md` and `facts.md` if they are there, and `cues.md` if `/doodle-art-animation:doodle-plan` already produced a sound plan.
+- **A narrated film needs its locked voice first.** If `brief.md` says the film is narrated (or `script.md` has a `## Narration` section), `vo/voice.json` must exist and say `"locked": true`. If it does not, stop and point the user at `/doodle-art-animation:doodle-voice <folder>`: the plates are timed to the recorded voice, so drawing before it exists means drawing twice. The plate durations in `script.md` are the locked ones.
 
 ## 2. Set up the working folder
 
@@ -38,7 +39,7 @@ Run `doodle-art-animation:sound-designer` with `script.md`, `brief.md` and the a
 
 Fan out with the Agent tool, one agent per plate, all started in one message. The contract is in `references/build-lanes.md`; hold every lane to it.
 
-Each lane gets: the absolute working folder, its own row from the plate table, the seams on either side of it, `helpers.js`, `brief.md`, `facts.md`, and the **absolute paths** of the references it must read (`style.md`, `components.md`, `api.md`, `motion.md`, `animation-principles.md`) — a lane is a fresh agent, so `${CLAUDE_PLUGIN_ROOT}` is not expanded in its prompt and a bare file name resolves nowhere. When a lane returns nothing, an error, or a plate that misses its row, follow "When a lane fails" in `references/build-lanes.md`: the main session finishes it at assembly rather than re-briefing.
+Each lane gets: the absolute working folder, its own row from the plate table, its narration block and that clip's entry from `vo/voice.json` (length and mark times) for a narrated film, the seams on either side of it, `helpers.js`, `brief.md`, `facts.md`, and the **absolute paths** of the references it must read (`style.md`, `components.md`, `api.md`, `motion.md`, `animation-principles.md`) — a lane is a fresh agent, so `${CLAUDE_PLUGIN_ROOT}` is not expanded in its prompt and a bare file name resolves nowhere. When a lane returns nothing, an error, or a plate that misses its row, follow "When a lane fails" in `references/build-lanes.md`: the main session finishes it at assembly rather than re-briefing.
 
 Each lane:
 
@@ -53,6 +54,7 @@ node render.mjs probe_2.html --sheet-range 0-<the plate's duration> --fps 6 --di
 ```
 
 - returns that range sheet (`qa/plate_2/range_0-<dur>.jpg`) as its evidence, plus a line on what it drew and anything it could not do. `--crop x,y,w,h` adds a detail sheet of the same frames for small labels and textures. A probe holds one plate, so its seconds start at 0 whatever the plate's place in the film; `--sheet-range` counts from the start of whatever film it is handed, so those numbers change once the film is assembled;
+- on a narrated film, gives its plate `vo: 'P<n>'` and lands the beats the script ties to marks on those marks: `mark('count')` inside `draw`, `'count'` or `'count+0.3'` as a cue or beat time (`references/api.md`, "Narration"). The plate's `dur` is then the drawing's minimum; the voice decides the rest. A probe built without the voice keeps `dur` and uses `vo.marks` estimates, so give the plate `vo: { id: 'P<n>', marks: { … } }` with the locked times when the lane wants its probe to match;
 - never edits `engine.js`, `shell.html`, `build.py`, the kits, `helpers.js` or another lane's plate file. If a lane needs something in a shared file, it says so and the main session makes that change once, for everyone.
 
 **Fan out from three scenes up.** Below that — one or two plates, or a film of about 30 seconds or less — the briefing costs more than the drawing, so build the scenes yourself one after another. Build serially too when the plates share one continuous shot split only by camera moves, when they are so tied together that the second cannot be drawn without the first (both halves of a custom morph, a recap that redraws earlier art), or when the harness has no way to run agents at all.
@@ -85,6 +87,7 @@ node render.mjs probe_2.html --sheet-range 0-<the plate's duration> --fps 6 --di
 
    The plate list must match `story_tail.js` exactly: a file missing from `assemble.sh` is a `ReferenceError`, and a name missing from `plates` is a plate that silently never plays.
 - Fix every `PAGE ERROR` before going on; a page error means the film is not built.
+- On a narrated film, `build.py` finds `vo/voice.json` by itself and embeds the clips; its output says so. A `WARNING: narration` (a clip a plate asks for that voice.json lacks, or one no plate uses) is fixed here, not left for QA.
 
 ## 6. One shared QA render
 
@@ -99,6 +102,7 @@ node speed_check.mjs film.html
 node legibility_check.mjs film.html --crops qa/legibility   # text over artwork, text below its size floor
 node story_check.mjs film.html                            # time runs forward, stages unique, one hero ID
 node cue_check.mjs film.html                              # no sound dominates or repeats identically
+node render.mjs film.html --stems --dir qa               # narrated films only: voice and the rest as two WAVs, for audio_check --stems
 touch qa/.complete                                    # last, and only if every line above succeeded
 ```
 
@@ -109,7 +113,7 @@ Keep the seam times and the `text_check` and `speed_check` output to hand on to 
 ## 7. Report
 
 - **Plates:** one line each — file, seconds, what it draws, and whether its range sheet looked right.
-- **Sound:** whether `cues.md` exists and what went into the story.
+- **Sound:** whether `cues.md` exists and what went into the story. For a narrated film, the voice line from `build.py` and the film's length with the voice.
 - **Build:** the `build.py` line, the result lines of `text_check`, `legibility_check`, `story_check`, `cue_check` and `speed_check`, and where `qa/` is.
 - **Open:** anything a lane could not do — a fact with no source, a seam that needs both plates changed, a shared-file change it asked for — and what you did about it.
 

@@ -1,6 +1,6 @@
 ---
 name: doodle-render
-description: Final render of a doodle-art-animation film - build, full MP4 at 3800k, then ffprobe, motion and audio checks and a short delivery summary with file sizes.
+description: Final render of a doodle-art-animation film - build, full MP4 at 3800k (and captions for a narrated film), then ffprobe, motion and audio checks and a short delivery summary with file sizes.
 disable-model-invocation: true
 argument-hint: "[story file] [output.mp4]"
 ---
@@ -33,24 +33,28 @@ Run the render in the background and check on it. It prints the frame total firs
 ffprobe -v error -count_frames -select_streams v -show_entries stream=nb_read_frames,width,height,r_frame_rate -of compact <film>.mp4
 python3 motion_check.py <film>.mp4
 python3 audio_check.py <film>.mp4          # add --silent for a story made with silent: true
+# narrated films: the render also wrote <film>.srt; then
+node render.mjs <film>.html --stems --dir qa && python3 audio_check.py <film>.mp4 --narrated --stems qa
 ls -lh <film>.mp4 <film>.html; du -sh <film>_frames
 ```
 
 - The frame count must equal the total `render.mjs` printed, at 1920×1080 and 24 fps.
 - `motion_check`: median at least 1.5, still drawings under 5%.
 - `audio_check` must not FAIL (it exits 1 on no audio, mono, clipping, or a length mismatch). Report its WARN lines.
+- Narrated films: the title line of the render says `narrated`, `<film>.srt` exists next to the MP4, and `audio_check --narrated --stems qa` passes (−16 LUFS ±1, true peak at or under −1 dBTP, `under` 15–20 dB). A `WARNING: narration` from the render is a fault, not a note.
 - At 3800k the MP4 lands at about 20–30 MB per minute (the 55 s One Drop example is 18 MB).
 
 If anything fails, say what and suggest `/doodle-art-animation:doodle-qa`; don't deliver a failing file as final.
 
-**Then review the sound, unless the film is silent.** This is the first moment an MP4 exists, so it is the first moment `doodle-art-animation:audio-reviewer` can do its job — `audio_check` only measures levels, not whether a cue lands on its moment or a bed hands off cleanly across a seam. Run the agent with the working folder, the HTML, the story file, the MP4, the transition times and `cues.md` if there is one, and fix what it fails before delivering. A cue fix means a rebuild and a re-render, so keep it to what matters.
+**Then review the sound, unless the film is silent.** This is the first moment an MP4 exists, so it is the first moment `doodle-art-animation:audio-reviewer` can do its job — `audio_check` only measures levels, not whether a cue lands on its moment or a bed hands off cleanly across a seam. Run the agent with the working folder, the HTML, the story file, the MP4, the transition times and `cues.md` if there is one (and, for a narrated film, `vo/voice.json` and `qa/speech.json`), and fix what it fails before delivering. A cue fix means a rebuild and a re-render, so keep it to what matters.
 
 ## 4. Deliver
 
 Reply with a short summary:
 
 - the MP4 path, size, length and frame count;
-- the HTML path and size (it is also a player: space plays, the arrow keys skip 2 s, `[` and `]` jump between plates);
+- the HTML path and size (it is also a player: space plays, the arrow keys skip 2 s, `[` and `]` jump between plates, and `c` shows captions on a narrated film);
+- for a narrated film, the `<film>.srt` captions path, the voice and provider, and any clip `voice.mjs check` still flags;
 - the `motion_check` and `audio_check` result lines;
 - the render time and worker count (the `frames:` line names both).
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""acceptance_check.py — go / no-go checks for doodle-art-animation (docs/doodle-art-animation/ACCEPTANCE.md: L1-L17 from v0.13, W1-W9 from v0.14).
+"""acceptance_check.py — go / no-go checks for doodle-art-animation (docs/doodle-art-animation/ACCEPTANCE.md: L1-L17 from v0.13, W1-W9 from v0.14, V1-V8, P1, N1-N6 from v0.17).
 
 usage:
   python3 tests/doodle-art-animation/acceptance_check.py            # static text and file checks (seconds)
@@ -473,12 +473,54 @@ if want('P1'):
           bool(re.search(r'__tcFrame[^\n]*renderFrame\(f\);[^\n]*reset\(\)', read(os.path.join(TK, 'text_check.mjs')) or '')))
     check('P1', 'renderFrame starts every frame on plain paper', bool(re.search(r'function renderFrame\([\s\S]{0,1500}?fillRect\(0, 0, W, H\)', ENGINE)))
 
+# ---------------------------------------------------------------- N1-N6 · narration (v0.17)
+DV = read(os.path.join(PLUG, 'skills', 'doodle-voice', 'SKILL.md')) or ''
+VOICE = read(os.path.join(REF, 'voice.md')) or ''
+def agent(n): return read(os.path.join(PLUG, 'agents', n + '.md')) or ''
+def skill(n): return read(os.path.join(PLUG, 'skills', n, 'SKILL.md')) or ''
+if want('N1'):
+    check('N1', 'skills/doodle-voice/SKILL.md exists', bool(DV))
+    check('N1', 'doodle-voice is the user\'s to type', frontmatter(os.path.join(PLUG, 'skills', 'doodle-voice', 'SKILL.md')).get('disable-model-invocation') in (True, 'true'))
+    miss = [w for w in ('voice.mjs lines', 'voice.mjs generate', 'voice.mjs check', 'voice.mjs lock', '--animatic', 'Gate 1', '## Narration') if w not in DV]
+    check('N1', 'doodle-voice stops without narration or Gate 1, then lines, generate, check, lock and an animatic', not miss, 'missing ' + ', '.join(miss))
+    check('N1', 'doodle-voice draws nothing', bool(re.search(r'Nothing is drawn here', DV)))
+    check('N1', 'SKILL.md phase table has the 2b voice row', bool(re.search(r'^\| 2b · Voice', SKILL, re.M)))
+    check('N1', 'doodle-build stops on a narrated film whose voice is not locked', bool(re.search(r'locked[\s\S]{0,200}stop and point the user at `/doodle-art-animation:doodle-voice', skill('doodle-build'))))
+if want('N2'):
+    check('N2', 'references/voice.md exists', bool(VOICE))
+    miss = [w for w in ('130', '145', '160', 'Charon', 'gemini-3.1-flash-tts-preview', 'house narrator', 'keys.env') if w not in VOICE]
+    check('N2', 'voice.md covers styles and rates, the default voice and the house narrator', not miss, 'missing ' + ', '.join(miss))
+    check('N2', 'voice.md says narration is off unless asked', bool(re.search(r'off (by default|unless)', VOICE, re.I)))
+    check('N2', 'voice.md says keys are never printed or written down', bool(re.search(r'never (print|written|write)', VOICE, re.I)))
+    check('N2', 'voice.md says what to do when a clip fails a check', bool(re.search(r'fails a check', VOICE)))
+if want('N3'):
+    check('N3', 'intake.md asks about narration', bool(re.search(r'narrat', read(os.path.join(REF, 'intake.md')) or '', re.I)))
+    check('N3', 'writing.md describes the narration block, marks and pronunciation', all(w in WRITING for w in ('## Narration', '{', '## Pronunciation')))
+    DP = skill('doodle-plan')
+    miss = [w for w in ('voice.mjs\" lines', 'voice.mjs audition', 'doodle-voice', '## Narration', '## Pronunciation') if w not in DP]
+    check('N3', 'doodle-plan writes, times and auditions the narration and hands off to doodle-voice', not miss, 'missing ' + ', '.join(miss))
+if want('N4'):
+    SR, SD, AR, FR, SE = (agent(n) for n in ('script-reviewer', 'sound-designer', 'audio-reviewer', 'film-reviewer', 'seam-reviewer'))
+    check('N4', 'script-reviewer checks narration length, marks and pronunciation', all(re.search(p, SR, re.I) for p in (r'narrat', r'mark', r'pronunciation', r'words a minute|wpm')))
+    check('N4', 'sound-designer plans around the voice', all(re.search(p, SD, re.I) for p in (r'narrat', r'duck')))
+    check('N4', 'audio-reviewer runs audio_check --narrated', '--narrated' in AR)
+    check('N4', 'film-reviewer checks on-screen text against the narration', bool(re.search(r'narrat', FR, re.I)) and bool(re.search(r'(said|spoken|says)', FR)))
+    check('N4', 'seam-reviewer checks lines across a seam', bool(re.search(r'L-cut|J-cut', SE)))
+if want('N5'):
+    DQ, DR5 = skill('doodle-qa'), skill('doodle-render')
+    check('N5', 'doodle-qa runs voice.mjs check and the stems render', 'voice.mjs check' in DQ and '--stems' in DQ)
+    check('N5', 'doodle-render runs audio_check --narrated --stems and delivers the captions', '--narrated --stems' in DR5 and '.srt' in DR5)
+if want('N6'):
+    check('N6', 'toolkit/voice.mjs exists', os.path.isfile(os.path.join(TK, 'voice.mjs')))
+    CI = read(os.path.join(REPO, '.github', 'workflows', 'doodle-smoke.yml')) or ''
+    check('N6', 'CI runs voice_test.mjs and narration_test.py', 'voice_test.mjs' in CI and 'narration_test.py' in CI)
+
 if want('REL'):
     pj = json.loads(read(os.path.join(PLUG, '.claude-plugin', 'plugin.json')) or '{}')
     mj = json.loads(read(os.path.join(REPO, '.claude-plugin', 'marketplace.json')) or '{}')
     mv = next((p.get('version') for p in mj.get('plugins', []) if p.get('name') == 'doodle-art-animation'), None)
-    check('REL', 'plugin.json version 0.16.1', pj.get('version') == '0.16.1', str(pj.get('version')))
-    check('REL', 'marketplace entry version 0.16.1', mv == '0.16.1', str(mv))
+    check('REL', 'plugin.json version 0.17.0', pj.get('version') == '0.17.0', str(pj.get('version')))
+    check('REL', 'marketplace entry version 0.17.0', mv == '0.17.0', str(mv))
 
 # ---------------------------------------------------------------- full checks (build, probe, render)
 def run(cmd, cwd=None, timeout=1800):
@@ -648,7 +690,7 @@ if a.full:
 # ---------------------------------------------------------------- report
 order = ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9', 'L10', 'L11', 'L12', 'L13', 'L14', 'L15', 'L16', 'L17',
          'W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9',
-         'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'P1', 'REL']
+         'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'P1', 'N1', 'N2', 'N3', 'N4', 'N5', 'N6', 'REL']
 col = {'PASS': '\033[32m', 'FAIL': '\033[31m', 'SKIP': '\033[33m'}
 tty = sys.stdout.isatty()
 for item in order:

@@ -1,6 +1,6 @@
 # doodle-art-animation — acceptance (go / no-go)
 
-v0.13's film and toolkit items are L1–L17, v0.14's workflow items W1–W9, v0.15's legibility, story and sound items V1–V8, and v0.16's speed item P1, at the end of this file. All are in force.
+v0.13's film and toolkit items are L1–L17, v0.14's workflow items W1–W9, v0.15's legibility, story and sound items V1–V8, v0.16's speed item P1, and v0.17's narration items N1–N6, at the end of this file. All are in force.
 
 The ledger agreed with Kosta on 2026-09-17, turned into checks. `tests/doodle-art-animation/acceptance_check.py`
 runs every **[auto]** item: with no flags it does the text and file checks, and `--full` adds builds, page probes, renders and timing.
@@ -274,8 +274,46 @@ carrying a fact), `label` (the default: chart axes, legends, card notes), `hud` 
   JSON identical on One Drop, The Long Release and the gallery; contact sheet, strips, seams and range sheets
   byte-identical except the pan seam's sheets, which changed because of the fix above.
 
+## v0.17 — narration (N1–N6)
+
+Voice-over, built in four pieces: the voice tool (`toolkit/voice.mjs`), the engine's narration track, and this
+workflow and its reviewers. The plan behind it lives in the project's `voiceover/plan.md`. Narration is off unless a
+film's request or intake asks for it; a film without narration is made, checked and rendered exactly as before.
+
+## N1 · Words, then voice, then picture
+- [auto] `skills/doodle-voice/SKILL.md` exists, is the user's to type (`disable-model-invocation: true`), stops when
+  the script has no narration or has not passed Gate 1, and runs `voice.mjs` `lines`, `generate`, `check` and `lock`
+  and an animatic before anything is drawn. The main SKILL.md's phase table has a `2b · Voice` row, and
+  `skills/doodle-build/SKILL.md` stops on a narrated film whose `vo/voice.json` is not locked.
+
+## N2 · One reference for narration
+- [auto] `references/voice.md` exists and covers the styles and their speaking rates, narration off by default,
+  Gemini with the voice Charon as the default, the house narrator, keys that are never printed or written into the
+  repo, project files or memory, and what to do when a clip fails a check.
+
+## N3 · The plan carries the narration
+- [auto] `references/intake.md` asks about narration; `references/writing.md` describes the `## Narration` block with
+  `{marks}` and the `## Pronunciation` list; `skills/doodle-plan/SKILL.md` writes the narration with the script,
+  checks its estimated length with `voice.mjs lines`, runs the audition while the plan card stands, and hands a
+  narrated film to `doodle-voice` rather than `doodle-build`.
+
+## N4 · Every reviewer knows about the voice
+- [auto] `script-reviewer` checks narration length against each plate, marks named in beats, and the pronunciation
+  list; `sound-designer` plans around the voice (ducking, no loud cue on an important word); `audio-reviewer` runs
+  `audio_check.py --narrated`; `film-reviewer` checks on-screen text against what is being said; `seam-reviewer`
+  checks lines that run across a seam (an L-cut or J-cut).
+
+## N5 · Narrated films are checked and delivered with their voice
+- [auto] `skills/doodle-qa/SKILL.md` runs `voice.mjs check` and the `--stems` render for a narrated film;
+  `skills/doodle-render/SKILL.md` runs `audio_check.py --narrated --stems` and delivers the `.srt` captions.
+- [eye] The first narrated film made end to end with these steps (voice-over build 6), listened to by Kosta.
+
+## N6 · The narration tools stay tested
+- [auto] `toolkit/voice.mjs` exists, and CI runs `tests/doodle-art-animation/voice_test.mjs` and
+  `tests/doodle-art-animation/narration_test.py`.
+
 ## Release
-- [auto] `plugin.json` and the marketplace entry say `0.16.1`.
+- [auto] `plugin.json` and the marketplace entry say `0.17.0`.
 - [auto] `smoke_test.py` passes on every bundled story, including `story_brushes.js`.
 - [eye] Final independent review against this file and the ledger; example films and gallery re-rendered and
   sent to Kosta.
