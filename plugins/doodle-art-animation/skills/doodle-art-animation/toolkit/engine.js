@@ -2203,6 +2203,8 @@ function defineStory(story) {
   story.plates.forEach(p => {
     if (!(p.dur > 0)) throw new Error(`plate ${p.i}${p.header ? ` (${p.header.title})` : ''} has no dur` + (p.vo ? ', and no narration was embedded to time it (build with vo/voice.json)' : ''));
     p.start = t; t += p.dur; });
+  fitScore(story);                                                     // a tempo grid: plate starts move onto bar lines
+  t = story.plates.reduce((s, p) => s + p.dur, 0);
   const vEnd = Math.max(0, ...story.plates.flatMap(p => p.voice.filter(v => v.unit).map(v => p.start + v.at + v.dur)));
   if (vEnd + 0.3 > t) { const last = story.plates[story.plates.length - 1]; last.dur += vEnd + 0.3 - t; t = vEnd + 0.3; }   // a line running off the end
   indexMarks(story);
@@ -3028,6 +3030,162 @@ const STING = {
 const INST_G = { marimba: 0.07, vibes: 0.05, musicBox: 0.05, kalimba: 0.06, celesta: 0.05, glock: 0.045, epiano: 0.05, pluck: 0.06, feltPiano: 0.06, strings: 0.01 };
 Object.assign(SFX, INST, STING);   // plates cue them by name: cues: [[1.2, 'marimba', { deg: 2 }], [3.0, 'reveal']]
 /*
+ * The score: one tempo grid for the whole film, music beds that keep time to it, a chord plan with direction, a tension
+ * curve that switches layers on and off, and the hero's motif. defineStory({ music: { style, bpm, tonic, ... } }):
+ *   style    'classic' (today's soft pad, the default: no grid, old films are unchanged), 'notebook' (marimba arpeggio
+ *            with felt piano), 'kalimba' (the same on kalimba), 'lofi' (e-piano chords, soft drums, vinyl crackle) or
+ *            'calm' (phasing loops over a drone). Any style but classic turns the grid on
+ *   bpm      a fixed tempo; otherwise the engine picks one in the style's range (MUSIC_STYLES) that fits the plates
+ *   tonic    the key's root in Hz (220 = A)
+ *   chords   the chord plan, one PROG index per plate (0 I, 1 vi, 2 IV, 3 V, 4 ii); default: I first, V on the climax
+ *            plate with ii before it, the end card home on I
+ *   tension  [[t, 0..1], ...] in film seconds, or a function of the timed plates; a plate's own `tension` wins. Default:
+ *            rising from 0.2 to 1 at the climax plate (`climax: true`, else the plate with the biggest `lift`, else the
+ *            one 70% through), then 0.3 on the end card. Layers join as it rises: bass at 0.35, the full arpeggio
+ *            (or drums) at 0.5, a pulse under the plate before the climax, strings at 0.8
+ *   motif    { degs: [2, 3, 4, 6], inst: 'musicBox' }: the hero's four notes. A plate with `motif: true` plays them once
+ *            its transition has landed (on the next beat), `motif: 'vary'` one scale step higher, and the end card
+ *            resolves them home (`motif: 'resolve'`, automatic on the last plate when a motif is set)
+ *   nudge    narrated films: how far (s) a plate's tail may move so the next plate starts on a bar line (default 0.15)
+ * Without narration the picture follows the music: every plate but the last is lengthened (never shortened) to whole
+ * bars, at the tempo in range that adds the least time. With narration the voice sets the lengths, so the engine picks
+ * the tempo that puts the most plate starts on bar lines after nudging tails by up to `nudge` s (a tail only shortens
+ * when its narration still ends 0.3 s before the cut); a plate that still misses plays a pad in free time (p.free) and
+ * the pulse comes back on the next plate that lands. A plate's `music: 'pad' | 'arp' | 'lofi' | 'pulse' | 'phasing'`
+ * overrides its bed; `bed:` still replaces the music outright. Musical cues (instruments, stingers, chime) within 40 ms
+ * of a half beat move onto it; effects stay on their frame.
+ */
+const MUSIC_STYLES = {
+  classic: { bed: 'pad' },
+  notebook: { bed: 'arp', inst: 'marimba', keys: 'feltPiano', bpm: [100, 120] },
+  kalimba: { bed: 'arp', inst: 'kalimba', keys: 'feltPiano', bpm: [100, 120] },
+  lofi: { bed: 'lofi', bpm: [84, 96] },
+  calm: { bed: 'phasing', bpm: [84, 100] },
+};
+const GRID = {
+  on: false, bpm: 100, t0: 0, beatsPerBar: 4,
+  beat() { return 60 / this.bpm; }, bar() { return this.beatsPerBar * 60 / this.bpm; },
+  /** every grid step of `div` beats in [a, b), as [time, step index] */
+  steps(a, b, div = 0.5) { const s = this.beat() * div, out = []; for (let k = Math.ceil((a - this.t0) / s - 1e-6); this.t0 + k * s < b - 1e-6; k++) out.push([this.t0 + k * s, k]); return out; },
+  /** the nearest step of `div` beats to a film time */
+  snap(t, div = 0.5) { const s = this.beat() * div; return this.t0 + Math.round((t - this.t0) / s) * s; },
+  /** the first step of `div` beats at or after t */
+  next(t, div = 1) { const s = this.beat() * div; return this.t0 + Math.ceil((t - this.t0) / s - 1e-6) * s; },
+};
+/** soft drums for the lo-fi and pulse beds */
+const DRUM = {
+  kick(ac, out, t, o = {}) { const r = sfxRng(o, t, 'kick'), g = o.g ?? 0.3; synth(ac, out, t, 0.35, (d, q) => { DSP.chirp(d, 0, 1, rr(q, 105, 125), 48, 0.07, 0.09, 0.35);
+      DSP.chirp(d, 0, 0.25, 220, 110, 0.02, 0.01, 0.05); DSP.burst(d, 0, 0.1, 0.005, 0.001, q); }, { g, r, filters: [{ type: 'lowpass', f: 2500 }] }); },
+  brush(ac, out, t, o = {}) { const r = sfxRng(o, t, 'brush'), g = o.g ?? 0.06; synth(ac, out, t, 0.22, (d, q) => noiseInto(d, q, s => Math.exp(-s / 0.06) * (0.6 + 0.4 * Math.sin(s * 90))), { g, r, pan: 0.1, filters: [{ type: 'bandpass', f: rr(r, 2200, 2800), q: 0.6 }] }); },
+  shaker(ac, out, t, o = {}) { const r = sfxRng(o, t, 'shakerHit'), g = o.g ?? 0.02; synth(ac, out, t, 0.1, (d, q) => noiseInto(d, q, s => Math.min(1, s / 0.03) * Math.exp(-Math.max(0, s - 0.03) / 0.02)), { g: g * rr(r, 0.7, 1), r, pan: 0.3, filters: [{ type: 'highpass', f: 5000 }] }); },
+  vinyl(ac, out, t0, dur, o = {}) { const { g = 0.012 } = o, r = sfxRng(o, t0, 'vinyl');
+    synth(ac, out, t0, dur, (d, q) => { noiseInto(d, q, () => 0.05); for (let s = 0; s < dur; s += -Math.log(1 - q() * 0.999) / 18) DSP.burst(d, s, rr(q, 0.1, 1) ** 3, 0.002, 0.0003, q); },
+      { g, r, pan: 0.1, fade: 0.5, filters: [{ type: 'bandpass', f: 2500, q: 0.4 }] }); },
+};
+const chordOf = (tonic, idx, oct = 0) => PROG[((idx % PROG.length) + PROG.length) % PROG.length].map(s => tonic * 2 ** (s / 12 + oct));
+/* music beds in the plate `bed` shape, locked to GRID so the pulse runs straight through the seams. o: { tonic, chord, tension, ... } */
+const MUS = {
+  /** the classic pad (today's automatic bed): the chord, held, darker and lower at night */
+  pad: (o = {}) => (ac, out, t0, dur) => { SFX.padKey(ac, out, t0, { dur, tonic: o.tonic || 220, chord: o.notes || PROG[((o.chord || 0) % PROG.length + PROG.length) % PROG.length], g: o.g || 0.018, dark: o.dark, oct: o.dark ? -1 : 0 });
+    if (o.dark) SFX.noise(ac, out, t0, { dur, g: 0.025, f0: 160, type: 'lowpass', q: 0.5, a: 1 }); },
+  /** arpeggio: an instrument plays the chord in eighths, thinned by tension; a plucked bass on each bar from 0.35, felt-piano chords every other bar */
+  arp: (o = {}) => (ac, out, t0, dur) => { const { tonic = 220, chord = 0, inst = 'marimba', keys = 'feltPiano', tension = 0.5, g = 0.035, pattern = [0, 1, 2, 3, 2, 1, 2, 1] } = o;
+    const ch = chordOf(tonic, chord, 1), bs = chordOf(tonic / 4, chord), kc = chordOf(tonic / 2, chord), density = 0.35 + 0.65 * clamp((tension - 0.2) / 0.3, 0, 1);
+    for (const [t, k] of GRID.steps(t0, t0 + dur - 0.05, 0.5)) { const inBar = k % (GRID.beatsPerBar * 2), bar = Math.floor(k / (GRID.beatsPerBar * 2)), sr = mulberry(k * 131 + chord * 7);
+      if (inBar === 0 || sr() <= density) INST[inst](ac, out, t, { f: ch[pattern[inBar % pattern.length] % ch.length], g: g * (inBar === 0 ? 1 : 0.75), pan: (k % 2 ? 1 : -1) * 0.35 });
+      if (inBar === 0 && tension >= 0.35) INST.pluck(ac, out, t, { f: bs[0], g: g * 1.6, bright: 0.25, t60: GRID.bar() * 1.2 });
+      if (inBar === 0 && keys && bar % 2 === 0) kc.slice(0, 3).forEach((f, i) => INST[keys](ac, out, t + i * 0.015, { f, g: g * 0.7, vel: 0.3 + 0.3 * tension, pan: (i - 1) * 0.25 })); } },
+  /** lo-fi: e-piano chords on 1 and the and-of-2, and from tension 0.3 a brushed backbeat, swung shaker and soft kick, over vinyl crackle */
+  lofi: (o = {}) => (ac, out, t0, dur) => { const { tonic = 220, chord = 0, tension = 0.5, g = 0.04, swing = 0.12 } = o, ch = chordOf(tonic, chord), beat = GRID.beat(), drums = tension >= 0.3;
+    for (const [t, k] of GRID.steps(t0, t0 + dur - 0.05, 0.5)) { const pos = k % 8, sw = pos % 2 ? swing * beat : 0;
+      if (pos === 0 || pos === 3) ch.forEach((f, i) => INST.epiano(ac, out, t + sw + i * 0.012, { f, g: g * (pos ? 0.6 : 0.8), pan: (i - 1.5) * 0.3, vel: 0.35 }));
+      if (pos === 0 && tension >= 0.35) INST.pluck(ac, out, t, { f: ch[0] / 2, g: g * 1.5, bright: 0.2, t60: GRID.bar() });
+      if (!drums) continue;
+      if (pos === 0 || pos === 5) DRUM.kick(ac, out, t + sw, { g: 0.22 });
+      if (pos === 2 || pos === 6) DRUM.brush(ac, out, t);
+      DRUM.shaker(ac, out, t + sw, { g: pos % 2 ? 0.012 : 0.018 }); }
+    DRUM.vinyl(ac, out, t0, dur, { g: 0.012 }); },
+  /** pulse: a muted plucked ostinato in eighths that opens up and thickens across the plate, over a low drone (the build before a climax) */
+  pulse: (o = {}) => (ac, out, t0, dur) => { const { tonic = 220, chord = 3, g = 0.16 } = o, ch = chordOf(tonic, chord), root = ch[0];
+    for (const [t, k] of GRID.steps(t0, t0 + dur - 0.05, 0.5)) { const u = (t - t0) / dur;
+      INST.pluck(ac, out, t, { f: k % 4 === 3 ? ch[2] : root, g: g * (0.6 + 0.5 * u), bright: 0.15 + 0.6 * u, t60: 0.35 + 0.5 * u, pan: k % 2 ? 0.3 : -0.3 });
+      if (u > 0.5 && k % 2) INST.pluck(ac, out, t + GRID.beat() * 0.25, { f: root * 2, g: g * 0.5 * u, bright: 0.6, t60: 0.3, pan: 0.5 }); }
+    SFX.tone(ac, out, t0, { f: root / 2, dur, g: 0.045, a: 1.5, type: 'triangle' }); },
+  /** phasing loops (after Eno): each note repeats on its own period, so the pattern drifts and never quite repeats, over a drone */
+  phasing: (o = {}) => (ac, out, t0, dur) => { const { tonic = 220, inst = 'vibes', degrees = [0, 2, 3, 4, 7], periods = [5.3, 6.7, 8.1, 9.9, 11.3], g = 0.04 } = o;
+    degrees.forEach((dg, i) => { const P = periods[i % periods.length], off = (i * 1.7) % P;
+      for (let t = Math.ceil((t0 - off) / P) * P + off; t < t0 + dur - 0.5; t += P) INST[inst](ac, out, t, { f: note(tonic * 2, dg), g, pan: ((i % 3) - 1) * 0.5 }); });
+    SFX.padKey(ac, out, t0, { dur, tonic: tonic / 2, chord: [0, 7, 12], g: 0.012, dark: true }); },
+};
+const musicOn = m => !!m && ((m.style && m.style !== 'classic') || m.bpm > 0);
+/** the plate the film builds to: climax: true, else the biggest lift, else the plate 70% of the way through */
+function climaxPlate(P) { const c = P.find(p => p.climax); if (c) return c.i;
+  const l = P.filter(p => p.lift > 0).sort((a, b) => b.lift - a.lift)[0]; if (l) return l.i; return Math.min(P.length - 1, Math.round((P.length - 1) * 0.7)); }
+/** tension 0..1 for a plate: its own, else music.tension at its middle, else the default rise to the climax */
+function tensionOf(p) { const m = STORY.music || {}, P = STORY.plates; if (p.tension != null) return p.tension;
+  const tc = typeof m.tension === 'function' ? m.tension(P) : m.tension;
+  if (Array.isArray(tc) && tc.length) { const pts = [...tc].sort((a, b) => a[0] - b[0]), x = p.start + p.dur / 2; if (x <= pts[0][0]) return pts[0][1];
+    for (let i = 1; i < pts.length; i++) if (x <= pts[i][0]) return pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * (x - pts[i - 1][0]) / (pts[i][0] - pts[i - 1][0] || 1);
+    return pts[pts.length - 1][1]; }
+  const c = climaxPlate(P); if (p.i === P.length - 1 && P.length > 1) return 0.3; if (p.i >= c) return p.i === c ? 1 : 0.6;
+  return 0.2 + 0.8 * p.i / Math.max(1, c); }
+/** the plate's chord: music.chords, else I first, ii then V into the climax, home on the end card, I vi IV ii between */
+function chordIdx(p) { const m = STORY.music || {}, P = STORY.plates, c = climaxPlate(P); if (Array.isArray(m.chords) && m.chords.length) return m.chords[p.i % m.chords.length];
+  if (p.i === P.length - 1 && P.length > 1) return 0; if (p.i === c) return 3; if (p.i === c - 1) return 4; return [0, 1, 2, 4][p.i % 4]; }
+/**
+ * fitScore: set GRID for the film and move plate ends so plate starts land on bar lines (see the note above MUSIC_STYLES).
+ * Runs inside defineStory once the plates are timed, before marks are indexed. Classic (or no music) leaves every plate alone.
+ */
+function fitScore(story) {
+  const m = story.music; GRID.on = false; if (!musicOn(m) || story.silent) return;
+  const st = MUSIC_STYLES[m.style] || MUSIC_STYLES.notebook, P = story.plates, voiced = P.some(p => (p.voice || []).some(v => v.unit));
+  const [lo, hi] = m.bpm > 0 ? [m.bpm, m.bpm] : (st.bpm || [100, 120]); GRID.on = true; GRID.t0 = 0; GRID.beatsPerBar = m.beats || 4;
+  const barOf = bpm => GRID.beatsPerBar * 60 / bpm;
+  if (!voiced) {                                                       // the picture follows the music: whole bars
+    let best = null;
+    for (let bpm = lo; bpm <= hi + 1e-9; bpm += 0.5) { const bar = barOf(bpm), add = P.slice(0, -1).reduce((s, p) => s + Math.ceil(p.dur / bar - 1e-6) * bar - p.dur, 0);
+      if (!best || add < best.add - 1e-9) best = { bpm, add }; }
+    GRID.bpm = best.bpm; const bar = GRID.bar(); P.slice(0, -1).forEach(p => { p.dur = Math.ceil(p.dur / bar - 1e-6) * bar; });
+  } else {                                                             // the voice sets the lengths: fit the tempo, nudge the tails
+    const nudge = m.nudge ?? 0.15, vEndOf = p => Math.max(0, ...(p.voice || []).filter(v => v.unit).map(v => v.at + v.dur));
+    const trial = (bpm, t0) => { const bar = barOf(bpm), durs = P.map(p => p.dur), free = []; let t = 0, hits = 0;
+      for (let i = 0; i < P.length - 1; i++) { const s = t + durs[i], b = t0 + Math.round((s - t0) / bar) * bar, dl = b - s;
+        if (Math.abs(dl) <= 0.025) hits++;
+        else if (Math.abs(dl) <= nudge && (dl > 0 || durs[i] + dl >= vEndOf(P[i]) + 0.3)) { durs[i] += dl; hits++; }
+        else free.push(i + 1);
+        t += durs[i]; }
+      return { bpm, t0, hits, durs, free }; };
+    // the downbeat may sit a little after 0 (the first plate opens on a pickup), so try putting it under each seam in turn
+    let best = null, t = 0; const seams = P.slice(0, -1).map(p => t += p.dur);
+    for (let bpm = lo; bpm <= hi + 1e-9; bpm += 0.05) { const b = +bpm.toFixed(2), bar = barOf(b);
+      for (const t0 of [0, ...seams.map(x => x % bar)]) { const r = trial(b, t0); if (!best || r.hits > best.hits) best = r; } }
+    GRID.bpm = best.bpm; GRID.t0 = best.t0; P.forEach((p, i) => { p.dur = best.durs[i]; p.free = best.free.includes(i); });
+  }
+  let t = 0; P.forEach(p => { p.start = t; t += p.dur; });
+}
+/** the music for a plate from STORY.music (style, chord plan, tension layers); null when the film has no music */
+function scoreBed(p) {
+  const m = STORY.music; if (!m) return null;
+  const tonic = m.tonic || 220, chord = chordIdx(p), tension = tensionOf(p), st = MUSIC_STYLES[m.style] || MUSIC_STYLES.classic, P = STORY.plates;
+  const kind = p.music || (!GRID.on || p.free || p.dark ? 'pad' : st.bed), g = m.gain;
+  if (kind === 'pad') return MUS.pad({ tonic, chord: undefined, notes: p.i === P.length - 1 ? [0, 7, 12, 14] : PROG[((chord % PROG.length) + PROG.length) % PROG.length], dark: p.dark, g });
+  const layers = [MUS[kind]({ tonic, chord, tension, inst: m.inst || st.inst, keys: m.keys ?? st.keys, ...(g ? { g: g * 2 } : {}) })];
+  if (GRID.on && kind !== 'pulse' && kind !== 'phasing' && p.i === climaxPlate(P) - 1 && !p.music) layers.push(MUS.pulse({ tonic, chord: 3, g: 0.08 }));
+  if (GRID.on && tension >= 0.8 && kind !== 'phasing') layers.push((ac, out, t0, dur) => INST.strings(ac, out, t0, { notes: chordOf(tonic, chord, 0).slice(0, 3), dur: Math.max(0.5, dur - 1.2), g: 0.006, att: 1.2, rel: 1.2, bright: 0.4 }));
+  return BED.mix(...layers);
+}
+/** the motif cues a plate plays: [plate time, 'motif', opts], from p.motif and music.motif */
+function motifCues(p) {
+  const m = STORY.music, mo = m && m.motif; if (!mo) return [];
+  const last = p.i === STORY.plates.length - 1, kind = p.motif ?? (last ? 'resolve' : null); if (!kind) return [];
+  const degs = kind === 'vary' ? (mo.degs || [2, 3, 4, 6]).map(d => d + 1) : kind === 'resolve' ? [...(mo.degs || [2, 3, 4, 6]).slice(0, 3), 5] : typeof kind === 'object' ? kind.degs : (mo.degs || [2, 3, 4, 6]);
+  let at = (p.i ? landAt(p.enter) : 0) + 0.3 + (kind === 'resolve' ? 0.6 : 0);
+  if (GRID.on) at = GRID.next(p.start + at, 1) - p.start;
+  return [[at, 'motif', { degs, inst: mo.inst || 'musicBox', step: GRID.on ? GRID.beat() / 2 : 0.22, g: mo.g }]];
+}
+/** musical cues that move onto the beat when one is within 40 ms */
+const ON_BEAT = new Set([...Object.keys(INST), ...Object.keys(STING), 'chime']);
+/*
  * Ambience beds, in the plate `bed` shape: `bed: BED.rain`, or with options `bed: (ac, o, t, d) => BED.rain(ac, o, t, d, { heavy: 0.8 })`.
  * Layer several with BED.mix(BED.roomTone, myPad). They fade in and out over about a second, so neighbours crossfade.
  * Left and right are synthesized separately (decorrelated), so a bed is really stereo.
@@ -3126,6 +3284,7 @@ const TRANS_SFX = {
 /** default bed when a plate has none and STORY.music = {tonic}: the stage's chord, darker and lower at night */
 function autoBed(p) {
   const m = STORY.music; if (!m) return null;
+  if (musicOn(m) || Array.isArray(m.chords) || p.music) return scoreBed(p);            // the score (MUSIC_STYLES); classic films keep this pad
   const n = p.stage ? p.stage.n : p.i, chord = p.i === STORY.plates.length - 1 ? [0, 7, 12, 14] : PROG[(n - (p.stage ? 1 : 0) + PROG.length * 4) % PROG.length];
   return (ac, out, t0, dur) => { SFX.padKey(ac, out, t0, { dur, tonic: m.tonic || 220, chord, g: m.gain || 0.018, dark: p.dark, oct: p.dark ? -1 : 0 });
     if (p.dark) SFX.noise(ac, out, t0, { dur, g: 0.025, f0: 160, type: 'lowpass', q: 0.5, a: 1 }); };
@@ -3226,14 +3385,16 @@ async function renderAudio(opts = {}) {
     const t0 = p.start, tr = p.enter, ty = tr?.type, d = tr?.dur || 0.5;
     AUDIO.plate = p.i; AUDIO.t0 = t0;                                                    // seeds are per plate (see sfxRng)
     if (p.i > 0) { AUDIO.tag = 'riser'; if (ty !== 'fade') SFX.riser(ac, fx, Math.max(0, t0 - 0.35));
-      AUDIO.tag = 'transition'; (TRANS_SFX[ty] || TRANS_SFX.cut)(ac, fx, t0, d, tr || {}); duck(t0, 0.5, d + 0.4); }
+      AUDIO.tag = 'transition'; (TRANS_SFX[ty] || TRANS_SFX.cut)(ac, fx, t0, d, tr || {}); duck(t0, GRID.on ? 0.25 : 0.5, d + 0.4); }   // a rhythmic bed dips less, so the pulse carries through
     // the header types on with its paper's writing sound (penOf): pen scratch on the notebook, pencil, chalk, a marker and
     // so on on the other papers, soft readout blips where there is no pen (night). plate.pen overrides it
     if (p.header) { const hd = t0 + headerDelay(p), h = p.header, tool = penOf(p), s = tool && SFX[tool]; AUDIO.tag = 'header';
       if (s) { s(ac, fx, hd, { chars: 9, cps: 30 }); s(ac, fx, hd + 0.15, { chars: h.title.length, cps: 17 }); if (h.sub) s(ac, fx, hd + 0.7, { chars: h.sub.length, cps: 30, g: PEN_SUB[tool] }); } }
     AUDIO.tag = 'bed'; const bed = p.bed || autoBed(p); if (bed) bed(ac, bedBus, t0, p.dur);
     AUDIO.tag = 'cue';
-    for (const [ct, type, opt] of (p.cues || [])) { SFX[type](ac, fx, t0 + ct, opt || {}); const dk = CUE_DUCK[type]; if (dk) duck(t0 + ct, ...dk); }
+    for (const [ct, type, opt] of [...(p.cues || []), ...motifCues(p)]) { let tc = t0 + ct;
+      if (GRID.on && ON_BEAT.has(type) && type !== 'reveal') { const b = GRID.snap(tc, 0.5); if (Math.abs(b - tc) <= 0.04) tc = b; }   // musical cues onto the beat
+      SFX[type](ac, fx, tc, opt || {}); const dk = CUE_DUCK[type]; if (dk) duck(tc, ...dk); }
   }
   writeDucks(); AUDIO.reset();
   const buf = await ac.startRendering();
@@ -3388,7 +3549,7 @@ async function loadFonts() {
 async function boot() {
   await loadFonts();
   buildTextures();
-  window.__story = { fps: FPS, frames: TOTAL_F, width: W, height: H, title: STORY.title, silent: !!STORY.silent, starts: STORY.plates.map(p => ({ t: p.start, type: p.enter ? p.enter.type : null, dur: p.enter ? p.enter.dur : 0, settle: p.enter ? p.enter.settle ?? 0.9 : 0 })),
+  window.__story = { fps: FPS, frames: TOTAL_F, width: W, height: H, title: STORY.title, silent: !!STORY.silent, music: GRID.on ? { bpm: GRID.bpm, bar: GRID.bar(), t0: GRID.t0, free: STORY.plates.filter(p => p.free).map(p => p.i) } : null, starts: STORY.plates.map(p => ({ t: p.start, type: p.enter ? p.enter.type : null, dur: p.enter ? p.enter.dur : 0, settle: p.enter ? p.enter.settle ?? 0.9 : 0 })),
     narrated: voiceTrack().length > 0, animatic: ANIMATIC };
   window.__renderFrame = f => { renderFrame(f); return true; };
   window.__frameData = (f, type = 'image/jpeg', q = 0.94) => { renderFrame(f); return cvs.toDataURL(type, q).split(',')[1]; };
