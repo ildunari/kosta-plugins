@@ -81,9 +81,14 @@ Clips are cached by a fingerprint of exactly what was sent (text, provider, mode
 |---|---|---|---|
 | **gemini** (default) | `gemini-3.1-flash-tts-preview` | about 3 cents a minute | Acts delivery tags and plain-English directions. No speed setting. Returns no word timing, so marks inside a sentence are estimated (off by up to about 0.3 s) |
 | openai | `gpt-4o-mini-tts` | about 1.5 cents a minute | Voices `cedar` (default), `marin`, `ash` |
+| xai (Grok) | Grok's `/v1/tts`, voice `orion` | about 1.5 cents a minute | Reports when each word is spoken, so marks are exact. No written direction; keeps its own sound tags |
+| elevenlabs | `eleven_v3`, voice `Darian` | about 9 cents a minute | Exact word timing. No written direction; acts `[curious]`-style tags |
+| inworld | `inworld-tts-2`, voice `Dennis` | about 2 cents a minute | Exact word timing, takes a written direction (`inworld-tts-2-flash` is cheaper and ignores directions) |
 | local | any OpenAI-style speech server | free | For a server such as Kokoro-FastAPI at `DOODLE_TTS_BASE_URL` (default `http://localhost:8880/v1`) |
 | kokoro | Kokoro-82M, run inside Python | free | CPU only, no key. The way to test the whole pipeline before any key exists |
 | fake | synthetic tones | free | For tests only: no network, no voice |
+
+Each provider's voices, tags and quirks are in `references/voice-providers.md`.
 
 - **The house narrator** is Gemini's **Charon** (Google describes it as "informative"). Once a voice has been chosen for Kosta's films, it is the house narrator: later films reuse it without auditioning, so every film sounds like the same person. Record it in `brief.md` and in project memory.
 - **Audition candidates on Gemini:** Charon, Sadaltager and Sulafat for calm styles; Puck, Laomedeia and Sadachbia for short-form.
