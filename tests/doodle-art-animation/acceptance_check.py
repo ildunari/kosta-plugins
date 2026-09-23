@@ -477,8 +477,8 @@ if want('REL'):
     pj = json.loads(read(os.path.join(PLUG, '.claude-plugin', 'plugin.json')) or '{}')
     mj = json.loads(read(os.path.join(REPO, '.claude-plugin', 'marketplace.json')) or '{}')
     mv = next((p.get('version') for p in mj.get('plugins', []) if p.get('name') == 'doodle-art-animation'), None)
-    check('REL', 'plugin.json version 0.16.2', pj.get('version') == '0.16.2', str(pj.get('version')))
-    check('REL', 'marketplace entry version 0.16.2', mv == '0.16.2', str(mv))
+    check('REL', 'plugin.json version 0.16.4', pj.get('version') == '0.16.4', str(pj.get('version')))
+    check('REL', 'marketplace entry version 0.16.4', mv == '0.16.4', str(mv))
 
 # ---------------------------------------------------------------- full checks (build, probe, render)
 def run(cmd, cwd=None, timeout=1800):

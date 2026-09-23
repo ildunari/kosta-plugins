@@ -42,7 +42,7 @@ plugins/doodle-art-animation/       the plugin
                                     on those clips; voice.mjs check runs it)
 docs/doodle-art-animation/          not shipped with the plugin
   DEVELOPING.md                     this file
-  v0.14-state.md … v0.16.2-state.md what each release changed, how it was checked, its known limits
+  v0.14-state.md … v0.16.4-state.md what each release changed, how it was checked, its known limits
   ACCEPTANCE.md                     the go/no-go rules (L1-L17 films and toolkit, W1-W9 workflow)
   HANDOFF.md                        history, measurements, known weaknesses (paths in it refer to the original handoff zip)
   history/  reference/  examples/   design review, reference-film study images, an older story file
@@ -59,7 +59,7 @@ docs/doodle-art-animation/          not shipped with the plugin
   file rules, and `--full --node-modules <playwright>/node_modules` for builds, page probes, renders and timing.
   They are the written form of what was agreed with the owner; extend them when the plugin gains a feature.
 - Voice tool tests, also run by CI: `node tests/doodle-art-animation/voice_test.mjs`. They use the fake voice and pretend
-  Gemini, OpenAI and proxy servers, so they need no network, no keys and cost nothing. `DOODLE_TEST_KOKORO=1` adds a real
+  Gemini, OpenAI, Grok, ElevenLabs, Inworld and proxy servers, so they need no network, no keys and cost nothing. `DOODLE_TEST_KOKORO=1` adds a real
   Kokoro run (needs `python3 -m pip install kokoro-onnx` and downloads a 325 MB model from GitHub the first time).
 - Voice check tests, also run by CI: `python3 tests/doodle-art-animation/voice_check_test.py`. They plant a missing word, a
   wrong-speed clip, a silent clip and another person's voice in a fake-voice film and answer Gemini with a pretend server.
@@ -166,7 +166,7 @@ CI: `.github/workflows/doodle-smoke.yml` runs it on ubuntu-latest for pushes to 
   exception: they are small (about 70 KB each) and the example needs them to build.
 - Narration (`voice.mjs`): API keys come only from environment variables or `~/.config/doodle-art-animation/keys.env`,
   never from the repo, project files or memory, and the tool never prints one. Its files (`vo/lines.json`,
-  `vo/voice.json`) are described at the top of `voice.mjs`; the engine reads `vo/voice.json`, so a change to that
+  `vo/voice.json`) are described at the top of `voice.mjs`, and the providers in `references/voice-providers.md`; the engine reads `vo/voice.json`, so a change to that
   format changes both sides together. Requests go through `HTTPS_PROXY` with the tool's own tunnel, because Node's
   `fetch` ignores that variable and would connect directly, skipping the claude.ai proxy that adds the Gemini key.
 - Bump `version` in `plugin.json` when the plugin changes in a way users would notice.
