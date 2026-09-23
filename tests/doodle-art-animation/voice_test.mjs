@@ -260,7 +260,7 @@ let ffmpegClip = null;
   check('gemini: the model is in the URL and the voice in speechConfig', /\/v1beta\/models\/gemini-3\.1-flash-tts-preview:generateContent$/.test(req?.url || '')
     && cfg?.responseModalities?.[0] === 'AUDIO' && cfg?.speechConfig?.voiceConfig?.prebuiltVoiceConfig?.voiceName === 'Charon', JSON.stringify(req));
   const t = req?.body.contents[0].parts[0].text || '';
-  check('gemini: direction first, pause tags kept, marks removed', /^Say calmly, with quiet curiosity, like a documentary narrator: One particle/.test(t) && t.includes('[short pause]') && !/[{}]/.test(t), t);
+  check('gemini: direction first, pause tags kept, marks removed', /^Say in a calm, measured voice, at a natural conversational pace: One particle/.test(t) && t.includes('[short pause]') && !/[{}]/.test(t), t);
   check('gemini: no key header when no key is set (the cloud proxy may add it)', seen.every(s => !('x-goog-api-key' in s.headers)), JSON.stringify(seen.map(s => Object.keys(s.headers))));
   check('gemini: a 429 is waited out and retried', /rate-limiting/.test(g.err) && seen.length >= 4, g.all);
   check('gemini: the per-plate direction is sent for that plate', seen.some(s => /^Say slowly, with wonder: Within seconds/.test(s.body.contents?.[0]?.parts?.[0]?.text || '')), '');
@@ -291,6 +291,76 @@ let ffmpegClip = null;
   mode = 'ok'; seen.length = 0;
   const kt = await run(d, ['keys', '--test'], { ...env, DOODLE_KEYS_FILE: kf, OPENAI_BASE_URL: `http://127.0.0.1:${port}/v1`, DOODLE_TTS_BASE_URL: `http://127.0.0.1:${port}/v1` });
   check('keys --test: a free request with the key from keys.env', /Gemini: works \(key from/.test(kt.out) && seen.some(s => s.headers['x-goog-api-key'] === FAKE_KEY && /models\?pageSize=1/.test(s.url)), kt.all);
+  srv.close();
+}
+
+// ---------------------------------------------------------------- narrator presets (Gemini voice + delivery)
+{
+  const seen = [];
+  const srv = http.createServer((req, res) => {
+    let body = ''; req.on('data', c => body += c);
+    req.on('end', () => {
+      const j = body ? JSON.parse(body) : {}; seen.push(j);
+      const text = j.contents[0].parts[0].text.replace(/^Say[^:]*:\s*/, '').replace(/\[[^\]]*\]/g, '');
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ candidates: [{ content: { parts: [{ inlineData: { mimeType: 'audio/L16;codec=pcm;rate=24000', data: tonePcm(text).toString('base64') } }] } }],
+        usageMetadata: { promptTokenCount: 30, candidatesTokenCount: 250 } }));
+    });
+  });
+  const port = await listen(srv), env = { DOODLE_GEMINI_BASE_URL: `http://127.0.0.1:${port}/v1beta` };
+  const lj = d => readJson(path.join(d, 'vo/lines.json'));
+  const pl = await run(WORK, ['presets', '--json']), P = pl.code === 0 ? JSON.parse(pl.out) : [];
+  check('presets: five narrators with eight deliveries each, all Gemini', P.length === 40 && P.every(q => q.provider === 'gemini' && q.direction && q.wpm > 0)
+    && ['charon', 'orus', 'erinome', 'leda', 'pulcherrima'].every(n => P.some(q => q.preset === n)), pl.all);
+  check('presets: a narrator alone means its usual delivery', P.find(q => q.preset === 'pulcherrima')?.delivery === 'intimate' && P.find(q => q.preset === 'charon')?.delivery === 'plain'
+    && !P.some(q => q.preset === 'charon-plain'), JSON.stringify(P.slice(0, 2)));
+
+  const d = film('presets');
+  const r0 = await run(d, ['lines', 'script.md', '--provider', 'gemini']), L0 = lj(d);
+  check('presets: a new Gemini film gets its style\'s preset (documentary: charon)', r0.code === 0 && L0.preset === 'charon' && L0.voice === 'Charon' && L0.wpm === 120
+    && /^Say in a calm, measured voice/.test(L0.direction) && /preset charon/.test(r0.out), JSON.stringify(L0) + r0.all);
+  const r1 = await run(d, ['lines', 'script.md', '--preset', 'Orus-Storyteller']), L1 = lj(d);
+  check('lines --preset: sets the voice, direction and pace', r1.code === 0 && L1.preset === 'orus-storyteller' && L1.voice === 'Orus' && L1.wpm === 105
+    && /late-night radio storyteller/.test(L1.direction) && L1.units.length === 3, JSON.stringify(L1) + r1.all);
+  fs.writeFileSync(path.join(d, 'vo/lines.json'), JSON.stringify({ ...L1, direction: 'Say it my way:' }, null, 2));
+  const r2 = await run(d, ['lines', 'script.md']), L2 = lj(d);
+  check('lines: a kept preset leaves hand edits alone', r2.code === 0 && L2.preset === 'orus-storyteller' && L2.direction === 'Say it my way:' && L2.voice === 'Orus', JSON.stringify(L2));
+  const r3 = await run(d, ['lines', 'script.md', '--preset', 'charon-plain']), L3 = lj(d);
+  check('lines --preset: charon-plain is charon', r3.code === 0 && L3.preset === 'charon' && L3.voice === 'Charon', JSON.stringify(L3));
+  const r4 = await run(d, ['lines', 'script.md', '--style', 'short-form']), L4 = lj(d);
+  check('lines --style: a film on its style\'s preset moves to the new style\'s preset', r4.code === 0 && L4.preset === 'charon-lively' && L4.wpm === 160 && L4.style === 'short-form', JSON.stringify(L4));
+  const bad = await run(d, ['lines', 'script.md', '--preset', 'hal-9000']);
+  check('lines --preset: an unknown preset is an error that lists the narrators (exit 2)', bad.code === 2 && /unknown preset "hal-9000".*charon, orus/.test(bad.err), bad.all);
+  const mix = await run(d, ['lines', 'script.md', '--preset', 'leda', '--provider', 'openai']);
+  check('lines --preset: refuses another provider (exit 2)', mix.code === 2 && /Gemini voice/.test(mix.err), mix.all);
+
+  await run(d, ['lines', 'script.md', '--preset', 'pulcherrima']);
+  seen.length = 0;
+  const g = await run(d, ['generate', '--jobs', '1'], env), V = g.code === 0 ? readJson(path.join(d, 'vo/voice.json')) : {};
+  const sent = seen.map(j => [j.generationConfig?.speechConfig?.voiceConfig?.prebuiltVoiceConfig?.voiceName, j.contents[0].parts[0].text]);
+  check('presets: generate sends the preset\'s voice and direction, and voice.json names it', g.code === 0 && V.preset === 'pulcherrima' && V.wpm_target === 110
+    && sent.length === 3 && sent.every(([v, t]) => v === 'Pulcherrima' && /^Say (warmly and intimately|slowly, with wonder)/.test(t))
+    && sent.filter(([, t]) => /^Say warmly and intimately/.test(t)).length === 2, JSON.stringify(sent) + g.all);
+  check('presets: a plate\'s own @direction still wins', sent.some(([, t]) => /^Say slowly, with wonder: Within seconds/.test(t)), JSON.stringify(sent));
+
+  seen.length = 0;
+  const a = await run(d, ['audition', '--presets', 'orus-wry,leda-lively'], env), A = a.code === 0 ? readJson(path.join(d, 'vo/audition/audition.json')) : {};
+  const pairs = [...new Set(seen.map(j => `${j.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName}|${j.contents[0].parts[0].text.split(':')[0]}`))].sort();
+  check('audition --presets: one voice and direction per preset, files named after them', a.code === 0 && JSON.stringify(A.presets) === '["orus-wry","leda-lively"]'
+    && A.results.every(x => /^(orus-wry|leda-lively)\.(mp3|wav)$/.test(path.basename(x.file)))
+    && JSON.stringify(pairs) === JSON.stringify(['Leda|Say with bright energy at a brisk pace, like an enthusiastic science explainer', 'Orus|Say with dry, understated wit, like a narrator who finds this quietly amusing, at a natural pace']),
+    JSON.stringify(pairs) + a.all);
+  const md = fs.readFileSync(path.join(d, 'vo/audition/audition.md'), 'utf8');
+  check('audition --presets: audition.md has a Preset column', /\| Preset \| Voice \| Direction/.test(md) && /\| orus-wry \| Orus \|/.test(md), md);
+  seen.length = 0;
+  const ad = await run(d, ['audition'], env), AD = ad.code === 0 ? readJson(path.join(d, 'vo/audition/audition.json')) : {};
+  check('audition: on Gemini with nothing named, it compares the narrators in the style\'s mood (short-form: lively)', ad.code === 0
+    && JSON.stringify(AD.presets) === '["charon-lively","orus-lively","erinome-lively","leda-lively"]', ad.all);
+  await run(d, ['lines', 'script.md', '--style', 'documentary']);
+  const ac = await run(d, ['audition'], env), AC = ac.code === 0 ? readJson(path.join(d, 'vo/audition/audition.json')) : {};
+  check('audition: a calm style compares the five narrators in their usual delivery', ac.code === 0 && JSON.stringify(AC.presets) === '["charon","orus","erinome","leda","pulcherrima"]', ac.all);
+  const fk = film('presets-fake'); await run(fk, ['lines', 'script.md', '--provider', 'fake']);
+  check('presets: a film on another provider gets no preset', !('preset' in lj(fk)), JSON.stringify(lj(fk)));
   srv.close();
 }
 
