@@ -143,6 +143,21 @@ else:
             check('zoom default: a zoom with no dir dives in (the old plate grows)', (v.get('none') or 0) > 1.2, str(v))
             check("zoom default: dir 'out' still pulls back (the old plate shrinks)", 0 < (v.get('out') or 9) < 0.8, str(v))
 
+        # ---------------------------------------------------------------- instruments and stingers (v0.16.4)
+        h = build('story_one_drop.js')
+        if h:
+            r = probe(h, open(os.path.join(HERE, 'instrument_probe.js')).read()); v = r.get('result') or {}
+            check('instruments: the probe runs with no page errors', bool(v) and not r.get('errors'), str(r.get('errors'))[:300])
+            if v:
+                bad = [t for t in v['tuning'] if abs(t[2]) > 5]
+                check(f"instruments: every note of the ten instruments is within 5 cents by FFT (worst {v['worst']:.2f})",
+                      len(v['tuning']) >= 60 and not bad, str(bad[:6]))
+                nv = [k for k, x in v['varied'].items() if not (x['seedRepeats'] and x['callsDiffer'])]
+                check('instruments: a fixed seed repeats one exact note and plain calls vary', len(v['varied']) == 10 and not nv, str(nv))
+                quiet = [k for k, pk in v['stingers'].items() if not 0.01 < pk < 1]
+                check('stingers: all six render sound without clipping', len(v['stingers']) == 6 and not quiet, str(v['stingers']))
+                check('instruments: deg plays note() of the film key in the home octave', abs(v['deg']) < 0.01, str(v['deg']))
+
         h = build('story_pan_twice.js')
         if h:
             rc, out = run(['node', 'speed_check.mjs', h], cwd=tk)

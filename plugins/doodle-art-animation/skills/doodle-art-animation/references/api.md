@@ -112,6 +112,9 @@ Plate fields:
 
 **Sound** (all synthesized; the catalogue and the event map are in `references/sound.md`):
 - `SFX.<name>(ac, out, t, opts)`: every effect a cue can name. Events: `tick`, `scratch`, `readout`, `pop`, `chime`, `plink`, `thump`, `crunch`, `creak`, `pump`, `relay`, `hiss`, `plop`, `slosh`, `shaker`, `clink`, `pour`, `foil`, `droplet`, `pageFlip`, `pegSnap`. Motion (the transition sounds): `swell`, `riser`, `whoosh`, `glide`, `flick`, `shutter`, `bend`, `crackle`. Building blocks that do not vary by themselves: `tone`, `noise`, `pad`, `padKey`. Every varied effect takes `seed` (fixes one exact sound) and most take `g` (level). `VARIED` is the set of names that vary per call.
+- Instruments, one note per call in the film's key, varied per call: `marimba`, `vibes`, `musicBox`, `kalimba`, `celesta`, `glock`, `epiano`, `pluck`, `feltPiano`, `strings`. Each takes `{ f, deg, oct, tonic, g, pan, decay, seed }` plus its own options (`references/sound.md`, "Instruments and stingers"). They are cue names (`[1.2, 'marimba', { deg: 2 }]`) and also live in `INST`, for a story's own beds and phrases.
+- Stingers, short phrases in the film's key: `motif { degs, inst, step }`, `success`, `question`, `oops`, `reveal { lead }` (ends exactly on the cue), `resolve`. `g` scales the whole phrase. Cue names, and also in `STING`.
+- `tonicOf(opts)` is the film's key (opts.tonic, else `music.tonic`, else 220 Hz); `pitchOf(opts, homeOct)` turns `{ f, deg, oct }` into Hz.
 - `BED.roomTone`, `BED.rain`, `BED.wind`, `BED.cityHum`: ambience beds, `(ac, out, t0, dur, opts)`, usable directly as a plate's `bed`; `BED.mix(...beds)` layers beds.
 - `TRANS_SFX[type](ac, out, t, dur, enter)`: the automatic sound of each seam; `enter.sfx: (ac, out, t, dur) => …` replaces it for one custom transition.
 - Helpers for a story's own sounds (`SFX.drip = (ac, out, t, o = {}) => …` before `defineStory`):
