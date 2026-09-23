@@ -143,7 +143,7 @@ else:
             check('zoom default: a zoom with no dir dives in (the old plate grows)', (v.get('none') or 0) > 1.2, str(v))
             check("zoom default: dir 'out' still pulls back (the old plate shrinks)", 0 < (v.get('out') or 9) < 0.8, str(v))
 
-        # ---------------------------------------------------------------- instruments and stingers (v0.16.2)
+        # ---------------------------------------------------------------- instruments and stingers (v0.16.4)
         h = build('story_one_drop.js')
         if h:
             r = probe(h, open(os.path.join(HERE, 'instrument_probe.js')).read()); v = r.get('result') or {}

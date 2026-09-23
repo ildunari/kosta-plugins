@@ -1,5 +1,5 @@
 // voice_test.mjs — tests for the narration tool (toolkit/voice.mjs). No network, no keys, no cost: it uses the fake
-// voice and small pretend Gemini, OpenAI and proxy servers on this machine.
+// voice and small pretend Gemini, OpenAI, Grok, ElevenLabs, Inworld and proxy servers on this machine.
 // usage: node tests/doodle-art-animation/voice_test.mjs [--keep]
 // Prints one PASS / FAIL / SKIP line per check and exits 1 if any check failed. It needs Node 18+; ffmpeg (loudness
 // cross-check, MP3 auditions) and openssl (the proxy test) are used when present and skipped when not.
@@ -323,6 +323,139 @@ let ffmpegClip = null;
   check('audition: a voice the server refuses is reported, not dropped (exit 1)', ab.code === 1 && /bad A1: FAILED/.test(ab.out)
     && aj.results.some(x => x.voice === 'bad' && x.flags.some(f => /no clip/.test(f))) && aj.results.some(x => x.voice === 'af_heart' && x.file), ab.all + JSON.stringify(aj.results));
   srv.close();
+}
+
+// ---------------------------------------------------------------- Grok, ElevenLabs and Inworld: word timing from the provider
+// speech that looks like the text to the tool, with the times a provider would report: each word is a tone burst,
+// tags are timed as zero-length characters (some providers echo them), sentences are 0.45 s apart
+function speak(text, rate = 24000) {
+  const toks = text.replace(/<break[^>]*>/g, ' \u0002 ').split(/\s+/).filter(Boolean), parts = [], chars = [], words = []; let t = 0.2;
+  const push = (sec, amp) => { const n = Math.round(sec * rate), b = Buffer.alloc(n * 2);
+    for (let i = 0; i < n; i++) b.writeInt16LE(Math.round(amp * Math.sin(2 * Math.PI * 150 * i / rate) * Math.sin(Math.PI * i / n) ** 0.3 * 32767), i * 2); parts.push(b); };
+  push(0.2, 0);
+  for (const tok of toks) {
+    if (!/[A-Za-z0-9]/.test(tok) || /^\[.*\]$/.test(tok)) { for (const c of tok.replace('\u0002', '<break/>')) chars.push([c, t, t]); push(0.25, 0); t += 0.25; continue; }
+    const d = 0.3 + 0.06 * tok.length; push(d, 0.3);
+    [...tok].forEach((c, i) => chars.push([c, t + d * i / tok.length, t + d * (i + 1) / tok.length]));
+    words.push([tok.replace(/[^A-Za-z0-9'-]/g, ''), t, t + d]); t += d;
+    const gap = /[.!?]["']?$/.test(tok) ? 0.45 : 0.1; push(gap, 0); chars.push([' ', t, t + gap]); t += gap;
+  }
+  push(0.3, 0);
+  return { pcm: Buffer.concat(parts), chars, words };
+}
+function pretend(handler) {
+  const seen = [];
+  const srv = http.createServer((req, res) => {
+    let body = ''; req.on('data', c => body += c);
+    req.on('end', () => { let j = {}; try { j = JSON.parse(body || '{}'); } catch {} const r = { url: req.url, method: req.method, headers: req.headers, body: j }; seen.push(r);
+      const send = (code, obj) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(obj)); };
+      handler(r, send); });
+  });
+  return { srv, seen };
+}
+// the timing checks shared by the three: exact word times -> timing "words", and marks at the start of their word
+function timingChecks(name, d, seen, textOf) {
+  const V = readJson(path.join(d, 'vo/voice.json')), p1 = V.units[0], p2 = V.units[1];
+  check(`${name}: timing comes from the provider's word times`, V.units.every(u => u.timing === 'words'), V.units.map(u => u.timing).join());
+  const req = seen.find(s => /vein/.test(textOf(s.body) || ''));
+  const sp = speak(textOf(req?.body) || ''), w0 = sp.words[0][1], about = sp.words.find(w => w[0] === 'about')?.[1];
+  const err = Math.abs((p1.marks.count - p1.sentences[0][0]) - (about - w0));
+  check(`${name}: a mark lands on its word (within 0.02 s)`, err < 0.02, `error ${err.toFixed(3)} s; ${JSON.stringify([p1.marks, p1.sentences])}`);
+  check(`${name}: marks keep their order inside a sentence`, p2.marks.coat > p2.sentences[0][0] && p2.marks.corona > p2.marks.coat && p2.marks.corona < p2.sentences[0][1], JSON.stringify([p2.marks, p2.sentences]));
+  const side = readJson(path.join(d, 'vo/clips', p2.fp + '.json'));
+  check(`${name}: the respelling is sent and still lines up`, /mel-OX-ih-kam/.test(side.sent) && Array.isArray(side.words) && side.words.length === p2.text.split(/\s+/).length, side.sent + ' ' + (side.words || []).length);
+}
+{
+  const { srv, seen } = pretend((r, send) => {
+    if (r.method === 'GET') return send(200, { data: [] });
+    if (!r.headers.authorization) return send(401, { code: 'unauthorized', error: 'Incorrect API key provided: missing.' });
+    const sp = speak(r.body.text);
+    send(200, { audio: sp.pcm.toString('base64'), content_type: 'audio/pcm', duration: sp.pcm.length / 48000,
+      audio_timestamps: { graph_chars: sp.chars.map(c => c[0]), graph_times: sp.chars.map(c => ({ start: c[1], end: c[2] })) } });
+  });
+  const port = await listen(srv), env = { DOODLE_XAI_BASE_URL: `http://127.0.0.1:${port}/v1` }, key = 'xai-' + 'g'.repeat(40);
+  const d = film('xai');
+  await run(d, ['lines', 'script.md', '--provider', 'xai']);
+  const e = await run(d, ['generate'], env);
+  check('grok: no key and a 401 says to set XAI_API_KEY (exit 2)', e.code === 2 && /Set XAI_API_KEY/.test(e.err), e.all);
+  seen.length = 0;
+  const g = await run(d, ['generate'], { ...env, XAI_API_KEY: key });
+  const r = seen.find(s => /vein/.test(s.body.text || ''));
+  check('grok: POST /v1/tts with voice_id, language, timestamps and a Bearer key', g.code === 0 && r?.url === '/v1/tts' && r.body.voice_id === 'orion' && r.body.language === 'en'
+    && r.body.with_timestamps === true && r.headers.authorization === `Bearer ${key}` && !g.all.includes(key), g.all + JSON.stringify(r?.body));
+  check('grok: a short pause becomes [pause], marks and other tags are removed, no direction', /vein\. \[pause\] It is/.test(r?.body.text || '') && !/[{}]/.test(r?.body.text || '') && !('instructions' in (r?.body || {})), r?.body.text);
+  timingChecks('grok', d, seen, b => b?.text);
+  check('grok: cost estimated per character', /about \$0\.00\d+/.test(g.out), g.out);
+  srv.close();
+}
+{
+  const VID = 'AbCdEfGhIjKlMnOpQrSt';
+  const { srv, seen } = pretend((r, send) => {
+    if (!r.headers['xi-api-key']) return send(401, { detail: { status: 'invalid_api_key', message: 'Invalid API key' } });
+    if (r.method === 'GET') return send(200, { voices: [{ voice_id: VID, name: 'Darian - Warm Storyteller' }, { voice_id: 'ZyXwVuTsRqPoNmLkJiHg', name: 'Elara' }] });
+    const sp = speak(r.body.text);
+    send(200, { audio_base64: sp.pcm.toString('base64'), alignment: { characters: sp.chars.map(c => c[0]),
+      character_start_times_seconds: sp.chars.map(c => c[1]), character_end_times_seconds: sp.chars.map(c => c[2]) } });
+  });
+  const port = await listen(srv), env = { DOODLE_ELEVENLABS_BASE_URL: `http://127.0.0.1:${port}/v1` }, key = 'sk_' + 'e'.repeat(48);
+  const d = film('elevenlabs');
+  await run(d, ['lines', 'script.md', '--provider', 'elevenlabs']);
+  const e = await run(d, ['generate'], env);
+  check('elevenlabs: no key and a 401 says to set ELEVENLABS_API_KEY (exit 2)', e.code === 2 && /Set ELEVENLABS_API_KEY/.test(e.err), e.all);
+  seen.length = 0;
+  const g = await run(d, ['generate'], { ...env, ELEVENLABS_API_KEY: key });
+  const r = seen.find(s => /vein/.test(s.body.text || ''));
+  check('elevenlabs: the voice name is looked up, then /with-timestamps as 24 kHz PCM', g.code === 0 && /^\/v2\/voices\?/.test(seen[0]?.url || '')
+    && r?.url === `/v1/text-to-speech/${VID}/with-timestamps?output_format=pcm_24000` && r.body.model_id === 'eleven_v3' && r.headers['xi-api-key'] === key && !g.all.includes(key), g.all + JSON.stringify(r));
+  check('elevenlabs: v3 gets "..." for a pause and no direction', /vein\. \.\.\. It is/.test(r?.body.text || '') && !/\[short pause\]|Say calmly/.test(r?.body.text || ''), r?.body.text);
+  timingChecks('elevenlabs', d, seen, b => b?.text);
+  const n = await run(d, ['generate', '--retake', 'P1', '--voice', 'Nobody'], { ...env, ELEVENLABS_API_KEY: key });
+  check('elevenlabs: an unknown voice name lists the voices on the account (exit 2)', n.code === 2 && /no voice called "Nobody"/.test(n.err) && /Elara/.test(n.err), n.all);
+  seen.length = 0;
+  const kn = await run(d, ['generate', '--retake', 'P1', '--voice', 'Finley'], { ...env, ELEVENLABS_API_KEY: key });
+  check('elevenlabs: a known narrator not on the account is used by its ID', kn.code === 0 && seen.some(s => /\/text-to-speech\/fnYMz3F5gMEDGMWcH1ex\//.test(s.url)), kn.all);
+  seen.length = 0;
+  const v2 = film('elevenlabs-v2');
+  await run(v2, ['lines', 'script.md', '--provider', 'elevenlabs', '--model', 'eleven_multilingual_v2', '--voice', VID]);
+  const g2 = await run(v2, ['generate', '--only', 'P1'], { ...env, ELEVENLABS_API_KEY: key });
+  const r2 = seen.find(s => /vein/.test(s.body.text || ''));
+  check('elevenlabs: older models get <break time>, and a voice ID skips the lookup', g2.code === 0 && /<break time="0\.25s" \/>/.test(r2?.body.text || '') && !seen.some(s => s.method === 'GET'), g2.all + r2?.body.text);
+  srv.close();
+}
+{
+  const { srv, seen } = pretend((r, send) => {
+    if (!/^Basic \S+$/.test(r.headers.authorization || '')) return send(401, { code: 16, message: 'Unauthenticated' });
+    if (r.method === 'GET') return send(200, { voices: [] });
+    const sp = speak(r.body.text);
+    send(200, { audioContent: wavOf(sp.pcm).toString('base64'), usage: { processedCharactersCount: r.body.text.length },
+      timestampInfo: { wordAlignment: { words: sp.words.map(w => w[0]), wordStartTimeSeconds: sp.words.map(w => w[1]), wordEndTimeSeconds: sp.words.map(w => w[2]) } } });
+  });
+  const port = await listen(srv), env = { DOODLE_INWORLD_BASE_URL: `http://127.0.0.1:${port}` }, key = Buffer.from('abc123:' + 's'.repeat(30)).toString('base64');
+  const d = film('inworld');
+  await run(d, ['lines', 'script.md', '--provider', 'inworld']);
+  const e = await run(d, ['generate'], env);
+  check('inworld: no key and a 401 says to set INWORLD_API_KEY (exit 2)', e.code === 2 && /Set INWORLD_API_KEY/.test(e.err), e.all);
+  seen.length = 0;
+  const g = await run(d, ['generate'], { ...env, INWORLD_API_KEY: key });
+  const r = seen.find(s => /vein/.test(s.body.text || ''));
+  check('inworld: POST /tts/v1/voice with voiceId, modelId, word timestamps, LINEAR16 and a Basic key', g.code === 0 && r?.url === '/tts/v1/voice' && r.body.voiceId === 'Dennis'
+    && r.body.modelId === 'inworld-tts-2' && r.body.timestampType === 'WORD' && r.body.audioConfig?.audioEncoding === 'LINEAR16' && r.headers.authorization === `Basic ${key}` && !g.all.includes(key), g.all + JSON.stringify(r?.body));
+  check('inworld: the direction goes in instruction and a pause becomes <break>', /^Say calmly/.test(r?.body.instruction || '') && /vein\. <break time="0\.25s" \/> It is/.test(r?.body.text || ''), JSON.stringify(r?.body));
+  timingChecks('inworld', d, seen, b => b?.text);
+  seen.length = 0;
+  const g2 = await run(d, ['generate', '--retake', 'P1'], { ...env, INWORLD_API_KEY: 'abc123:' + 's'.repeat(30) });
+  check('inworld: an "id:secret" key is Base64-encoded for the Basic header', g2.code === 0 && seen[0]?.headers.authorization === `Basic ${key}` && !g2.all.includes('s'.repeat(30)), g2.all);
+  const kt = await run(d, ['keys', '--test'], { ...env, INWORLD_API_KEY: key, DOODLE_GEMINI_BASE_URL: `http://127.0.0.1:${port}/nothing`,
+    DOODLE_XAI_BASE_URL: `http://127.0.0.1:${port}/v1`, DOODLE_ELEVENLABS_BASE_URL: `http://127.0.0.1:${port}/v1` });
+  check('keys --test: Inworld works; providers with no key are reported, not counted as failures', /Inworld: works \(key from the INWORLD_API_KEY/.test(kt.out)
+    && /Grok \(xAI\) refused the request \(401\) and no key was found/.test(kt.out), kt.all);
+  srv.close();
+}
+{
+  const d = film('openai-realtime');
+  await run(d, ['lines', 'script.md', '--provider', 'openai', '--model', 'gpt-realtime']);
+  const g = await run(d, ['generate'], { OPENAI_BASE_URL: 'http://127.0.0.1:9/v1' });
+  check('openai: a realtime model is refused before any request (exit 2)', g.code === 2 && /plain speech endpoint/.test(g.err), g.all);
 }
 
 // ---------------------------------------------------------------- requests go through HTTPS_PROXY (Node's fetch would not)

@@ -68,7 +68,7 @@ New in v0.15 (techniques after Andy Farnell, *Designing Sound*, and K. van den D
 - `pageFlip` `{ dur = 0.45, g }`: a page turned: a rising, fluttering swish of air and the soft slap as it lands.
 - `pegSnap` `{ g }`: a clothes peg: a scrape of the spring, a woody snap and a faint ring of the coil. Also good for any small clip or latch.
 
-## Instruments and stingers (new in v0.16.2)
+## Instruments and stingers (new in v0.16.4)
 
 Ten pitched instruments play one note per call, in the film's key, and vary per call like the effects (a fixed `seed` repeats one exact note). Every one takes `{ f, deg, oct, tonic, g, pan, decay, seed }`: `f` is the pitch in Hz; without it, `deg` (a degree of the engine's `note()` scale, 0 = the tonic) is played in the film's key (`tonic`, else `music.tonic`, else 220 Hz), `oct` octaves above the tonic, starting from the instrument's home octave. `g` is the note's peak and `decay` stretches or shortens its ring (1 = as built). The pitch never varies by more than 2 cents per call, and a test checks every instrument's tuning by FFT to within 5 cents.
 
