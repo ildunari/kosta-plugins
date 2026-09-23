@@ -311,7 +311,7 @@ const END = {
     ['NOTES  ·  ROUNDED VALUES  ·  THE VALLEY SPLIT IS ILLUSTRATIVE', 'VAPOUR STAY: VAN DER ENT & TUINENBURG 2017'].forEach((src, k) => text(typed(src, t - 3.8 - k * 0.4, 70), 960 - measure(src, so) / 2, 912 + k * 36, so));
   },
 };
-// instruments and stingers (v0.16.2): the drop's motif when it first appears (title) and resolved to the tonic at the end, an
+// instruments and stingers (v0.16.4): the drop's motif when it first appears (title) and resolved to the tonic at the end, an
 // 'oops' as the teardrop myth is crossed out (IV), a 'reveal' as the camera settles on the whole route and 'success' as the
 // route closes (V), the rolled 'resolve' under the end card's rule line
 defineStory({ title: 'One Drop', stages: 5, music: { tonic: 220 }, plates: [T0, P1, P2, P3, P4, P5, END],
