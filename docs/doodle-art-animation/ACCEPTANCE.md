@@ -235,7 +235,7 @@ carrying a fact), `label` (the default: chart axes, legends, card notes), `hud` 
 ## V6 · Sound with variety, still synthesized
 - [auto] The engine's `SFX` has, besides its existing sounds: `crunch`, `creak`, `pump`, `relay`, `hiss`, `plop`,
   `slosh`, `shaker`, `clink`, `pour`, `foil`, `droplet`, `pageFlip`, `pegSnap`, and the beds `roomTone`, `rain`,
-  `wind`, `cityHum`; and since v0.16.5 the writing tools `pencil`, `chalk`, `marker`, `quill`, `charcoal`, `techPen`, the
+  `wind`, `cityHum`; and since v0.16.6 the writing tools `pencil`, `chalk`, `marker`, `quill`, `charcoal`, `techPen`, the
   effects `typewriter`, `eraser`, `stamp`, `tear`, `counter`, `sonify`, `sparkle`, `pipette`, `centrifuge`, `syringe`,
   `pills`, `fizz`, `bubbles`, `squelch`, `heartbeat`, `beep`, `zap`, `magnet`, and the beds `body`, `underwater`,
   `forest`, `ocean`, `fire`, `clockRoom`, `micro`, `vinyl`. Each takes a `seed`, and repeated calls vary unless a seed
@@ -284,7 +284,7 @@ carrying a fact), `label` (the default: chart axes, legends, card notes), `hud` 
   byte-identical except the pan seam's sheets, which changed because of the fix above.
 
 ## Release
-- [auto] `plugin.json` and the marketplace entry say `0.16.5`.
+- [auto] `plugin.json` and the marketplace entry say `0.16.6`.
 - [auto] `smoke_test.py` passes on every bundled story, including `story_brushes.js`.
 - [eye] Final independent review against this file and the ledger; example films and gallery re-rendered and
   sent to Kosta.

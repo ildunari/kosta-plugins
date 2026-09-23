@@ -78,7 +78,7 @@ New in v0.15 (techniques after Andy Farnell, *Designing Sound*, and K. van den D
 - `pageFlip` `{ dur = 0.45, g }`: a page turned: a rising, fluttering swish of air and the soft slap as it lands.
 - `pegSnap` `{ g }`: a clothes peg: a scrape of the spring, a woody snap and a faint ring of the coil. Also good for any small clip or latch.
 
-New in v0.16.5 (sound build S2). Writing tools take `{ chars, cps }` to type a line or `{ dur }` to draw one; typed, each is level-matched to the pen `scratch` (within 0.3 LU), and drawn, each sits with the other effects:
+New in v0.16.6 (sound build S2). Writing tools take `{ chars, cps }` to type a line or `{ dur }` to draw one; typed, each is level-matched to the pen `scratch` (within 0.3 LU), and drawn, each sits with the other effects:
 
 - `pencil` `{ chars, cps, dur = 1.2, g, rate }`: graphite on paper, softer and grainier than the pen, in strokes (`rate` a second).
 - `chalk` `{ chars, cps, dur = 1, g, rate }`: typed, a tap onto each letter and a short dry scrape; drawn, a rough scrape with the odd squeak.

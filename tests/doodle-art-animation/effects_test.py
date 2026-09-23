@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""effects_test.py — the ambiences, effects and writing sounds added in sound build S2 (v0.16.5).
+"""effects_test.py — the ambiences, effects and writing sounds added in sound build S2 (v0.16.6).
 
 usage:
   python3 tests/doodle-art-animation/effects_test.py [--node-modules PATH] [--work DIR]

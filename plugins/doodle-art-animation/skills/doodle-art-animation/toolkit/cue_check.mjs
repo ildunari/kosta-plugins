@@ -28,6 +28,11 @@
 //   SERVES   one type used for events of different kinds: as a cue and also inside a transition (the same thump for
 //            a contact and a camera move)                                                                    -> WARN
 //   PEN      a writing cue (scratch, pencil, chalk ...) on a plate whose paper has no pen (night)                -> WARN
+//   SPEECH   a narrated film only: a loud cue or a seam's sound landing on a spoken word (inside a sentence of
+//            window.__voice(), more than 0.05 s from either end). The effects duck only 3 dB under the voice, so a
+//            thump or a chime on a word can cover it. Loud: a seam's sound, or a cue of a LOUD type or with g >= 0.08.
+//            A beat on a mark is meant to land with its word, so keep that cue soft (a plink, a tick, a low g) or
+//            put it 0.15-0.3 s before or after the word                                                        -> WARN
 // Calibration (v0.15): The Slow Squeeze (the review film, 172 s) has scratch at 34% of 264 events and 131 identical
 // repeats (tick x34, pop x28) on its own engine: it fails both ways. The final v0.15 review replaced the old 40-event floor (under
 // which five of the seven bundled stories went unjudged, some at 35-50% scratch) with the grace rule above, and took
@@ -42,6 +47,9 @@ const require = createRequire(import.meta.url);
 
 const MAX_SHARE = 0.30, SLACK = 2, MIN_DOM = 4, MAX_SAME = 5, MAX_REPEAT_SHARE = 0.15;
 const TEXTURE = new Set(['tone', 'noise', 'pad', 'padKey']);    // bed material that is not an event; BED.* too
+// cue types loud enough to cover a word when they land on one (their default g is 0.08 or more, or the engine ducks the
+// beds for them); a cue with its own g is judged by that g instead
+const LOUD = new Set(['thump', 'crunch', 'chime', 'pop', 'whoosh', 'pump', 'pageFlip', 'foil', 'relay', 'plop', 'pegSnap']), LOUD_G = 0.08;
 
 const args = process.argv.slice(2);
 if (!args[0] || args[0].startsWith('--')) { console.log('usage: node cue_check.mjs film.html [--json out.json] [--list]'); process.exit(2); }
@@ -100,7 +108,8 @@ try {
     await renderAudio();
     // read the varied set after rendering: a story's own effects built on sfxRng register themselves as they play
     const variedNow = typeof VARIED === 'object' ? [...VARIED] : varied;
-    return { L, BEDS, plates, varied: variedNow, hasTag, title: STORY.title, total: TOTAL_T };
+    const speech = typeof window.__voice === 'function' ? window.__voice().units.flatMap(u => u.sentences.map(([a, b, x]) => [a, b, x, u.id])) : [];
+    return { L, BEDS, plates, varied: variedNow, hasTag, title: STORY.title, total: TOTAL_T, speech };
   });
 } catch (e) { console.error('cue_check:', e.message); await browser.close(); process.exit(2); }
 await browser.close();
@@ -141,6 +150,13 @@ const serves = Object.keys(inTrans).filter(k => !PRIMS.has(k) && (byTag[k] || {}
 const WRITING = new Set(['scratch', 'pencil', 'chalk', 'marker', 'quill', 'charcoal', 'techPen']);   // a writing cue on a paper with no pen (its tool is the readout)
 const pen = fg.filter(e => WRITING.has(e.k) && e.tag === 'cue' && (plates[e.plate].tool ?? (plates[e.plate].dark ? 'readout' : 'scratch')) === 'readout');
 
+// loud sounds on spoken words (narrated films)
+const gOf = e => { try { return JSON.parse(e.o).g; } catch { return undefined; } };
+const loud = e => e.tag === 'transition' || (e.tag === 'cue' && (gOf(e) != null ? gOf(e) >= LOUD_G : LOUD.has(e.k)));
+const speech = res.speech || [];
+const onWords = judged.filter(loud).flatMap(e => { const s = speech.find(([a, b]) => e.t > a + 0.05 && e.t < b - 0.05);
+  return s ? [{ k: e.k, t: e.t, tag: e.tag, unit: s[3], sentence: s[2] }] : []; });
+
 const fmt = t => t.toFixed(2);
 console.log(`${res.title}: ${judged.length} judged events (cues and seams), ${headers.length} typed headers, ${pulses.length} bed pulses, `
   + `${textures.length} bed textures, ${risers.length} risers counted with their seams; ${types.length} judged types, ${res.total.toFixed(1)} s`
@@ -160,10 +176,16 @@ console.log(`${failRep ? 'FAIL' : 'PASS'}    identical repeats: ${repeats} (${(r
 for (const g of same.slice(0, 8)) console.log(`REPEAT  ${g.tag === 'bed' ? 'bed pulse ' : ''}${g.k} ${g.o === '{}' ? '(default options)' : g.o.slice(0, 70)} x${g.times.length} at ${g.times.slice(0, 8).map(fmt).join(', ')}${g.times.length > 8 ? ', ...' : ''} s`);
 for (const s of serves) console.log(`WARN    serves: ${s.k} plays as a cue (${s.cues.slice(0, 6).map(fmt).join(', ')} s) and inside the ${s.transitions.join('/')} transition sound; give the camera move and the on-screen event different sounds`);
 if (pen.length) console.log(`WARN    pen: writing cue on a plate with no pen (night, a screen) at ${pen.slice(0, 8).map(e => fmt(e.t)).join(', ')} s`);
+if (speech.length) {
+  const shown = onWords.slice(0, 8).map(w => `${w.tag === 'transition' ? 'the ' + w.k.replace('TRANS:', '') + ' seam' : w.k} at ${fmt(w.t)} s (${w.unit}: "${w.sentence.length > 40 ? w.sentence.slice(0, 40) + '...' : w.sentence}")`);
+  console.log(onWords.length ? `WARN    speech: ${onWords.length} loud sound${onWords.length > 1 ? 's' : ''} on spoken words: ${shown.join('; ')}${onWords.length > 8 ? '; ...' : ''}. `
+    + 'Soften them (a lower g, or a plink or tick) or move them 0.15-0.3 s off the word'
+    : `PASS    speech: no loud cue on a spoken word (${speech.length} sentences)`);
+}
 const fail = failShare || failRep;
-console.log(`result: ${fail ? 'FAIL' : serves.length || pen.length ? 'WARN' : 'PASS'}`);
+console.log(`result: ${fail ? 'FAIL' : serves.length || pen.length || onWords.length ? 'WARN' : 'PASS'}`);
 if (res.BEDS && res.BEDS.length) console.log('BEDS    ' + res.BEDS.map(b => `${b.k} ${fmt(b.t)} s (${b.plate})`).join(', '));
 if (jsonOut) fs.writeFileSync(path.resolve(jsonOut), JSON.stringify({ title: res.title, bedLayers: res.BEDS || [], events: top, counts: Object.fromEntries(types), byTag,
   headers: Object.fromEntries(tally(headers)), pulses: Object.fromEntries(tally(pulses)), dominant: { type: domType, n: domN, of: judged.length, share, limit: domLimit },
-  repeats: { total: repeats, share: repShare, groups: same }, serves, pen, beds: bedAll.length, limits: { MAX_SHARE, SLACK, MIN_DOM, MAX_SAME, MAX_REPEAT_SHARE } }, null, 1));
+  repeats: { total: repeats, share: repShare, groups: same }, serves, pen, speech: { sentences: speech.length, onWords }, beds: bedAll.length, limits: { MAX_SHARE, SLACK, MIN_DOM, MAX_SAME, MAX_REPEAT_SHARE, LOUD_G } }, null, 1));
 process.exit(fail ? 1 : 0);
