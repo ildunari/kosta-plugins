@@ -18,7 +18,20 @@ The two worlds above are the **notebook** paper set, and it is the default. A pa
 | Set | Paper world | Night world | Status |
 |---|---|---|---|
 | `notebook` | `cream` | `night` | In `engine.js`; the default |
-| Others (blueprint, lab, chalk, codex, toned) | | | Planned; each lands as `toolkit/grounds/<name>.js` |
+| `chalk` | `whiteboard` | `chalkboard` | `toolkit/grounds/`; for lecture-style shorts |
+| `codex` | `laid` | `staratlas` | `toolkit/grounds/`; for history-of-science and discovery stories |
+| `toned` | `kraft` (or `tan`) | `sketchbook` | `toolkit/grounds/`; warm and tactile |
+| Others (blueprint, lab) | | | Planned; each lands as `toolkit/grounds/<name>.js` |
+
+What each of these papers does to a scene, and the rules that come with it:
+- **whiteboard**: cool white board, marker colours kept as drawn (no treatment). Accent: red marker `#d0342c`. Green marker is only 4:1, so use it for lines, not small text.
+- **chalkboard**: slate green board. Its treatment is a chalk lift: everything drawn becomes chalk with the board's tooth, so pale ink turns chalk white and dark fills (a navy particle) turn pale chalk of their own hue instead of dark holes. Accent: orange chalk `#f4a259`.
+- **laid**: Leonardo-style hand-made paper with laid lines and foxing. The scene gets a sepia wash and a light paper tooth, so any subject reads as iron-gall ink and wash. Accent: red chalk `#b0472c`. Keep labels off the darker stains.
+- **staratlas**: navy sky with stars and a slowly turning coordinate net in place of the topographic loops. Gold-cream ink, amber accent `#e8a13a`, colours a third less saturated.
+- **kraft**: tan wrapping paper, black ink. White is for highlights only (2.2:1 against kraft), never for text. The vermilion fails here (1.6:1), so the accent is a dark red `#8e2216`. For plates with a lot of text, name `tan` instead (`plate.paper = 'tan'`, or pair it in your own set): a lighter toned paper with fewer fibres.
+- **sketchbook**: warm black paper with white and gold gel pen; the scene loses a fifth of its saturation so fills read as ink, not glow. Accent: gold `#e0b04a`.
+
+A treated paper renders more slowly than the notebook: on a 4-core cloud machine without a GPU, a treated plate took roughly 20–100 ms more per frame in testing, and the chalkboard the most. The whiteboard has no treatment and costs nothing extra.
 
 Pick one set per film and switch only with a reason (a flashback on another paper, say). Subject colours that read on cream may not read on a coloured paper, so check them on the chosen set's `story_swatch.js` plates.
 

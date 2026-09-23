@@ -18,7 +18,7 @@ defineGround('kraft', {
   vignette: 'rgba(60,35,10,0.22)', grain: 0.8,
   contours: { colors: ['#8a5a3a', '#4d6d6a', '#9a7a30', '#5a5a80'], alpha: 0.14 },
   treatment: { tooth: [0.1, 0.55], color: ['#808080', 0.15] },
-  sfx: { header: 'scratch' },
+  sfx: { header: 'charcoal' },
   build: kraftBuild('#c6a676', 1),
 });
 /* tan: a lighter toned paper (9.8:1 for the ink) with fewer fibres, for plates with a lot of text */
@@ -28,7 +28,7 @@ defineGround('tan', {
   vignette: 'rgba(60,35,10,0.18)', grain: 0.8,
   contours: { colors: ['#8a5a3a', '#4d6d6a', '#9a7a30', '#5a5a80'], alpha: 0.14 },
   treatment: { tooth: [0.08, 0.5], color: ['#808080', 0.12] },
-  sfx: { header: 'scratch' },
+  sfx: { header: 'charcoal' },
   build: kraftBuild('#cdb996', 0.6),
 });
 definePaperSet('toned', { light: 'kraft', dark: 'sketchbook' });

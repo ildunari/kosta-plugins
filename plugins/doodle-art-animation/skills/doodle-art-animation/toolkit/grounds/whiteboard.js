@@ -8,7 +8,7 @@ defineGround('whiteboard', {
     mark: 'rgba(90,100,120,0.35)', shadow: 'rgba(20,30,40,0.10)', cardTint: 'rgba(255,255,255,0.5)', cardEdge: 'rgba(27,31,37,0.4)',
     dialShadow: 'rgba(20,30,40,0.08)', figShadow: 'rgba(20,30,40,0.10)', counter: 'rgba(70,80,95,0.6)', pageBack: 'rgba(255,255,255,0.4)' },
   vignette: 'rgba(30,40,50,0.10)', grain: 0.5, contours: false,
-  sfx: { header: 'scratch' },   // a marker squeak belongs to the sound build; the pen scratch stands in until then
+  sfx: { header: 'marker' },
   build(g, rand, W, H) {
     paperKit.fill(g, '#f5f6f4');
     const sh = g.createLinearGradient(0, 0, W, H);                       // the gloss: one soft diagonal band of light

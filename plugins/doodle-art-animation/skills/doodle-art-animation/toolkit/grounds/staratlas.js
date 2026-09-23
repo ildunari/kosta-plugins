@@ -11,7 +11,7 @@ defineGround('staratlas', {
     accent: '#e8a13a' },   // accent: a warm amber, 7.6:1 on the navy; the vermilion (4.6:1) fights the gold ink
   vignette: 'rgba(2,6,20,0.5)', grain: 0.5,
   treatment: { color: ['#808080', 0.3] },   // colours a third less saturated (a grey 'color' blend; cheaper than a CSS filter)
-  sfx: { header: 'readout' },
+  sfx: { header: 'quill' },
   /** the coordinate net: declination arcs around a pole below the frame, hour lines turning slowly about it */
   contours(t) {
     const cy = H * 1.9, cx = W * 0.5, top = cy - H * 1.05, rot = t * 0.004;

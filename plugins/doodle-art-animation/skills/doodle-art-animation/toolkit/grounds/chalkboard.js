@@ -24,7 +24,7 @@ defineGround('chalkboard', {
     nightCounter: 'rgba(210,218,208,0.6)', nightCurtain: '#1c2621', nightRim: [20, 28, 24], nightPageBack: 'rgba(200,215,205,0.18)',
     navyFill: '#3c5a8a', accent: '#f4a259' },   // accent: orange chalk (the vermilion is 3.4:1 here, orange 5.9:1)
   vignette: 'rgba(5,10,8,0.5)', grain: 0.5, contours: false,
-  sfx: { header: 'scratch' },   // a chalk tap belongs to the sound build; the pen scratch stands in until then
+  sfx: { header: 'chalk' },
   build(g, rand, W, H) {
     paperKit.fill(g, '#2a3831', '#243029');
     paperKit.mottle(g, rand, 14, ['rgba(200,215,205,0.035)', 'rgba(0,10,5,0.10)'], 200, 520);   // mottles also stop banding

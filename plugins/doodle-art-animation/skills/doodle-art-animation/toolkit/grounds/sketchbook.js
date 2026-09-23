@@ -12,7 +12,7 @@ defineGround('sketchbook', {
   vignette: 'rgba(0,0,0,0.5)', grain: 0.5,
   contours: { colors: ['#8a7a5a', '#5a7a7a', '#9a8a4a', '#6a6a8a'], alpha: 0.10 },
   treatment: { color: ['#808080', 0.2] },
-  sfx: { header: 'readout' },
+  sfx: { header: 'scratch' },
   build(g, rand, W, H) {
     paperKit.fill(g, '#1d1b19', '#191715');
     paperKit.mottle(g, rand, 10, ['rgba(120,110,90,0.04)', 'rgba(0,0,0,0.12)'], 250, 560);
