@@ -64,6 +64,10 @@ jobs:
         # toolkit/voice.mjs with its fake voice and pretend Gemini, OpenAI, Grok, ElevenLabs, Inworld and proxy servers: no network, keys or cost
         run: node tests/doodle-art-animation/voice_test.mjs
 
+      - name: Voice check tests
+        # toolkit/voice_check.py on planted faults (missing word, wrong speed, silence, another voice) with a pretend Gemini
+        run: python3 tests/doodle-art-animation/voice_check_test.py
+
       - name: Acceptance rules (static)
         # docs/doodle-art-animation/ACCEPTANCE.md, items L1-L17 and W1-W9. The --full tier needs
         # Playwright and a render, which the smoke job below already covers for the toolkit.

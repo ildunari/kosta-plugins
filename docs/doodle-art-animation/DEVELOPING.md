@@ -37,10 +37,12 @@ plugins/doodle-art-animation/       the plugin
                                     story_seams.js, story_reel.js, story_gallery.js, story_components.js,
                                     story_brushes.js, kits/ (_kit.js, earth, life, settle, tech, ai,
                                     space, lab, studio), voice.mjs and voice_kokoro.py (narration:
-                                    script.md -> checked, timed voice clips and vo/voice.json)
+                                    script.md -> checked, timed voice clips and vo/voice.json),
+                                    voice_check.py (transcript, voice consistency and listening checks
+                                    on those clips; voice.mjs check runs it)
 docs/doodle-art-animation/          not shipped with the plugin
   DEVELOPING.md                     this file
-  v0.14-state.md … v0.16.5-state.md what each release changed, how it was checked, its known limits
+  v0.14-state.md … v0.16.6-state.md what each release changed, how it was checked, its known limits
   ACCEPTANCE.md                     the go/no-go rules (L1-L17 films and toolkit, W1-W9 workflow)
   HANDOFF.md                        history, measurements, known weaknesses (paths in it refer to the original handoff zip)
   history/  reference/  examples/   design review, reference-film study images, an older story file
@@ -59,6 +61,8 @@ docs/doodle-art-animation/          not shipped with the plugin
 - Voice tool tests, also run by CI: `node tests/doodle-art-animation/voice_test.mjs`. They use the fake voice and pretend
   Gemini, OpenAI, Grok, ElevenLabs, Inworld and proxy servers, so they need no network, no keys and cost nothing. `DOODLE_TEST_KOKORO=1` adds a real
   Kokoro run (needs `python3 -m pip install kokoro-onnx` and downloads a 325 MB model from GitHub the first time).
+- Voice check tests, also run by CI: `python3 tests/doodle-art-animation/voice_check_test.py`. They plant a missing word, a
+  wrong-speed clip, a silent clip and another person's voice in a fake-voice film and answer Gemini with a pretend server.
 - Regression tests for bugs found while making films, also run by CI: `python3 tests/doodle-art-animation/regression_test.py
   --node-modules <playwright>/node_modules` (`--static` for the parts that need no browser). Add a check there, and a fixture
   story when it needs one, for each bug a film turns up.

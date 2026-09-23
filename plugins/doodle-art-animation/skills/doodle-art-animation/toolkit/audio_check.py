@@ -25,7 +25,9 @@ and loudness range targets are for films without narration and are only reported
 --stems DIR (with --narrated): the folder `node render.mjs film.html --stems --dir DIR` wrote (stem_voice.wav,
 stem_rest.wav, speech.json). Compares the two stems' momentary loudness (400 ms windows) while the voice speaks:
   under     how far the music, beds and effects sit under the voice, as the median over the speaking moments;
-            target 15-20 dB (under 15 the music competes with the words, over 20 it vanishes), outside it warns"""
+            target 15-20 dB (under 15 the music competes with the words, over 20 it vanishes), outside it warns
+  masked    the moments the median hides: any stretch of 0.8 s or more while the voice speaks where the music and
+            effects come within 10 dB of it (a loud cue or a bed swell on the words) warns, with its times"""
 import json, subprocess, sys
 import numpy as np
 
@@ -126,6 +128,20 @@ if narrated and opt('--stems'):
              if med < 15 else ' - the music all but vanishes under the voice: lower defineStory({ voice: { duck } })'))
     elif mv:
         line('WARN', 'under', f'only {len(d)} speaking moments to compare: are these the stems of this film?')
+    # stretches where the rest comes within 10 dB of the voice while it speaks (every 100 ms moment, 400 ms windows)
+    close = sorted(t for t, m in mv.items() if t in mr and m > -45 and m - mr[t] < 10 and any(a + 0.4 <= t <= b for a, b in spans))
+    runs, cur = [], []
+    for t in close:
+        if cur and t - cur[-1] > 0.15:
+            runs.append(cur); cur = []
+        cur.append(t)
+    if cur:
+        runs.append(cur)
+    runs = [(r[0] - 0.4, r[-1]) for r in runs if r[-1] - r[0] + 0.4 >= 0.8]
+    if len(d) >= 5:
+        line('WARN' if runs else 'PASS', 'masked', f'{len(runs)} stretch{"es" if len(runs) != 1 else ""} where the music and effects come within 10 dB of the voice: '
+             + ', '.join(f'{a:.1f}-{b:.1f} s' for a, b in runs[:8]) + ' - lower the cue or bed there, or move it off the words (cue_check.mjs lists loud cues on words)'
+             if runs else 'the music and effects stay more than 10 dB under the voice throughout')
 
 # clipping: consecutive samples at full scale. 6+ is real clipping; 3-5 can be AAC decode overshoot near 0 dBFS.
 full = np.abs(x) >= 0.999

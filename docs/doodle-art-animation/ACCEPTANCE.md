@@ -251,7 +251,7 @@ carrying a fact), `label` (the default: chart axes, legends, card notes), `hud` 
   engine, cue-able by name, listed in `VARIED` and documented in `sound.md`. `regression_test.py` checks every
   instrument's tuning by FFT to within 5 cents over its range, that a fixed seed repeats one exact note while plain
   calls vary, and that each stinger renders sound without clipping.
-- [auto] (v0.16.5) The score: `defineStory({ music: { style } })` with `notebook`, `kalimba`, `lofi` or `calm` puts every
+- [auto] (v0.16.6) The score: `defineStory({ music: { style } })` with `notebook`, `kalimba`, `lofi` or `calm` puts every
   plate start within 25 ms of a bar line of one tempo, only ever lengthening plates; `classic` (the default) leaves a
   film's timing and pad unchanged. The motif plays on a `motif: true` plate and resolves on the end card, and tension
   rises to the climax. `regression_test.py` checks all of this on One Drop in three styles, and that each renders
@@ -285,7 +285,7 @@ carrying a fact), `label` (the default: chart axes, legends, card notes), `hud` 
   byte-identical except the pan seam's sheets, which changed because of the fix above.
 
 ## Release
-- [auto] `plugin.json` and the marketplace entry say `0.16.5`.
+- [auto] `plugin.json` and the marketplace entry say `0.16.6`.
 - [auto] `smoke_test.py` passes on every bundled story, including `story_brushes.js`.
 - [eye] Final independent review against this file and the ledger; example films and gallery re-rendered and
   sent to Kosta.
