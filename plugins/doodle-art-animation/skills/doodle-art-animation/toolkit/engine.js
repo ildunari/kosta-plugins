@@ -37,6 +37,8 @@ const FONT = {
   display: '"Fraunces", Georgia, serif',
   sans: '"Inter Tight", "Helvetica Neue", Arial, sans-serif',
   mono: '"IBM Plex Mono", ui-monospace, Menlo, monospace',
+  hand: '"Patrick Hand", "Comic Sans MS", cursive',       // caption faces (engine.js, "burned-in captions"): loaded only
+  script: '"Caveat", "Segoe Print", cursive',             // when a caption style uses them, so stories don't draw with them
 };
 const FONT_LOADS = ['500 64px Fraunces', 'italic 400 30px Fraunces', '400 30px Fraunces',
   '600 30px "Inter Tight"', '400 22px "Inter Tight"', '400 18px "IBM Plex Mono"', '600 18px "IBM Plex Mono"'];
@@ -2292,7 +2294,7 @@ function voiceUnit(u) {
   }
   if (!sents.length) sents = [[0, +u.dur || 0, cleanWords(u.text)]];
   return { id: String(u.id), dur: +u.dur || (sents.length ? sents[sents.length - 1][1] : 0), sentences: sents, marks: u.marks || {}, audio: u.audio, mime: u.mime,
-    lead: u.lead != null ? +u.lead : null, tail: u.tail != null ? +u.tail : null };
+    lead: u.lead != null ? +u.lead : null, tail: u.tail != null ? +u.tail : null, words: Array.isArray(u.words) ? u.words : null };
 }
 /** where a plate's narration starts by default: once the title has finished typing (dropText at 17 cps, 0.25 s pop) */
 function voiceStart(p) {
@@ -2365,27 +2367,316 @@ function voiceTrack() {
       marks: Object.fromEntries(Object.entries(v.unit.marks).map(([k, s]) => [k, t0 + +s])), unit: v.unit }); }
   return out;
 }
-/** captions from the sentence times: at most two lines of 42 characters per caption; a longer sentence is split at
- *  word boundaries and its time shared out by length */
-function captions() {
-  const caps = [];
-  for (const v of voiceTrack()) for (const [a, b, text] of v.sentences) {
-    if (!text) continue;
-    const words = text.split(' '), chunks = [];
-    let cur = '';
-    for (const w of words) { if (cur && (cur + ' ' + w).length > 84) { chunks.push(cur); cur = w; } else cur = cur ? cur + ' ' + w : w; }
-    if (cur) chunks.push(cur);
-    const total = chunks.reduce((s, c) => s + c.length, 0); let t = a;
-    for (const c of chunks) { const d = (b - a) * c.length / total, lines = [];
-      let line = ''; for (const w of c.split(' ')) { if (line && (line + ' ' + w).length > 42) { lines.push(line); line = w; } else line = line ? line + ' ' + w : w; }
-      lines.push(line); caps.push({ t0: t, t1: t + d, text: lines.join('\n') }); t += d; }
+/* ---------- captions: the narration as text, in an .srt file and, when asked, drawn into the picture ----------
+ * captions() turns each sentence of the narration into captions of one or two lines of at most CAPTION.chars (42)
+ * characters. A sentence too long for one caption is cut into balanced parts. Every cut, between captions or between
+ * the two lines of one, goes where a reader expects a pause: after a comma, colon or dash, else before a word that
+ * starts a phrase (and, which, because, than ...); never after a word that leads into the next (a, the, of, to ...),
+ * never between a number and its unit, and never leaving a stub of a word or two.
+ * Each caption is timed by its own words: exact when voice.json has word times (timing "words": Grok, ElevenLabs,
+ * Inworld), otherwise shared out by syllables inside the sentence, so a caption that starts mid-sentence can be off by
+ * about 0.3 s (one that starts a sentence is as exact as the sentence). A gap under CAPTION.chain seconds between two
+ * captions is closed to two frames, so they don't blink off and on, and a caption shown for less than CAPTION.minDur
+ * is held longer when the next one leaves room.
+ * defineStory({ captions: { replace: { 'forty-five degrees Celsius': '45 °C' } } }) rewrites spoken forms for the
+ * reader (the voice still says the words); the new words take the time of the words they replace.
+ */
+const CAPTION = { chars: 42, chain: 0.5, minDur: 0.8 };
+const CAP_LEAD = new Set('a an the of to in on at by for from with into onto and or but nor as than that this these those its their his her our your my is are was were be been'.split(' '));
+const CAP_START = new Set('and but or so because which who whom whose that where when while than until unless although though if as into through from with without between'.split(' '));
+const CAP_UNIT = /^(°[CFK]?|K|%|‰|nm|µm|um|mm|cm|m|mg|µg|g|kg|mL|µL|L|M|mM|µM|s|ms|min|h|Hz|kHz|Pa|kPa|MPa|GPa|kDa|Da|J|W|V|mV)$/;
+const capBare = w => w.toLowerCase().replace(/[^a-z0-9'-]/g, '');
+/** the cost of a break (line or caption) between word a and word b: 0 after a sentence end ... 12 inside number-unit */
+function capBreak(a, b) {
+  if (/[.!?…]["'”’)\]]*$/.test(a)) return 0;
+  if (/[,;:—–]["'”’)\]]*$/.test(a) || /^[—–]/.test(b)) return 1;
+  if (/\d$/.test(a) && CAP_UNIT.test(b.replace(/[,.;:!?]+$/, ''))) return 12;
+  if (CAP_LEAD.has(capBare(a))) return 10;
+  if (CAP_START.has(capBare(b))) return 3;
+  return 6;
+}
+/** words 0..n-1 cut into k runs, each at most max characters, minimising break costs (times o.weight) plus how far
+ *  each run strays from an even share, plus a penalty for a stub (fewer than o.words words or o.chars characters);
+ *  part(i, j) may add its own cost for the run of words i..j-1 (Infinity refuses it).
+ *  Returns the cut indices (run starts after the first), or null when no cut fits. */
+function capCuts(words, k, max, part = () => 0, o = {}) {
+  const { weight = 1, words: sw = 2, chars: sc = 8 } = o;
+  const n = words.length, L = (i, j) => words.slice(i, j).reduce((s, w) => s + w.length, 0) + (j - i - 1);
+  const ideal = L(0, n) / k, best = Array.from({ length: k + 1 }, () => new Array(n + 1).fill(Infinity)), from = best.map(r => r.map(() => -1));
+  best[0][0] = 0;
+  for (let r = 1; r <= k; r++) for (let j = r; j <= n; j++) for (let i = r - 1; i < j; i++) {
+    if (best[r - 1][i] === Infinity) continue;
+    const len = L(i, j); if (len > max) continue;
+    const stub = k > 1 && (j - i < sw || len < sc) ? 6 : 0;
+    const c = best[r - 1][i] + (i ? weight * capBreak(words[i - 1], words[i]) : 0) + 8 * ((len - ideal) / ideal) ** 2 + stub + part(i, j);
+    if (c < best[r][j]) { best[r][j] = c; from[r][j] = i; }
   }
-  return caps;
+  if (best[k][n] === Infinity) return null;
+  const cuts = []; for (let r = k, j = n; r > 1; r--) { j = from[r][j]; cuts.unshift(j); }
+  return { cuts, cost: best[k][n] };
+}
+/** one caption's words as its lines: one line when it fits, else two balanced lines ([] when two lines cannot fit) */
+function capLines(words, chars = CAPTION.chars) {
+  const len = words.reduce((s, w) => s + w.length, 0) + words.length - 1;
+  if (len <= chars) return { lines: [words], cost: 0 };
+  const c = capCuts(words, 2, chars); if (!c) return null;
+  return { lines: [words.slice(0, c.cuts[0]), words.slice(c.cuts[0])], cost: c.cost };
+}
+/** a rough syllable count, for sharing a sentence's time among its words when the provider gave no word times */
+function capSyl(w) {
+  const s = w.replace(/[^A-Za-z0-9]/g, '');
+  if (!s) return 0.3;
+  if (/^\d+$/.test(s)) return 1.5 * s.length;
+  if (/^[A-Z]{2,5}$/.test(s)) return s.length;                         // an initialism: PLGA is four syllables
+  const v = s.toLowerCase().match(/[aeiouy]+/g), e = /[^l]e$/i.test(s) && v && v.length > 1 ? 1 : 0;
+  return Math.max(1, (v ? v.length : 1) - e);
+}
+/** the words of one sentence with their times [{ w, t0, t1 }]: from voice.json word times when given, else by syllables */
+function capWords(text, a, b, exact) {
+  const ws = text.split(/\s+/).filter(Boolean);
+  if (exact && exact.length === ws.length) return ws.map((w, i) => ({ w, t0: +exact[i][0], t1: +exact[i][1] }));
+  const wt = ws.map((w, i) => [capSyl(w), i < ws.length - 1 && /[,;:—–]["'”’)\]]*$/.test(w) ? 1.5 : 0]);
+  const tot = wt.reduce((s, [x, p]) => s + x + p, 0) || 1; let u = 0;
+  return ws.map((w, i) => { const t0 = a + (b - a) * u / tot; u += wt[i][0]; const t1 = a + (b - a) * u / tot; u += wt[i][1]; return { w, t0, t1 }; });
+}
+/** captions.replace applied to a sentence's timed words: the new words share the time of the words they replace */
+function capReplace(toks, rep) {
+  const pairs = Array.isArray(rep) ? rep : Object.entries(rep || {}), bare = w => w.replace(/[,.;:!?…"'”’)\]]+$/, '');
+  for (const [from, to] of pairs) {
+    const f = String(from).split(/\s+/).filter(Boolean), tw = String(to).split(/\s+/).filter(Boolean); if (!f.length) continue;
+    f[f.length - 1] = bare(f[f.length - 1]);        // 'one by one,' finds 'one by one' whatever follows it
+    for (let i = 0; i + f.length <= toks.length; i++) {
+      const hit = f.every((x, k) => (k === f.length - 1 ? bare(toks[i + k].w) : toks[i + k].w) === x);
+      if (!hit) continue;
+      const last = toks[i + f.length - 1], tail = last.w.slice(bare(last.w).length);
+      const t0 = toks[i].t0, t1 = last.t1, d = (t1 - t0) / Math.max(1, tw.length);
+      // the spoken word's punctuation is kept, unless the replacement ends in its own
+      const nw = tw.map((w, k) => ({ w: w + (k === tw.length - 1 && bare(w) === w ? tail : ''), t0: t0 + d * k, t1: t0 + d * (k + 1) }));
+      if (!nw.length) { if (i > 0) toks[i - 1].w += tail; }
+      toks.splice(i, f.length, ...nw); i += nw.length - 1;
+    }
+  }
+  return toks;
+}
+/** a sentence's timed words cut into captions, each { words: [[{w, t0, t1}]] per line } */
+function capChunks(toks) {
+  const words = toks.map(t => t.w), total = words.reduce((s, w) => s + w.length, 0) + words.length - 1;
+  const max = 2 * CAPTION.chars, fit = (i, j) => { const l = capLines(words.slice(i, j)); return l ? l.cost * 0.5 : Infinity; };
+  let best = null;
+  for (let k = Math.max(1, Math.ceil(total / max)); k <= Math.ceil(total / max) + 2 && k <= words.length; k++) {
+    // a cut between captions weighs more than one between lines, and a caption of a word or two is a stub
+    const c = k === 1 ? (total <= max && isFinite(fit(0, words.length)) ? { cuts: [], cost: 0 } : null) : capCuts(words, k, max, fit, { weight: 1.5, words: 3, chars: 16 });
+    if (c && (!best || c.cost + 4 * (k - 1) < best.cost)) best = { cuts: c.cuts, cost: c.cost + 4 * (k - 1) };
+  }
+  const cuts = best ? best.cuts : [];
+  if (!best) {                                                          // a word too long to fit anywhere: cut greedily
+    let len = 0; words.forEach((w, i) => { if (i && len + 1 + w.length > max) { cuts.push(i); len = w.length; } else len += (i ? 1 : 0) + w.length; });
+  }
+  const at = [0, ...cuts, words.length];
+  return at.slice(0, -1).map((s, q) => {
+    const part = toks.slice(s, at[q + 1]), l = capLines(part.map(t => t.w));
+    let lines;
+    if (l) { let o = 0; lines = l.lines.map(ln => { const r = part.slice(o, o + ln.length); o += ln.length; return r; }); }
+    else { const h = Math.ceil(part.length / 2); lines = [part.slice(0, h), part.slice(h)]; }
+    return { lines };
+  });
+}
+let CAPS = null;
+/** every caption of the film, in order: [{ t0, t1, text (lines joined by \n), lines: [[{ w, t0, t1 }]], plate, unit }] */
+function captions() {
+  if (CAPS) return CAPS;
+  const caps = [], rep = STORY && STORY.captions && STORY.captions.replace;
+  for (const v of voiceTrack()) {
+    const count = x => x.split(/\s+/).filter(Boolean).length, n0 = v.sentences.reduce((s, x) => s + (x[2] ? count(x[2]) : 0), 0);
+    const exact = Array.isArray(v.unit.words) && v.unit.words.length === n0 ? v.unit.words : null; let wi = 0;
+    for (const [a, b, text] of v.sentences) {
+      if (!text) continue;
+      const n = count(text), ex = exact ? exact.slice(wi, wi + n).map(([s, e]) => [v.t0 + +s, v.t0 + +e]) : null;
+      wi += n;
+      for (const ch of capChunks(capReplace(capWords(text, a, b, ex), rep))) {
+        const all = ch.lines.flat();
+        caps.push({ t0: all[0].t0, t1: all[all.length - 1].t1, text: ch.lines.map(ln => ln.map(t => t.w).join(' ')).join('\n'), lines: ch.lines, plate: v.plate, unit: v.id });
+      }
+    }
+  }
+  caps.sort((x, y) => x.t0 - y.t0);
+  caps.forEach((c, k) => {                                               // hold short ones, close small gaps, never overlap
+    const nx = caps[k + 1]; if (!nx) return;
+    const room = nx.t0 - 2 / FPS;
+    if (c.t1 - c.t0 < CAPTION.minDur) c.t1 = Math.max(c.t1, Math.min(c.t0 + CAPTION.minDur, room));
+    if (nx.t0 - c.t1 < CAPTION.chain) c.t1 = Math.max(c.t1, room);
+    c.t1 = Math.min(c.t1, nx.t0);
+  });
+  return (CAPS = caps);
 }
 function srtOf(caps) {
   const ts = s => { const ms = Math.max(0, Math.round(s * 1000)), h = Math.floor(ms / 3600000), m = Math.floor(ms / 60000) % 60, sec = Math.floor(ms / 1000) % 60;
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')},${String(ms % 1000).padStart(3, '0')}`; };
   return caps.map((c, i) => `${i + 1}\n${ts(c.t0)} --> ${ts(c.t1)}\n${c.text}\n`).join('\n');
+}
+
+/* ---------- burned-in captions: the same captions drawn into every frame, in a chosen style ----------
+ * Off unless asked: render.mjs --captions [spec] (the page's ?captions=spec), `c` in the player, or
+ * defineStory({ captions: { burn: true } }). A style is a font, a background and an animation:
+ *   font  sans (Inter Tight) · serif (Fraunces) · mono (IBM Plex Mono) · hand (Patrick Hand) · script (Caveat)
+ *   bg    halo (a glyph halo of the plate's own paper, like the headers) · scrap (a torn scrap of the paper, pencil
+ *         edge and shadow) · tape (a strip of masking tape per line) · marker (a highlighter swipe per line) ·
+ *         band (a dark box with light type, the broadcast look) · outline (light type, dark outline, no box)
+ *   anim  cut (on and off with the speech) · fade · rise (fades in while rising a little) · type (letters type on as
+ *         each word is spoken) · words (each word pops in as it is spoken) · highlight (the whole caption shows, the
+ *         word being spoken takes the accent colour)
+ * Named styles (CAPTION_STYLES) pick one of each; any part can be changed on its own, in the story
+ * (captions: { style: 'tape', anim: 'fade', size: 52, pos: 'top' }) or the spec ('tape', 'style=tape,anim=fade').
+ * pos: 'bottom' (default; centred, clear of the stage dial) | 'top' (under the header band) | a number (the last
+ * line's baseline, px). A plate can move them (captions: { pos: 'top' }, for a bottom card) or hide them while it is on
+ * screen (captions: false, e.g. a title the voice reads as it types). defineCaptionStyle(name, {...}) adds a style.
+ */
+const CAPTION_FONTS = {
+  sans: { kind: 'sans', size: 44, weight: 600, lh: 1.22, face: 'Inter Tight' },
+  serif: { kind: 'display', size: 46, weight: 500, lh: 1.2, face: 'Fraunces' },
+  mono: { kind: 'mono', size: 38, weight: 600, lh: 1.3, face: 'IBM Plex Mono' },
+  hand: { kind: 'hand', size: 52, weight: 400, lh: 1.12, face: 'Patrick Hand' },
+  script: { kind: 'script', size: 58, weight: 600, lh: 1.02, face: 'Caveat' },
+};
+const CAPTION_BGS = ['halo', 'scrap', 'tape', 'marker', 'band', 'outline'];
+const CAPTION_ANIMS = ['cut', 'fade', 'rise', 'type', 'words', 'highlight'];
+const CAPTION_STYLES = {
+  notebook: { font: 'sans', bg: 'halo', anim: 'fade' },           // the default: quiet, like the plate's own labels
+  scrap: { font: 'serif', bg: 'scrap', anim: 'rise' },            // a note pinned to the page
+  tape: { font: 'hand', bg: 'tape', anim: 'words' },              // handwriting on masking tape, a word at a time
+  marker: { font: 'sans', bg: 'marker', anim: 'highlight' },      // a highlighter swipe, the spoken word in the accent
+  margin: { font: 'script', bg: 'halo', anim: 'type' },           // handwriting in the margin, written as it is said
+  field: { font: 'mono', bg: 'scrap', anim: 'type' },             // a field log typed on a scrap
+  broadcast: { font: 'sans', bg: 'band', anim: 'cut' },           // the television look, the most legible anywhere
+  social: { font: 'sans', bg: 'outline', anim: 'words', size: 58 }, // big words for short-form video
+};
+function defineCaptionStyle(name, o) { CAPTION_STYLES[name] = { ...o }; }
+const CC = { on: false, style: null, warned: false, drawn: [] };   // drawn: this frame's caption blocks, for text_check
+/** a style from a spec: a style name, or 'key=value' pairs ('style=tape,font=mono,anim=fade,size=50,pos=top') */
+function captionStyle(spec) {
+  const own = (STORY && STORY.captions) || {}, parts = {};
+  const s = spec == null || spec === true || /^(1|on|yes|true)?$/i.test(String(spec)) ? '' : String(spec).trim();
+  if (s && !s.includes('=') && !s.includes(':')) parts.style = s;
+  else for (const kv of s.split(/[,;&\s]+/).filter(Boolean)) { const [k, v] = kv.split(/[=:]/); parts[k.trim()] = (v ?? '').trim(); }
+  const known = ['style', 'font', 'bg', 'anim', 'size', 'pos'];
+  for (const k of Object.keys(parts)) if (!known.includes(k)) throw new Error(`captions: unknown setting '${k}' (use ${known.join(', ')})`);
+  const name = parts.style || own.style || 'notebook', base = CAPTION_STYLES[name];
+  if (!base) throw new Error(`captions: no style '${name}' (styles: ${Object.keys(CAPTION_STYLES).join(', ')})`);
+  const all = ['font', 'bg', 'anim', 'size', 'pos'];   // a spec that names a style replaces the story's look, keeps its pos
+  const st = { name, ...base, ...pick(own, parts.style ? ['pos'] : all), ...pick(parts, all) };
+  if (!CAPTION_FONTS[st.font]) throw new Error(`captions: no font '${st.font}' (fonts: ${Object.keys(CAPTION_FONTS).join(', ')})`);
+  if (!CAPTION_BGS.includes(st.bg)) throw new Error(`captions: no background '${st.bg}' (backgrounds: ${CAPTION_BGS.join(', ')})`);
+  if (!CAPTION_ANIMS.includes(st.anim)) throw new Error(`captions: no animation '${st.anim}' (animations: ${CAPTION_ANIMS.join(', ')})`);
+  if (st.size != null && st.size !== '') st.size = +st.size; else delete st.size;
+  if (st.pos != null && st.pos !== '' && !isNaN(+st.pos)) st.pos = +st.pos;
+  return st;
+  function pick(o, keys) { return Object.fromEntries(keys.filter(k => o[k] != null && o[k] !== '').map(k => [k, o[k]])); }
+}
+/** turn burned-in captions on from the page's ?captions= (or the story's captions.burn); called by boot() */
+function captionsInit() {
+  const q = QS.get('captions'), own = (STORY && STORY.captions) || {};
+  const off = q != null && /^(0|off|no|none|false)$/i.test(q);
+  CC.on = !off && (q != null || !!own.burn || (!RENDER && QS.has('cc')));
+  CC.style = captionStyle(q != null && !off ? q : null);
+}
+const capFont = st => CAPTION_FONTS[st.font];
+/** where a caption sits and how big it is: { size, lh, ys (baselines), scale } for its lines */
+function capLayout(c, st, pos) {
+  const F = capFont(st), size0 = st.size || F.size;
+  const widths = c.lines.map(ln => measure(ln.map(t => t.w).join(' '), { kind: F.kind, size: size0, weight: F.weight }));
+  const maxW = 1060, k = Math.min(1, maxW / Math.max(1, ...widths)), size = size0 * k, lh = size * F.lh, n = c.lines.length;
+  const p = pos ?? st.pos ?? 'bottom';
+  const last = typeof p === 'number' ? p : p === 'top' ? 300 + (n - 1) * lh : H - 92;
+  return { size, lh, ys: c.lines.map((_, i) => last - (n - 1 - i) * lh), widths: widths.map(w => w * k) };
+}
+/** each word's look at time T: alpha, letters shown, pop scale, and whether it is the word being spoken */
+function capWordState(c, st, T, tk) {
+  const a = st.anim;
+  if (a === 'type') { const u = inv(tk.t0 - 0.04, tk.t1 - 0.02, T); return { alpha: u > 0 ? 1 : 0, chars: Math.ceil(u * tk.w.length) }; }
+  if (a === 'words') { const u = inv(tk.t0 - 0.05, tk.t0 + 0.13, T); return { alpha: E.out2(u), pop: lerp(1.22, 1, E.outBack(u)) }; }
+  if (a === 'highlight') { const all = c.lines.flat(), cur = all.filter(t => t.t0 <= T + 0.02).pop(); return { alpha: 1, hi: cur === tk && T < c.t1 }; }
+  return { alpha: 1 };
+}
+function capEnvelope(c, st, T) {
+  if (st.anim === 'cut') return T >= c.t0 && T < c.t1 ? 1 : 0;
+  return E.out2(inv(c.t0 - 0.04, c.t0 + 0.12, T)) * (1 - inv(c.t1 - 0.1, c.t1 + 0.02, T));
+}
+/** draw one line of caption words with the style's text treatment */
+function capWord(s, x, y, o, st, dark) {
+  if (!s) return;
+  if (st.bg === 'halo') return haloText(s, x, y, { ...o, dark, haloWidth: 0.3, haloAlpha: 0.95 });
+  if (st.bg === 'outline') {
+    ctx.save(); setFont(o.kind, o.size, o.weight); ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.globalAlpha *= o.alpha ?? 1;
+    ctx.lineJoin = 'round'; ctx.miterLimit = 2; ctx.strokeStyle = 'rgba(12,10,22,0.92)'; ctx.lineWidth = o.size * 0.2;
+    ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = o.size * 0.25; ctx.shadowOffsetY = o.size * 0.05; ctx.strokeText(s, x, y); ctx.restore();
+  }
+  return text(s, x, y, o);
+}
+/** the background under a caption (per caption for scrap and band, per line for tape and marker) */
+function capBackground(c, st, L, xs, dark, T, reach, idx) {
+  const F = capFont(st), sz = L.size, top = L.ys[0] - sz * 0.86, bot = L.ys[L.ys.length - 1] + sz * 0.3;
+  const x0 = Math.min(...xs), x1 = Math.max(...xs.map((x, i) => x + L.widths[i]));
+  if (st.bg === 'scrap') backing(x0, top, x1, bot, { dark, pad: 18, seed: 41 + idx % 7, style: 'card' });
+  else if (st.bg === 'band') { ctx.save(); ctx.fillStyle = 'rgba(14,12,26,0.80)'; ctx.beginPath(); ctx.roundRect(x0 - 24, top - 12, x1 - x0 + 48, bot - top + 24, 12); ctx.fill(); ctx.restore(); }
+  else if (st.bg === 'tape') L.ys.forEach((y, i) => {
+    const seed = idx * 13 + i * 5, jx = (hash3(seed, 1) - 0.5) * 14, rot = (hash3(seed, 2) - 0.5) * 0.02;
+    const a = xs[i] - 30 + jx, b = xs[i] + L.widths[i] + 30 + jx, y0 = y - sz * (F.kind === 'hand' ? 0.9 : 0.95), y1 = y + sz * 0.32, n = 7, pts = [];
+    for (let q = 0; q <= n; q++) pts.push([a + (hash3(seed, q, 3) - 0.5) * 9 + (q % 2 ? 4 : -2), lerp(y0, y1, q / n)]);
+    for (let q = n; q >= 0; q--) pts.push([b + (hash3(seed, q, 4) - 0.5) * 9 + (q % 2 ? -2 : 4), lerp(y0, y1, q / n)]);
+    const cx = (a + b) / 2, cy = (y0 + y1) / 2;
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(rot); ctx.translate(-cx, -cy);
+    ctx.save(); ctx.translate(3, 4); flat(pts, 'rgba(40,30,20,0.16)'); ctx.restore();
+    flat(pts, '#e8d9a6', 0.93);
+    ink([[a + 6, y0 + 2], [b - 6, y0 + 2]], { w: 1, color: 'rgba(120,100,60,0.35)', amp: 0.3, seed });
+    ink([[a + 6, y1 - 2], [b - 6, y1 - 2]], { w: 1, color: 'rgba(120,100,60,0.35)', amp: 0.3, seed: seed + 1 });
+    ctx.restore();
+  });
+  else if (st.bg === 'marker') L.ys.forEach((y, i) => {
+    const seed = idx * 17 + i * 3, a = xs[i] - 12, full = L.widths[i] + 24;
+    const w = reach ? Math.max(0, reach[i] - a + 10) : full * E.out3(inv(c.t0 + 0.08 * i - 0.04, c.t0 + 0.08 * i + 0.26, T));
+    if (w <= 1) return;
+    const b = a + Math.min(full, w), y0 = y - sz * 0.84, y1 = y + sz * 0.26, sk = sz * 0.12;
+    const pts = [[a + sk, y0], [b, y0 + 2], [b - sk * 0.4, y1], [a, y1 - 2]];
+    ink(pts, { closed: true, w: 0, fill: '#f6d743', fillAlpha: 0.9, amp: 1.6, seed });   // opaque enough to read over any art
+  });
+}
+/** draw the captions on screen at film time T over the finished frame (pl: the plate on screen) */
+function drawCaptions(T, pl) {
+  CC.drawn = [];
+  const caps = captions(); if (!caps.length || !CC.style) return;
+  const own = pl.captions; if (own === false) return;
+  const st = CC.style, F = capFont(st), dark = !!pl.dark, pos = own && own.pos != null ? own.pos : undefined;
+  const light = st.bg === 'band' || st.bg === 'outline', onSurface = st.bg === 'tape' || st.bg === 'marker';
+  const color = light ? '#f7f2e6' : onSurface ? PAL.ink : inkOf(dark);
+  const accent = light ? PAL.gold : onSurface ? PAL.accentDeep : legible(PAL.accent, dark, 4.5);
+  const darkWas = S.dark, baseWas = S.base; S.dark = dark; S.base = new DOMMatrix();   // halos and scraps sample the paper as laid
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  caps.forEach((c, idx) => {
+    if (T < c.t0 - 0.1 || T > c.t1 + 0.1) return;
+    const env = capEnvelope(c, st, T); if (env <= 0) return;
+    const L = capLayout(c, st, pos), o = { kind: F.kind, size: L.size, weight: F.weight, role: 'fact' };
+    const xs = L.widths.map(w => W / 2 - w / 2);
+    const lift = st.anim === 'rise' ? 16 * (1 - E.out3(inv(c.t0 - 0.04, c.t0 + 0.32, T))) : 0;
+    ctx.save(); ctx.globalAlpha *= env; ctx.translate(0, lift);
+    if (st.bg === 'scrap' || st.bg === 'tape') { const cx = W / 2, cy = L.ys[0], r = (hash3(idx, 9) - 0.5) * 0.012; ctx.translate(cx, cy); ctx.rotate(r); ctx.translate(-cx, -cy); }
+    const states = c.lines.map(ln => ln.map(tk => capWordState(c, st, T, tk)));
+    // how far each line has been written or spoken (the marker follows it when the words arrive one by one)
+    const reach = st.bg === 'marker' && (st.anim === 'type' || st.anim === 'words') ? c.lines.map((ln, i) => {
+      let x = xs[i] - 12; ln.forEach((tk, k) => { const sv = states[i][k]; if (sv.alpha > 0) x = xs[i] + measure(ln.slice(0, k).map(t => t.w).join(' ') + (k ? ' ' : '') + tk.w.slice(0, sv.chars ?? tk.w.length), o); }); return x; }) : null;
+    capBackground(c, st, L, xs, dark, T, reach, idx);
+    const pad = L.size * 0.3;   // the block with its background, which is what covers the art
+    CC.drawn.push({ i: idx, text: c.text, box: [Math.min(...xs) - pad, L.ys[0] - L.size * 0.9 - pad + lift, Math.max(...xs.map((x, i) => x + L.widths[i])) + pad, L.ys[L.ys.length - 1] + L.size * 0.3 + pad + lift] });
+    c.lines.forEach((ln, i) => ln.forEach((tk, k) => {
+      const sv = states[i][k]; if (sv.alpha <= 0) return;
+      const x = xs[i] + (k ? measure(ln.slice(0, k).map(t => t.w).join(' ') + ' ', o) : 0), y = L.ys[i];
+      const s = sv.chars != null ? tk.w.slice(0, sv.chars) : tk.w, oo = { ...o, color: sv.hi ? accent : color, alpha: sv.alpha };
+      if (sv.pop && sv.pop !== 1) { const ww = measure(tk.w, o), ax = x + ww / 2, ay = y - L.size * 0.35;
+        ctx.save(); ctx.translate(ax, ay); ctx.scale(sv.pop, sv.pop); ctx.translate(-ax, -ay); capWord(s, x, y, oo, st, dark); ctx.restore(); }
+      else capWord(s, x, y, oo, st, dark);
+    }));
+    ctx.restore();
+  });
+  ctx.restore(); S.dark = darkWas; S.base = baseWas;
 }
 
 /* ---------- animatic: the pacing check before any art ----------
@@ -2537,6 +2828,7 @@ function frameBody(f, P, i, pl, t, tr, vig) {
   if (gr) { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = gr * (pl._ground ? pl._ground.grain : pl.dark ? 0.5 : 0.8); ctx.translate(-(hash3(db, 4, 9) * 256 | 0), -(hash3(db, 5, 9) * 256 | 0));
     ctx.fillStyle = TEX.grain[db % 4]; ctx.fillRect(0, 0, W + 256, H + 256); ctx.restore(); }
   if (pl.counter !== false) frameCounter(f, pl.dark);
+  if (CC.on) drawCaptions(f / FPS, pl);                                 // burned-in captions: on ones, over everything, no weave
 }
 
 /* ---------- audio: synthesized, rendered offline, deterministic ---------- */
@@ -3558,21 +3850,27 @@ function b64(bytes) { let s = ''; for (let i = 0; i < bytes.length; i += 0x8000)
  * first page already fell back, so every page draws with the same faces without waiting the cap again).
  */
 const FONT_WAIT = +(QS.get('fontwait') || 10000);
-const FONT_PKG = { 'Fraunces': '@fontsource-variable/fraunces', 'Inter Tight': '@fontsource/inter-tight', 'IBM Plex Mono': '@fontsource/ibm-plex-mono' };
+const FONT_PKG = { 'Fraunces': '@fontsource-variable/fraunces', 'Inter Tight': '@fontsource/inter-tight', 'IBM Plex Mono': '@fontsource/ibm-plex-mono',
+  'Patrick Hand': '@fontsource/patrick-hand', 'Caveat': '@fontsource/caveat' };
+const FONT_SPEC = { 'Fraunces': '500 40px', 'Caveat': '600 40px' };
+/** the families this page needs: the engine's three, plus the caption face when burned-in captions use hand or script */
+const fontFamilies = () => ['Fraunces', 'Inter Tight', 'IBM Plex Mono',
+  ...(CC.on && CC.style && CAPTION_FONTS[CC.style.font].kind in { hand: 1, script: 1 } ? [CAPTION_FONTS[CC.style.font].face] : [])];
 function missingFonts() {
   const g = document.createElement('canvas').getContext('2d'), probe = 'Hamburgefonstiv 0123 AQWxyz';
-  return [['Fraunces', '500 40px'], ['Inter Tight', '400 40px'], ['IBM Plex Mono', '400 40px']].filter(([fam, spec]) =>
-    ['monospace', 'serif'].every(fb => { g.font = `${spec} "${fam}", ${fb}`; const a = g.measureText(probe).width; g.font = `${spec} ${fb}`; return a === g.measureText(probe).width; }))
-    .map(m => m[0]);
+  return fontFamilies().filter(fam => { const spec = FONT_SPEC[fam] || '400 40px';
+    return ['monospace', 'serif'].every(fb => { g.font = `${spec} "${fam}", ${fb}`; const a = g.measureText(probe).width; g.font = `${spec} ${fb}`; return a === g.measureText(probe).width; }); });
 }
+/** the faces to wait for at boot: FONT_LOADS, plus the caption face burned-in captions will draw with */
+const fontLoads = () => [...FONT_LOADS, ...fontFamilies().slice(3).map(f => `${FONT_SPEC[f] || '400 40px'} "${f}"`)];
 async function loadFonts() {
   const link = document.getElementById('webfonts'), state = link ? link.dataset.state : null;
   let missing, why;
-  if (QS.has('nofonts') && link) { missing = Object.keys(FONT_PKG); why = 'fonts skipped (?nofonts); '; }   // embedded fonts are never skipped
+  if (QS.has('nofonts') && link) { missing = fontFamilies(); why = 'fonts skipped (?nofonts); '; }   // embedded fonts are never skipped
   else {
     const late = new Promise(r => setTimeout(() => r('timeout'), FONT_WAIT));
     if (link && !link.dataset.state) await Promise.race([late, new Promise(r => { link.addEventListener('load', r); link.addEventListener('error', r); })]);
-    await Promise.race([late, Promise.all(FONT_LOADS.map(f => document.fonts.load(f).catch(() => null))).then(() => document.fonts.ready)]);
+    await Promise.race([late, Promise.all(fontLoads().map(f => document.fonts.load(f).catch(() => null))).then(() => document.fonts.ready)]);
     missing = missingFonts();
     why = link && link.dataset.state === 'failed' ? 'Google Fonts is blocked; ' : link ? 'Google Fonts did not answer; ' : '';
   }
@@ -3589,20 +3887,26 @@ async function loadFonts() {
   console.warn(window.__fontWarning);
 }
 async function boot() {
+  captionsInit();                                          // before the fonts: a caption style may need its own face
   await loadFonts();
   buildTextures();
   window.__story = { fps: FPS, frames: TOTAL_F, width: W, height: H, title: STORY.title, silent: !!STORY.silent, music: GRID.on ? { bpm: GRID.bpm, bar: GRID.bar(), t0: GRID.t0, free: STORY.plates.filter(p => p.free).map(p => p.i) } : null, starts: STORY.plates.map(p => ({ t: p.start, type: p.enter ? p.enter.type : null, dur: p.enter ? p.enter.dur : 0, settle: p.enter ? p.enter.settle ?? 0.9 : 0 })),
-    narrated: voiceTrack().length > 0, animatic: ANIMATIC };
+    narrated: voiceTrack().length > 0, animatic: ANIMATIC,
+    captions: CC.on && captions().length ? { burned: true, style: CC.style.name, font: CC.style.font, bg: CC.style.bg, anim: CC.style.anim } : null };
   window.__renderFrame = f => { renderFrame(f); return true; };
   window.__frameData = (f, type = 'image/jpeg', q = 0.94) => { renderFrame(f); return cvs.toDataURL(type, q).split(',')[1]; };
   window.__audioWav = async (o = {}) => b64(wavBytes(await renderAudio(o)));   // o.only: 'voice' | 'rest' for one stem of a narrated film
   /* ---- narration hooks (a film without embedded narration returns empty values) ----
    * __voice(): the narration on the film clock: [{ plate, id, t0, dur, sentences: [[t0, t1, text]], marks: { name: t } }]
    *   (film seconds), plus the warnings (a plate asking for a clip that is missing, an unused clip, a missing mark).
-   * __srt(): captions as the text of an .srt file (render.mjs writes film.srt next to a narrated film's MP4). */
+   * __srt(): captions as the text of an .srt file (render.mjs writes film.srt next to a narrated film's MP4).
+   * __captions(): the same captions with their words' times, and the burned-in style (null when they are off):
+   *   { captions: [{ t0, t1, text, plate, unit, words: [[w, t0, t1]] }], style, styles, fonts, bgs, anims }. */
   window.__voice = () => ({ units: voiceTrack().map(({ unit, ...v }) => v), warnings: NARR.warnings, animatic: ANIMATIC,
     provider: NARR.data && NARR.data.provider, model: NARR.data && NARR.data.model, voice: NARR.data && NARR.data.voice });
   window.__srt = () => srtOf(captions());
+  window.__captions = () => ({ captions: captions().map(c => ({ t0: c.t0, t1: c.t1, text: c.text, plate: c.plate, unit: c.unit, words: c.lines.flat().map(t => [t.w, t.t0, t.t1]) })),
+    style: CC.on ? CC.style : null, styles: CAPTION_STYLES, fonts: Object.keys(CAPTION_FONTS), bgs: CAPTION_BGS, anims: CAPTION_ANIMS });
   /* ---- speed_check probes: read-only, for toolkit/speed_check.mjs (references/motion.md, "Speed limits") ----
    * __camProbe(i, t): plate i's own composed camera at its local time t — camOf(pl,t) folded with momentum()
    *   and entryShift() (the lean into/out of a cut), i.e. exactly what drawPlate composes for that plate on
@@ -3706,18 +4010,21 @@ function player() {
     if (e.code === 'ArrowRight') seek(now() + 2); if (e.code === 'ArrowLeft') seek(now() - 2);
     if (e.key === ']') { const p = STORY.plates.find(p => p.start > now() + 0.01); if (p) seek(p.start); }
     if (e.key === '[') { const ps = STORY.plates.filter(p => p.start < now() - 0.5); if (ps.length) seek(ps[ps.length - 1].start); }
-    if (e.key === 'c' && caps.length) { cc.hidden = !cc.hidden; }
+    if (e.key === 'c' && caps.length) { CC.on = !CC.on; ccShow(); }
+    if (e.key === 'v' && caps.length) { const names = Object.keys(CAPTION_STYLES), k = names.indexOf(CC.style.name);   // the next caption style
+      CC.style = captionStyle(names[(k + 1) % names.length]); CC.on = true; ccShow(); }
   });
-  // captions of a narrated film, over the picture (not in it: the render never draws them). c shows or hides them.
-  const caps = captions(), cc = document.createElement('div');
-  cc.hidden = !QS.has('cc');
-  cc.style.cssText = 'position:fixed;left:50%;bottom:64px;transform:translateX(-50%);max-width:80vw;padding:6px 14px;border-radius:6px;background:rgba(8,8,20,.72);' +
-    'color:#f3efe2;font:500 clamp(14px,2.2vw,26px)/1.3 "Inter Tight",system-ui,sans-serif;text-align:center;white-space:pre-line;pointer-events:none';
-  if (caps.length) { document.body.appendChild(cc); const k = ui.querySelector('.keys'); if (k) k.textContent += ' · c captions'; }
+  // captions of a narrated film, drawn into the picture in the film's caption style, as a render with --captions
+  // draws them: c shows or hides them, v tries the next style (engine.js, "burned-in captions")
+  const caps = captions(), keys = ui.querySelector('.keys'), ccTag = document.createElement('span');
+  function ccShow() {
+    ccTag.textContent = CC.on ? `captions: ${CC.style.name}` : '';
+    const F = CAPTION_FONTS[CC.style.font]; if (CC.on && (F.kind === 'hand' || F.kind === 'script')) document.fonts.load(`${F.weight} ${F.size}px "${F.face}"`).catch(() => {});
+  }
+  if (caps.length) { if (keys) keys.textContent += ' · c captions · v style'; ui.appendChild(ccTag); ccShow(); }
   (function loop() {
     let s = now(); if (s >= TOTAL_T) { stop(); pos = 0; s = 0; }
     const f = Math.min(TOTAL_F - 1, Math.floor(s * FPS)); renderFrame(f); bar.value = f;
-    if (caps.length) { const c = caps.find(c => s >= c.t0 && s < c.t1); cc.textContent = c ? c.text : ''; cc.style.visibility = c ? 'visible' : 'hidden'; }
     requestAnimationFrame(loop);
   })();
   ui.style.display = 'flex';

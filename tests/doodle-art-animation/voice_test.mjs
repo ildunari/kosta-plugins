@@ -486,6 +486,9 @@ function timingChecks(name, d, seen, textOf) {
   const err = Math.abs((p1.marks.count - p1.sentences[0][0]) - (about - w0));
   check(`${name}: a mark lands on its word (within 0.02 s)`, err < 0.02, `error ${err.toFixed(3)} s; ${JSON.stringify([p1.marks, p1.sentences])}`);
   check(`${name}: marks keep their order inside a sentence`, p2.marks.coat > p2.sentences[0][0] && p2.marks.corona > p2.marks.coat && p2.marks.corona < p2.sentences[0][1], JSON.stringify([p2.marks, p2.sentences]));
+  const nw = u => u.sentences.reduce((n, x) => n + x[2].split(/\s+/).filter(Boolean).length, 0);
+  check(`${name}: voice.json keeps each word's times for the captions, in order, inside the clip`, V.units.every(u => Array.isArray(u.words) && u.words.length === nw(u)
+    && u.words.every(([a, b], k) => a <= b && b <= u.dur + 1e-6 && (!k || a >= u.words[k - 1][0]))), JSON.stringify(V.units.map(u => [u.words?.length, nw(u)])));
   const side = readJson(path.join(d, 'vo/clips', p2.fp + '.json'));
   check(`${name}: the respelling is sent and still lines up`, /mel-OX-ih-kam/.test(side.sent) && Array.isArray(side.words) && side.words.length === p2.text.split(/\s+/).length, side.sent + ' ' + (side.words || []).length);
 }
