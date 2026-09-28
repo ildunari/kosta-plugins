@@ -23,6 +23,8 @@ Make the shareable MP4 of a film in the current working folder and check it befo
 sh assemble.sh                                  # if the folder has one: story.js is generated from the plate files
 python3 build.py <story> <film>.html
 node render.mjs <film>.html <film>.mp4 --bitrate 3800k --strict-fonts
+# only when the brief asks for captions in the picture (burned-in, for social or muted playback): a second MP4
+node render.mjs <film>.html <film>_cc.mp4 --bitrate 3800k --strict-fonts --captions <style from the brief, else notebook>
 ```
 
 Run the render in the background and check on it. It prints the frame total first and then progress every 120 frames. Expect about 40–70 ms per frame on a machine with 6 or more cores (a one-minute film takes 1–2 minutes), and about 80 ms per frame plus about a minute of encoding on a 4-core cloud machine (One Drop, 55 s: about 3 minutes in all). Stop and report if a `PAGE ERROR` appears.
@@ -41,7 +43,8 @@ ls -lh <film>.mp4 <film>.html; du -sh <film>_frames
 - The frame count must equal the total `render.mjs` printed, at 1920×1080 and 24 fps.
 - `motion_check`: median at least 1.5, still drawings under 5%.
 - `audio_check` must not FAIL (it exits 1 on no audio, mono, clipping, or a length mismatch). Report its WARN lines.
-- Narrated films: the title line of the render says `narrated`, `<film>.srt` exists next to the MP4, and `audio_check --narrated --stems qa` passes (−16 LUFS ±1, true peak at or under −1 dBTP, `under` 15–20 dB). A `WARNING: narration` from the render is a fault, not a note.
+- A burned-in render's title line names its caption style (`captions burned in (notebook: sans, halo, fade)`). Run `node text_check.mjs <film>.html --captions <style>` first: every `CAPTION` line is a plate whose captions cover text. Then look at a few of its frames (`node render.mjs <film>.html --stills <frames> --captions <style> --dir qa_cc`): a caption must not cover a bottom card, a label or the hero; move it with the plate's `captions: { pos: 'top' }` and render again.
+- Narrated films: the title line of the render says `narrated`, `<film>.srt` exists next to the MP4, the render printed `closed captions: a subtitle track in the MP4` (unless `--no-cc-track` was asked for), and `audio_check --narrated --stems qa` passes (−16 LUFS ±1, true peak at or under −1 dBTP, `under` 15–20 dB). A `WARNING: narration` from the render is a fault, not a note.
 - At 3800k the MP4 lands at about 20–30 MB per minute (the 55 s One Drop example is 18 MB).
 
 If anything fails, say what and suggest `/doodle-art-animation:doodle-qa`; don't deliver a failing file as final.
@@ -53,8 +56,8 @@ If anything fails, say what and suggest `/doodle-art-animation:doodle-qa`; don't
 Reply with a short summary:
 
 - the MP4 path, size, length and frame count;
-- the HTML path and size (it is also a player: space plays, the arrow keys skip 2 s, `[` and `]` jump between plates, and `c` shows captions on a narrated film);
-- for a narrated film, the `<film>.srt` captions path, the voice and provider, and any clip `voice.mjs check` still flags;
+- the HTML path and size (it is also a player: space plays, the arrow keys skip 2 s, `[` and `]` jump between plates, and on a narrated film `c` shows captions and `v` tries the next caption style);
+- for a narrated film, the `<film>.srt` captions path (and that the MP4 carries them as a subtitle track), the burned-in `<film>_cc.mp4` and its style when one was made, the voice and provider, and any clip `voice.mjs check` still flags;
 - the `motion_check` and `audio_check` result lines;
 - the render time and worker count (the `frames:` line names both).
 
