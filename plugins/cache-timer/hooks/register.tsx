@@ -15,7 +15,9 @@ const BAR = 10
 const lastHit = atom({ plugin: 'cache-timer', key: 'lastHit' } as const, 0)
 const now = atom({ plugin: 'cache-timer', key: 'now' } as const, 0)
 const warned = atom({ plugin: 'cache-timer', key: 'warned' } as const, false)
-// Set once this idle stretch has auto-compacted (or tried to); only a completed main-thread request clears it.
+// The one shot: set once this idle stretch has tried to compact; only a completed main-thread request clears it.
+const attempted = atom({ plugin: 'cache-timer', key: 'attempted' } as const, false)
+// Display only: set when a compaction actually stood, so 📦 never marks a skip or a refusal.
 const compacted = atom({ plugin: 'cache-timer', key: 'compacted' } as const, false)
 
 // The status line is plain text, so the dot carries the color.
@@ -45,27 +47,38 @@ async function show($: EngineInterface) {
 // Set synchronously, so two ticks can't both pass the state read before either writes it.
 let compacting = false
 
-async function autoCompact($: EngineInterface) {
+async function isWorthCompacting($: EngineInterface) {
+  const { context } = await $.session.usage()
+  return (context.tokens ?? 0) >= MIN_COMPACT_TOKENS
+}
+
+// `hit` is the request time the tick saw; a turn finishing meanwhile moves lastHit and calls it off.
+async function autoCompact($: EngineInterface, hit: number) {
   if (compacting) return
   compacting = true
   try {
-    await update($, compacted, () => true)
-    await compactOnce($)
+    await update($, attempted, () => true)
+    await compactOnce($, hit)
   } finally {
     compacting = false
   }
 }
 
-async function compactOnce($: EngineInterface) {
-
-  const { context } = await $.session.usage()
-  if ((context.tokens ?? 0) < MIN_COMPACT_TOKENS) return
+async function compactOnce($: EngineInterface, hit: number) {
+  if (!(await isWorthCompacting($))) return
+  // Recheck right before compacting: a turn that just completed re-warmed the cache.
+  if ((await read($, lastHit)) !== hit) return
 
   try {
     const { skip } = await $.session.compact({
       instructions: 'Session went idle; keep open tasks, decisions, file paths and the current plan.',
     })
-    $.ui.toast(skip ? `Auto-compact skipped: ${skip}` : 'Cache about to expire: compacted the conversation once')
+    if (skip) {
+      $.ui.toast(`Auto-compact skipped: ${skip}`)
+    } else {
+      await update($, compacted, () => true)
+      $.ui.toast('Cache about to expire: compacted the conversation once')
+    }
   } catch {
     // Rejects while a turn runs. Keep the shot spent: that turn re-warms the cache, and its
     // completed request re-arms the shot below. Giving it back here would retry every tick.
@@ -83,10 +96,12 @@ export const register: Register = on => {
 
       if (hit > 0 && left > 0 && left <= WARN_MS && !(await read($, warned))) {
         await update($, warned, () => true)
-        $.ui.toast('Prompt cache: auto-compacting in 2m unless you send something')
+        if (await isWorthCompacting($)) {
+          $.ui.toast('Prompt cache: auto-compacting in 2m unless you send something')
+        }
       }
-      if (hit > 0 && left > 0 && left <= COMPACT_MS && !(await read($, compacted))) {
-        await autoCompact($)
+      if (hit > 0 && left > 0 && left <= COMPACT_MS && !(await read($, attempted))) {
+        await autoCompact($, hit)
       }
       await show($)
     })
@@ -105,6 +120,7 @@ export const register: Register = on => {
       await update($, now, () => t)
       await update($, warned, () => false)
       // A completed main-thread request starts a new stretch, so the next idle stretch may compact once again.
+      await update($, attempted, () => false)
       await update($, compacted, () => false)
       await show($)
     }
