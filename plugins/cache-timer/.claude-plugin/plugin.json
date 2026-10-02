@@ -1,0 +1,10 @@
+{
+  "name": "cache-timer",
+  "version": "0.4.0",
+  "description": "Status-line bar draining over the prompt-cache window; compacts once just before it expires",
+  "types": "./types/index.d.ts",
+  "author": {
+    "name": "Kosta Milov"
+  },
+  "license": "MIT"
+}
