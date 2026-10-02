@@ -104,20 +104,26 @@ export const register: Register = on => {
   on('turn.step', async function* ($, e, next) {
     // The cache is read and written when the request is sent, so the window starts here,
     // not when a long response finishes streaming.
-    const sentAt = await $.clock.now()
+    let sentAt = await $.clock.now()
     // A content chunk means the model answered, so the request touched the cache, even if the
     // stream is then interrupted or fails. Engine chunks don't count: a retry marker can come
     // before any response.
     let reachedModel = false
+    const stream = next(e)
     try {
-      // Iterated by hand so the step's own result is handed up explicitly.
-      const stream = next(e)
-      while (true) {
-        const step = await stream.next()
-        if (step.done) return step.value
-        if (step.value.kind !== 'engine') reachedModel = true
-        yield step.value
+      // `for await` closes the stream if this hook is cancelled mid-stream, as `yield*` would,
+      // so the request's own cleanup still runs; `stream.result` hands the step's result up.
+      for await (const chunk of stream) {
+        if (chunk.kind !== 'engine') {
+          reachedModel = true
+        } else if (!reachedModel) {
+          // Before any answer an engine item may mark a retry, which sends the request again;
+          // restarting here keeps the window from starting early by the retry's backoff.
+          sentAt = await $.clock.now()
+        }
+        yield chunk
       }
+      return await stream.result
     } finally {
       // Subagents and the compaction fork run on their own cache prefix; only main-thread requests count.
       if (e.agentId === undefined && reachedModel) {
