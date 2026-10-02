@@ -108,7 +108,7 @@
       "name": "cache-timer",
       "source": "./plugins/cache-timer",
       "description": "Status-line bar counting down the prompt-cache window; warns at 12 min and compacts once 10 min before it expires when the session sits idle.",
-      "version": "0.4.0",
+      "version": "0.4.1",
       "license": "MIT",
       "category": "productivity",
       "tags": [

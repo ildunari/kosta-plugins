@@ -15,7 +15,7 @@ const BAR = 10
 const lastHit = atom({ plugin: 'cache-timer', key: 'lastHit' } as const, 0)
 const now = atom({ plugin: 'cache-timer', key: 'now' } as const, 0)
 const warned = atom({ plugin: 'cache-timer', key: 'warned' } as const, false)
-// Set once this idle stretch has auto-compacted (or tried to); only a new prompt clears it.
+// Set once this idle stretch has auto-compacted (or tried to); only a completed main-thread request clears it.
 const compacted = atom({ plugin: 'cache-timer', key: 'compacted' } as const, false)
 
 // The status line is plain text, so the dot carries the color.
@@ -42,9 +42,21 @@ async function show($: EngineInterface) {
   $.ui.status(`${dotFor(fraction)} ${'▰'.repeat(filled)}${'▱'.repeat(BAR - filled)} ${m}:${String(s).padStart(2, '0')}${mark}`)
 }
 
+// Set synchronously, so two ticks can't both pass the state read before either writes it.
+let compacting = false
+
 async function autoCompact($: EngineInterface) {
-  // Claim the one shot before any await, so the next tick can't start a second compaction.
-  await update($, compacted, () => true)
+  if (compacting) return
+  compacting = true
+  try {
+    await update($, compacted, () => true)
+    await compactOnce($)
+  } finally {
+    compacting = false
+  }
+}
+
+async function compactOnce($: EngineInterface) {
 
   const { context } = await $.session.usage()
   if ((context.tokens ?? 0) < MIN_COMPACT_TOKENS) return
@@ -55,8 +67,8 @@ async function autoCompact($: EngineInterface) {
     })
     $.ui.toast(skip ? `Auto-compact skipped: ${skip}` : 'Cache about to expire: compacted the conversation once')
   } catch {
-    // Rejects while a turn runs; that turn re-warms the cache anyway, so give the shot back.
-    await update($, compacted, () => false)
+    // Rejects while a turn runs. Keep the shot spent: that turn re-warms the cache, and its
+    // completed request re-arms the shot below. Giving it back here would retry every tick.
   }
 }
 
@@ -81,20 +93,19 @@ export const register: Register = on => {
     return r
   })
 
-  // A real prompt starts a new stretch of work, so the next idle stretch may compact once again.
-  on('prompt.submit', async ($, e, next) => {
-    await update($, compacted, () => false)
-    return next(e)
-  })
-
   on('turn.step', async function* ($, e, next) {
+    // The cache is read and written when the request is sent, so the window starts here,
+    // not when a long response finishes streaming.
+    const sentAt = await $.clock.now()
     const r = yield* next(e)
     // Subagents and the compaction fork run on their own cache prefix; only main-thread requests count.
     if (e.agentId === undefined && r.stopReason !== null) {
+      await update($, lastHit, () => sentAt)
       const t = await $.clock.now()
-      await update($, lastHit, () => t)
       await update($, now, () => t)
       await update($, warned, () => false)
+      // A completed main-thread request starts a new stretch, so the next idle stretch may compact once again.
+      await update($, compacted, () => false)
       await show($)
     }
     return r
