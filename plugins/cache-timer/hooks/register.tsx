@@ -12,13 +12,16 @@ const COMPACT_MS = 10 * 60 * 1000
 const MIN_COMPACT_TOKENS = 40_000
 const BAR = 10
 
+// Each flag records the generation (the lastHit it was set for) rather than a boolean, so a
+// stale tick writing for an old generation can never block or mark a newer one.
 const lastHit = atom({ plugin: 'cache-timer', key: 'lastHit' } as const, 0)
 const now = atom({ plugin: 'cache-timer', key: 'now' } as const, 0)
-const warned = atom({ plugin: 'cache-timer', key: 'warned' } as const, false)
-// The one shot: set once this idle stretch has tried to compact; only a completed main-thread request clears it.
-const attempted = atom({ plugin: 'cache-timer', key: 'attempted' } as const, false)
-// Display only: set when a compaction actually stood, so 📦 never marks a skip or a refusal.
-const compacted = atom({ plugin: 'cache-timer', key: 'compacted' } as const, false)
+const warnedFor = atom({ plugin: 'cache-timer', key: 'warnedFor' } as const, 0)
+const attemptedFor = atom({ plugin: 'cache-timer', key: 'attemptedFor' } as const, 0)
+const compactedFor = atom({ plugin: 'cache-timer', key: 'compactedFor' } as const, 0)
+
+// Set synchronously, so two ticks can't both pass the state read before either writes it.
+let compacting = false
 
 // The status line is plain text, so the dot carries the color.
 function dotFor(fraction: number) {
@@ -30,58 +33,46 @@ function dotFor(fraction: number) {
 async function show($: EngineInterface) {
   const hit = await read($, lastHit)
   if (hit === 0) return $.ui.status(undefined)
+  const isCompacted = (await read($, compactedFor)) === hit
   const left = Math.max(0, TTL_MS - ((await read($, now)) - hit))
-  if (left === 0) {
-    const tail = (await read($, compacted)) ? 'cold · compacted' : 'cold'
-    return $.ui.status(`⚪ ${'▱'.repeat(BAR)} ${tail}`)
-  }
+  if (left === 0) return $.ui.status(`⚪ ${'▱'.repeat(BAR)} ${isCompacted ? 'cold · compacted' : 'cold'}`)
 
   const fraction = left / TTL_MS
   const filled = Math.max(1, Math.round(fraction * BAR))
   const m = Math.floor(left / 60000)
   const s = Math.floor((left % 60000) / 1000)
-  const mark = (await read($, compacted)) ? ' 📦' : ''
-  $.ui.status(`${dotFor(fraction)} ${'▰'.repeat(filled)}${'▱'.repeat(BAR - filled)} ${m}:${String(s).padStart(2, '0')}${mark}`)
+  $.ui.status(`${dotFor(fraction)} ${'▰'.repeat(filled)}${'▱'.repeat(BAR - filled)} ${m}:${String(s).padStart(2, '0')}${isCompacted ? ' 📦' : ''}`)
 }
-
-// Set synchronously, so two ticks can't both pass the state read before either writes it.
-let compacting = false
 
 async function isWorthCompacting($: EngineInterface) {
   const { context } = await $.session.usage()
   return (context.tokens ?? 0) >= MIN_COMPACT_TOKENS
 }
 
-// `hit` is the request time the tick saw; a turn finishing meanwhile moves lastHit and calls it off.
+// `hit` is the generation the tick saw; a request reaching the model meanwhile moves lastHit and calls it off.
 async function autoCompact($: EngineInterface, hit: number) {
   if (compacting) return
   compacting = true
   try {
-    await update($, attempted, () => true)
-    await compactOnce($, hit)
-  } finally {
-    compacting = false
-  }
-}
+    await update($, attemptedFor, () => hit)
+    if (!(await isWorthCompacting($))) return
+    // Recheck right before compacting: a request that just reached the model re-warmed the cache.
+    if ((await read($, lastHit)) !== hit) return
 
-async function compactOnce($: EngineInterface, hit: number) {
-  if (!(await isWorthCompacting($))) return
-  // Recheck right before compacting: a turn that just completed re-warmed the cache.
-  if ((await read($, lastHit)) !== hit) return
-
-  try {
     const { skip } = await $.session.compact({
       instructions: 'Session went idle; keep open tasks, decisions, file paths and the current plan.',
     })
     if (skip) {
       $.ui.toast(`Auto-compact skipped: ${skip}`)
     } else {
-      await update($, compacted, () => true)
+      await update($, compactedFor, () => hit)
       $.ui.toast('Cache about to expire: compacted the conversation once')
     }
   } catch {
-    // Rejects while a turn runs. Keep the shot spent: that turn re-warms the cache, and its
-    // completed request re-arms the shot below. Giving it back here would retry every tick.
+    // Rejects while a turn runs. Keep this generation's shot spent: that turn's request starts a
+    // new generation with a fresh shot. Giving it back here would retry every tick.
+  } finally {
+    compacting = false
   }
 }
 
@@ -94,13 +85,15 @@ export const register: Register = on => {
       const hit = await read($, lastHit)
       const left = TTL_MS - (t - hit)
 
-      if (hit > 0 && left > 0 && left <= WARN_MS && !(await read($, warned))) {
-        await update($, warned, () => true)
+      // Only while the two minutes are still ahead: after a sleep that jumps past them, warning now
+      // would announce a compaction that is already starting.
+      if (hit > 0 && left > COMPACT_MS && left <= WARN_MS && (await read($, warnedFor)) !== hit) {
+        await update($, warnedFor, () => hit)
         if (await isWorthCompacting($)) {
           $.ui.toast('Prompt cache: auto-compacting in 2m unless you send something')
         }
       }
-      if (hit > 0 && left > 0 && left <= COMPACT_MS && !(await read($, attempted))) {
+      if (hit > 0 && left > 0 && left <= COMPACT_MS && (await read($, attemptedFor)) !== hit) {
         await autoCompact($, hit)
       }
       await show($)
@@ -112,18 +105,24 @@ export const register: Register = on => {
     // The cache is read and written when the request is sent, so the window starts here,
     // not when a long response finishes streaming.
     const sentAt = await $.clock.now()
-    const r = yield* next(e)
-    // Subagents and the compaction fork run on their own cache prefix; only main-thread requests count.
-    if (e.agentId === undefined && r.stopReason !== null) {
-      await update($, lastHit, () => sentAt)
-      const t = await $.clock.now()
-      await update($, now, () => t)
-      await update($, warned, () => false)
-      // A completed main-thread request starts a new stretch, so the next idle stretch may compact once again.
-      await update($, attempted, () => false)
-      await update($, compacted, () => false)
-      await show($)
+    // A content chunk means the model answered, so the request touched the cache, even if the
+    // stream is then interrupted or fails. Engine chunks don't count: a retry marker can come
+    // before any response.
+    let reachedModel = false
+    try {
+      for await (const chunk of next(e)) {
+        if (chunk.kind !== 'engine') reachedModel = true
+        yield chunk
+      }
+      return
+    } finally {
+      // Subagents and the compaction fork run on their own cache prefix; only main-thread requests count.
+      if (e.agentId === undefined && reachedModel) {
+        await update($, lastHit, () => sentAt)
+        const t = await $.clock.now()
+        await update($, now, () => t)
+        await show($)
+      }
     }
-    return r
   })
 }
