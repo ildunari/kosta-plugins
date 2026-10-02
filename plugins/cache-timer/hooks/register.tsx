@@ -110,11 +110,14 @@ export const register: Register = on => {
     // before any response.
     let reachedModel = false
     try {
-      for await (const chunk of next(e)) {
-        if (chunk.kind !== 'engine') reachedModel = true
-        yield chunk
+      // Iterated by hand so the step's own result is handed up explicitly.
+      const stream = next(e)
+      while (true) {
+        const step = await stream.next()
+        if (step.done) return step.value
+        if (step.value.kind !== 'engine') reachedModel = true
+        yield step.value
       }
-      return
     } finally {
       // Subagents and the compaction fork run on their own cache prefix; only main-thread requests count.
       if (e.agentId === undefined && reachedModel) {
