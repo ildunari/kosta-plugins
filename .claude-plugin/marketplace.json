@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Kosta's Claude Code plugin marketplace — design tools, research agents, and productivity plugins.",
-    "version": "1.0.5"
+    "version": "1.0.6"
   },
   "plugins": [
     {
@@ -102,6 +102,20 @@
         "explainer",
         "canvas",
         "science-communication"
+      ]
+    },
+    {
+      "name": "cache-timer",
+      "source": "./plugins/cache-timer",
+      "description": "Status-line bar counting down the prompt-cache window; warns at 12 min and compacts once 10 min before it expires when the session sits idle.",
+      "version": "0.4.2",
+      "license": "MIT",
+      "category": "productivity",
+      "tags": [
+        "prompt-cache",
+        "status-line",
+        "compaction",
+        "mod"
       ]
     }
   ]
