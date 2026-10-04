@@ -28,7 +28,9 @@ def local_fonts(nm):
     so the film needs no network. `local` means ./node_modules in the current (film) folder. Install:
       npm i @fontsource-variable/fraunces @fontsource/inter-tight @fontsource/ibm-plex-mono
     Prefer @fontsource-variable/fraunces: it has the optical-size (opsz) axis, like the Google version, and renders
-    identically. Static @fontsource/fraunces (400/500/600) also works but lacks opsz, so display type looks different."""
+    identically. Static @fontsource/fraunces (400/500/600) also works but lacks opsz, so display type looks different.
+    The caption faces (@fontsource/patrick-hand, @fontsource/caveat) are embedded when installed; without them the
+    film builds, and burned-in captions in the hand or script font warn that their face is missing."""
     nm = os.path.join(os.getcwd(), 'node_modules') if nm == 'local' else os.path.abspath(nm)
     var = os.path.join(nm, '@fontsource-variable', 'fraunces')
     if os.path.isdir(var): sheets = [(var, 'opsz.css'), (var, 'opsz-italic.css')]
@@ -36,6 +38,11 @@ def local_fonts(nm):
         print('--fonts: @fontsource-variable/fraunces not found, using static @fontsource/fraunces (no opsz axis: display type will differ)', file=sys.stderr)
         sheets = [(os.path.join(nm, '@fontsource', 'fraunces'), f) for f in ('400.css', '500.css', '600.css', '400-italic.css')]
     sheets += [(os.path.join(nm, '@fontsource', p), f) for p in ('inter-tight', 'ibm-plex-mono') for f in ('400.css', '600.css')]
+    caption = [(os.path.join(nm, '@fontsource', p), f) for p, f in (('patrick-hand', '400.css'), ('caveat', '500.css'), ('caveat', '600.css'))]
+    sheets += [c for c in caption if os.path.exists(os.path.join(*c))]
+    if not all(os.path.exists(os.path.join(*c)) for c in caption):
+        print('--fonts: caption faces not installed (npm i @fontsource/patrick-hand @fontsource/caveat): captions in the hand or script '
+              'font will fall back', file=sys.stderr)
     rules = []
     for d, f in sheets:
         if not os.path.exists(os.path.join(d, f)):
@@ -104,7 +111,7 @@ def voice_script(path):
         src = next((c for c in (os.path.join(film, u['file']), os.path.join(vdir, u['file']), u['file']) if os.path.isfile(c)), None)
         if not src: sys.exit(f'--voice: clip {u["file"]} for {u["id"]} not found (looked in {film} and {vdir})')
         audio, mime = clip_bytes(src, os.path.join(vdir, '.opus'))
-        keep = {k: u[k] for k in ('id', 'plate', 'dur', 'sentences', 'marks', 'text', 'timing', 'lufs', 'lead', 'tail') if k in u}
+        keep = {k: u[k] for k in ('id', 'plate', 'dur', 'sentences', 'marks', 'words', 'text', 'timing', 'lufs', 'lead', 'tail') if k in u}
         units.append({**keep, 'mime': mime, 'audio': base64.b64encode(audio).decode()})
         secs += float(u.get('dur') or 0); size += len(audio)
     head = {k: data[k] for k in ('version', 'provider', 'model', 'voice', 'style') if k in data}

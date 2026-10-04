@@ -39,6 +39,8 @@ Candidate areas, roughly in order of how much they change the build:
 
 Narration is off by default: the answer is "none" unless the request asks for narration or a voice-over. Ask the question only when the request leaves it open and the run is interactive; in an unattended run, take the default without asking (none, or the documentary style when a voice-over was asked for). When a film is narrated, the brief also records the narrator preset and a reason of a few words, picked by the rules in `references/voice-presets.md` (what the user asked for, else the film's character, else the style's preset, and not the narrator of the last two films). A request for a voice ("a woman's voice", "British", "warm") is answered by a preset there, not by a question. The key is never written into `brief.md`. The styles, the voice phase and the keys are in `references/voice.md`; the presets are in `references/voice-presets.md`.
 
+Captions are not a question. A narrated film always gets its `.srt` file and a subtitle track in the MP4. Captions drawn into the picture (burned in) are made only when the request asks for them (open captions, subtitles in the video, a film for social media or for playing muted): the brief records `Captions: burned in, <style>`, with the style the request describes, else `notebook`, or `social` for short-form (`references/render.md`, "Captions").
+
 ## 3. Shape each question
 
 - Up to four concrete options. The recommended option comes **first** and its label ends with "(Recommended)".

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""acceptance_check.py — go / no-go checks for doodle-art-animation (docs/doodle-art-animation/ACCEPTANCE.md: L1-L17 from v0.13, W1-W9 from v0.14, V1-V8, P1, N1-N6 from v0.17).
+"""acceptance_check.py — go / no-go checks for doodle-art-animation (docs/doodle-art-animation/ACCEPTANCE.md: L1-L17 from v0.13, W1-W9 from v0.14, V1-V8, P1, N1-N6 from v0.17, C1 from v0.18).
 
 usage:
   python3 tests/doodle-art-animation/acceptance_check.py            # static text and file checks (seconds)
@@ -528,12 +528,32 @@ if want('N6'):
     CI = read(os.path.join(REPO, '.github', 'workflows', 'doodle-smoke.yml')) or ''
     check('N6', 'CI runs voice_test.mjs and narration_test.py', 'voice_test.mjs' in CI and 'narration_test.py' in CI)
 
+# ---------------------------------------------------------------- C1 · captions (v0.18)
+if want('C1'):
+    SHELL = read(os.path.join(TK, 'shell.html')) or ''
+    RENDER = read(os.path.join(TK, 'render.mjs')) or ''
+    names = re.findall(r'^\s+(\w+): \{ font:', ENGINE[ENGINE.find('CAPTION_STYLES'):ENGINE.find('CAPTION_STYLES') + 3000], re.M)
+    check('C1', 'the engine names the eight caption styles', names == ['notebook', 'scrap', 'tape', 'marker', 'margin', 'field', 'broadcast', 'social'], str(names))
+    check('C1', 'five fonts, six backgrounds, six animations',
+          all(f"{k}: {{ kind" in ENGINE for k in ('sans', 'serif', 'mono', 'hand', 'script'))
+          and "CAPTION_BGS = ['halo', 'scrap', 'tape', 'marker', 'band', 'outline']" in ENGINE
+          and "CAPTION_ANIMS = ['cut', 'fade', 'rise', 'type', 'words', 'highlight']" in ENGINE)
+    check('C1', 'shell.html links the caption faces', 'family=Patrick+Hand' in SHELL and 'family=Caveat' in SHELL)
+    check('C1', 'render.mjs takes --captions and --no-cc-track and writes a mov_text track', "opt('captions'" in RENDER and "opt('no-cc-track'" in RENDER and 'mov_text' in RENDER)
+    TC = read(os.path.join(TK, 'text_check.mjs')) or ''
+    check('C1', 'text_check.mjs --captions reports captions that cover other text', "'--captions'" in TC and 'CC.drawn' in TC and 'CAPTION' in TC)
+    DR = read(os.path.join(PLUG, 'skills', 'doodle-render', 'SKILL.md')) or ''
+    check('C1', 'doodle-render burns captions in only when asked, and checks the subtitle track', '_cc.mp4' in DR and '--captions' in DR and 'subtitle track' in DR)
+    check('C1', 'render.md has a Captions section', '- **Captions:**' in (read(os.path.join(REF, 'render.md')) or ''))
+    CI = read(os.path.join(REPO, '.github', 'workflows', 'doodle-smoke.yml')) or ''
+    check('C1', 'CI runs captions_test.py', 'captions_test.py' in CI)
+
 if want('REL'):
     pj = json.loads(read(os.path.join(PLUG, '.claude-plugin', 'plugin.json')) or '{}')
     mj = json.loads(read(os.path.join(REPO, '.claude-plugin', 'marketplace.json')) or '{}')
     mv = next((p.get('version') for p in mj.get('plugins', []) if p.get('name') == 'doodle-art-animation'), None)
-    check('REL', 'plugin.json version 0.17.4', pj.get('version') == '0.17.4', str(pj.get('version')))
-    check('REL', 'marketplace entry version 0.17.4', mv == '0.17.4', str(mv))
+    check('REL', 'plugin.json version 0.18.0', pj.get('version') == '0.18.0', str(pj.get('version')))
+    check('REL', 'marketplace entry version 0.18.0', mv == '0.18.0', str(mv))
 
 # ---------------------------------------------------------------- full checks (build, probe, render)
 def run(cmd, cwd=None, timeout=1800):
@@ -703,7 +723,7 @@ if a.full:
 # ---------------------------------------------------------------- report
 order = ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9', 'L10', 'L11', 'L12', 'L13', 'L14', 'L15', 'L16', 'L17',
          'W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9',
-         'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'P1', 'N1', 'N2', 'N3', 'N4', 'N5', 'N6', 'REL']
+         'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'P1', 'N1', 'N2', 'N3', 'N4', 'N5', 'N6', 'C1', 'REL']
 col = {'PASS': '\033[32m', 'FAIL': '\033[31m', 'SKIP': '\033[33m'}
 tty = sys.stdout.isatty()
 for item in order:

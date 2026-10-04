@@ -327,8 +327,25 @@ film's request or intake asks for it; a film without narration is made, checked 
 - [auto] `toolkit/voice.mjs` exists, and CI runs `tests/doodle-art-animation/voice_test.mjs` and
   `tests/doodle-art-animation/narration_test.py`.
 
+## v0.18.0 — captions (C1)
+
+Closed captions for narrated films, in two forms: a subtitle track inside the MP4 that a viewer turns on, and,
+when a brief asks for them, captions drawn into the picture in one of eight named styles. The sidecar `.srt` stays.
+
+## C1 · Captions: a subtitle track by default, burned-in styles on request
+- [auto] The engine names eight caption styles (`notebook`, `scrap`, `tape`, `marker`, `margin`, `field`,
+  `broadcast`, `social`) built from five fonts, six backgrounds and six text animations; `shell.html` links the two
+  caption faces (Patrick Hand, Caveat); `build.py` keeps voice.json's word times.
+- [auto] `render.mjs` takes `--captions [style]` (burned in) and `--no-cc-track`, and a full render of a narrated
+  film puts the captions in the MP4 as a `mov_text` subtitle track. `text_check.mjs --captions [style]` reports each
+  plate whose burned-in captions cover other text.
+- [auto] `skills/doodle-render/SKILL.md` renders `<film>_cc.mp4` with `--captions` only when the brief asks, and
+  checks the subtitle track; `references/render.md` has a "Captions" section.
+- [auto] CI runs `tests/doodle-art-animation/captions_test.py`.
+- [eye] A sample clip of all eight styles on a real film, sent to Kosta.
+
 ## Release
-- [auto] `plugin.json` and the marketplace entry say `0.17.2`.
+- [auto] `plugin.json` and the marketplace entry say `0.18.0`.
 - [auto] `smoke_test.py` passes on every bundled story, including `story_brushes.js`.
 - [eye] Final independent review against this file and the ledger; example films and gallery re-rendered and
   sent to Kosta.

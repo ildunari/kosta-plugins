@@ -47,7 +47,7 @@
 // vo/voice.json (written by generate, check and lock; read by the engine): { version: 1, provider, model, voice,
 // preset (if any), style, wpm_target, lufs, locked, generated, missing: [ids without a clip], units: [{ id, plate, file (relative to
 // the film folder), fp, take, voice, dur, lufs, lead, tail, text, sentences: [[start, end, "text"]], marks: { name: t },
-// timing, checks: { wpm, missing, extra, flags } }] }. Times are seconds from the clip's start. plate and the n of
+// words: [[start, end]] (one per word of the sentences, only with timing "words"), timing, checks: { wpm, missing, extra, flags } }] }. Times are seconds from the clip's start. plate and the n of
 // P<n> are the plate's position from 0 (STORY.plates index). Clips are mono 16-bit WAV at the provider's own rate
 // (24 kHz for Gemini, OpenAI and Kokoro), trimmed to 0.03 s of silence before the first word and 0.15 s after the
 // last, and normalized to -20 LUFS integrated (ITU-R BS.1770) with peaks under -1 dBFS.
@@ -988,6 +988,7 @@ function describe(plan, cfg, clipDir) {
     take: meta.take || 1, voice: plan.voice, dur: r3(w.samples.length / w.rate), lufs: m.onset == null ? null : r2(lufs(w.samples, w.rate)),
     lead: plan.lead, tail: plan.tail, text: s.map(x => x.plain).join(' '),
     sentences: s.map((x, j) => [r3(times[j][0]), r3(times[j][1]), x.plain]), marks: markTimes(s, times, words), timing,
+    ...(words ? { words: words.map(([a, b]) => [r3(a), r3(b)]) } : {}),   // each word's start and end: exact captions
     checks: { wpm, missing: [], extra: [], flags: fl }, _raw: meta.raw_lufs, _cost: meta.cost, _truth: meta.truth,
   };
 }

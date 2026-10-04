@@ -1,11 +1,13 @@
 // text_check.mjs — measures the film's on-screen text instead of guessing it from the story code.
-// usage: node text_check.mjs film.html [--step 2] [--json text_check.json] [--workers N]
+// usage: node text_check.mjs film.html [--step 2] [--json text_check.json] [--workers N] [--captions [style]]
 // It wraps the engine's text() in the page (engine.js and the story are untouched), steps through the film one
 // drawing at a time, and follows every line of text as it types on, holds and fades. It reports:
 //   READ     lines that were not fully on screen for readTime(s) = chars / 12 + 0.8 s, or that fade or get cut before they
 //            finish typing (end-card small print under 16 px is listed as INFO; short numbers of 6 characters or fewer are skipped)
 //   EDGE     text whose box leaves the 1920x1080 frame
 //   OVERLAP  two lines whose boxes overlap (HUD vs HUD is skipped), with the time range
+//   CAPTION  (with --captions, for a film whose captions are burned in) a caption block, background included, that
+//            covers other text: move that plate's captions (captions: { pos: 'top' } or a baseline y) or the text
 //   SCALE    HUD, tag or overlay text whose size changes (changes during the engine's lean-in/settle around a transition are
 //            engine notes and don't count as issues; scene labels that scale are listed as INFO)
 // Reading time is checked for overlay and scene text and the plate title/subtitle. Transition frames are skipped, except
@@ -21,7 +23,10 @@ try { ({ chromium } = require('playwright')); }
 catch { ({ chromium } = require(path.join(execFileSync('npm', ['root', '-g']).toString().trim(), 'playwright'))); }
 
 const args = process.argv.slice(2);
-if (!args[0] || args[0].startsWith('--')) { console.log('usage: node text_check.mjs film.html [--step 2] [--json out.json] [--workers N]'); process.exit(2); }
+if (!args[0] || args[0].startsWith('--')) { console.log('usage: node text_check.mjs film.html [--step 2] [--json out.json] [--workers N] [--captions [style]]'); process.exit(2); }
+// --captions [style]: draw the captions in, as render.mjs --captions does, and check them against the rest of the text
+const ci = args.indexOf('--captions'), ccArg = ci < 0 ? null : args[ci + 1] && !args[ci + 1].startsWith('--') ? args.splice(ci + 1, 1)[0] : '1';
+if (ci >= 0) args.splice(ci, 1);
 const opt = (k, d) => { const i = args.indexOf('--' + k); if (i < 0) return d; const v = args[i + 1];
   if (v === undefined || v.startsWith('--')) { console.error(`text_check: --${k} needs a value`); process.exit(2); } return v; };
 const file = path.resolve(args[0]), step = Number(opt('step', 2)), jsonOut = opt('json', null);
@@ -35,7 +40,7 @@ const browser = await chromium.launch({ args: ['--font-render-hinting=none'] });
 const openPage = async () => {
   const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
   page.on('pageerror', e => console.error('PAGE ERROR:', e.message));
-  await page.goto(pathToFileURL(file).href + '?render=1', { waitUntil: 'networkidle' });
+  await page.goto(pathToFileURL(file).href + '?render=1' + (ccArg ? '&captions=' + encodeURIComponent(ccArg) : ''), { waitUntil: 'networkidle' });
   await page.waitForFunction(() => window.__ready === true, null, { timeout: 90000, polling: 250 });
   return page;
 };
@@ -45,13 +50,14 @@ const setup = () => {
   const tag = (fn, r) => function (...a) { const k = role; role = r; try { return fn.apply(this, a); } finally { role = k; } };
   for (const n of ['plateHeader', 'stageDial', 'journeyLog', 'frameCounter']) if (typeof window[n] === 'function') window[n] = tag(window[n], 'hud');
   if (typeof window.reticle === 'function') window.reticle = tag(window.reticle, 'reticle');
+  if (typeof window.drawCaptions === 'function') window.drawCaptions = tag(window.drawCaptions, 'caption');   // its words are one block each, below
   STORY.plates.forEach(p => { if (p.overlay) p.overlay = tag(p.overlay, 'overlay'); });
   const orig = window.text;
   const alphaOf = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'globalAlpha').get;   // the real alpha, not a plate's relative view (engine relAlpha)
   window.__tc = [];
   window.text = function (s, x, y, o = {}) {
     const w = orig.apply(this, arguments);
-    if (!w || ctx !== main || String(s).length < 2) return w;
+    if (!w || ctx !== main || String(s).length < 2 || role === 'caption') return w;
     const { kind = 'sans', size = 24, weight = 400, italic = false, align = 'left', ls = 0, alpha = 1, base = 'alphabetic' } = o;
     ctx.save(); setFont(kind, size, weight, italic); ctx.letterSpacing = ls + 'px'; ctx.textAlign = align; ctx.textBaseline = base;
     const m = ctx.measureText(s); ctx.restore();
@@ -66,6 +72,8 @@ const setup = () => {
   // drawn: reading a pixel back made Chromium draw every frame, which took two thirds of the time. Something has to
   // empty the queue each frame, or Chromium stalls for seconds every few dozen frames (references/render.md).
   window.__tcFrame = f => { window.__tc = []; renderFrame(f); if (main.reset) main.reset(); else cvs.width = cvs.width;
+    if (typeof CC !== 'undefined' && CC.on) for (const d of CC.drawn) window.__tc.push({ s: d.text.replace(/\n/g, ' '), role: 'caption', font: 'caption ' + d.i,
+      ax: (d.box[0] + d.box[2]) / 2, ay: (d.box[1] + d.box[3]) / 2, box: d.box, sc: 1, a: 1, tr: !!S.trans });
     return { T: S.T, plate: STORY.plates.findIndex(p => S.T < p.start + p.dur), recs: window.__tc }; };
   return { ...window.__story, plates: STORY.plates.map((p, i, all) => ({ start: p.start, dur: p.dur,
     name: p.header ? `plate ${p.header.num != null ? ROMAN(p.header.num) : i + 1} "${p.header.title}"` : i === 0 ? 'opening' : i === all.length - 1 ? 'end card' : `plate ${i + 1} of ${all.length}` })) };
@@ -142,7 +150,7 @@ for (const k of tracks) {
 const pairs = new Map();
 for (const { T, recs } of frames) for (let i = 0; i < recs.length; i++) for (let j = i + 1; j < recs.length; j++) {
   const p = recs[i], q = recs[j];
-  if (p.id === q.id || (p.role === 'hud' && q.role === 'hud')) continue;
+  if (p.id === q.id || (p.role === 'hud' && q.role === 'hud') || (p.role === 'caption' && q.role === 'caption')) continue;
   const w = Math.min(p.box[2], q.box[2]) - Math.max(p.box[0], q.box[0]), h = Math.min(p.box[3], q.box[3]) - Math.max(p.box[1], q.box[1]);
   if (w <= 0 || h <= 0) continue;
   const small = Math.min((p.box[2] - p.box[0]) * (p.box[3] - p.box[1]), (q.box[2] - q.box[0]) * (q.box[3] - q.box[1]));
@@ -150,8 +158,13 @@ for (const { T, recs } of frames) for (let i = 0; i < recs.length; i++) for (let
   const key = [p.id, q.id].sort((a, b) => a - b).join('-'), e = pairs.get(key) || { a: tracks[Math.min(p.id, q.id)], b: tracks[Math.max(p.id, q.id)], from: T, to: T };
   e.to = T; pairs.set(key, e);
 }
-for (const e of pairs.values()) out.overlap.push({ a: e.a.final, b: e.b.final, roles: [e.a.role, e.b.role], plate: e.a.plate, from: e.from, to: e.to });
-for (const r of out.overlap) r.plateName = info.plates[r.plate].name;
+out.caption = [];
+for (const e of pairs.values()) {
+  const [c, o] = e.a.role === 'caption' ? [e.a, e.b] : [e.b, e.a];
+  if (c.role === 'caption') out.caption.push({ caption: c.final, text: o.final, role: o.role, plate: c.plate, from: e.from, to: e.to });
+  else out.overlap.push({ a: e.a.final, b: e.b.final, roles: [e.a.role, e.b.role], plate: e.a.plate, from: e.from, to: e.to });
+}
+for (const r of [...out.overlap, ...out.caption]) r.plateName = info.plates[r.plate].name;
 
 console.log(`\n${tracks.length} text lines followed across ${frames.length} drawings`);
 const readMsg = r => r.cut ? 'CUT OFF while still typing (it fades, or the plate or film ends, before the last characters appear)' : `fully up ${fmt(r.up)} s, needs ${fmt(r.need)} s`;
@@ -159,6 +172,12 @@ for (const r of out.read) console.log(`READ    ${fmt(r.from)} s  ${readMsg(r)}  
 for (const r of out.readInfo) console.log(`INFO    ${fmt(r.from)} s  end-card small print ${readMsg(r)}  ${label({ final: r.text, role: r.role, plate: r.plate })}`);
 for (const r of out.edge) console.log(`EDGE    ${fmt(r.from)}-${fmt(r.to)} s  ${label({ final: r.text, role: r.role, plate: r.plate })}`);
 for (const r of out.overlap) console.log(`OVERLAP ${fmt(r.from)}-${fmt(r.to)} s  "${r.a.slice(0, 40)}" (${r.roles[0]}) x "${r.b.slice(0, 40)}" (${r.roles[1]}), ${r.plateName}`);
+// one line per plate, since a plate's captions are moved together
+const byPlate = new Map();
+for (const r of out.caption) { const g = byPlate.get(r.plate) || { name: r.plateName, from: r.from, to: r.to, caps: new Set(), texts: new Set() };
+  g.from = Math.min(g.from, r.from); g.to = Math.max(g.to, r.to); g.caps.add(r.caption); g.texts.add(`"${r.text.slice(0, 40)}" (${r.role})`); byPlate.set(r.plate, g); }
+for (const g of byPlate.values()) console.log(`CAPTION ${fmt(g.from)}-${fmt(g.to)} s  ${g.caps.size > 1 ? g.caps.size + ' captions cover' : '1 caption covers'} ${[...g.texts].join(', ')}, ${g.name}`);
+if (byPlate.size) console.log("        move those plates' captions (captions: { pos: 'top' }, or the last line's baseline y), or the text they cover");
 const groups = new Map();
 for (const r of out.scale) {
   const pl = info.plates[r.plate], end = pl.start + pl.dur;
@@ -170,8 +189,8 @@ for (const g of groups.values()) console.log(`SCALE   ${fmt(g.from)}-${fmt(g.to)
   + (g.lean ? ' during the engine lean-in/settle around a transition (engine note)' : ' outside transitions') + `  (${info.plates[g.plate].name}, ${g.texts.length} lines: "${g.texts.slice(0, 3).join('", "')}"${g.texts.length > 3 ? ', ...' : ''})`);
 for (const r of out.scaleInfo) console.log(`INFO    scene label scales with the camera ${(r.change * 100).toFixed(1)}%  ${label({ final: r.text, role: r.role, plate: r.plate })}`);
 const scaleIssues = [...groups.values()].filter(g => !g.lean).length, leanNotes = groups.size - scaleIssues;
-const n = out.read.length + out.edge.length + out.overlap.length + scaleIssues;
-console.log(`result: ${n ? 'ISSUES' : 'CLEAN'} (read ${out.read.length}, edge ${out.edge.length}, overlap ${out.overlap.length}, scale ${scaleIssues}; `
+const n = out.read.length + out.edge.length + out.overlap.length + byPlate.size + scaleIssues;
+console.log(`result: ${n ? 'ISSUES' : 'CLEAN'} (read ${out.read.length}, edge ${out.edge.length}, overlap ${out.overlap.length}, ${ccArg ? `caption ${byPlate.size}, ` : ''}scale ${scaleIssues}; `
   + `engine notes ${leanNotes}, info ${out.readInfo.length + out.scaleInfo.length})`);
 if (jsonOut) fs.writeFileSync(path.resolve(jsonOut), JSON.stringify({ plates: info.plates, ...out, scaleGroups: [...groups.values()] }, null, 1));
 process.exit(0);

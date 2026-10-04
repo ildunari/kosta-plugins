@@ -10,7 +10,12 @@
 //        top row: old plate's last drawing | the two overlaid | new plate once settled; bottom row: 4 drawings inside the transition
 //   node render.mjs film.html --sheet-range A-B [--fps 6] [--dir qa]         frames from A to B seconds, tiled -> qa/range_A-B.jpg
 //   node render.mjs film.html --sheet-range A-B --crop x,y,w,h [--fps 6]    the same frames, cropped first -> qa/range_A-B_crop.jpg (a detail sheet; both files are written when --crop is given)
-//   node render.mjs film.html --srt [film.srt]                  a narrated film's captions only (a full render writes film.srt next to the MP4 by itself)
+//   node render.mjs film.html --srt [film.srt]                  a narrated film's captions only (a full render writes film.srt next to the MP4 by itself,
+//        and puts the same captions in the MP4 as a subtitle track a player can turn on; --no-cc-track leaves it out)
+//   --captions [style] (any mode): burn the narration's captions into the picture, in the story's caption style or the
+//        one named: a style (notebook, scrap, tape, marker, margin, field, broadcast, social) or settings such as
+//        style=tape,anim=fade,pos=top (engine.js, "burned-in captions"; references/render.md, "Captions").
+//        --captions off turns off captions a story burns in by itself. A burned-in render gets no subtitle track.
 //   node render.mjs film.html --stems [--dir qa]                a narrated film's voice and the rest as two WAVs + speech.json (audio_check.py --stems)
 //   --animatic (any mode): each plate's drawing replaced by a placeholder with its beats, marks and the line being spoken
 //        (the pacing check before any art; engine.js, "animatic")
@@ -28,6 +33,8 @@ const opt = (k, d) => { const i = args.indexOf('--' + k); return i < 0 ? d : (ar
 const out = args[1] && !args[1].startsWith('--') ? path.resolve(args[1]) : null;
 const strictFonts = !!opt('strict-fonts', false);   // exit non-zero if any page fell back to other fonts
 const animatic = !!opt('animatic', false);           // ?animatic=1 on every page
+const ccArg = opt('captions', null), ccTrack = !opt('no-cc-track', false);   // burned-in captions; the MP4's subtitle track
+const ccQuery = ccArg == null ? '' : '&captions=' + encodeURIComponent(ccArg === true ? '1' : ccArg);
 // Headless Chromium draws the canvas on the CPU, so one page per core is the fastest: on a 4-core machine the 55 s One
 // Drop film drew in 187 s with 2 pages and 105 s with 4. More pages than cores gain nothing and cost ~450 MB each.
 const cores = (os.availableParallelism ? os.availableParallelism() : os.cpus().length) || 4;
@@ -53,7 +60,7 @@ async function openPage() {
   // not networkidle: a silent font server would stall it. When the first page fell back, later pages skip the font wait
   // (?nofonts) and freeze the same fallback, so they neither wait the cap again nor pick up fonts that arrive late.
   const q = fontWarnings.length && fontWarnings[0] ? '&nofonts=1' : '';
-  await page.goto(pathToFileURL(file).href + '?render=1' + q + (animatic ? '&animatic=1' : ''), { waitUntil: 'domcontentloaded' });
+  await page.goto(pathToFileURL(file).href + '?render=1' + q + (animatic ? '&animatic=1' : '') + ccQuery, { waitUntil: 'domcontentloaded' });
   const ready = page.waitForFunction(() => window.__ready === true, null, { timeout: 90000, polling: 250 });
   ready.catch(() => {});                                     // handled below; keeps the race from warning
   let state = await Promise.race([ready.then(() => 'ready'), errored.then(() => 'error')]);
@@ -81,7 +88,9 @@ async function openPage() {
 }
 const first = await openPage();
 const info = await first.evaluate(() => window.__story);
-console.log(`${info.title}: ${info.frames} frames @ ${info.fps} fps = ${(info.frames / info.fps).toFixed(1)} s` + (info.narrated ? ', narrated' : '') + (info.animatic ? ', animatic' : ''));
+console.log(`${info.title}: ${info.frames} frames @ ${info.fps} fps = ${(info.frames / info.fps).toFixed(1)} s` + (info.narrated ? ', narrated' : '') + (info.animatic ? ', animatic' : '') +
+  (info.captions ? `, captions burned in (${info.captions.style}: ${info.captions.font}, ${info.captions.bg}, ${info.captions.anim})` : ''));
+if (ccArg != null && ccArg !== 'off' && !info.captions) console.warn('\x1b[33mWARNING: --captions: this film has no narration, so there are no captions to burn in\x1b[0m');
 // captions: every line of a narrated film, timed from its sentences (engine.js captions()); '' for a film without narration
 const srtText = () => first.evaluate(() => window.__srt ? window.__srt() : '');
 if (opt('srt', null) && !out) {
@@ -217,7 +226,17 @@ if (out) {
     '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-c:a', 'aac', '-b:a', '192k', '-shortest', out], { stdio: 'inherit' });
   const mb = fs.statSync(out).size / 1048576, perMin = mb / (((to - from) / info.fps) / 60);
   console.log(`wrote ${out}: ${mb.toFixed(0)} MB (${perMin.toFixed(0)} MB/min), encode ${((Date.now() - te) / 1000).toFixed(0)} s, total ${((Date.now() - t0) / 1000).toFixed(0)} s`);
-  if (captionText) { const srt = out.replace(/\.mp4$/, '') + '.srt'; fs.writeFileSync(srt, captionText); console.log(`captions: ${srt}`); }
+  if (captionText) {
+    const srt = out.replace(/\.mp4$/, '') + '.srt'; fs.writeFileSync(srt, captionText); console.log(`captions: ${srt}`);
+    // closed captions: the same text as a subtitle track (mov_text) that a player can turn on, added without re-encoding;
+    // not on a burned-in render (the captions would show twice), and not the default track (a player starts without them)
+    if (ccTrack && !info.captions) {
+      const tmp = out.replace(/\.mp4$/, '') + '.cc.tmp.mp4';
+      execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', out, '-i', srt, '-map', '0:v', '-map', '0:a', '-map', '1:0', '-c', 'copy', '-c:s', 'mov_text',
+        '-metadata:s:s:0', 'language=eng', '-metadata:s:s:0', 'handler_name=English', '-disposition:s:0', '0', '-movflags', '+faststart', tmp], { stdio: 'inherit' });
+      fs.renameSync(tmp, out); console.log('closed captions: a subtitle track in the MP4 (turn it on in the player; --no-cc-track leaves it out)');
+    }
+  }
   // the grain and gate weave change every drawing, so constant-quality encodes spend their bits on noise
   if (!bitrate && perMin > 100 && (to - from) / info.fps >= 10) console.warn('\x1b[33mlarge file: use --bitrate 3800k for anything you share (≈ 30 MB/min)\x1b[0m');
 }

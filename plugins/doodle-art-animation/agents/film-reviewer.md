@@ -78,6 +78,7 @@ Put anything you render yourself in `qa_review/`, so you never overwrite the sha
   - no full narration sentence is written out on screen: short labels, numbers and terms are fine, the narrator's sentence is not (people learn less when they read and hear the same words at once);
   - a new visual holds at least a second after the line that introduces it, so the viewer can look after listening;
   - a narrated MP4 has `<film>.srt` beside it.
+  - when the brief asks for burned-in captions, `node text_check.mjs <film>.html --captions <style>` prints no `CAPTION` line (each one is a plate whose captions cover text), and a captioned still of each plate (`node render.mjs <film>.html --stills <frames> --captions <style> --dir qa_review/cc`) shows no caption over a bottom card, a label or the hero; the fix is the plate's `captions: { pos: 'top' }` (or a baseline y), or moving the text.
 
   Score these under Facts (a number that disagrees with the voice) and Reading (the rest); a missing `.srt` counts against Sound level.
 
