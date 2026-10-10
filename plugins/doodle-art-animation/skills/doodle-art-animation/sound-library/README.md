@@ -57,8 +57,9 @@ option each effect reads. `SFXLIB.meta[name]` holds the meta, `SFXLIB.list({ fam
 ### In each style
 
 - **Doodle Draw.** `build.py` inlines `toolkit/sfxlib.js` before the engine, and every library effect becomes a cue
-  name: `cues: [[1.2, 'dockSeat', { g: 0.8 }]]`. An engine sound with the same name keeps the engine's version. Library
-  effects count as varied sounds for `cue_check.mjs`. The style's sound guide (`styles/doodle-draw/references/sound.md`)
+  name: `cues: [[1.2, 'dockSeat', { g: 0.8 }]]`. An engine sound with the same name keeps the engine's version. The
+  engine trims library effects 10 dB so that `g: 1` matches its own cues. Library effects count as varied sounds for
+  `cue_check.mjs`. The style's sound guide (`styles/doodle-draw/references/sound.md`)
   says which families fit its hand-made palette.
 - **3DLight.** Its sound engine calls library effects from cues, `{ at: 12.3, fx: 'siliconeTap', g: 0.8 }`, and its
   music bed plays the library's instrument voices note by note. `styles/3dlight/references/sound.md` is its palette.
@@ -73,7 +74,7 @@ toolkit (`sfxlib_test.mjs` fails while a copy differs).
 
 1. Pick its family and check `catalog.md` for something close; a variation of an existing effect is often better as
    an option of that effect.
-2. Add a `define(name, meta, fn)` call in `sfxlib.js` under the effects marker. The meta needs `family`, `styles`,
+2. Add a `define(name, meta, fn)` call in `sfxlib.js` just above the `// __EFFECTS__` line, in the section it fits. The meta needs `family`, `styles`,
    `tags`, `dur` (the longest it lasts at default options), `desc` (what it sounds like, one sentence), `events` (the
    on-screen moments it fits, separated by `;`) and `from` (where the idea came from).
 3. Build it from the helpers in `H`: `H.r()` is the seeded random number (never `Math.random`, `Date` or

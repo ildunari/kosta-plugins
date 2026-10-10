@@ -197,6 +197,18 @@ Engine.prototype.fx = function (name, t, o = {}) {
   f(this.ctx, out, t, opts);
 };
 
+// A library voice on the music bus (or on `bus`, such as a ducked bed group): E.voice('glassPad', t, { notes, dur, g }).
+// The beds in score.js play the library's instrument voices through it. Seeds count per pass like E.fx, separately.
+Engine.prototype.voice = function (name, t, o = {}, bus = null) {
+  const lib = typeof SFXLIB === 'object' && SFXLIB && SFXLIB.fx ? SFXLIB : null, f = lib && lib.fx[name];
+  if (typeof f !== 'function') throw new Error(`sound: the music bed needs the library voice '${name}' (sound-library/sfxlib.js, copied into the toolkit as sfxlib.js)`);
+  this.voiceCount = (this.voiceCount || 0) + 1;
+  const { send = 0, ...opts } = o; if (opts.seed == null) opts.seed = 7919 + this.voiceCount;
+  let out = bus || this.music;
+  if (send > 0) { const g = this.ctx.createGain(); g.connect(out); const s = this.ctx.createGain(); s.gain.value = send; g.connect(s); s.connect(this.rev); out = g; }
+  f(this.ctx, out, t, opts);
+};
+
 // music timing for a film: two bars per visual beat, four quarter notes per bar (4.5 s beats: 106.7 BPM, 2.25 s bars)
 function timing(info) { const BPM = 480 / info.BEAT, Q = 60 / BPM, BAR = 4 * Q; return { BPM, Q, BAR, VB: 2 * BAR, LEN: info.LEN, N: info.N, K: info.BEAT / info.ART }; }
 window.SOUND_ENGINE = { Engine, mtof, rng, SR, PRE, timing };

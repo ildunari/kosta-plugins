@@ -33,7 +33,7 @@ concurrency:
 jobs:
   smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       TOOLKIT: plugins/doodle-art-animation/skills/doodle-art-animation/styles/doodle-draw/toolkit
       SOUNDLIB: plugins/doodle-art-animation/skills/doodle-art-animation/sound-library

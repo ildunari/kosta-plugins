@@ -119,9 +119,9 @@ nothing that fits, for example `dockSeat` for a drug docking in a receptor, `enz
   Doodle Draw, and pass `style: 'doodle-draw'` to the ones with a flavour per style (`dockSeat` then becomes a wooden
   peg, `enzymeSnip` a small paper snip). Effects marked 3DLight only are synthesized and glassy; use one only when the
   film calls for it.
-- **`g` is relative.** A library effect's `g: 1` is its standard level (a peak near -15 dBFS before the master bus),
-  where the engine's own effects take an absolute gain such as `g: 0.08`. Start at `g: 1` and adjust by ear and by
-  `audio_check`.
+- **`g` is relative.** A library effect's `g: 1` is its standard level, which this engine trims to match its own cues
+  (a peak near -25 dBFS, like `pop` or `chime` at their defaults), where the engine's own effects take an absolute gain
+  such as `g: 0.08`. Start at `g: 1` and adjust with `audio_check`.
 - They vary per play like the engine's effects and count as varied sounds for `cue_check.mjs`. An engine sound keeps
   its name: the library never replaces `pop`, `chime` or any other name above.
 

@@ -2952,7 +2952,11 @@ for (const n of ['pencil', 'chalk', 'marker', 'quill', 'charcoal', 'techPen', 't
   'pipette', 'centrifuge', 'syringe', 'pills', 'fizz', 'bubbles', 'squelch', 'heartbeat', 'beep', 'zap', 'magnet']) VARIED.add(n);
 // The shared sound library (sound-library/sfxlib.js, inlined by build.py before this engine) adds its effects as cue
 // names. A name the engine already has keeps the engine's sound; library effects vary per play like the ones above.
-if (typeof SFXLIB === 'object' && SFXLIB.fx) for (const [n, f] of Object.entries(SFXLIB.fx)) if (!(n in SFX)) { SFX[n] = f; VARIED.add(n); }
+// Library effects peak near -15 dBFS at g = 1 and this engine's cues near -25 dBFS at their defaults (measured on pop,
+// chime, plink, clink, droplet), so LIB_TRIM lowers them 10 dB: g = 1 sits at the level of the engine's own cues.
+const LIB_TRIM = 0.32;
+if (typeof SFXLIB === 'object' && SFXLIB.fx) for (const [n, f] of Object.entries(SFXLIB.fx)) if (!(n in SFX)) {
+  SFX[n] = (ac, out, t, o = {}) => f(ac, out, t, { ...o, g: (o.g ?? 1) * LIB_TRIM }); VARIED.add(n); }
 /*
  * Instruments: pitched notes in the film's key, one note per call, varied per call like the effects above (a fixed
  * `seed` repeats one exact note). Every instrument takes (ac, out, t, { f, deg, oct, tonic, g, pan, decay, seed }):
