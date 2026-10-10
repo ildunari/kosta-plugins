@@ -1,0 +1,14 @@
+{
+  "name": "3dlight-film",
+  "private": true,
+  "description": "A 3DLight film folder. npm i installs the Sora font so build.py can embed it (--fonts local).",
+  "scripts": {
+    "build": "python3 build.py story.js film.html",
+    "smoke": "node smoke_test.mjs",
+    "render": "node render.mjs film.html film.mp4",
+    "sound": "node sound/render_sound.mjs film.html --mux film.mp4"
+  },
+  "dependencies": {
+    "@fontsource-variable/sora": "^5.3.0"
+  }
+}

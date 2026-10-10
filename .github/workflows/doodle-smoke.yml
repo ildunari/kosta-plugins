@@ -37,6 +37,7 @@ jobs:
     env:
       TOOLKIT: plugins/doodle-art-animation/skills/doodle-art-animation/styles/doodle-draw/toolkit
       SOUNDLIB: plugins/doodle-art-animation/skills/doodle-art-animation/sound-library
+      STYLES: plugins/doodle-art-animation/skills/doodle-art-animation/styles
       SMOKE_WORKERS: "2"
     steps:
       - name: Checkout
@@ -87,7 +88,7 @@ jobs:
         run: |
           mkdir -p pw && cd pw
           npm init -y > /dev/null
-          npm install --no-audit --no-fund playwright@1
+          npm install --no-audit --no-fund playwright@1 @fontsource-variable/sora@5
           npx playwright install --with-deps chromium
           npx playwright --version
 
@@ -120,6 +121,13 @@ jobs:
           --workers "$SMOKE_WORKERS"
           --work "$RUNNER_TEMP/smoke"
           --node-modules "$RUNNER_TEMP/pw/node_modules"
+
+      - name: 3DLight smoke test
+        # styles/3dlight/toolkit/smoke_test.mjs builds every example film and fails on page errors, a missing Sora font,
+        # blank or dark frames, a beat with no art, non-determinism, text collisions, the loop seam and unknown library effects
+        env:
+          PLAYWRIGHT_MODULE: ${{ runner.temp }}/pw/node_modules/playwright/index.mjs
+        run: node "$STYLES/3dlight/toolkit/smoke_test.mjs" --work "$RUNNER_TEMP/smoke_3dlight" --fonts "$RUNNER_TEMP/pw/node_modules"
 
       - name: Upload contact sheets
         if: success()
