@@ -60,6 +60,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 canvas.wave { grid-column: 1 / -1; width: 100%; height: 34px; display: block }
 .empty { color: var(--fg3); padding: 40px 0; text-align: center }
 footer { color: var(--fg3); font-size: 12.5px; margin-top: 32px; max-width: 62ch }
+@media (min-width: 700px) { .chips { flex-wrap: wrap; overflow: visible } }
 @media (max-width: 520px) { .fx { grid-template-columns: minmax(0, 1fr) } .plays { justify-content: flex-start } .vol input { width: 70px } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important } }
 </style>
@@ -77,7 +78,7 @@ footer { color: var(--fg3); font-size: 12.5px; margin-top: 32px; max-width: 62ch
         <button id="st-dd" data-style="doodle-draw" aria-pressed="false">Doodle Draw</button>
       </div>
       <label class="search"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-        <input id="q" type="search" placeholder="Search sounds or moments, like binding or label" autocomplete="off"></label>
+        <input id="q" type="search" placeholder="Search sounds or moments" autocomplete="off"></label>
       <label class="vol" title="Volume"><svg class="i" viewBox="0 0 24 24"><path d="M11 4.7a.7.7 0 0 0-1.2-.5L6.4 7.6A1.4 1.4 0 0 1 5.4 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.4a1.4 1.4 0 0 1 1 .4l3.4 3.4a.7.7 0 0 0 1.2-.5z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.4 18.4a9 9 0 0 0 0-12.8"/></svg>
         <input id="vol" type="range" min="0" max="1.5" step="0.01" value="0.9" aria-label="Volume"></label>
     </div>
@@ -134,6 +135,9 @@ footer { color: var(--fg3); font-size: 12.5px; margin-top: 32px; max-width: 62ch
       g.fillRect(x, h / 2 - mx * sc, 1, Math.max(1, (mx - mn) * sc));
     }
   }
+  // draw each row's waveform (variation 1) once it scrolls into view, so the shape shows before anyone plays it
+  const seen = new IntersectionObserver(es => { for (const e of es) if (e.isIntersecting) { seen.unobserve(e.target); const cv = e.target;
+    render(cv.dataset.fx, 1).then(b => { if (!cv.dataset.drawn) draw(cv, b, null); cv.dataset.drawn = 1; }).catch(() => { }); } }, { rootMargin: '200px' });
   function stop() {
     if (cur) { try { cur.src.stop(); } catch (e) { } cur.btn.classList.remove('on'); draw(cur.cv, cur.buf, null); cur = null; }
     cancelAnimationFrame(raf);
@@ -145,7 +149,7 @@ footer { color: var(--fg3); font-size: 12.5px; margin-top: 32px; max-width: 62ch
     const buf = await render(name, seed); btn.classList.remove('busy');
     const src = ac.createBufferSource(), g = ac.createGain(); src.buffer = buf; g.gain.value = +$('#vol').value;
     src.connect(g).connect(ac.destination); const t0 = ac.currentTime + 0.01; src.start(t0);
-    cur = { src, btn, cv, buf }; btn.classList.add('on');
+    cur = { src, btn, cv, buf }; btn.classList.add('on'); cv.dataset.drawn = 1;
     src.onended = () => { if (cur && cur.src === src) stop(); };
     const tick = () => { if (!cur || cur.src !== src) return; draw(cv, buf, (ac.currentTime - t0) / buf.duration); raf = requestAnimationFrame(tick); };
     tick();
@@ -182,7 +186,7 @@ footer { color: var(--fg3); font-size: 12.5px; margin-top: 32px; max-width: 62ch
           <canvas class="wave" aria-hidden="true"></canvas>`;
         row.querySelector('.desc').textContent = m.desc;
         row.querySelector('.fits').textContent = 'Fits: ' + String(m.events || '').split(/;\s*/).filter(Boolean).join(', ');
-        const cv = row.querySelector('canvas');
+        const cv = row.querySelector('canvas'); cv.dataset.fx = n; seen.observe(cv);
         row.querySelectorAll('.plays button').forEach((b, i) => b.onclick = () => play(n, i + 1, b, cv).catch(e => { b.classList.remove('busy'); console.error(e); }));
         ul.append(row);
       }

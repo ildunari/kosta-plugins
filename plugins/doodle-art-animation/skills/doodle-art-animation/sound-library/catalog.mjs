@@ -10,7 +10,8 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 const here = dirname(fileURLToPath(import.meta.url));
-const src = readFileSync(resolve(here, 'sfxlib.js'), 'utf8');
+const li = process.argv.indexOf('--lib');   // another copy of the library, for testing
+const src = readFileSync(li > 0 ? resolve(process.argv[li + 1]) : resolve(here, 'sfxlib.js'), 'utf8');
 const box = {}; vm.runInNewContext(src, { globalThis: box, WeakMap, Math, Float32Array, Object, Array, Error, Number, String, JSON });
 const L = box.SFXLIB;
 
@@ -57,6 +58,7 @@ if (pi > 0) {
   writeFileSync(resolve(process.argv[pi + 1]), page); console.log('wrote ' + process.argv[pi + 1]);
 }
 const file = resolve(here, 'catalog.md');
+if (li > 0) process.exit(0);   // a test copy never rewrites catalog.md
 if (process.argv.includes('--check')) {
   const old = existsSync(file) ? readFileSync(file, 'utf8') : '';
   if (old !== out) { console.error('catalog.md is out of date: run node catalog.mjs'); process.exit(1); }
