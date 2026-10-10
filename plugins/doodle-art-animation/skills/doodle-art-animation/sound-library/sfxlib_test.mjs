@@ -6,7 +6,8 @@
 //   - the same seed gives the same sound (within 1e-4: Chromium's offline audio is not bit-exact between renders);
 //   - a different seed gives a different sound (no two plays identical), unless meta.fixed is true;
 //   - it ends within meta.dur + 1.5 s;
-//   - its meta is complete and its name does not collide with a Doodle Draw engine sound;
+//   - its meta is complete, its tags come from the vocabularies (2 to 4 use tags, 2 to 5 feel tags), and its name
+//     does not collide with a Doodle Draw engine sound;
 // and that every style's toolkit/sfxlib.js is the same as this folder's sfxlib.js (node sync.mjs copies it).
 // --wav writes each effect as <name>.wav for listening. Exits 1 on any failure.
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs';
@@ -39,6 +40,7 @@ if (existsSync(engine)) {
 }
 const STYLES = ['3dlight', 'doodle-draw'];
 const names = await page.evaluate(() => Object.keys(window.SFXLIB.fx));
+const V = await page.evaluate(() => ({ uses: window.SFXLIB.uses || [], feels: window.SFXLIB.feels || [], tones: window.SFXLIB.tones || [] }));
 const only = opt('only') ? opt('only').split(',') : null;
 const wavDir = opt('wav'); if (wavDir) mkdirSync(wavDir, { recursive: true });
 const SR = 48000;
@@ -72,10 +74,19 @@ for (const name of names) {
   if (!m.fixed && r.dv < 1e-3) why.push('a different seed sounds identical');
   if (r.end > r.len - 0.05) why.push(`still sounding at ${r.end.toFixed(2)} s (meta.dur ${m.dur})`);
   if (!lib_ok(m)) why.push('meta incomplete (family, styles, desc, events, dur)');
+  const tagErr = tags_ok(m); if (tagErr) why.push(tagErr);
   if (taken.has(name)) why.push('name collides with a Doodle Draw engine sound');
   if (why.length) fails++;
   rows.push({ name, family: m.family, styles: m.styles.join('+'), peak: +db(r.peak).toFixed(1), rms: +db(r.rms).toFixed(1), end: +r.end.toFixed(2), bright: Math.round(r.bright), ok: !why.length, why: why.join('; ') });
   if (wavDir) wav(resolve(wavDir, name + '.wav'), r.L.slice(0, Math.ceil((r.end + 0.15) * SR)), r.R.slice(0, Math.ceil((r.end + 0.15) * SR)));
+}
+// tags: 2 to 4 use tags and 2 to 5 feel tags, every tag from the library's vocabularies (lib.uses, lib.feels, lib.tones)
+function tags_ok(m) {
+  const t = m.tags || [], u = t.filter(x => V.uses.includes(x)), f = t.filter(x => V.feels.includes(x)), odd = t.filter(x => !V.uses.includes(x) && !V.feels.includes(x) && !V.tones.includes(x));
+  if (odd.length) return `tags not in the vocabulary: ${odd.join(', ')} (lib.uses, lib.feels, lib.tones in sfxlib.js)`;
+  if (u.length < 2 || u.length > 4) return `${u.length} use tags (needs 2 to 4 of: ${V.uses.join(', ')})`;
+  if (f.length < 2 || f.length > 5) return `${f.length} feel tags (needs 2 to 5)`;
+  return '';
 }
 function lib_ok(m) { return m && m.family && Array.isArray(m.styles) && m.styles.length && m.styles.every(s => STYLES.includes(s)) && m.desc && m.events && m.dur > 0; }
 await browser.close();

@@ -197,13 +197,15 @@ class Engine {
 // 15 dB over the threshold and the 3:1 compressor squashed g: halving it lowered the cue only 2.5 dB. Now g 0.5 is
 // about 6 dB quieter, as the library says. send (default 0) adds some of the room reverb. Without a seed, the effect gets its
 // number among the library effects of this pass (SCORE.play resets the count per pass), so both passes of a loop
-// play the same sound and a re-render is identical. An unknown name stops the render with an error.
+// play the same sound and a re-render is identical. An unknown name stops the render with an error, and so does an
+// effect not tagged 'serious' in a film whose story sets sound.serious.
 const FX_TRIM = Math.pow(10, -12 / 20);
 Engine.prototype.fx = function (name, t, o = {}) {
   const lib = typeof SFXLIB === 'object' && SFXLIB && SFXLIB.fx ? SFXLIB : null;
   if (!lib) throw new Error(`sound: effect '${name}' needs the shared sound library; copy sound-library/sfxlib.js to the toolkit as sfxlib.js and rebuild`);
   const f = lib.fx[name];
   if (typeof f !== 'function') throw new Error(`sound: no effect '${name}' in the shared sound library (it has ${Object.keys(lib.fx).length}; see sound-library/catalog.md)`);
+  if (this.serious && !(lib.meta[name].tags || []).includes('serious')) throw new Error(`sound.serious: '${name}' is not one of the library's serious effects (SFXLIB.list({ tag: 'serious' }), the catalog's Tone column)`);
   this.fxCount = (this.fxCount || 0) + 1;
   const { send = 0, ...opts } = o; if (opts.seed == null) opts.seed = this.fxCount;
   opts.g = (opts.g ?? 1) * FX_TRIM;

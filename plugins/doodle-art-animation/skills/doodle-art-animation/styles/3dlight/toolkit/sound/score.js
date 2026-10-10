@@ -98,6 +98,8 @@ function arpCell(c) {
 const BEDS = {
   // Bed A, pulse minimalism: a premium biotech bed. Layers by arc position: pad and air always; the sub pulse from 1;
   // tuned clicks 2-5; the arpeggio 3-7 (growing, then thinning); a quiet closed hat and a dotted echo ping 4-6.
+  // Serious (M.serious): no glass arpeggio, hat or echo ping (rated playful or in between); a breathing sine pad that
+  // swells on every beat carries the pulse instead (3-7), and the tuned clicks run 2-6.
   glassPulse(E, o, M, T) {
     const { Q, BAR, VB, N } = T, sx = Q / 4, L = levels(M), pump = pumpBus(E, o, T, M.pump ?? 2.5), ARP = { 3: 2, 4: 3, 5: 4, 6: 5, 7: 3 };
     for (let i = 0; i < N; i++) {
@@ -111,17 +113,19 @@ const BEDS = {
       for (let bar = 0; bar < 2; bar++) {
         const tb = t + bar * BAR;
         if (b >= 1 && b <= 8) { E.voice('subPulse', tb, { note: c.bass, dur: 0.34, g: L(-7) }, pump); E.voice('subPulse', tb + 6 * sx, { note: c.bass, dur: 0.22, vel: 0.7, g: L(-7) }, pump); }
-        if (b >= 2 && b <= 5) euclid(7, 16).forEach((on, s) => { if (on) E.voice('sineClick', tb + s * sx, { note: c.pad[(s + bar) % c.pad.length] + 24, g: L(-27) }); });
+        if (b >= 2 && b <= (M.serious ? 6 : 5)) euclid(7, 16).forEach((on, s) => { if (on) E.voice('sineClick', tb + s * sx, { note: c.pad[(s + bar) % c.pad.length] + 24, g: L(-27) }); });
+        if (M.serious) continue;
         const steps = ARP[b] || 0;
         if (steps) E.voice('gatedArp', tb, { notes: arpCell(c), steps, bpm: T.BPM, dur: BAR, g: L(-3), pan: bar ? 0.18 : -0.18 });
         if (b >= 4 && b <= 6) [2, 6, 10, 14].forEach(s => E.voice('metalHat808', tb + s * sx, { g: L(-29), pan: 0.25 }));
         if ((b === 4 || b === 5) && bar === 1) E.voice('dottedPing', tb + 3 * sx, { note: c.pad[c.pad.length - 1] + 12, bpm: T.BPM, g: L(-15), pan: 0.3 });
       }
+      if (M.serious && ARP[b]) E.voice('breathingBed', t, { key: c.bass, bpm: T.BPM, dur: VB + 0.6, g: L(-14 + 1.5 * ARP[b]) }, pump);
     }
   },
   // Bed B, ambient documentary: no drums and no bass line. A low drone, a morphing pad, one singing glass note per
   // beat (2-8), glass plucks looping at periods that divide the film (3-7), a tick on each quarter (4-7), one grain
-  // cloud at the peak.
+  // cloud at the peak. Serious (M.serious): no glass plucks and no grain cloud (rated in between).
   slowAir(E, o, M, T) {
     const { Q, VB, N, LEN } = T, L = levels(M), k = (M.key ?? 62) - 62, SING = [66, 69, 73, 76].map(m => m + k);
     E.voice('lumenDrone', o - 0.6, { note: 38 + k, dur: LEN + 1.2, att: 2.4, rel: 2.4, g: L(-16) });
@@ -135,33 +139,34 @@ const BEDS = {
       if (b >= 2 && b <= 8) { E.voice('singingGlass', t + 0.1, { note: SING[i % SING.length], dur: VB * 0.8, g: L(-15), pan: i % 2 ? 0.25 : -0.25 });
         if (i % 2 === 0) E.voice('shimmerTail', t + 0.3, { notes: [SING[i % SING.length] + 12], g: L(-22) }); }
       if (b >= 4 && b <= 7) for (let q = 0; q < VB / Q - 1e-6; q++) E.voice('escapementTick', t + q * Q, { accent: q % 4 === 0, g: L(-24), pan: 0.2 });
-      if (b === 5) E.voice('grainCloud', t + VB * 0.3, { dur: VB * 0.9, key: 62 + k + 12, g: L(-15) });
+      if (b === 5 && !M.serious) E.voice('grainCloud', t + VB * 0.3, { dur: VB * 0.9, key: 62 + k + 12, g: L(-15) });
     }
     // phase loops: five glass voices, each repeating every LEN / n seconds (n = 5, 7, 8, 9, 11): they drift apart and
     // meet again exactly at the loop point
-    [5, 7, 8, 9, 11].forEach((n, v) => { const P = LEN / n;
+    if (!M.serious) [5, 7, 8, 9, 11].forEach((n, v) => { const P = LEN / n;
       for (let j = 0; j < n; j++) { const tj = o + j * P, i = Math.min(N - 1, Math.floor(j * P / VB)), b = arcPos(i, N);
         if (b < 3 || b > 7 || (b === 7 && v > 2)) continue;
         const c = chordAt(M, i, 'lydian'); E.voice('fmGlassPluck', tj, { note: c.pad[(v + 1) % c.pad.length] + 12, idx: 1.6, g: L(-16), pan: -0.5 + v * 0.25 }); } });
   },
   // Bed C, a quiet product groove: syncopated saw stabs (3-3-2), a rolling octave bass, a square-wave motif on two
-  // beats, offbeat hats, a pump on pad and bass. No acoustic sound at all.
+  // beats, offbeat hats, a pump on pad and bass. No acoustic sound at all. Serious (M.serious): a breathing bass
+  // instead of the octave roll, and no stabs, hats or motif (rated in between).
   quietEngine(E, o, M, T) {
     const { Q, BAR, VB, N } = T, sx = Q / 4, L = levels(M), k = (M.key ?? 62) - 62, pump = pumpBus(E, o, T, M.pump ?? 4);
     const MOTIF = [71, 76, 78].map(m => m + k);
     for (let i = 0; i < N; i++) {
       const t = o + i * VB, b = arcPos(i, N), c = chordAt(M, i, 'dorian'), top3 = c.pad.slice(-3);
       if (i % 2 === 0) E.voice('glassPad', t - 0.3, { notes: c.pad, dur: Math.min(2, N - i) * VB + 0.2, att: 0.9, rel: 1.6, g: L(-12) }, pump);
-      if (i % 2 === 1 && b >= 1 && b <= 7) E.voice('octaveRoll', t, { note: c.bass < 40 ? c.bass + 12 : c.bass, bpm: T.BPM, dur: VB, g: L(-11) }, pump);
+      if (i % 2 === 1 && b >= 1 && b <= 7) E.voice(M.serious ? 'pumpBass' : 'octaveRoll', t, { note: c.bass < 40 ? c.bass + 12 : c.bass, bpm: T.BPM, dur: VB, g: L(-11) }, pump);
       for (let bar = 0; bar < 2; bar++) {
         const tb = t + bar * BAR, gb = i * 2 + bar;
         [0, 8].forEach(s => E.voice('subPulse', tb + s * sx, { note: c.bass, dur: 0.3, g: L(-9) }, pump));
-        if (b >= 2 && b <= 7) (b === 6 ? [0, 12] : [0, 6, 12]).forEach(s => E.voice('sawStab', tb + s * sx, { notes: top3, g: L(-4), pan: s === 6 ? 0.2 : -0.1 }));
-        if (b >= 3 && b <= 6) for (let e = 0; e < 4; e++) E.voice('metalHat808', tb + (2 * e + 1) * 2 * sx, { g: L(-20), pan: 0.3 });
+        if (b >= 2 && b <= 7 && !M.serious) (b === 6 ? [0, 12] : [0, 6, 12]).forEach(s => E.voice('sawStab', tb + s * sx, { notes: top3, g: L(-4), pan: s === 6 ? 0.2 : -0.1 }));
+        if (b >= 3 && b <= 6 && !M.serious) for (let e = 0; e < 4; e++) E.voice('metalHat808', tb + (2 * e + 1) * 2 * sx, { g: L(-20), pan: 0.3 });
         if (b >= 2 && gb % 2 === 1) E.voice('airPuff', tb + 14 * sx, { g: L(-22), pan: -0.3 });
         if (b >= 4 && b <= 8) for (let h = 0; h * 0.75 < BAR - 1e-6; h++) E.voice('escapementTick', tb + h * 0.75 * (T.Q / 0.5625), { g: L(-25), pan: 0.15 });
       }
-      if (b === 2 || b === 6) MOTIF.forEach((m, j) => E.voice('softSquare', t + BAR + j * Q, { note: m, dur: Q * 0.9, g: L(-9), pan: 0.1 }));
+      if ((b === 2 || b === 6) && !M.serious) MOTIF.forEach((m, j) => E.voice('softSquare', t + BAR + j * Q, { note: m, dur: Q * 0.9, g: L(-9), pan: 0.1 }));
     }
   },
 };
@@ -184,7 +189,8 @@ window.SCORE = {
     const s = film.sound || {}, T = timing(window.FILM_INFO), ev = s.events || [], U = helpers(E, o, film, T);
     E.fxCount = 0; E.voiceCount = 0; // library effects and bed voices without a seed are numbered per pass
     if (typeof s.score === 'function') { s.score(E, o, ev, U); return; }
-    const M = s.music === false ? null : (s.music || {}), kind = M && (M.bed || (M.chords ? 'classic' : 'glassPulse'));
+    E.serious = !!s.serious; // sound.serious: the bed plays its serious version and E.fx refuses effects not tagged serious
+    const M = s.music === false ? null : { ...(s.music || {}), serious: !!s.serious }, kind = M && (M.bed || (M.chords ? 'classic' : 'glassPulse'));
     if (kind === 'classic') {
       bed(E, o, M.chords ? M : DEFAULT_MUSIC, T);
       if (!opts.noRhythm && s.rhythm !== false) rhythm(E, o, s.rhythm || {}, T);

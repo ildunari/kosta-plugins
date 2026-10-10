@@ -47,6 +47,13 @@ lib.families = {
   texture: { name: 'Textures and ambiences', desc: 'Beds and long sounds under a scene: air, shimmer, hum, granular clouds.' },
   rhythm: { name: 'Rhythm and pulse', desc: 'Percussive elements for a bed or a tempo-locked cue: clicks, soft kicks, ticks.' },
 };
+// Tags, for quick searches (SFXLIB.list({ tag: 'count' }), or a tapped tag on the listening page). Every effect has
+// 2 to 4 use tags (what moment it serves), 2 to 5 feel tags (how it sounds), and maybe a tone tag (TONE at the end).
+lib.uses = ['arrive', 'leave', 'move', 'transition', 'reveal', 'number', 'count', 'click', 'scan', 'bind', 'split', 'form',
+  'dissolve', 'flow', 'pulse', 'bed', 'ending', 'alert', 'swell', 'impact'];
+lib.feels = ['soft', 'airy', 'warm', 'dark', 'bright', 'glassy', 'metallic', 'woody', 'wet', 'dry', 'sub', 'crisp', 'tonal',
+  'noisy', 'clean', 'cold', 'digital', 'organic', 'natural', 'clinical', 'premium', 'matte'];
+lib.tones = ['serious', 'playful'];
 lib.list = ({ family, style, tag } = {}) => Object.keys(lib.meta).filter(n => {
   const m = lib.meta[n];
   return (!family || m.family === family) && (!style || m.styles.includes(style)) && (!tag || (m.tags || []).includes(tag));
@@ -172,8 +179,8 @@ lib.util = { mulberry, hashStr, mtof, DSP, noiseBufs };
 // o.dir ('up'/'down' for sweeps, 'in'/'out' for converge/diverge pairs), o.size (siliconeTap, dopplerPass: 0 small .. 1 big).
 
 // ---------------------------------------------------------------------------------------------- transitions
-define('tunedSweep', { family: 'transition', styles: ['3dlight'], tags: ['airy', 'tonal', 'soft', 'premium'], dur: 1.5,
-  desc: 'A breath of air that sings a soft open chord as it passes: a tonal swoosh made of chord-tuned noise, never a plain hiss.',
+define('tunedSweep', { family: 'transition', styles: ['3dlight'], tags: ['airy', 'tonal', 'soft', 'premium', 'transition', 'move', 'dissolve'], dur: 1.5,
+  desc: 'A breath of air that sings a soft open chord as it passes: three to five chord-tuned noise bands glide one octave (up or down, `dir`) over about 0.85 s while panning left to right, a tonal swoosh rather than a plain hiss.',
   events: 'dissolve between beats; camera push; element glides in; one scene hands over to the next',
   from: 'motion_ui catalog, tunedSweep (sources 34 tuned bandpass resonators, 16 UVI whoosh tips, 14 Pixflow transitions)' },
 (ac, out, t, o, H) => {
@@ -200,9 +207,9 @@ define('tunedSweep', { family: 'transition', styles: ['3dlight'], tags: ['airy',
   g.connect(H.verb(out, { sec: 1.2, decay: 3, wet: 0.2, lp: 3500 }));
 });
 
-define('breathBloom', { family: 'transition', styles: ['3dlight'], tags: ['soft', 'warm', 'tonal', 'premium'], dur: 1.0,
+define('breathBloom', { family: 'transition', styles: ['3dlight'], tags: ['soft', 'warm', 'tonal', 'premium', 'transition', 'swell', 'arrive'], dur: 1.0,
   desc: 'A tiny inhale, a soft rounded two-note swell on the boundary 150 ms later, then a quiet room tail.',
-  events: 'beat-to-beat dissolve; section change; new card arriving; any calm scene boundary (the swell lands 0.15 s after t)',
+  events: 'beat-to-beat dissolve; section change; new card arriving; any calm scene boundary (the swell lands 0.15 s after the cue time)',
   from: 'motion_ui catalog, breathBloom (sources 7 Quietmark breath-bloom-tail, 6 Microsoft sound design)' },
 (ac, out, t, o, H) => {
   const sr = H.sr, r = H.r, TAU = H.TAU, db = x => Math.pow(10, x / 20), pf = Math.pow(2, (o.pitch || 0) / 12), key = o.key != null ? o.key : 69;
@@ -229,9 +236,9 @@ define('breathBloom', { family: 'transition', styles: ['3dlight'], tags: ['soft'
   g.connect(H.verb(out, { sec: 0.9, decay: 3, wet: 0.25, lp: 3000 }));
 });
 
-define('reverseBloom', { family: 'transition', styles: ['3dlight', 'doodle-draw'], tags: ['airy', 'soft', 'tonal', 'premium'], dur: 2.0,
-  desc: 'A soft note\'s room tail played backwards: a stereo swell that grows out of silence and lands on the dry note exactly o.dur (default 1.4 s) after t.',
-  events: 'headline arrives; layer assembles; any about-to-appear moment (schedule t = boundary - o.dur; o.voice marimba or kalimba for the notebook style)',
+define('reverseBloom', { family: 'transition', styles: ['3dlight', 'doodle-draw'], tags: ['airy', 'soft', 'tonal', 'premium', 'reveal', 'swell', 'form'], dur: 2.0,
+  desc: 'A soft note\'s room tail played backwards: a stereo swell that grows out of silence and lands on the dry note exactly `dur` (default 1.4 s) after the cue time.',
+  events: 'headline arrives; layer assembles; any about-to-appear moment (start it `dur` seconds before the boundary; `voice` marimba or kalimba for the notebook style)',
   from: 'motion_ui catalog, reverseBloom (sources 20 Beat Kitchen reverse reverb, 19 Attack Magazine, 17 IRPR risers)' },
 (ac, out, t, o, H) => {
   const sr = H.sr, r = H.r, TAU = H.TAU, db = x => Math.pow(10, x / 20), pf = Math.pow(2, (o.pitch || 0) / 12), key = o.key != null ? o.key : 69;
@@ -274,8 +281,8 @@ define('reverseBloom', { family: 'transition', styles: ['3dlight', 'doodle-draw'
   const send = H.gain(0.5, H.verb(out, { sec: 0.7, decay: 3, wet: 0.25, lp: 3000 })); lpf.connect(send);
 });
 
-define('fallAway', { family: 'transition', styles: ['3dlight', 'doodle-draw'], tags: ['soft', 'dark', 'airy'], dur: 0.7,
-  desc: 'A soft downward breath: pitch and brightness fall together over about half a second, then a beat of near silence.',
+define('fallAway', { family: 'transition', styles: ['3dlight', 'doodle-draw'], tags: ['soft', 'dark', 'airy', 'leave', 'transition'], dur: 0.7,
+  desc: 'A soft downward breath: a tone and a hush of air slide about two and a half octaves down in roughly half a second while the brightness closes, then a beat of near silence.',
   events: 'element shrinks to a dot; zoom out; scene exit; collapse to a sphere',
   from: 'motion_ui catalog, fallAway (sources 17 IRPR riser glossary, 18 Ableton high-impact sounds)' },
 (ac, out, t, o, H) => {
@@ -297,9 +304,9 @@ define('fallAway', { family: 'transition', styles: ['3dlight', 'doodle-draw'], t
   }, { level: 0.25 * db(H.rr(-1.5, 1.5)), pan: o.pan || 0, filters: [{ type: 'highpass', f: 90 }] });
 });
 
-define('shepardRise', { family: 'transition', styles: ['3dlight'], tags: ['tonal', 'airy', 'dark', 'premium'], dur: 8,
+define('shepardRise', { family: 'transition', styles: ['3dlight'], tags: ['tonal', 'airy', 'dark', 'premium', 'bed', 'swell', 'ending'], dur: 8,
   desc: 'A quiet endless lift built from octave-spaced partials under a fixed bell: it keeps rising without ever arriving, and fades in and out without a peak.',
-  events: 'the seam of the 45 s loop; long camera drift; keep going progress (o.dur sets length, o.octaves the total lift, o.dir down for a relaxing fall)',
+  events: 'the seam of the 45 s loop; long camera drift; keep going progress (`dur` sets length, `octaves` the total lift, `dir` down for a relaxing fall)',
   from: 'motion_ui catalog, shepardRise (sources 25 Eldredge Shepard tone, 17 IRPR risers)' },
 (ac, out, t, o, H) => {
   const sr = H.sr, r = H.r, TAU = H.TAU, db = x => Math.pow(10, x / 20), pf = Math.pow(2, (o.pitch || 0) / 12), key = o.key != null ? o.key : 69;
@@ -332,9 +339,9 @@ define('shepardRise', { family: 'transition', styles: ['3dlight'], tags: ['tonal
   s.connect(lpf); lpf.connect(g); g.connect(out); s.start(t);
 });
 
-define('dopplerPass', { family: 'transition', styles: ['3dlight'], tags: ['smooth', 'tonal', 'soft'], dur: 1.1,
+define('dopplerPass', { family: 'transition', styles: ['3dlight'], tags: ['soft', 'tonal', 'move', 'transition'], dur: 1.1,
   desc: 'A soft tone drifts across the stereo field and away: pitch slides down through the middle, brightness and level swell and fade like a floating object passing.',
-  events: 'a capsule or cell floats across the shot; parallax slide; side-to-side camera move (o.dir left for right-to-left, o.size 0..1 for heavier and longer)',
+  events: 'a capsule or cell floats across the shot; parallax slide; side-to-side camera move (`dir` left for right-to-left, `size` 0..1 for heavier and longer)',
   from: 'motion_ui catalog, dopplerPass (sources 15 Krotos whooshes, 14 Pixflow transitions)' },
 (ac, out, t, o, H) => {
   const sr = H.sr, r = H.r, TAU = H.TAU, db = x => Math.pow(10, x / 20), pf = Math.pow(2, (o.pitch || 0) / 12), key = o.key != null ? o.key : 69;
@@ -359,9 +366,9 @@ define('dopplerPass', { family: 'transition', styles: ['3dlight'], tags: ['smoot
   const s = ac.createBufferSource(); s.buffer = b; const g = H.gain(0.18 * db(H.rr(-1.5, 1.5)), out); s.connect(g); s.start(t);
 });
 
-define('easeSettle', { family: 'transition', styles: ['3dlight', 'doodle-draw'], tags: ['soft', 'matte', 'natural'], dur: 0.8,
+define('easeSettle', { family: 'transition', styles: ['3dlight', 'doodle-draw'], tags: ['soft', 'matte', 'natural', 'arrive', 'move'], dur: 0.8,
   desc: 'An object glides in and seats itself: a soft hush whose level follows an ease-out velocity curve and slows to a stop, then a matte low seat thump.',
-  events: 'card or panel slide-in with ease-out; 3D object settling on a surface (o.dur is the move length, o.pan to o.pan1 follows the slide)',
+  events: 'card or panel slide-in with ease-out; 3D object settling on a surface (`dur` is the move length, `pan` to `pan1` follows the slide)',
   from: 'motion_ui catalog, easeSettle (sources 14 Pixflow, 12 A Sound Effect UI guide)' },
 (ac, out, t, o, H) => {
   const sr = H.sr, r = H.r, TAU = H.TAU, db = x => Math.pow(10, x / 20), pf = Math.pow(2, (o.pitch || 0) / 12);
@@ -385,9 +392,9 @@ define('easeSettle', { family: 'transition', styles: ['3dlight', 'doodle-draw'],
   }, { level: 0.25 * db(H.rr(-1.5, 1.5)), pan: o.pan || 0, pan1: o.pan1 != null ? o.pan1 : null });
 });
 
-define('lensRack', { family: 'transition', styles: ['3dlight'], tags: ['tonal', 'soft', 'clinical', 'premium'], dur: 1.0,
-  desc: 'Two close tones beat slowly, then lock into one clean note with a small bump: the sound of coming into focus.',
-  events: 'blur to sharp; zoom lands on a cell; highlight settles on a target (o.dir out for the defocus mirror, tones drifting apart)',
+define('lensRack', { family: 'transition', styles: ['3dlight'], tags: ['tonal', 'soft', 'premium', 'arrive', 'bind', 'transition'], dur: 1.0,
+  desc: 'Two tones a few percent apart warble against each other at roughly 4 to 16 Hz, the warble slowing over about 0.45 s until they lock into one clean note with a small bump: the sound of coming into focus.',
+  events: 'blur to sharp; zoom lands on a cell; highlight settles on a target (`dir` out for the defocus mirror, tones drifting apart)',
   from: 'motion_ui catalog, lensRack (sources 12 A Sound Effect UI guide, 10 Soundcy)' },
 (ac, out, t, o, H) => {
   const sr = H.sr, r = H.r, TAU = H.TAU, db = x => Math.pow(10, x / 20), pf = Math.pow(2, (o.pitch || 0) / 12), key = o.key != null ? o.key : 69;
@@ -422,9 +429,9 @@ define('lensRack', { family: 'transition', styles: ['3dlight'], tags: ['tonal', 
   s.connect(lpf); lpf.connect(g); s.start(t);
 });
 
-define('forkMerge', { family: 'transition', styles: ['3dlight'], tags: ['tonal', 'organic', 'soft'], dur: 0.9,
-  desc: 'One soft note splits into two that glide apart in pitch and stereo, then ring out; the mirror brings two voices together into one.',
-  events: 'cell division; layer separates; exploded view; pill splits (o.dir in for a stack merging)',
+define('forkMerge', { family: 'transition', styles: ['3dlight'], tags: ['tonal', 'soft', 'split', 'bind'], dur: 0.9,
+  desc: 'One soft note splits into two that glide 3 to 7 semitones apart in pitch, and apart in stereo, within about a quarter of a second, then ring out; the mirror (`dir` in) glides two voices together into one.',
+  events: 'cell division; layer separates; exploded view; pill splits (`dir` in for a stack merging)',
   from: 'motion_ui catalog, forkMerge (sources 12 A Sound Effect UI guide, 5 Sound of Apple pt 2)' },
 (ac, out, t, o, H) => {
   const sr = H.sr, r = H.r, TAU = H.TAU, db = x => Math.pow(10, x / 20), pf = Math.pow(2, (o.pitch || 0) / 12), key = o.key != null ? o.key : 69;
@@ -454,8 +461,8 @@ define('forkMerge', { family: 'transition', styles: ['3dlight'], tags: ['tonal',
   s.connect(lpf); lpf.connect(g); s.start(t);
 });
 
-define('accelPulses', { family: 'transition', styles: ['3dlight', 'doodle-draw'], tags: ['soft', 'playful', 'tonal'], dur: 3.4,
-  desc: 'A rhythmic riser of soft sine drops that tighten from 0.6 s apart to 0.06 s while climbing a fifth, the last (longest) one landing exactly o.dur after t.',
+define('accelPulses', { family: 'transition', styles: ['3dlight', 'doodle-draw'], tags: ['soft', 'tonal', 'swell', 'pulse', 'count'], dur: 3.4,
+  desc: 'A rhythmic riser of about 13 soft sine drops that step up a five-note scale (do re mi fa sol) as the gap between them tightens from 0.6 s to 0.06 s, each one falling a few percent in pitch as it sounds, the last (longer) one landing exactly `dur` seconds after the cue time.',
   events: 'build-up before a headline; loading that completes; counter about to land (follow with haloHit or silence)',
   from: 'motion_ui catalog, accelPulses (source 17 IRPR riser glossary)' },
 (ac, out, t, o, H) => {
@@ -481,7 +488,7 @@ define('accelPulses', { family: 'transition', styles: ['3dlight', 'doodle-draw']
 });
 
 // ---------------------------------------------------------------------------------------------- impacts
-define('subSigh', { family: 'impact', styles: ['3dlight'], tags: ['sub', 'soft', 'dark', 'premium'], dur: 1.6,
+define('subSigh', { family: 'impact', styles: ['3dlight'], tags: ['sub', 'soft', 'dark', 'premium', 'reveal', 'arrive', 'impact'], dur: 1.6,
   desc: 'A round, slow low exhale: a sine that sinks an octave and blooms and fades with no click, with just enough harmonics to be heard on a laptop.',
   events: 'title reveal; new chapter; a large object arrives',
   from: 'motion_ui catalog, subSigh (sources 32 Tone.js MembraneSynth, 18 Ableton, 29 sonic logo guide)' },
@@ -500,8 +507,8 @@ define('subSigh', { family: 'impact', styles: ['3dlight'], tags: ['sub', 'soft',
   }, { level: 0.25 * db(H.rr(-1.5, 1.5)), pan: o.pan || 0, filters: [{ type: 'highpass', f: 28 }] });
 });
 
-define('haloHit', { family: 'impact', styles: ['3dlight'], tags: ['soft', 'premium', 'airy', 'sub'], dur: 1.6,
-  desc: 'A matte low thud with a halo of five slightly detuned high sines that beat slowly in the air above it; shimmer without bells or mallets.',
+define('haloHit', { family: 'impact', styles: ['3dlight'], tags: ['soft', 'premium', 'airy', 'sub', 'impact', 'reveal', 'number'], dur: 1.6,
+  desc: 'A matte low thud that sinks from about 120 to 62 Hz in 50 ms, with a quiet halo of five slightly detuned high sines that flutter at 8 to 13 Hz above it; shimmer without bells or mallets.',
   events: 'headline lands; hero object arrives; key stat reveal',
   from: 'motion_ui catalog, haloHit (sources 18 Ableton, 14 Pixflow, 5 Sound of Apple pt 2)' },
 (ac, out, t, o, H) => {
@@ -529,7 +536,7 @@ define('haloHit', { family: 'impact', styles: ['3dlight'], tags: ['soft', 'premi
   s.connect(lv); lv.connect(H.verb(out, { sec: 1.2, decay: 3, wet: 0.3, lp: 5000 })); s.start(t);
 });
 
-define('softBoom', { family: 'impact', styles: ['3dlight'], tags: ['sub', 'dark', 'soft'], dur: 1.9,
+define('softBoom', { family: 'impact', styles: ['3dlight'], tags: ['sub', 'dark', 'soft', 'impact', 'reveal', 'ending'], dur: 1.9,
   desc: 'A large, dark, rounded boom: a slow sinking sub body, a muffled thump and a faint veil of high air, all swallowed by a long hushed room tail.',
   events: 'chapter title; product name reveal; end of a big beat',
   from: 'motion_ui catalog, softBoom (sources 18 Ableton high-impact sounds, 15 Krotos)' },
@@ -555,9 +562,9 @@ define('softBoom', { family: 'impact', styles: ['3dlight'], tags: ['sub', 'dark'
 });
 
 // ---------------------------------------------------------------------------------------------- interface
-define('siliconeTap', { family: 'ui', styles: ['3dlight'], tags: ['soft', 'warm', 'premium', 'tonal'], dur: 0.2,
-  desc: 'A soft-touch key press: a low rounded pitched body with a barely-there contact, matte and never ticky or glassy; o.size 0 (tiny sphere) to 1 (big cell) lowers the pitch and lengthens the body.',
-  events: 'label appears; icon selected; step marker; button press; a sphere or cell is touched (o.size scales with the object)',
+define('siliconeTap', { family: 'ui', styles: ['3dlight'], tags: ['soft', 'warm', 'premium', 'tonal', 'click', 'arrive'], dur: 0.2,
+  desc: 'A soft-touch key press: a low rounded pitched body with a barely-there contact, matte and never ticky or glassy; `size` 0 (tiny sphere) to 1 (big cell) lowers the pitch and lengthens the body.',
+  events: 'label appears; icon selected; step marker; button press; a sphere or cell is touched (`size` scales with the object)',
   from: 'motion_ui catalog, siliconeTap (sources 9 Morphic, 11 userinterface-wiki, 13 Brewster earcons)' },
 (ac, out, t, o, H) => {
   const sr = H.sr, r = H.r, TAU = H.TAU, db = x => Math.pow(10, x / 20), pf = Math.pow(2, (o.pitch || 0) / 12), key = o.key != null ? o.key : 69;
@@ -578,9 +585,9 @@ define('siliconeTap', { family: 'ui', styles: ['3dlight'], tags: ['soft', 'warm'
   }, { level: 0.25 * db(H.rr(-1.5, 1.5)), pan: o.pan || 0, filters: [{ type: 'lowpass', f: 3500 }] });
 });
 
-define('toggleStep', { family: 'ui', styles: ['3dlight'], tags: ['soft', 'crisp', 'playful'], dur: 0.2,
+define('toggleStep', { family: 'ui', styles: ['3dlight'], tags: ['soft', 'crisp', 'click', 'arrive'], dur: 0.2,
   desc: 'Two soft taps a whole tone apart: stepping up means on, stepping down (a little lower and quieter) means off.',
-  events: 'switch flips; option enabled; layer toggled (o.dir down for off)',
+  events: 'switch flips; option enabled; layer toggled (`dir` down for off)',
   from: 'motion_ui catalog, toggleStep (sources 9 Morphic, 10 Soundcy)' },
 (ac, out, t, o, H) => {
   const sr = H.sr, r = H.r, TAU = H.TAU, db = x => Math.pow(10, x / 20), pf = Math.pow(2, (o.pitch || 0) / 12), key = o.key != null ? o.key : 69;
@@ -602,7 +609,7 @@ define('toggleStep', { family: 'ui', styles: ['3dlight'], tags: ['soft', 'crisp'
   }, { level: 0.25 * db(H.rr(-1.5, 1.5) - (on ? 0 : 3)), pan: (o.pan || 0) + (on ? 0.1 : -0.1), filters: [{ type: 'lowpass', f: 3500 }] });
 });
 
-define('confirmPair', { family: 'ui', styles: ['3dlight', 'doodle-draw'], tags: ['bright', 'tonal', 'premium'], dur: 0.5,
+define('confirmPair', { family: 'ui', styles: ['3dlight', 'doodle-draw'], tags: ['bright', 'tonal', 'premium', 'click', 'arrive'], dur: 0.5,
   desc: 'Two short rising notes, root then fifth, 80 ms apart: a quick accented first note and a longer, brighter last note with a small tail.',
   events: 'check mark drawn; step complete; a yes or confirmation',
   from: 'motion_ui catalog, confirmPair (sources 9 Morphic, 11 userinterface-wiki, 13 Brewster, 5 Sound of Apple pt 2)' },
@@ -624,7 +631,7 @@ define('confirmPair', { family: 'ui', styles: ['3dlight', 'doodle-draw'], tags: 
   g.connect(H.verb(out, { sec: 0.35, decay: 3, wet: 0.3, lp: 3000 }));
 });
 
-define('attentionDyad', { family: 'ui', styles: ['3dlight'], tags: ['clinical', 'dark', 'soft'], dur: 0.65,
+define('attentionDyad', { family: 'ui', styles: ['3dlight'], tags: ['clinical', 'dark', 'soft', 'alert', 'arrive'], dur: 0.65,
   desc: 'Two pure tones a minor ninth apart that sag a little in pitch and fade: a dull, unharsh look-here signal.',
   events: 'pathology appears; problem state; warning label (use sparingly)',
   from: 'motion_ui catalog, attentionDyad (sources 6 Microsoft minor-ninth error tone, 9 Morphic)' },
@@ -647,9 +654,9 @@ define('attentionDyad', { family: 'ui', styles: ['3dlight'], tags: ['clinical', 
   s.connect(lpf); lpf.connect(g); s.start(t);
 });
 
-define('hoverBreath', { family: 'ui', styles: ['3dlight'], tags: ['airy', 'soft', 'clinical'], dur: 0.15,
+define('hoverBreath', { family: 'ui', styles: ['3dlight'], tags: ['airy', 'soft', 'clinical', 'arrive', 'click'], dur: 0.15,
   desc: 'A near-silent puff of air with a tiny high sine grain inside it, when a pointer or highlight arrives; pan it to the target.',
-  events: 'callout line reaches its label; focus ring appears; a highlight lands on a part (o.pan = the target\'s screen x)',
+  events: 'callout line reaches its label; focus ring appears; a highlight lands on a part (`pan` = the target\'s screen x)',
   from: 'motion_ui catalog, hoverBreath (sources 7 Quietmark, 10 Soundcy)' },
 (ac, out, t, o, H) => {
   const sr = H.sr, r = H.r, TAU = H.TAU, db = x => Math.pow(10, x / 20), pf = Math.pow(2, (o.pitch || 0) / 12);
@@ -666,7 +673,7 @@ define('hoverBreath', { family: 'ui', styles: ['3dlight'], tags: ['airy', 'soft'
   }, { level: 0.23 * db(H.rr(-1.5, 1.5)), pan: o.pan || 0, filters: [{ type: 'lowpass', f: 6000 }] });
 });
 
-define('softLatch', { family: 'ui', styles: ['3dlight'], tags: ['precise', 'premium', 'matte', 'clinical'], dur: 0.2,
+define('softLatch', { family: 'ui', styles: ['3dlight'], tags: ['crisp', 'premium', 'matte', 'clinical', 'click', 'bind'], dur: 0.2,
   desc: 'A two-stage matte latch: a low soft k, a beat of silence, then a tight upper click with a small body knock and a short tail, like a premium lid closing.',
   events: 'capsule closes; part docks onto a sphere; segment locks (pairs with airOpen)',
   from: 'motion_ui catalog, softLatch (sources 5 Sound of Apple pt 2, 12 A Sound Effect UI guide)' },
@@ -692,9 +699,9 @@ define('softLatch', { family: 'ui', styles: ['3dlight'], tags: ['precise', 'prem
   g.connect(H.verb(out, { sec: 0.14, decay: 3, wet: 0.35, lp: 3500 }));
 });
 
-define('airOpen', { family: 'ui', styles: ['3dlight'], tags: ['airy', 'soft', 'clinical'], dur: 0.4,
-  desc: 'A soft airy lift: a band of air opens upward while a faint sine edges up a fourth, then settles; no click.',
-  events: 'shell or membrane opens; layers separate; panel expands (o.dir down for the closing exhale; pairs with softLatch)',
+define('airOpen', { family: 'ui', styles: ['3dlight'], tags: ['airy', 'soft', 'clinical', 'swell', 'reveal', 'leave'], dur: 0.4,
+  desc: 'A soft airy lift: a band of air opens upward from about 1 to 3 kHz in a tenth of a second while a gentle sine rises a fourth, then settles; no click.',
+  events: 'shell or membrane opens; layers separate; panel expands (`dir` down for the closing exhale; pairs with softLatch)',
   from: 'motion_ui catalog, airOpen (sources 5 Sound of Apple pt 2, 9 Morphic, 12 A Sound Effect UI guide)' },
 (ac, out, t, o, H) => {
   const sr = H.sr, r = H.r, TAU = H.TAU, db = x => Math.pow(10, x / 20), pf = Math.pow(2, (o.pitch || 0) / 12), key = o.key != null ? o.key : 69;
@@ -716,9 +723,9 @@ define('airOpen', { family: 'ui', styles: ['3dlight'], tags: ['airy', 'soft', 'c
   }, { level: 0.19 * db(H.rr(-1.5, 1.5)), pan: o.pan || 0, filters: [{ type: 'lowpass', f: 5500 }] });
 });
 
-define('handoffPair', { family: 'ui', styles: ['3dlight', 'doodle-draw'], tags: ['crisp', 'soft', 'tonal'], dur: 1.0,
+define('handoffPair', { family: 'ui', styles: ['3dlight', 'doodle-draw'], tags: ['crisp', 'soft', 'tonal', 'move', 'arrive'], dur: 1.0,
   desc: 'A crisp assertive blip leaves one side, and after the travel time a lower, softer, rounder blip arrives on the other; sent is bright, received is gentle.',
-  events: 'data or an object travels from card A to card B (o.dur travel time, o.pan source x, o.pan1 target x)',
+  events: 'data or an object travels from card A to card B (`dur` travel time, `pan` source x, `pan1` target x)',
   from: 'motion_ui catalog, handoffPair (source 10 Soundcy: sent assertive, received softer)' },
 (ac, out, t, o, H) => {
   const sr = H.sr, r = H.r, TAU = H.TAU, db = x => Math.pow(10, x / 20), pf = Math.pow(2, (o.pitch || 0) / 12), key = o.key != null ? o.key : 69;
@@ -743,8 +750,8 @@ define('handoffPair', { family: 'ui', styles: ['3dlight', 'doodle-draw'], tags: 
 // motion_b.js: data, text, morph, tonal and rhythm effects from the motion_ui catalog (3dlight style).
 // 15 effects. Every effect is deterministic per seed and tuned to peak near -15 dBFS at g = 1.
 
-define('scanPass', { family: 'digital', styles: ['3dlight'], tags: ['clinical', 'tonal', 'cold', 'premium'], dur: 2.2,
-  desc: 'A calm, narrow band of tone glides across the frame with a soft ping-pong echo and lands on a small matte "found" tap.',
+define('scanPass', { family: 'digital', styles: ['3dlight'], tags: ['clinical', 'tonal', 'cold', 'premium', 'scan', 'move'], dur: 2.2,
+  desc: 'A calm, narrow band of tone sweeps about two octaves (500 to 2200 Hz) across the frame over `dur` (1.2 s by default) with a gentle 7 Hz flutter and a soft 140 ms ping-pong echo, then lands on a small matte "found" tap on the key\'s fifth.',
   events: 'a scan line crosses tissue; an analysis sweep runs over a sample; a microscope pass; a target is found',
   from: 'motion_ui data and digital: scanPass (source 12, A Sound Effect sci-fi UI guide)' },
 (ac, out, t, o, H) => {
@@ -792,7 +799,7 @@ define('scanPass', { family: 'digital', styles: ['3dlight'], tags: ['clinical', 
   emit(dL, dR, 0.18 * lvl, [['lowpass', 5000, 0.6]]);
 });
 
-define('densityPulse', { family: 'digital', styles: ['3dlight'], tags: ['soft', 'clinical', 'playful'], dur: 3.1,
+define('densityPulse', { family: 'digital', styles: ['3dlight'], tags: ['soft', 'tonal', 'count', 'swell'], dur: 3.1,
   desc: 'A shower of soft, damped pings at irregular intervals whose rate climbs from sparse to dense, so the count reads as an amount.',
   events: 'a concentration rises; a dose-response curve fills in; particles are counted; a population grows',
   from: 'motion_ui data and digital: densityPulse (sources 12, 22); options value or v0/v1, cat' },
@@ -819,8 +826,8 @@ define('densityPulse', { family: 'digital', styles: ['3dlight'], tags: ['soft', 
   emit(L, R, 0.18 * lvl, [['lowpass', 5000, 0.6]]);
 });
 
-define('oximeterBeep', { family: 'digital', styles: ['3dlight'], tags: ['clinical', 'tonal', 'bright'], dur: 3.0,
-  desc: 'A clean, soft monitor beep at a resting heart rate whose pitch steps through three bands (high, middle, low) as a value falls.',
+define('oximeterBeep', { family: 'digital', styles: ['3dlight'], tags: ['clinical', 'tonal', 'bright', 'number', 'pulse', 'scan'], dur: 3.0,
+  desc: 'A clean, soft monitor beep at about 71 beats per minute whose pitch steps down through three bands (high, then a minor third lower, then a fifth lower) as `value` falls toward `to`, and which stays on the high pitch if no `to` is given.',
   events: 'a vital sign appears; a biomarker level is read out; dose bands normal, borderline and low; a value drops',
   from: 'motion_ui data and digital: oximeterBeep (sources 27, 28); options value (0..1), to, hr or bpm' },
 (ac, out, t, o, H) => {
@@ -846,7 +853,7 @@ define('oximeterBeep', { family: 'digital', styles: ['3dlight'], tags: ['clinica
   }, { level: 0.25 * lvl, pan: o.pan || 0 });
 });
 
-define('denoiseResolve', { family: 'digital', styles: ['3dlight'], tags: ['digital', 'clean', 'premium'], dur: 1.0,
+define('denoiseResolve', { family: 'digital', styles: ['3dlight'], tags: ['digital', 'clean', 'premium', 'form', 'transition'], dur: 1.0,
   desc: 'A crushed, stuttering fragment of a tone gradually sharpens and clears into a clean, pure two-partial note that rings out.',
   events: 'noisy data is cleaned; an image sharpens; a signal separates from the background; a denoise step finishes',
   from: 'motion_ui data and digital: denoiseResolve (sources 26, 12)' },
@@ -874,7 +881,7 @@ define('denoiseResolve', { family: 'digital', styles: ['3dlight'], tags: ['digit
   }, { level: 0.25 * lvl, pan: o.pan || 0, fade: 0.01, filters: [{ type: 'lowpass', f: 2600, f1: 7000, q: 0.6 }] });   // the lowpass opens as the signal clears
 });
 
-define('processingPulse', { family: 'digital', styles: ['3dlight'], tags: ['soft', 'dark', 'clinical'], dur: 5.4,
+define('processingPulse', { family: 'digital', styles: ['3dlight'], tags: ['soft', 'dark', 'clinical', 'pulse', 'bed'], dur: 5.4,
   desc: 'A slow low pulse, one every two beats like quiet breathing, with a fifth and a longer swell on every fourth pulse, ending on a soft settle chord.',
   events: 'a progress ring fills; analysing; waiting on a pipeline; staged work completes',
   from: 'motion_ui data and digital: processingPulse (sources 9, 10); options steps (3 = short-short-long), bpm' },
@@ -907,7 +914,7 @@ define('processingPulse', { family: 'digital', styles: ['3dlight'], tags: ['soft
   }, { level: 0.25 * lvl, pan: o.pan || 0, fade: 0.01, filters: [{ type: 'lowpass', f: 2200, q: 0.6 }] });
 });
 
-define('dataRain', { family: 'digital', styles: ['3dlight'], tags: ['digital', 'airy', 'bright', 'soft'], dur: 4.1,
+define('dataRain', { family: 'digital', styles: ['3dlight'], tags: ['digital', 'airy', 'bright', 'soft', 'flow', 'bed'], dur: 4.1,
   desc: 'A very soft cloud of tiny sine grains on a pentatonic scale that drifts and pulses around the stereo field, with no bell tone.',
   events: 'a data stream flows; a network is active; information moves between objects; a dataset loads',
   from: 'motion_ui data and digital: dataRain (sources 21, 12); options rate, ramp (up or down), dur' },
@@ -939,8 +946,8 @@ define('dataRain', { family: 'digital', styles: ['3dlight'], tags: ['digital', '
   emit(L, R, 0.18 * lvl, [['lowpass', 5500, 0.6]]);
 });
 
-define('overshootPop', { family: 'ui', styles: ['3dlight', 'doodle-draw'], tags: ['playful', 'soft', 'tonal'], dur: 0.8,
-  desc: 'A soft round pop whose pitch bulges slightly above its resting note and settles, following the easing of a bouncy scale-in.',
+define('overshootPop', { family: 'ui', styles: ['3dlight', 'doodle-draw'], tags: ['soft', 'tonal', 'arrive', 'reveal'], dur: 0.8,
+  desc: 'A soft round pop whose pitch swoops up an octave and overshoots the note it lands on by a semitone or so before settling, following the easing of a bouncy scale-in; `dur` sets the length.',
   events: 'a label or badge scales in with overshoot; an icon pops; a callout bounces into place',
   from: 'motion_ui text and number animation: overshootPop (sources 14, 12, 23); o.dur is the animation length' },
 (ac, out, t, o, H) => {
@@ -960,7 +967,7 @@ define('overshootPop', { family: 'ui', styles: ['3dlight', 'doodle-draw'], tags:
   }, { level: 0.25 * lvl, pan: o.pan || 0, filters: [{ type: 'lowpass', f: 4000, q: 0.6 }] });
 });
 
-define('staggerCascade', { family: 'ui', styles: ['3dlight', 'doodle-draw'], tags: ['soft', 'playful', 'tonal', 'premium'], dur: 0.9,
+define('staggerCascade', { family: 'ui', styles: ['3dlight', 'doodle-draw'], tags: ['soft', 'tonal', 'count', 'arrive'], dur: 0.9,
   desc: 'A short run of soft matte taps climbing the key\'s pentatonic scale, one per item and drifting left to right, with the last one a little longer.',
   events: 'words or cards appear in a stagger; a bullet list builds; chips cascade in',
   from: 'motion_ui text and number animation: staggerCascade (sources 13, 33, 22); o.n items over o.dur seconds' },
@@ -989,8 +996,8 @@ define('staggerCascade', { family: 'ui', styles: ['3dlight', 'doodle-draw'], tag
   emit(L, R, 0.18 * lvl, [['lowpass', 3800, 0.6]]);
 });
 
-define('rollTicks', { family: 'ui', styles: ['3dlight', 'doodle-draw'], tags: ['soft', 'crisp', 'clinical'], dur: 1.6,
-  desc: 'A roll of soft key-tuned ticks that is dense at the start and spreads as the count eases out, rising in pitch and landing on a two-partial lock tone.',
+define('rollTicks', { family: 'ui', styles: ['3dlight', 'doodle-draw'], tags: ['soft', 'crisp', 'tonal', 'number', 'count'], dur: 1.6,
+  desc: 'A roll of 16 soft key-tuned ticks, dense at the start and spreading as the count eases out, stepping up a pentatonic scale from about 600 to 1400 Hz and landing on a two-partial root-and-fifth lock tone; `n` sets the tick count and `dur` the length (`dir` down for a falling count).',
   events: 'a numeric counter animates to a value; a stat counts up; a percentage fills',
   from: 'motion_ui text and number animation: rollTicks (sources 22, 12); o.n ticks over o.dur, dir down for a falling count' },
 (ac, out, t, o, H) => {
@@ -1017,7 +1024,7 @@ define('rollTicks', { family: 'ui', styles: ['3dlight', 'doodle-draw'], tags: ['
   }, { level: 0.25 * lvl, pan: o.pan || 0, filters: [{ type: 'lowpass', f: 4500, q: 0.6 }] });
 });
 
-define('bandSwipe', { family: 'ui', styles: ['3dlight'], tags: ['airy', 'soft', 'clean'], dur: 0.65,
+define('bandSwipe', { family: 'ui', styles: ['3dlight'], tags: ['airy', 'soft', 'clean', 'move', 'reveal'], dur: 0.65,
   desc: 'A soft airy band of breath that travels left to right as a highlight sweeps a phrase, growing a little and ending on a small matte stop.',
   events: 'a highlight band wipes over a phrase; an underline sweeps; a progress band crosses a card',
   from: 'motion_ui text and number animation: bandSwipe (sources 23, 14); dir left for right-to-left' },
@@ -1049,8 +1056,8 @@ define('bandSwipe', { family: 'ui', styles: ['3dlight'], tags: ['airy', 'soft', 
   emit(L, R, 0.18 * lvl, [['lowpass', 5500, 0.6]]);
 });
 
-define('lineTrace', { family: 'ui', styles: ['3dlight'], tags: ['tonal', 'clean', 'clinical'], dur: 0.75,
-  desc: 'A faint sine climbs a ninth as a leader line draws across the frame and finishes with a soft matte dot on the key\'s fifth.',
+define('lineTrace', { family: 'ui', styles: ['3dlight'], tags: ['tonal', 'clean', 'move', 'reveal'], dur: 0.75,
+  desc: 'A quiet sine whistles up a ninth over about 0.45 s as a leader line draws across the frame, then finishes with a soft matte dot on the key\'s fifth; `dur` sets the line time and `dir` down retracts it.',
   events: 'a leader line draws from a part to its label; an outline is traced; a connector reaches its node',
   from: 'motion_ui text and number animation: lineTrace (sources 12, 21); o.dur is the line time, dir down for a retracting line' },
 (ac, out, t, o, H) => {
@@ -1078,8 +1085,8 @@ define('lineTrace', { family: 'ui', styles: ['3dlight'], tags: ['tonal', 'clean'
   emit(L, R, 0.18 * lvl, [['lowpass', 4500, 0.6]]);
 });
 
-define('vowelMorph', { family: 'organic', styles: ['3dlight'], tags: ['organic', 'warm', 'soft'], dur: 0.95,
-  desc: 'A warm, hummed "ooh to aah" slide made of filtered breath and a soft reed-like source; smooth and organic, never a voice.',
+define('vowelMorph', { family: 'organic', styles: ['3dlight'], tags: ['organic', 'warm', 'soft', 'form', 'transition'], dur: 0.95,
+  desc: 'A warm sung hum that slides from ooh to aah (`dir` down for aah to ooh): four slightly detuned saw voices on a root and fifth pass through moving vowel formants with a faint 5 Hz vibrato, human-sounding but soft and organic.',
   events: 'a sphere morphs into a capsule; a shape or colour transforms; a membrane changes form',
   from: 'motion_ui morphs and shape changes: vowelMorph (sources 12, 5); dir down for aah to ooh' },
 (ac, out, t, o, H) => {
@@ -1107,7 +1114,7 @@ define('vowelMorph', { family: 'organic', styles: ['3dlight'], tags: ['organic',
   }, { level: 0.25 * lvl, pan: o.pan || 0, fade: 0.005, filters: [{ type: 'lowpass', f: 3200, q: 0.6 }] });
 });
 
-define('breathChime', { family: 'tonal', styles: ['3dlight'], tags: ['airy', 'tonal', 'soft'], dur: 1.1,
+define('breathChime', { family: 'tonal', styles: ['3dlight'], tags: ['airy', 'tonal', 'soft', 'reveal', 'arrive'], dur: 1.1,
   desc: 'A small chime made of breath: a puff of noise rings three tuned resonators like air across a bottle, with a faint airy shimmer.',
   events: 'a label is revealed; a node is highlighted; a small ta-da; a section is named',
   from: 'motion_ui tonal accents and stingers: breathChime (sources 34, 21); o.dur is the ring length' },
@@ -1140,7 +1147,7 @@ define('breathChime', { family: 'tonal', styles: ['3dlight'], tags: ['airy', 'to
   }, { level: 0.25 * lvl, pan: o.pan || 0, filters: [{ type: 'highpass', f: 300, q: 0.707 }, { type: 'lowpass', f: 7000, q: 0.6 }] });
 });
 
-define('loopSeamOpen', { family: 'tonal', styles: ['3dlight', 'doodle-draw'], tags: ['tonal', 'soft', 'premium'], dur: 3.4,
+define('loopSeamOpen', { family: 'tonal', styles: ['3dlight', 'doodle-draw'], tags: ['tonal', 'soft', 'premium', 'ending', 'swell'], dur: 3.4,
   desc: 'An open, unresolved suspended chord on the dominant gathers note by note, swells for about a second, then fades away, leaning toward the first note of the film.',
   events: 'the end of a seamless loop; coming up next; a section that hands over to the start',
   from: 'motion_ui tonal accents and stingers: loopSeamOpen (sources 29, 5); o.dur scales the whole gesture; start it (dur - 0.6) s before the loop end so its tail overlaps the start by 0.6 s' },
@@ -1167,7 +1174,7 @@ define('loopSeamOpen', { family: 'tonal', styles: ['3dlight', 'doodle-draw'], ta
   emit(L, R, 0.18 * lvl, [['highpass', 150, 0.707], ['lowpass', 3500, 0.6]]);
 });
 
-define('breathingBed', { family: 'rhythm', styles: ['3dlight'], tags: ['warm', 'soft', 'tonal'], dur: 9,
+define('breathingBed', { family: 'rhythm', styles: ['3dlight'], tags: ['warm', 'soft', 'tonal', 'bed', 'pulse'], dur: 9,
   desc: 'A soft pad of four pure sines (root, fifth, octave, high ninth) that swells and ebbs once per beat, the upper notes fading in at half the speed of the lower ones.',
   events: 'the whole film bed; a calm beat feel at the film tempo; a pulse without drums',
   from: 'motion_ui rhythmic and musical elements: breathingBed (sources 5, 7); options bpm (default 106.7), dur' },
@@ -1196,7 +1203,7 @@ define('breathingBed', { family: 'rhythm', styles: ['3dlight'], tags: ['warm', '
 // ================================================================ Biology: organic, liquid, particles, crystal and heat (research/bio_organic.md)
 // ---------------------------------------------------------------- bio_a: organic and biological (molecular and cellular events)
 
-define('dockSeat', { family: 'organic', styles: ['3dlight', 'doodle-draw'], tags: ['soft', 'premium', 'clinical', 'organic'], dur: 0.8,
+define('dockSeat', { family: 'organic', styles: ['3dlight', 'doodle-draw'], tags: ['soft', 'premium', 'clinical', 'organic', 'bind', 'arrive'], dur: 0.8,
   desc: 'A molecule finds its pocket: a faint breathy approach, then one dry matte tok as it seats and a tiny hollow settle (3dlight: silicone tok; doodle-draw: wooden peg tok with a pencil-soft breath).',
   events: 'docking; a ligand or drug binds a receptor; antibody meets antigen; a puzzle piece fits; a part seats in a slot',
   from: 'research: bio_organic dockSeat (sources 3, 26)' },
@@ -1227,8 +1234,8 @@ define('dockSeat', { family: 'organic', styles: ['3dlight', 'doodle-draw'], tags
   });
 });
 
-define('bondLock', { family: 'organic', styles: ['3dlight'], tags: ['tonal', 'soft', 'premium', 'clean'], dur: 1.6,
-  desc: 'Two near-identical soft tones beat slowly while they drift together from the sides, then lock into one steady centred tone with a quiet octave bloom.',
+define('bondLock', { family: 'organic', styles: ['3dlight'], tags: ['tonal', 'soft', 'premium', 'clean', 'bind', 'form'], dur: 1.6,
+  desc: 'Two near-identical soft tones drifting together from the sides warble at 6 to 10 Hz, the warble fading over about a third of a second as they lock at roughly 0.45 s into one steady centred tone with a quiet octave bloom.',
   events: 'binding affinity; a complex forms; charge pairing; two cards or cells join; an equation resolves',
   from: 'research: bio_organic bondLock (sources 5, 25)' },
 (ac, out, t, o, H) => {
@@ -1252,7 +1259,7 @@ define('bondLock', { family: 'organic', styles: ['3dlight'], tags: ['tonal', 'so
   });
 });
 
-define('enzymeSnip', { family: 'organic', styles: ['3dlight', 'doodle-draw'], tags: ['crisp', 'bright', 'clinical'], dur: 0.55,
+define('enzymeSnip', { family: 'organic', styles: ['3dlight', 'doodle-draw'], tags: ['crisp', 'bright', 'clinical', 'split', 'click'], dur: 0.55,
   desc: 'A crisp, tiny shear and then two faint tones drift apart to either side as the halves part (3dlight: pure and clean; doodle-draw: a small paper scissor snip with pencil-grain noise).',
   events: 'an enzyme cuts a strand; a restriction enzyme; protease cleavage; a CRISPR cut; a link is severed',
   from: 'research: bio_organic enzymeSnip (source 3)' },
@@ -1285,7 +1292,7 @@ define('enzymeSnip', { family: 'organic', styles: ['3dlight', 'doodle-draw'], ta
   });
 });
 
-define('membraneFlex', { family: 'organic', styles: ['3dlight'], tags: ['soft', 'sub', 'organic', 'premium'], dur: 1.0,
+define('membraneFlex', { family: 'organic', styles: ['3dlight'], tags: ['soft', 'organic', 'premium', 'move', 'arrive'], dur: 1.0,
   desc: 'A soft, round, low flex of a lipid membrane: a muted elastic "bwum" that bends and relaxes, with no boing.',
   events: 'a membrane bends; a cell squeezes through a gap; deformation; a vesicle wobbles; a wall under pressure',
   from: 'research: bio_organic membraneFlex (sources 10, 12, 25)' },
@@ -1313,7 +1320,7 @@ define('membraneFlex', { family: 'organic', styles: ['3dlight'], tags: ['soft', 
   });
 });
 
-define('engulf', { family: 'organic', styles: ['3dlight', 'doodle-draw'], tags: ['soft', 'wet', 'organic', 'sub'], dur: 1.6,
+define('engulf', { family: 'organic', styles: ['3dlight', 'doodle-draw'], tags: ['soft', 'wet', 'organic', 'bind', 'arrive'], dur: 1.6,
   desc: 'A soft swallow: a filtered breath opens and closes around something, a low gulp, then a round thump and a few tiny bubbles as the pocket seals (3dlight: smooth and filtered; doodle-draw: wetter, with more bubbles).',
   events: 'endocytosis; phagocytosis; a cell takes in a particle; a nanoparticle is wrapped by a membrane',
   from: 'research: bio_organic engulf (sources 7, 9)' },
@@ -1345,8 +1352,8 @@ define('engulf', { family: 'organic', styles: ['3dlight', 'doodle-draw'], tags: 
   });
 });
 
-define('vesiclePinch', { family: 'organic', styles: ['3dlight', 'doodle-draw'], tags: ['organic', 'wet', 'tonal', 'playful'], dur: 0.7,
-  desc: 'An elastic neck thins on a rising tone, snaps clean, and a small round bead leaves to the right; a smaller vesicle (o.size below 1) leaves a higher bead.',
+define('vesiclePinch', { family: 'organic', styles: ['3dlight', 'doodle-draw'], tags: ['wet', 'tonal', 'split', 'leave'], dur: 0.7,
+  desc: 'An elastic neck whistles up about two octaves in a third of a second with a 14 Hz wobble, snaps clean, and a small round bead bloops upward and leaves to the right; a smaller vesicle (`size` below 1) leaves a higher bead.',
   events: 'a vesicle buds; pinching off; cytokinesis; a droplet breaks away; exocytosis',
   from: 'research: bio_organic vesiclePinch (sources 9, 25)' },
 (ac, out, t, o, H) => {
@@ -1374,7 +1381,7 @@ define('vesiclePinch', { family: 'organic', styles: ['3dlight', 'doodle-draw'], 
   });
 });
 
-define('cellDivide', { family: 'organic', styles: ['3dlight'], tags: ['tonal', 'soft', 'premium'], dur: 1.9,
+define('cellDivide', { family: 'organic', styles: ['3dlight'], tags: ['tonal', 'soft', 'premium', 'split', 'form'], dur: 1.9,
   desc: 'One steady soft tone is pinched, then splits into two identical voices that drift apart to left and right, widen slightly, and settle together.',
   events: 'cell division; mitosis; cloning or duplicating an item; a branch in a diagram; one becomes two',
   from: 'research: bio_organic cellDivide (source 2)' },
@@ -1405,7 +1412,7 @@ define('cellDivide', { family: 'organic', styles: ['3dlight'], tags: ['tonal', '
   });
 });
 
-define('membraneBurst', { family: 'organic', styles: ['3dlight', 'doodle-draw'], tags: ['soft', 'wet', 'organic'], dur: 0.6,
+define('membraneBurst', { family: 'organic', styles: ['3dlight', 'doodle-draw'], tags: ['soft', 'wet', 'organic', 'split', 'dissolve'], dur: 0.6,
   desc: 'A gentle rupture: a soft low "pff" with a short falling thump, then a scatter of tiny droplets across the stereo field and a faint hush. Not a pop.',
   events: 'lysis; a capsule bursts open; an endosome releases cargo; a vesicle breaks; cargo release',
   from: 'research: bio_organic membraneBurst (sources 7, 15, 30)' },
@@ -1433,8 +1440,8 @@ define('membraneBurst', { family: 'organic', styles: ['3dlight', 'doodle-draw'],
   });
 });
 
-define('ionChannel', { family: 'organic', styles: ['3dlight'], tags: ['clinical', 'crisp', 'tonal'], dur: 2.0,
-  desc: 'A tiny gate click opens a hollow tube, a sparse stream of soft pentatonic ions passes through it, and a softer click closes the gate; o.dur sets the open time.',
+define('ionChannel', { family: 'organic', styles: ['3dlight'], tags: ['crisp', 'tonal', 'flow', 'click'], dur: 2.0,
+  desc: 'A tiny gate click opens a hollow tube, a stream of soft pentatonic plinks thickens to 10 to 28 a second and thins again as it passes through, and a softer click closes the gate; `dur` sets the open time.',
   events: 'an ion channel or nuclear pore opens; molecules cross a gate; a transporter; filtration',
   from: 'research: bio_organic ionChannel (sources 3, 5, 15)' },
 (ac, out, t, o, H) => {
@@ -1469,8 +1476,8 @@ define('ionChannel', { family: 'organic', styles: ['3dlight'], tags: ['clinical'
   });
 });
 
-define('cascade', { family: 'organic', styles: ['3dlight', 'doodle-draw'], tags: ['tonal', 'playful', 'premium'], dur: 1.7,
-  desc: 'A signalling cascade of soft plucks: each stage has twice as many voices as the last, climbs one pentatonic step and fans wider in stereo, ending on one clean tone at the octave (doodle-draw: thumb-piano plucks).',
+define('cascade', { family: 'organic', styles: ['3dlight', 'doodle-draw'], tags: ['tonal', 'soft', 'count', 'swell'], dur: 1.7,
+  desc: 'A signalling cascade of soft plucks in five stages of 1, 2, 4, 8 and 16 voices, each stage stepping up the pentatonic scale and fanning wider in stereo, ending on one clean tone at the octave (doodle-draw: thumb-piano plucks).',
   events: 'signal transduction; a kinase cascade; immune activation; a chain reaction of icons; 1 to 2 to 4 to 8',
   from: 'research: bio_organic cascade (sources 2, 3)' },
 (ac, out, t, o, H) => {
@@ -1494,8 +1501,8 @@ define('cascade', { family: 'organic', styles: ['3dlight', 'doodle-draw'], tags:
   });
 });
 
-define('annealSettle', { family: 'organic', styles: ['3dlight'], tags: ['tonal', 'soft', 'premium'], dur: 3.0,
-  desc: 'Three soft wandering voices whose pitch jitter cools while the sound darkens, until they snap onto one open chord and ring out in a small room.',
+define('annealSettle', { family: 'organic', styles: ['3dlight'], tags: ['tonal', 'soft', 'form', 'bind'], dur: 3.0,
+  desc: 'Three soft wandering voices whose pitch strays by up to about two semitones and calms over roughly 1.5 s while the sound darkens, until they snap onto one open chord and ring out in a small room.',
   events: 'protein folding; equilibrium reached; annealing or a cooling system; a noisy search resolves into a pattern',
   from: 'research: bio_organic annealSettle (sources 3, 5)' },
 (ac, out, t, o, H) => {
@@ -1530,8 +1537,8 @@ define('annealSettle', { family: 'organic', styles: ['3dlight'], tags: ['tonal',
 
 // ---------------------------------------------------------------- bio_a: liquid, gel and micro-fluid
 
-define('diffuseDrift', { family: 'liquid', styles: ['3dlight', 'doodle-draw'], tags: ['soft', 'airy', 'organic', 'premium'], dur: 3.1,
-  desc: 'A silky cloud of tiny soft ticks whose pitch wanders up and down in a random walk, Brownian motion made audible with no rising bubbles; o.dur sets the length and o.viscosity (0 to 1) makes it sparser and duller.',
+define('diffuseDrift', { family: 'liquid', styles: ['3dlight', 'doodle-draw'], tags: ['soft', 'airy', 'organic', 'premium', 'flow', 'bed'], dur: 3.1,
+  desc: 'A silky cloud of tiny soft ticks whose pitch wanders up and down in a random walk, Brownian motion made audible with no rising bubbles; `dur` sets the length and `viscosity` (0 to 1) makes it sparser and duller.',
   events: 'diffusion through gel or mucus; particles drift and jostle in crowded cytoplasm; nanoparticle penetration; random walks',
   from: 'research: bio_organic diffuseDrift (sources 3, 15, 16)' },
 (ac, out, t, o, H) => {
@@ -1555,8 +1562,8 @@ define('diffuseDrift', { family: 'liquid', styles: ['3dlight', 'doodle-draw'], t
   s.connect(H.verb(out, { sec: 0.03, decay: 2, wet: 0.2, lp: 5000 }));
 });
 
-define('mucusStretch', { family: 'liquid', styles: ['3dlight', 'doodle-draw'], tags: ['wet', 'soft', 'organic'], dur: 0.8,
-  desc: 'A thick strand pulled apart: a low sticky creak of quickening pulses over a rising hum, then a soft release puff and two tiny drops. Dull and tasteful, never slimy.',
+define('mucusStretch', { family: 'liquid', styles: ['3dlight', 'doodle-draw'], tags: ['wet', 'soft', 'organic', 'flow', 'split'], dur: 0.8,
+  desc: 'A thick strand pulled apart: a muffled creak of quickening pulses squeaks up from about 380 to 700 Hz over a rising hum, then a soft release puff and two tiny drip chirps that rise in pitch.',
   events: 'a mucus layer; a sticky gel stretches; hydrogel; a biofilm; a drug sticks to mucosa and is pulled away',
   from: 'research: bio_organic mucusStretch (sources 7, 8)' },
 (ac, out, t, o, H) => {
@@ -1588,8 +1595,8 @@ define('mucusStretch', { family: 'liquid', styles: ['3dlight', 'doodle-draw'], t
   });
 });
 
-define('gelWobble', { family: 'liquid', styles: ['3dlight', 'doodle-draw'], tags: ['soft', 'playful', 'sub'], dur: 0.9,
-  desc: 'A jelly or hydrogel nudged and wobbling to rest: a dull low tone whose pitch and level waver at 5 to 7 Hz while it dies away; o.size makes a bigger, lower, slower wobble (doodle-draw: a livelier wobble).',
+define('gelWobble', { family: 'liquid', styles: ['3dlight', 'doodle-draw'], tags: ['soft', 'dark', 'arrive', 'pulse'], dur: 0.9,
+  desc: 'A jelly or hydrogel nudged and wobbling to rest: a dull low tone whose pitch and level waver at 5 to 7 Hz while it dies away; `size` makes a bigger, lower, slower wobble (doodle-draw: a livelier wobble).',
   events: 'hydrogel; a soft cell cluster shakes; tissue jiggle; a drop wobbles after landing',
   from: 'research: bio_organic gelWobble (sources 10, 25)' },
 (ac, out, t, o, H) => {
@@ -1615,8 +1622,8 @@ define('gelWobble', { family: 'liquid', styles: ['3dlight', 'doodle-draw'], tags
   });
 });
 
-define('capillaryFlow', { family: 'liquid', styles: ['3dlight'], tags: ['airy', 'clean', 'clinical'], dur: 3.3,
-  desc: 'A thin quiet thread of liquid in a micro-channel: a narrow airy hiss with a slow shimmer and faint meniscus ticks, brightening as it fills (o.dir "out" drains, o.flat keeps it steady and loopable); o.dur sets the length.',
+define('capillaryFlow', { family: 'liquid', styles: ['3dlight'], tags: ['airy', 'clean', 'clinical', 'flow', 'bed', 'dissolve'], dur: 3.3,
+  desc: 'A thin quiet thread of liquid in a micro-channel: a narrow airy hiss with a slow shimmer and faint meniscus ticks, brightening as it fills (`dir` "out" drains, `flat` keeps it steady and loopable); `dur` sets the length.',
   events: 'microfluidics; capillary action; a lab-on-a-chip; a test strip wicking; thin vessels',
   from: 'research: bio_organic capillaryFlow (sources 9, 16)' },
 (ac, out, t, o, H) => {
@@ -1642,7 +1649,7 @@ define('capillaryFlow', { family: 'liquid', styles: ['3dlight'], tags: ['airy', 
   }, 0.16);
 });
 
-define('dropMerge', { family: 'liquid', styles: ['3dlight', 'doodle-draw'], tags: ['wet', 'playful', 'tonal'], dur: 0.4,
+define('dropMerge', { family: 'liquid', styles: ['3dlight', 'doodle-draw'], tags: ['wet', 'tonal', 'bind', 'flow'], dur: 0.4,
   desc: 'Two small drops touch one after the other and fuse into one rounder, lower bloop with a tiny tick.',
   events: 'droplet coalescence; micelles or spheres merge; two cells join; two data points become one',
   from: 'research: bio_organic dropMerge (source 9)' },
@@ -1664,8 +1671,8 @@ define('dropMerge', { family: 'liquid', styles: ['3dlight', 'doodle-draw'], tags
   });
 });
 
-define('microBubbles', { family: 'liquid', styles: ['3dlight'], tags: ['bright', 'airy', 'clinical', 'playful'], dur: 1.5,
-  desc: 'A glittering cloud of tiny pitched bubbles that thickens and thins, the smaller the bubble the higher and quieter, snapped to the music\'s pentatonic scale; o.dur sets the length, o.pop adds a soft collapse at the end.',
+define('microBubbles', { family: 'liquid', styles: ['3dlight'], tags: ['bright', 'airy', 'wet', 'flow', 'bed'], dur: 1.5,
+  desc: 'A glittering cloud of tiny pitched bubbles that thickens and thins, the smaller the bubble the higher and quieter, snapped to the music\'s pentatonic scale; `dur` sets the length, `pop` adds a soft collapse at the end.',
   events: 'microbubble contrast agents; ultrasound; cavitation; nanobubbles; gas-filled microspheres; oxygen carriers',
   from: 'research: bio_organic microBubbles (sources 9, 25)' },
 (ac, out, t, o, H) => {
@@ -1691,8 +1698,8 @@ define('microBubbles', { family: 'liquid', styles: ['3dlight'], tags: ['bright',
   function hpf(x) { let y = 0; const c = 1 - Math.exp(-TAU * 3000 / sr); for (let i = 0; i < x.length; i++) { y += c * (x[i] - y); x[i] = (x[i] - y) * Math.sin(Math.PI * i / x.length); } return x; }
 });
 
-define('accrete', { family: 'liquid', styles: ['3dlight'], tags: ['soft', 'tonal', 'premium', 'matte'], dur: 2.7,
-  desc: 'Single soft taps on pentatonic notes speed up, narrow in pitch and fuse into a smooth silk-like sheen that settles on a quiet octave note, like a layer forming; o.dur sets the length.',
+define('accrete', { family: 'liquid', styles: ['3dlight'], tags: ['soft', 'tonal', 'matte', 'form', 'bind'], dur: 2.7,
+  desc: 'Single soft taps on pentatonic notes speed up, narrow in pitch and fuse into a smooth silk-like sheen that settles on a quiet octave note, like a layer forming; `dur` sets the length.',
   events: 'nanoparticles coat a cell; layer-by-layer assembly; adsorption; particles stick to a surface; a film deposits',
   from: 'research: bio_organic accrete (sources 15, 16)' },
 (ac, out, t, o, H) => {
@@ -1723,7 +1730,7 @@ define('accrete', { family: 'liquid', styles: ['3dlight'], tags: ['soft', 'tonal
 
 // ---------------------------------------------------------------- bio_a: particles, charge and fields
 
-define('chargeCancel', { family: 'tonal', styles: ['3dlight'], tags: ['tonal', 'clean', 'clinical'], dur: 1.0,
+define('chargeCancel', { family: 'tonal', styles: ['3dlight'], tags: ['tonal', 'clean', 'clinical', 'bind', 'dissolve'], dur: 1.0,
   desc: 'Two opposite glides, one rising and one falling, meet on one pitch while their pans converge; the second turns upside down so the sum nulls and the sound dies to silence with a tiny tick.',
   events: 'charges neutralise; positive meets negative; acid meets base; an antibody neutralises a virus; subtraction',
   from: 'research: bio_organic chargeCancel (source 5)' },
@@ -1752,8 +1759,8 @@ define('chargeCancel', { family: 'tonal', styles: ['3dlight'], tags: ['tonal', '
   });
 });
 
-define('fieldPull', { family: 'tonal', styles: ['3dlight', 'doodle-draw'], tags: ['sub', 'warm', 'clinical'], dur: 1.7,
-  desc: 'A magnetic or electric field approaching: a warm low hum that brightens and leans in while its tremolo accelerates, then a soft latch (doodle-draw: a woody latch); o.dur sets the approach time.',
+define('fieldPull', { family: 'tonal', styles: ['3dlight', 'doodle-draw'], tags: ['warm', 'dark', 'swell', 'bind'], dur: 1.7,
+  desc: 'A magnetic or electric field approaching: a warm low hum that brightens and leans in while its tremolo accelerates, then a soft latch (doodle-draw: a woody latch); `dur` sets the approach time.',
   events: 'magnetism; magnetic nanoparticle targeting; field gradients; electrophoresis; electrostatic attraction',
   from: 'research: bio_organic fieldPull (source 21); a variant of magnet' },
 (ac, out, t, o, H) => {
@@ -1788,8 +1795,8 @@ define('fieldPull', { family: 'tonal', styles: ['3dlight', 'doodle-draw'], tags:
 
 // ---------------------------------------------------------------- bio_a: crystal, heat and phase change
 
-define('crystalGrow', { family: 'material', styles: ['3dlight', 'doodle-draw'], tags: ['glassy', 'bright', 'cold', 'premium'], dur: 2.6,
-  desc: 'A lattice assembling: tiny bright inharmonic ticks in a few short bursts that quicken as facets add, ending in a still, clear shimmer (3dlight: sparse and quiet; doodle-draw: frost tinkle with glass-bead taps); o.dur sets the length.',
+define('crystalGrow', { family: 'material', styles: ['3dlight', 'doodle-draw'], tags: ['glassy', 'bright', 'cold', 'premium', 'form', 'swell'], dur: 2.6,
+  desc: 'A lattice assembling: tiny bright inharmonic ticks in a few short bursts that quicken as facets add, ending in a still, clear shimmer (3dlight: sparse and quiet; doodle-draw: frost tinkle with glass-bead taps); `dur` sets the length.',
   events: 'a crystal forms; nucleation and growth; precipitation; mineralisation; a solid emerges from solution; frost',
   from: 'research: bio_organic crystalGrow (sources 13, 15, 27)' },
 (ac, out, t, o, H) => {
@@ -1820,8 +1827,8 @@ define('crystalGrow', { family: 'material', styles: ['3dlight', 'doodle-draw'], 
   }, 0.15);
 });
 
-define('crystalDissolve', { family: 'material', styles: ['3dlight', 'doodle-draw'], tags: ['glassy', 'soft', 'airy'], dur: 2.8,
-  desc: 'The reverse of crystalGrow: bright ticks thin out and sink slightly in pitch while the sound darkens and lengthens into a soft hush. Quiet, with no bubbles; o.dur sets the length.',
+define('crystalDissolve', { family: 'material', styles: ['3dlight', 'doodle-draw'], tags: ['glassy', 'soft', 'airy', 'dissolve', 'leave'], dur: 2.8,
+  desc: 'The reverse of crystalGrow: bright ticks thin out and sink about six semitones in pitch while the sound darkens and lengthens into a quiet hush with no bubbles; `dur` sets the length.',
   events: 'dissolving; a tablet or salt disappears; melting away; disassembly; a layer fades out',
   from: 'research: bio_organic crystalDissolve (source 27); the quiet counterpart of fizz' },
 (ac, out, t, o, H) => {
@@ -1849,7 +1856,7 @@ define('crystalDissolve', { family: 'material', styles: ['3dlight', 'doodle-draw
   }, 0.15);
 });
 
-define('fractureChirp', { family: 'material', styles: ['3dlight', 'doodle-draw'], tags: ['cold', 'bright', 'glassy'], dur: 0.5,
+define('fractureChirp', { family: 'material', styles: ['3dlight', 'doodle-draw'], tags: ['cold', 'bright', 'glassy', 'split', 'impact'], dur: 0.5,
   desc: 'A short falling "pew" from a dispersive solid, a high tone dropping fast to a low one, with a faint echo from the boundary: a crystal cracks or a bond breaks (3dlight: lower and softer; doodle-draw: ice with tiny tinks).',
   events: 'a crystal cracks; a bond breaks; chain scission; a brittle shell shatters; thermal shock; ice',
   from: 'research: bio_organic fractureChirp (source 13)' },
@@ -1873,8 +1880,8 @@ define('fractureChirp', { family: 'material', styles: ['3dlight', 'doodle-draw']
   });
 });
 
-define('thermalTick', { family: 'material', styles: ['3dlight'], tags: ['metallic', 'clean', 'dry', 'clinical'], dur: 3.4,
-  desc: 'Sparse dry metal ticks while something warms and expands: the ticking quickens and creeps up in pitch over a faint rising low hum; o.dur sets the length.',
+define('thermalTick', { family: 'material', styles: ['3dlight'], tags: ['metallic', 'clean', 'dry', 'clinical', 'pulse', 'swell'], dur: 3.4,
+  desc: 'Sparse dry metal ticks while something warms and expands: the ticking quickens and creeps up in pitch over a faint rising low hum; `dur` sets the length.',
   events: 'heating; a hot plate or heater; thermal expansion; an incubator warms; a thermocycler ramps',
   from: 'research: bio_organic thermalTick (source 15); pairs with relay' },
 (ac, out, t, o, H) => {
@@ -1898,7 +1905,7 @@ define('thermalTick', { family: 'material', styles: ['3dlight'], tags: ['metalli
   }, 0.15);
 });
 
-define('meltDull', { family: 'material', styles: ['3dlight', 'doodle-draw'], tags: ['metallic', 'soft', 'tonal'], dur: 1.2,
+define('meltDull', { family: 'material', styles: ['3dlight', 'doodle-draw'], tags: ['metallic', 'soft', 'tonal', 'dissolve', 'leave'], dur: 1.2,
   desc: 'A stiff ring loses its ring: four taps on a metallic body, each shorter, lower and duller, until it sags into a soft low thud.',
   events: 'melting; a solid softens; glass transition; wax or polymer melts; a rigid shell goes soft',
   from: 'research: bio_organic meltDull (sources 10, 11)' },
@@ -1926,7 +1933,7 @@ define('meltDull', { family: 'material', styles: ['3dlight', 'doodle-draw'], tag
 // Catalog: sfx_research/bio_organic.md. Every effect here is written sample by sample into an AudioBuffer.
 
 // ---------------------------------------------------------------- Pharma objects and release
-define('capsuleOpen', { family: 'material', styles: ['3dlight'], tags: ['dry', 'soft', 'clinical', 'premium'], dur: 0.6,
+define('capsuleOpen', { family: 'material', styles: ['3dlight'], tags: ['dry', 'soft', 'clinical', 'premium', 'split', 'click'], dur: 0.6,
   desc: 'A capsule parting: a dry plastic click and a faint second click, a soft breath of powder, then a few tiny granules scattering to either side.',
   events: 'a capsule opens; drug release starts; a shell splits; a pill breaks; cargo is released',
   from: 'research: bio_organic Pharma objects and release (capsuleOpen); sources 7, 30, 31' },
@@ -1967,8 +1974,8 @@ define('capsuleOpen', { family: 'material', styles: ['3dlight'], tags: ['dry', '
   send(0.18 * lj);
 });
 
-define('releaseCurve', { family: 'digital', styles: ['3dlight'], tags: ['soft', 'clean', 'clinical', 'tonal'], dur: 4,
-  desc: 'A sparse trickle of tiny soft pentatonic grains over a faint glow; the number of grains per second follows a drug-release curve, busy at first and then tailing off.',
+define('releaseCurve', { family: 'digital', styles: ['3dlight'], tags: ['soft', 'clean', 'tonal', 'flow', 'count'], dur: 4,
+  desc: 'A busy trickle of tiny soft pentatonic grains over a faint glow, starting near 38 grains a second and tailing off to about 3 a second along a drug-release curve (`curve` gives your own 0 to 1 shape, `dur` the length).',
   events: 'controlled or sustained release; a pharmacokinetic curve is drawn; concentration against time; burst then plateau',
   from: 'research: bio_organic Pharma objects and release (releaseCurve); sources 5, 15, 21. Options: dur, curve (array of 0..1), key, pitch' },
 (ac, out, t, o, H) => {
@@ -2005,7 +2012,7 @@ define('releaseCurve', { family: 'digital', styles: ['3dlight'], tags: ['soft', 
   send(0.18 * lj);
 });
 
-define('capTwist', { family: 'material', styles: ['3dlight', 'doodle-draw'], tags: ['plastic', 'dry', 'clean', 'woody'], dur: 1.2,
+define('capTwist', { family: 'material', styles: ['3dlight', 'doodle-draw'], tags: ['dry', 'clean', 'woody', 'bind', 'click'], dur: 1.2,
   desc: 'A cap screwed onto a vial: a ratchet of soft stick-slip ticks that slow down and creep up in pitch as the thread tightens, then a soft seat (soft plastic in 3dlight, a wooden or cork lid in doodle-draw).',
   events: 'closing a vial; sealing a sample; locking a cartridge; a screw cap; a lab prep step',
   from: 'research: bio_organic Pharma objects and release (capTwist); source 10. Flavour follows o.style (3dlight default, doodle-draw)' },
@@ -2040,7 +2047,7 @@ define('capTwist', { family: 'material', styles: ['3dlight', 'doodle-draw'], tag
 });
 
 // ---------------------------------------------------------------- Medical signals and light
-define('dopplerFlow', { family: 'rhythm', styles: ['3dlight'], tags: ['clinical', 'airy', 'organic', 'soft'], dur: 4.5,
+define('dopplerFlow', { family: 'rhythm', styles: ['3dlight'], tags: ['clinical', 'airy', 'organic', 'soft', 'pulse', 'flow', 'bed'], dur: 4.5,
   desc: 'The warm rushing pulse of a Doppler ultrasound: band-limited noise that swells and sweeps up on each beat, with a small second bump, wide in stereo; a bed on the beat grid.',
   events: 'blood flow; a pulse through a vessel; perfusion; a patient-monitor beat; a heart-rate theme; a rhythmic bed on the beat grid',
   from: 'research: bio_organic Medical signals and light (dopplerFlow); sources 22, 23, 24. Options: bpm (default 106.7), dur (default 4.5 s = 8 beats)' },
@@ -2077,8 +2084,8 @@ define('dopplerFlow', { family: 'rhythm', styles: ['3dlight'], tags: ['clinical'
   const s = ac.createBufferSource(); s.buffer = buf; s.connect(out); s.start(t);
 });
 
-define('pulseOx', { family: 'digital', styles: ['3dlight'], tags: ['clinical', 'tonal', 'soft', 'data'], dur: 4,
-  desc: 'A short run of soft, rounded monitor blips whose pitch climbs a value on a log scale, with a quiet two-note reference tone before every fourth blip; the blips wobble until they reach the target, then steady and brighten.',
+define('pulseOx', { family: 'digital', styles: ['3dlight'], tags: ['tonal', 'soft', 'digital', 'number', 'count', 'pulse'], dur: 4,
+  desc: 'A run of about eight soft, rounded monitor blips 0.45 s apart, climbing from roughly 470 to 1030 Hz (just over an octave) with a 7 Hz tremble that fades as the value nears its target, and a quiet reference tone on the target pitch before every fourth blip; `from`, `to` and `dur` shape the climb.',
   events: 'a value rising to target; SpO2 or oxygenation; concentration or efficacy as pitch; a dose-response; a reading settling',
   from: 'research: bio_organic Medical signals and light (pulseOx); source 21. Different from motion_ui oximeterBeep (a steady 3-step beep at heart rate): this is a continuous value trajectory with a reference tone. Options: from, to, target (0..1), beat, dur' },
 (ac, out, t, o, H) => {
@@ -2102,7 +2109,7 @@ define('pulseOx', { family: 'digital', styles: ['3dlight'], tags: ['clinical', '
   }, { level: 0.25 * lj, pan: o.pan || 0 });
 });
 
-define('stokesGlow', { family: 'tonal', styles: ['3dlight'], tags: ['glassy', 'bright', 'premium', 'tonal'], dur: 1.8,
+define('stokesGlow', { family: 'tonal', styles: ['3dlight'], tags: ['glassy', 'bright', 'premium', 'tonal', 'reveal', 'swell'], dur: 1.8,
   desc: 'A quick bright excitation blip followed at once by a lower, longer glow that blooms from dull to bright: fluorescence switching on.',
   events: 'fluorescence lighting up; a labelled structure glows; bioluminescence; a reporter or marker turns on; contrast imaging',
   from: 'research: bio_organic Medical signals and light (stokesGlow); sources 25, 27. Options: key, pitch' },
@@ -2134,7 +2141,7 @@ define('stokesGlow', { family: 'tonal', styles: ['3dlight'], tags: ['glassy', 'b
   const s = ac.createBufferSource(); s.buffer = buf; s.connect(out); s.start(t);
 });
 
-define('phShift', { family: 'tonal', styles: ['3dlight'], tags: ['tonal', 'soft', 'clean', 'wet'], dur: 2.2,
+define('phShift', { family: 'tonal', styles: ['3dlight'], tags: ['tonal', 'soft', 'clean', 'wet', 'transition', 'flow'], dur: 2.2,
   desc: 'A small drop lands, then a soft three-note chord fades in and its colour changes: for acid it brightens and its top note climbs a tone, for base it darkens and the top note settles down a tone.',
   events: 'a pH change; litmus or indicator colour; titration; an environment turns acidic; endosomal acidification',
   from: 'research: bio_organic Medical signals and light (phShift); source 25. Options: mode ("acid" default or "base"; o.dir "up"/"down" also works), key, pitch. The base move is a whole tone, not a semitone, to avoid a minor-ninth clash' },
@@ -2167,7 +2174,7 @@ define('phShift', { family: 'tonal', styles: ['3dlight'], tags: ['tonal', 'soft'
 });
 
 // ---------------------------------------------------------------- Material bodies
-define('ceramicTap', { family: 'material', styles: ['3dlight', 'doodle-draw'], tags: ['dry', 'crisp', 'premium', 'woody'], dur: 0.35,
+define('ceramicTap', { family: 'material', styles: ['3dlight', 'doodle-draw'], tags: ['dry', 'crisp', 'premium', 'woody', 'arrive', 'click', 'count'], dur: 0.35,
   desc: 'A dry glazed "tok" from four quickly dying inharmonic modes and a low body knock (a hard tile or tablet in 3dlight, a warmer clay pot in doodle-draw).',
   events: 'a tablet or capsule shell lands; ceramic scaffolds; porcelain particles; a bead is tapped; a tablet drops after pressing',
   from: 'research: bio_organic Material bodies (ceramicTap); sources 10, 11. Flavour follows o.style (3dlight default, doodle-draw). Options: size (bigger is lower), hard (0..1), pitch' },
@@ -2184,7 +2191,7 @@ define('ceramicTap', { family: 'material', styles: ['3dlight', 'doodle-draw'], t
   }, { level: 0.25 * lj, pan: o.pan || 0 });
 });
 
-define('bowlRing', { family: 'material', styles: ['3dlight', 'doodle-draw'], tags: ['glassy', 'tonal', 'warm', 'premium'], dur: 4.5,
+define('bowlRing', { family: 'material', styles: ['3dlight', 'doodle-draw'], tags: ['glassy', 'tonal', 'warm', 'premium', 'reveal', 'ending'], dur: 4.5,
   desc: 'A singing-bowl bloom: a soft strike and a long pure ring in which every mode is a pair of near-identical tones, so it beats slowly and shimmers across the stereo field (ceramic or glass vessel in 3dlight, a small brass bowl a fifth higher in doodle-draw).',
   events: 'a reveal or result; a hero moment; a long pause between beats; the end of a sequence; a ceramic or glass vessel',
   from: 'research: bio_organic Material bodies (bowlRing); sources 10, 11, 27. Flavour follows o.style (3dlight default, doodle-draw). Options: key, pitch' },
@@ -2210,7 +2217,7 @@ define('bowlRing', { family: 'material', styles: ['3dlight', 'doodle-draw'], tag
   const s = ac.createBufferSource(); s.buffer = buf; const rv = H.verb(out, { sec: 1.8, decay: 3, wet: 0.25, lp: 5000 }); s.connect(out); s.connect(rv); s.start(t);
 });
 
-define('steelTick', { family: 'material', styles: ['3dlight'], tags: ['metallic', 'crisp', 'cold', 'clinical'], dur: 0.45,
+define('steelTick', { family: 'material', styles: ['3dlight'], tags: ['metallic', 'crisp', 'cold', 'clinical', 'click', 'arrive', 'split'], dur: 0.45,
   desc: 'A stainless instrument tick: a fine metallic tap with a short high ring made of free-bar modes, a faint knock underneath and no harsh top end.',
   events: 'an instrument tray; tweezers; a spatula; a thermocycler lid; metal touches metal',
   from: 'research: bio_organic Material bodies (steelTick); sources 10, 11, 31. Options: heavy (0..1, a heavier tool is lower and rings longer), pitch' },
@@ -2224,7 +2231,7 @@ define('steelTick', { family: 'material', styles: ['3dlight'], tags: ['metallic'
   }, { level: 0.25 * lj, pan: o.pan || 0 });
 });
 
-define('rubberStretch', { family: 'material', styles: ['doodle-draw'], tags: ['organic', 'playful', 'noisy', 'natural'], dur: 0.9,
+define('rubberStretch', { family: 'material', styles: ['doodle-draw'], tags: ['organic', 'noisy', 'natural', 'swell', 'split'], dur: 0.9,
   desc: 'A balloon-skin stretch: stick-slip squeaks that speed up and rise as the tension builds, then a soft elastic thwip when it lets go.',
   events: 'a membrane is stretched; an elastic network; a balloon-like cell; a rubber band; polymer tension',
   from: 'research: bio_organic Material bodies (rubberStretch); source 10. Doodle-draw only: the catalog allows 3dlight only at very low level. Options: dur, pitch' },
@@ -2249,7 +2256,7 @@ define('rubberStretch', { family: 'material', styles: ['doodle-draw'], tags: ['o
   }, { level: 0.25 * lj, pan: o.pan || 0 });
 });
 
-define('paperCrumple', { family: 'material', styles: ['doodle-draw'], tags: ['crisp', 'natural', 'noisy', 'dry'], dur: 1.6,
+define('paperCrumple', { family: 'material', styles: ['doodle-draw'], tags: ['crisp', 'natural', 'noisy', 'dry', 'leave', 'transition'], dur: 1.6,
   desc: 'A sheet of paper crumpled in the hand: a flurry of dry crackles of very unequal loudness that thins out, over a faint low rustle.',
   events: 'notebook pages; crumpling a draft; discarded paper; a scrunched sheet; a hand-drawn transition',
   from: 'research: bio_organic Material bodies (paperCrumple); source 14 (power-law crackle energy). Options: dur' },
@@ -2284,7 +2291,7 @@ define('paperCrumple', { family: 'material', styles: ['doodle-draw'], tags: ['cr
   const s = ac.createBufferSource(); s.buffer = buf; s.connect(out); s.start(t);
 });
 
-define('sheetSlide', { family: 'transition', styles: ['3dlight', 'doodle-draw'], tags: ['soft', 'airy', 'natural', 'premium'], dur: 1,
+define('sheetSlide', { family: 'transition', styles: ['3dlight', 'doodle-draw'], tags: ['soft', 'airy', 'natural', 'premium', 'move', 'transition'], dur: 1,
   desc: 'The silky friction of a thin sheet sliding over another: narrow soft noise that sweeps up with a slow swell, a faint grain and a few fibre catches, panning across (silk film in 3dlight, paper or cloth rubbing in doodle-draw).',
   events: 'tissue layers sliding; fabric; a film moving; layered materials; a smooth dissolve between layers',
   from: 'research: bio_organic Material bodies (sheetSlide); sources 16, 32. Flavour follows o.style (3dlight default, doodle-draw). Options: dur, dir ("up"/"right" pans left to right and rises; "down"/"left" the reverse)' },
@@ -2315,7 +2322,7 @@ define('sheetSlide', { family: 'transition', styles: ['3dlight', 'doodle-draw'],
 });
 
 // ---------------------------------------------------------------- Textures and ambiences
-define('vitalTone', { family: 'texture', styles: ['3dlight', 'doodle-draw'], tags: ['tonal', 'natural', 'sub', 'soft'], dur: 8,
+define('vitalTone', { family: 'texture', styles: ['3dlight', 'doodle-draw'], tags: ['tonal', 'natural', 'sub', 'soft', 'bed', 'transition'], dur: 8,
   desc: 'The cell as a steady tone: alive is a pure, softly breathing hum near 880 Hz with a faint halo; dead is a low dull rumble; the two crossfade when the state changes.',
   events: 'viability; treated against untreated; live and dead contrast; a healthy and a dying cell; an "is it working" indicator',
   from: 'research: bio_organic Textures and ambiences (vitalTone); source 6 (yeast sonocytology). Options: alive (0..1, default 1), from (start state, default alive), at (s), fade (s, default 2.5), dur, key, pitch. 3dlight is a pure sine; doodle-draw adds warm harmonics and a slow shimmer' },
@@ -2363,7 +2370,7 @@ define('vitalTone', { family: 'texture', styles: ['3dlight', 'doodle-draw'], tag
 // degree of o.key (default 69) is folded into the effect's own register; o.pitch transposes in semitones.
 
 // ---------------------------------------------------------------------------------------------- Materials
-define('handbellBeat', { family: 'material', styles: ['3dlight', 'doodle-draw'], tags: ['glassy', 'bright', 'tonal', 'premium'], dur: 2.1,
+define('handbellBeat', { family: 'material', styles: ['3dlight', 'doodle-draw'], tags: ['glassy', 'bright', 'tonal', 'premium', 'alert', 'arrive'], dur: 2.1,
   desc: 'A small, bright handbell whose tone slowly breathes, because every partial is a close pair that beats against itself.',
   events: 'a success tick; a new item is added; a notification-level accent',
   from: 'research: synthesis.md Material hits, handbellBeat (Csound handbell doublet table, source 1)' },
@@ -2386,7 +2393,7 @@ define('handbellBeat', { family: 'material', styles: ['3dlight', 'doodle-draw'],
   }, { level: 0.25 * Math.pow(10, H.rr(-1.5, 1.5) / 20), pan: o.pan || 0 });
 });
 
-define('tuningForkPing', { family: 'material', styles: ['3dlight'], tags: ['cold', 'clinical', 'tonal', 'bright'], dur: 3.2,
+define('tuningForkPing', { family: 'material', styles: ['3dlight'], tags: ['cold', 'clinical', 'tonal', 'bright', 'scan', 'number', 'reveal'], dur: 3.2,
   desc: 'A pure, clinical ping: a very brief metallic tink at the start, then a long, almost sine tail that wavers slightly.',
   events: 'a measurement starts; a calibration finishes; a number is revealed; a lab instrument cue',
   from: 'research: synthesis.md Material hits, tuningForkPing (cantilever beam modes 1 : 6.267 : 17.55)' },
@@ -2406,7 +2413,7 @@ define('tuningForkPing', { family: 'material', styles: ['3dlight'], tags: ['cold
   }, { level: 0.19 * Math.pow(10, H.rr(-1.5, 1.5) / 20), pan: o.pan || 0 });
 });
 
-define('woodBlockTok', { family: 'material', styles: ['doodle-draw'], tags: ['woody', 'warm', 'crisp', 'natural'], dur: 0.2,
+define('woodBlockTok', { family: 'material', styles: ['doodle-draw'], tags: ['woody', 'warm', 'crisp', 'natural', 'click', 'arrive'], dur: 0.2,
   desc: 'A short, dry wooden tok, hollow or solid, with almost no sustain and a small thock underneath.',
   events: 'a pen taps a diagram; labels snap into place; ticks along a timeline',
   from: 'research: synthesis.md Material hits, woodBlockTok (STK ModalBar wood presets, source 3)' },
@@ -2433,7 +2440,7 @@ define('woodBlockTok', { family: 'material', styles: ['doodle-draw'], tags: ['wo
   }, { level: 0.25 * Math.pow(10, H.rr(-1.5, 1.5) / 20), pan: o.pan || 0 });
 });
 
-define('membraneTap', { family: 'material', styles: ['3dlight', 'doodle-draw'], tags: ['soft', 'warm', 'organic', 'natural'], dur: 0.25,
+define('membraneTap', { family: 'material', styles: ['3dlight', 'doodle-draw'], tags: ['soft', 'warm', 'organic', 'natural', 'click', 'arrive'], dur: 0.25,
   desc: 'A soft, round skin boop with a tiny pitch fall; a centre touch is pitched, an off-centre touch is drummier.',
   events: 'a sphere touches a cell wall; a membrane is poked; a soft button press',
   from: 'research: synthesis.md Material hits, membraneTap (circular membrane Bessel-zero modes; sources 8, 28)' },
@@ -2461,8 +2468,8 @@ define('membraneTap', { family: 'material', styles: ['3dlight', 'doodle-draw'], 
   }, { level: 0.25 * Math.pow(10, H.rr(-1.5, 1.5) / 20), pan: o.pan || 0 });
 });
 
-define('metalHat808', { family: 'rhythm', styles: ['3dlight'], tags: ['metallic', 'crisp', 'bright', 'digital'], dur: 0.2,
-  desc: 'A tiny, bright, inharmonic tss: six square-wave partials in the 808 cymbal ratios, closed by default (o.open for a longer shimmer).',
+define('metalHat808', { family: 'rhythm', styles: ['3dlight'], tags: ['metallic', 'crisp', 'bright', 'digital', 'pulse', 'count'], dur: 0.2,
+  desc: 'A tiny, bright, inharmonic tss: six square-wave partials in the 808 cymbal ratios, closed by default (`open` for a longer shimmer).',
   events: 'an off-beat rhythm layer; step ticks on a timeline; scan-line ticks',
   from: 'research: synthesis.md Material hits, metalHat808 (808 cymbal ratios, Tone.js MetalSynth; sources 7, 30)' },
 (ac, out, t, o, H) => {
@@ -2489,7 +2496,7 @@ define('metalHat808', { family: 'rhythm', styles: ['3dlight'], tags: ['metallic'
   }, { level: (0.165 + 0.03 * vel) * Math.pow(10, H.rr(-1.5, 1.5) / 20), pan: o.pan || 0 });
 });
 
-define('resonantPlate', { family: 'material', styles: ['3dlight'], tags: ['metallic', 'cold', 'bright', 'clinical'], dur: 1.4,
+define('resonantPlate', { family: 'material', styles: ['3dlight'], tags: ['metallic', 'cold', 'bright', 'clinical', 'impact', 'arrive'], dur: 1.4,
   desc: 'A short click rings a struck metal panel: forty inharmonic modes in a dense, bright, stereo-wide ring that fades from the top down.',
   events: 'a tray or panel is hit; an instrument clanks; a lock engages; a material swap',
   from: 'research: synthesis.md Material hits, resonantPlate (modal impulse response used as a resonator; sources 1, 18, 19)' },
@@ -2516,8 +2523,8 @@ define('resonantPlate', { family: 'material', styles: ['3dlight'], tags: ['metal
 });
 
 // ---------------------------------------------------------------------------------------------- Tonal accents and bells
-define('rissetBell', { family: 'tonal', styles: ['3dlight', 'doodle-draw'], tags: ['tonal', 'warm', 'premium', 'dark'], dur: 3.6,
-  desc: 'A deep, shimmering bell: a low hum an octave and a bit under the note, beating partials and a clear strike (o.kind "church" gives a plainer church bell).',
+define('rissetBell', { family: 'tonal', styles: ['3dlight', 'doodle-draw'], tags: ['tonal', 'warm', 'premium', 'dark', 'ending', 'reveal'], dur: 3.6,
+  desc: 'A deep, shimmering bell: a low hum about ten semitones under the note, partials that beat against detuned twins at 1 to 1.7 Hz, and a clear strike (`kind` "church" gives a plainer church bell).',
   events: 'an end card; a logo; a chapter title; a big result lands',
   from: 'research: synthesis.md Tonal accents and bells, rissetBell (Risset 11-partial table, sources 11, 12)' },
 (ac, out, t, o, H) => {
@@ -2554,8 +2561,8 @@ define('rissetBell', { family: 'tonal', styles: ['3dlight', 'doodle-draw'], tags
   src.connect(g); g.connect(pn); pn.connect(out); src.start(t);
 });
 
-define('fmBell', { family: 'tonal', styles: ['3dlight', 'doodle-draw'], tags: ['glassy', 'bright', 'metallic', 'tonal'], dur: 3.4,
-  desc: 'An FM bell whose brightness dies faster than its loudness: a Chowning bell by default, o.kind "glass" for a glass ting or "bar" for a hollow metal bar.',
+define('fmBell', { family: 'tonal', styles: ['3dlight', 'doodle-draw'], tags: ['glassy', 'bright', 'metallic', 'tonal', 'reveal', 'arrive'], dur: 3.4,
+  desc: 'An FM bell whose brightness dies faster than its loudness: a Chowning bell by default, `kind` "glass" for a glass ting or "bar" for a hollow metal bar.',
   events: 'a reveal; an achievement tick; a tooltip ting; a unit label appears',
   from: 'research: synthesis.md Tonal accents and bells, fmBell (Chowning bell 1 : 1.4, sources 9, 10, 30)' },
 (ac, out, t, o, H) => {
@@ -2582,7 +2589,7 @@ define('fmBell', { family: 'tonal', styles: ['3dlight', 'doodle-draw'], tags: ['
   }, { level: 0.25 * Math.pow(10, H.rr(-1.5, 1.5) / 20), pan: o.pan || 0 });
 });
 
-define('fmMallet', { family: 'tonal', styles: ['3dlight'], tags: ['soft', 'warm', 'tonal', 'playful'], dur: 0.5,
+define('fmMallet', { family: 'tonal', styles: ['3dlight'], tags: ['soft', 'warm', 'tonal', 'click', 'arrive'], dur: 0.5,
   desc: 'A round, soft bonk: a drum-like FM tone whose brief sheen only lasts about 40 ms, tuned to the key.',
   events: 'spheres collide; a soft button; a row of items appears',
   from: 'research: synthesis.md Tonal accents and bells, fmMallet (FM ratio 1/sqrt(2), low index; source 9)' },
@@ -2604,7 +2611,7 @@ define('fmMallet', { family: 'tonal', styles: ['3dlight'], tags: ['soft', 'warm'
   }, { level: 0.21 * Math.pow(10, H.rr(-1.5, 1.5) / 20), pan });
 });
 
-define('lpgPluck', { family: 'tonal', styles: ['3dlight'], tags: ['soft', 'warm', 'tonal', 'premium'], dur: 0.7,
+define('lpgPluck', { family: 'tonal', styles: ['3dlight'], tags: ['soft', 'warm', 'tonal', 'arrive', 'number', 'click'], dur: 0.7,
   desc: 'A warm, round bloop-tok whose brightness fades with its loudness, like a lowpass gate; never glossy.',
   events: 'an element appears; a bullet point lands; a number pops in; a UI confirmation',
   from: 'research: synthesis.md Tonal accents and bells, lpgPluck (lowpass-gate idea, source 17; numbers are start values)' },
@@ -2633,8 +2640,8 @@ define('lpgPluck', { family: 'tonal', styles: ['3dlight'], tags: ['soft', 'warm'
   }, { level: (0.2 + 0.05 * v) * Math.pow(10, H.rr(-1.5, 1.5) / 20), pan });
 });
 
-define('formantAah', { family: 'tonal', styles: ['3dlight', 'doodle-draw'], tags: ['warm', 'organic', 'tonal', 'airy'], dur: 2.8,
-  desc: 'A soft, synthetic ooh-to-aah breath of vowel choir, two voices a fifth apart, human but not voice-like, with a plate tail.',
+define('formantAah', { family: 'tonal', styles: ['3dlight', 'doodle-draw'], tags: ['warm', 'organic', 'tonal', 'airy', 'reveal', 'transition', 'swell'], dur: 2.8,
+  desc: 'A soft sung ooh-to-aah choir swell: two vowel-formant voices a fifth apart with a gentle 5 Hz vibrato and a little breath, clearly vocal though synthetic, with a plate tail; `dur` sets the length (about 1.8 s by default).',
   events: 'a sunrise or reveal stinger; a warm resolve; a transition into a new section',
   from: 'research: synthesis.md Tonal accents and bells, formantAah (Csound alto formants, source 2)' },
 (ac, out, t, o, H) => {
@@ -2686,8 +2693,8 @@ define('formantAah', { family: 'tonal', styles: ['3dlight', 'doodle-draw'], tags
 });
 
 // ---------------------------------------------------------------------------------------------- Impacts and arrivals
-define('subDrop', { family: 'impact', styles: ['3dlight'], tags: ['sub', 'dark', 'soft', 'premium'], dur: 1.5,
-  desc: 'A long, soft sub boom with a small pitch dive, tuned to the key and saturated so it still carries on laptop speakers.',
+define('subDrop', { family: 'impact', styles: ['3dlight'], tags: ['sub', 'dark', 'soft', 'premium', 'impact', 'reveal', 'arrive'], dur: 1.5,
+  desc: 'A long, soft sub boom whose pitch dives from about 2.4 times its note within the first 70 ms like an 808 thump, tuned to the key and saturated so it still carries on laptop speakers.',
   events: 'a title card; a chapter change; a hero shape lands; the downbeat of a loop',
   from: 'research: synthesis.md Impacts and arrivals, subDrop (808-style sine with parallel tanh saturation; source 22)' },
 (ac, out, t, o, H) => {
@@ -2709,7 +2716,7 @@ define('subDrop', { family: 'impact', styles: ['3dlight'], tags: ['sub', 'dark',
   }, { level: 0.25 * Math.pow(10, H.rr(-1.5, 1.5) / 20), pan: o.pan || 0 });
 });
 
-define('bounceSettle', { family: 'impact', styles: ['3dlight', 'doodle-draw'], tags: ['soft', 'natural', 'warm', 'playful'], dur: 1.1,
+define('bounceSettle', { family: 'impact', styles: ['3dlight', 'doodle-draw'], tags: ['soft', 'natural', 'warm', 'arrive', 'impact'], dur: 1.1,
   desc: 'A soft matte ball bounces several times, each hit softer and closer than the last, then settles with a tiny roll.',
   events: 'a sphere drops onto a surface; tissue layers stack; capsules settle into a cluster',
   from: 'research: synthesis.md Impacts and arrivals, bounceSettle (restitution timing e^k; sources 28, derived)' },
@@ -2736,8 +2743,8 @@ define('bounceSettle', { family: 'impact', styles: ['3dlight', 'doodle-draw'], t
   }, { level: 0.22 * Math.pow(10, H.rr(-1.5, 1.5) / 20), pan });
 });
 
-define('layerStack', { family: 'impact', styles: ['3dlight', 'doodle-draw'], tags: ['premium', 'soft', 'sub', 'crisp'], dur: 1.3,
-  desc: 'A full, layered impact: a soft click, a tuned metallic body, a sub underneath, a barely audible high ping and a short plate tail; o.size from 0.5 (small) to 2 (big).',
+define('layerStack', { family: 'impact', styles: ['3dlight', 'doodle-draw'], tags: ['premium', 'soft', 'sub', 'crisp', 'impact', 'arrive'], dur: 1.3,
+  desc: 'A full, layered impact: a soft click, a tuned metallic body, a sub underneath, a barely audible high ping and a short plate tail; `size` from 0.5 (small) to 2 (big).',
   events: 'a hero shape or title lands; a big versus a small object hits; a chapter downbeat',
   from: 'research: synthesis.md Impacts and arrivals, layerStack (transient + body + sub + tail + sweetener; source 23)' },
 (ac, out, t, o, H) => {
@@ -2775,8 +2782,8 @@ define('layerStack', { family: 'impact', styles: ['3dlight', 'doodle-draw'], tag
 // so the level is exact; randomness comes only from H.r.
 
 // ---------------------------------------------------------------- Transitions and motion, textures
-define('shepardBed', { family: 'texture', styles: ['3dlight'], tags: ['airy', 'tonal', 'dark', 'premium'], dur: 13.5,
-  desc: 'A quiet endless glide: eight octave-spaced sine layers rise (or fall) forever under a soft bell-shaped spectrum, and the texture repeats exactly every beat, so a 45 s loop has no seam.',
+define('shepardBed', { family: 'texture', styles: ['3dlight'], tags: ['airy', 'tonal', 'dark', 'premium', 'bed', 'swell'], dur: 13.5,
+  desc: 'A quiet endless glide: eight octave-spaced sine layers rise (or fall) forever under a soft bell-shaped spectrum at one octave per `beat` (4.5 s by default), and the texture repeats exactly every `beat`, so a 45 s loop has no seam.',
   events: 'a bed under the whole loop; growth or continuing motion; a calm held scene; a sustained zoom or scale-up',
   from: 'research: synthesis.md Shepard tone (CRI ADX, Wikipedia, SuperCollider); shepardBed' },
 (ac, out, t, o, H) => {
@@ -2819,7 +2826,7 @@ define('shepardBed', { family: 'texture', styles: ['3dlight'], tags: ['airy', 't
   H.out(s, out, t, { level: 0.16 * Math.pow(10, H.rr(-1.5, 1.5) / 20), pan: o.pan || 0 });
 });
 
-define('tonalSwoosh', { family: 'transition', styles: ['3dlight', 'doodle-draw'], tags: ['airy', 'tonal', 'soft', 'premium'], dur: 0.8,
+define('tonalSwoosh', { family: 'transition', styles: ['3dlight', 'doodle-draw'], tags: ['airy', 'tonal', 'soft', 'premium', 'transition', 'move'], dur: 0.8,
   desc: 'An airy whistle-sweep: narrow bands of noise glide up (or down) and land on a note of the key, with a faint sine landing, travelling left to right.',
   events: 'a slide transition; an element flies in; a camera move; a card or panel sweeps across',
   from: 'research: synthesis.md tonalSwoosh (Soundcy whoosh, Ableton swoosh thread); transitions' },
@@ -2850,7 +2857,7 @@ define('tonalSwoosh', { family: 'transition', styles: ['3dlight', 'doodle-draw']
   }, { level: 0.2 * Math.pow(10, H.rr(-1.5, 1.5) / 20), pan: down ? 0.5 : -0.5, pan1: down ? -0.5 : 0.5 });
 });
 
-define('combFlangeWhoosh', { family: 'transition', styles: ['3dlight'], tags: ['cold', 'digital', 'airy', 'metallic'], dur: 1,
+define('combFlangeWhoosh', { family: 'transition', styles: ['3dlight'], tags: ['cold', 'digital', 'airy', 'metallic', 'transition', 'scan'], dur: 1,
   desc: 'A tech whoosh: pink noise through a moving comb filter whose notches sweep fast, giving a metallic, pitched swirl, wide in stereo.',
   events: 'a data rush; a scan sweep; a wipe between diagrams (use sparingly, low level)',
   from: 'research: synthesis.md combFlangeWhoosh (Soundcy whoosh; Web Audio delay clamp note)' },
@@ -2882,7 +2889,7 @@ define('combFlangeWhoosh', { family: 'transition', styles: ['3dlight'], tags: ['
   H.out(lp, out, t, { level: 0.17 * Math.pow(10, H.rr(-1.5, 1.5) / 20), pan: o.pan || 0 });
 });
 
-define('grainCloud', { family: 'texture', styles: ['3dlight'], tags: ['airy', 'soft', 'tonal', 'bright'], dur: 1.8,
+define('grainCloud', { family: 'texture', styles: ['3dlight'], tags: ['airy', 'soft', 'tonal', 'bright', 'dissolve', 'transition'], dur: 1.8,
   desc: 'A soft cloud of tonal specks in a pentatonic set that thickens and thins: a dissolve or a mist, with a few airy noise sparkles, spread wide.',
   events: 'a dissolve between scenes; an aerosol or powder disperses; a zoom into particles; mist rising',
   from: 'research: synthesis.md grainCloud (Beat Kitchen granular; CCRMA granular notes)' },
@@ -2916,7 +2923,7 @@ define('grainCloud', { family: 'texture', styles: ['3dlight'], tags: ['airy', 's
 });
 
 // ---------------------------------------------------------------- Data and digital
-define('crushResolve', { family: 'digital', styles: ['3dlight'], tags: ['digital', 'cold', 'crisp', 'clinical'], dur: 0.75,
+define('crushResolve', { family: 'digital', styles: ['3dlight'], tags: ['digital', 'cold', 'crisp', 'scan', 'bind'], dur: 0.75,
   desc: 'A low-resolution, grainy tone sweeping upward that sharpens (fewer held samples, more bits) into a clean pure ting on a note of the key, like an image coming into focus.',
   events: 'blur-to-focus; data decoding; a scan resolves; an ID locks',
   from: 'research: synthesis.md crushResolve (ZzFX bitCrush, jsfxr)' },
@@ -2945,7 +2952,7 @@ define('crushResolve', { family: 'digital', styles: ['3dlight'], tags: ['digital
   }, { level: 0.22 * Math.pow(10, H.rr(-1.5, 1.5) / 20), pan: o.pan || 0, filters: [{ type: 'lowpass', f: 6000, q: 0.6 }] });
 });
 
-define('foldedSine', { family: 'digital', styles: ['3dlight'], tags: ['digital', 'bright', 'metallic', 'tonal'], dur: 1.5,
+define('foldedSine', { family: 'digital', styles: ['3dlight'], tags: ['digital', 'bright', 'metallic', 'tonal', 'swell', 'form'], dur: 1.5,
   desc: 'A pure sine that blooms into a glassy-metal sheen as a wavefolder opens, then relaxes back to a clean tone.',
   events: 'activation; charging or energy building before a reveal; a molecule is excited; a switch powers up',
   from: 'research: synthesis.md foldedSine (UCSD synthnotes wavefolding)' },
@@ -2967,7 +2974,7 @@ define('foldedSine', { family: 'digital', styles: ['3dlight'], tags: ['digital',
   }, { level: 0.25 * Math.pow(10, H.rr(-1.5, 1.5) / 20), pan: o.pan || 0, filters: [{ type: 'lowpass', f: 6000, q: 0.6 }] });
 });
 
-define('ringModBell', { family: 'digital', styles: ['3dlight'], tags: ['metallic', 'digital', 'bright', 'cold'], dur: 1.3,
+define('ringModBell', { family: 'digital', styles: ['3dlight'], tags: ['metallic', 'digital', 'bright', 'cold', 'click', 'alert'], dur: 1.3,
   desc: 'A metallic, slightly sci-fi zing: two tones multiplied together give sum and difference partials that die at different speeds, over a faint tonic.',
   events: 'a lock or verify cue; a logo ping (use sparingly); a data check passes',
   from: 'research: synthesis.md ringModBell (Wikipedia ring modulation)' },
@@ -2988,8 +2995,8 @@ define('ringModBell', { family: 'digital', styles: ['3dlight'], tags: ['metallic
   }, { level: 0.22 * Math.pow(10, H.rr(-1.5, 1.5) / 20), pan: o.pan || 0, filters: [{ type: 'lowpass', f: 7500, q: 0.6 }] });
 });
 
-define('sfxrBlip', { family: 'digital', styles: ['3dlight'], tags: ['digital', 'playful', 'crisp', 'bright'], dur: 0.6,
-  desc: 'A parametric 8-bit style blip in a family of variants (o.kind: select, pickup, jump, power, laser, hit), pitched into the key, band-limited and softened so it stays tidy rather than retro-harsh.',
+define('sfxrBlip', { family: 'digital', styles: ['3dlight'], tags: ['digital', 'crisp', 'bright', 'click', 'arrive'], dur: 0.6,
+  desc: 'A parametric 8-bit blip in six variants (`kind`: select is a short flat blip, pickup jumps up a fourth, fifth or octave after about 80 ms, jump and power slide upward, laser falls to a quarter of its pitch, hit is a low falling thud), pitched into the key and softened so it stays tidy rather than retro-harsh.',
   events: 'a data chip ticks; a tiny confirm or pick-up; a game-like or pixel moment; a retro style set (future)',
   from: 'research: synthesis.md sfxrBlipFamily (jsfxr, ZzFX); default kind select' },
 (ac, out, t, o, H) => {
@@ -3023,7 +3030,7 @@ define('sfxrBlip', { family: 'digital', styles: ['3dlight'], tags: ['digital', '
   }, { level: 0.2 * Math.pow(10, H.rr(-1.5, 1.5) / 20), pan: o.pan || 0 });
 });
 
-define('sonarPing', { family: 'digital', styles: ['3dlight'], tags: ['clinical', 'cold', 'tonal', 'airy'], dur: 1.4,
+define('sonarPing', { family: 'digital', styles: ['3dlight'], tags: ['clinical', 'cold', 'tonal', 'airy', 'scan', 'number'], dur: 1.4,
   desc: 'A clean sine ping followed by four darker, softer echoes that alternate left and right, like an ultrasound or depth probe.',
   events: 'an imaging scan; probing tissue depth; measuring a distance; a sensor reads out',
   from: 'research: synthesis.md sonarPing (derived)' },
@@ -3052,7 +3059,7 @@ define('sonarPing', { family: 'digital', styles: ['3dlight'], tags: ['clinical',
   H.out(s, out, t, { level: 0.17 * Math.pow(10, H.rr(-1.5, 1.5) / 20), pan: o.pan || 0 });
 });
 
-define('holdArp', { family: 'digital', styles: ['3dlight'], tags: ['digital', 'playful', 'tonal', 'crisp'], dur: 1.6,
+define('holdArp', { family: 'digital', styles: ['3dlight'], tags: ['digital', 'tonal', 'crisp', 'pulse', 'count', 'bed'], dur: 1.6,
   desc: 'A wandering, stepped blip melody like a sample-and-hold module: soft triangle notes on a pentatonic walk, swelling and fading, with a ping-pong echo.',
   events: 'data streaming; analysis running; a counter or ticker; a generative readout',
   from: 'research: synthesis.md holdArp (derived; value-noise sample and hold)' },
@@ -3084,7 +3091,7 @@ define('holdArp', { family: 'digital', styles: ['3dlight'], tags: ['digital', 'p
 });
 
 // ---------------------------------------------------------------- Organic and acoustic-physical
-define('ksPluckPlus', { family: 'tonal', styles: ['doodle-draw', '3dlight'], tags: ['warm', 'woody', 'natural', 'tonal'], dur: 2.5,
+define('ksPluckPlus', { family: 'tonal', styles: ['doodle-draw', '3dlight'], tags: ['warm', 'woody', 'natural', 'tonal', 'arrive', 'reveal'], dur: 2.5,
   desc: 'A natural plucked string (harp or guitar-like): extended Karplus-Strong with pick position, velocity, a touch of stiffness and a woody body resonance, in the key.',
   events: 'a note event; a drawn line sparkles with a harp feel; a music motif; a label lands with a gentle pluck',
   from: 'research: synthesis.md ksPluckPlus (J.O. Smith, Extended Karplus-Strong)' },
@@ -3115,7 +3122,7 @@ define('ksPluckPlus', { family: 'tonal', styles: ['doodle-draw', '3dlight'], tag
   }, { level: 0.25 * Math.pow(10, H.rr(-1.5, 1.5) / 20), pan: o.pan || 0, filters: [{ type: 'lowpass', f: dd ? 5200 : 7500, q: 0.5 }] });
 });
 
-define('ksDrum', { family: 'rhythm', styles: ['doodle-draw'], tags: ['woody', 'organic', 'soft', 'natural'], dur: 0.5,
+define('ksDrum', { family: 'rhythm', styles: ['doodle-draw'], tags: ['woody', 'organic', 'soft', 'natural', 'pulse', 'click'], dur: 0.5,
   desc: 'A short, weakly pitched hand-drum "tuk" from a Karplus-Strong noise loop with random sign flips, softened and given a small thump.',
   events: 'a pen tap rhythm; notebook percussion; a rim tick; a step on a hand-drawn timeline',
   from: 'research: synthesis.md ksDrum (Jaffe and Smith, Karplus-Strong drum variant)' },
@@ -3137,7 +3144,7 @@ define('ksDrum', { family: 'rhythm', styles: ['doodle-draw'], tags: ['woody', 'o
   }, { level: 0.25 * Math.pow(10, H.rr(-1.5, 1.5) / 20), pan: o.pan || 0, filters: [{ type: 'lowpass', f: 2800, q: 0.5 }] });
 });
 
-define('tubePop', { family: 'material', styles: ['3dlight', 'doodle-draw'], tags: ['organic', 'natural', 'soft', 'glassy'], dur: 0.4,
+define('tubePop', { family: 'material', styles: ['3dlight', 'doodle-draw'], tags: ['organic', 'natural', 'soft', 'glassy', 'click', 'split'], dur: 0.4,
   desc: 'A hollow, round "bloop" of an open glass tube: a closed-open waveguide with odd harmonics and a small pitch flick; no water.',
   events: 'a pipette tip pops; a capillary releases; a test tube hoots; a cork-like pop',
   from: 'research: synthesis.md tubePop (STK BlowBotl, Karplus-Strong waveguide)' },
@@ -3161,7 +3168,7 @@ define('tubePop', { family: 'material', styles: ['3dlight', 'doodle-draw'], tags
   }, { level: 0.25 * Math.pow(10, H.rr(-1.5, 1.5) / 20), pan: o.pan || 0, filters: [{ type: 'lowpass', f: 6000, q: 0.5 }] });
 });
 
-define('breathTone', { family: 'organic', styles: ['3dlight', 'doodle-draw'], tags: ['airy', 'soft', 'natural', 'tonal'], dur: 0.9,
+define('breathTone', { family: 'organic', styles: ['3dlight', 'doodle-draw'], tags: ['airy', 'soft', 'natural', 'tonal', 'flow', 'transition'], dur: 0.9,
   desc: 'A soft pitched puff of air, like blowing across a bottle: narrow-band noise on a note of the key with a gentle flutter and a little raw breath on top.',
   events: 'an aerosol is released; an inhaler or spray demo; an exhale; an air-jet transition',
   from: 'research: synthesis.md breathTone (STK BlowBotl)' },
@@ -3191,8 +3198,8 @@ define('breathTone', { family: 'organic', styles: ['3dlight', 'doodle-draw'], ta
   }, { level: 0.25 * Math.pow(10, H.rr(-1.5, 1.5) / 20), pan: o.pan || 0 });
 });
 
-define('bambooChimes', { family: 'texture', styles: ['doodle-draw'], tags: ['woody', 'natural', 'airy', 'tonal'], dur: 3.3,
-  desc: 'Bamboo tubes clattering in a gust: sparse random knocks, each ringing a tube tuned to a pentatonic set of the key, building with the wind and fading away.',
+define('bambooChimes', { family: 'texture', styles: ['doodle-draw'], tags: ['woody', 'natural', 'airy', 'tonal', 'bed', 'swell'], dur: 3.3,
+  desc: 'Bamboo tubes clattering in a gust: random knocks build from a couple a second up to a dozen or more, each ringing one of seven tubes tuned to a pentatonic set of the key, then thin out and fade away.',
   events: 'wind through the margins; hand-drawn weather; an idle ambience; a quiet garden scene',
   from: 'research: synthesis.md bambooChimes (STK Shakers PhISEM bamboo chimes, Cook)' },
 (ac, out, t, o, H) => {
@@ -3228,8 +3235,8 @@ define('bambooChimes', { family: 'texture', styles: ['doodle-draw'], tags: ['woo
 });
 
 // ---------------------------------------------------------------- Textures and ambiences
-define('breathChord', { family: 'texture', styles: ['3dlight', 'doodle-draw'], tags: ['airy', 'noisy', 'tonal', 'soft'], dur: 9.7,
-  desc: 'A quiet air-borne chord made only of noise: five very narrow resonances on a stacked fifth-and-octave chord that drift in level and pitch, like wind through a hollow instrument; it wraps exactly at o.loop (default 45 s).',
+define('breathChord', { family: 'texture', styles: ['3dlight', 'doodle-draw'], tags: ['airy', 'noisy', 'tonal', 'soft', 'bed', 'dissolve'], dur: 9.7,
+  desc: 'A quiet air-borne chord made only of noise: five very narrow resonances on a stacked fifth-and-octave chord that drift in level and pitch, like wind through a hollow instrument; it wraps exactly at `loop` (default 45 s).',
   events: 'a bed under dissolves and loops; calm sections; a pad replacement with its own identity',
   from: 'research: synthesis.md breathChord (Soundcy whoosh, derived)' },
 (ac, out, t, o, H) => {
@@ -3279,7 +3286,7 @@ define('breathChord', { family: 'texture', styles: ['3dlight', 'doodle-draw'], t
 
 // ---------------------------------------------------------------- leads and plucks
 // opts: note, vel, dur (decay length, s), gate (cut the note after s), idx (start FM index), exact (no detune), pan, pitch
-define('fmGlassPluck', { family: 'tonal', styles: ['3dlight'], tags: ['glassy', 'crisp', 'tonal', 'premium', 'cold'], dur: 1.2,
+define('fmGlassPluck', { family: 'tonal', styles: ['3dlight'], tags: ['glassy', 'crisp', 'tonal', 'premium', 'cold', 'arrive', 'count', 'number'], dur: 1.2,
   desc: 'A short clear glass pluck: a bright, slightly inharmonic strike that mellows to a near-pure sine within about 150 ms, with a faint shimmer on top.',
   events: 'a node or card appears; arpeggio and count-up steps; data points land; any single note of a motif or bed',
   from: 'research: music_beds fmGlassPluck (2-op FM at 5:7, index 3.2 falling to 0.15; sources 13, 14)' },
@@ -3304,7 +3311,7 @@ define('fmGlassPluck', { family: 'tonal', styles: ['3dlight'], tags: ['glassy', 
 });
 
 // opts: note, vel, gate (s, cut the note), pan, pitch
-define('resoPluck', { family: 'tonal', styles: ['3dlight'], tags: ['warm', 'digital', 'tonal', 'premium'], dur: 0.45,
+define('resoPluck', { family: 'tonal', styles: ['3dlight'], tags: ['warm', 'digital', 'tonal', 'pulse', 'count'], dur: 0.45,
   desc: 'A rounded subtractive pluck that bwips on a resonant filter sweep: warm, electronic and tidy, never buzzy.',
   events: 'arpeggio and pulse steps; bar-one accents; small hops; a quick answer note',
   from: 'research: music_beds resoPluck (saw plus sub-square, resonant lowpass 4.2 kHz to 520 Hz; source 23)' },
@@ -3331,8 +3338,8 @@ define('resoPluck', { family: 'tonal', styles: ['3dlight'], tags: ['warm', 'digi
 
 // opts: notes (the cell, cycled; default 1 5 9 3 5' of the key), bpm (106.7), dur (run length, s), cell (steps per cell, default notes.length),
 //       steps (active steps of the cell, for the additive build), gate (0.07 s), voice ('fm' or 'reso'), vel, pan, pitch
-define('gatedArp', { family: 'tonal', styles: ['3dlight'], tags: ['tonal', 'crisp', 'digital', 'premium'], dur: 2.4,
-  desc: 'A Reich-style pulse: a cell of short glass plucks, one per sixteenth, with an accent pattern that gives the grain, under a lowpass that opens across the run.',
+define('gatedArp', { family: 'tonal', styles: ['3dlight'], tags: ['tonal', 'crisp', 'digital', 'pulse', 'bed'], dur: 2.4,
+  desc: 'A Reich-style pulse: a repeating five-note cell (root, fifth, ninth, third, high fifth) of short glass plucks, one per sixteenth at about 7 a second, with an accent pattern that gives the grain, under a lowpass that opens across the run.',
   events: 'a process running; a pipeline or assembly working; cells cycling; the engine of a bed',
   from: 'research: music_beds gatedArp (5-sixteenth cell, gate 70 ms, lowpass 1.8 to 3.2 kHz; sources 1, 12, 23)' },
 (ac, out, t, o, H) => {
@@ -3349,7 +3356,7 @@ define('gatedArp', { family: 'tonal', styles: ['3dlight'], tags: ['tonal', 'cris
 });
 
 // opts: note, from (previous note, for the 35 ms glide), dur (held length, s), vel, verb, pan, pitch
-define('softSquare', { family: 'tonal', styles: ['3dlight'], tags: ['soft', 'digital', 'tonal', 'clinical'], dur: 1.3,
+define('softSquare', { family: 'tonal', styles: ['3dlight'], tags: ['soft', 'digital', 'tonal', 'clinical', 'reveal', 'arrive'], dur: 1.3,
   desc: 'A pensive, hollow lead like a muted digital flute: odd harmonics under a soft lowpass, a late vibrato and a touch of room.',
   events: 'a title or claim motif; an answer phrase; the hero entering; a three to five note melody',
   from: 'research: music_beds softSquare (odd harmonics 1/k^1.2 to k=11, lowpass about 1.9 kHz; source 5)' },
@@ -3378,7 +3385,7 @@ define('softSquare', { family: 'tonal', styles: ['3dlight'], tags: ['soft', 'dig
 });
 
 // opts: notes (chord tones, up to 4; default the key's maj7 without root), vel, invert (bool; seeded by default), pan, pitch
-define('sawStab', { family: 'tonal', styles: ['3dlight'], tags: ['warm', 'digital', 'bright', 'premium'], dur: 0.45,
+define('sawStab', { family: 'tonal', styles: ['3dlight'], tags: ['warm', 'digital', 'bright', 'impact', 'transition'], dur: 0.45,
   desc: 'A warm chord punch that snaps shut: three chord tones on detuned saws through a fast-closing lowpass, spread left and right with a Haas offset.',
   events: 'a beat-one accent; a section change; a panel snaps into place; syncopated chord hits',
   from: 'research: music_beds sawStab (3 saws per voice at -6/0/+6 cents, lowpass 3.2 kHz to 700 Hz in 220 ms; sources 11, 22)' },
@@ -3414,7 +3421,7 @@ define('sawStab', { family: 'tonal', styles: ['3dlight'], tags: ['warm', 'digita
 });
 
 // opts: note, vel, pan, pitch. Best above 400 Hz
-define('glassHarp', { family: 'tonal', styles: ['3dlight'], tags: ['glassy', 'airy', 'tonal', 'premium'], dur: 3,
+define('glassHarp', { family: 'tonal', styles: ['3dlight'], tags: ['glassy', 'airy', 'tonal', 'premium', 'arrive', 'reveal'], dur: 3,
   desc: 'A harp-like string excited by a pure sine burst instead of noise: cleaner and more digital than a plucked string, with a quick glassy bloom and a long soft ring.',
   events: 'a delicate arrival; a rising pattern; chord sparkle; a quiet note that should not sound wooden',
   from: 'research: music_beds glassHarp (Karplus-Strong with sine-burst excitation and 3-tap loop filter; source 15)' },
@@ -3438,7 +3445,7 @@ define('glassHarp', { family: 'tonal', styles: ['3dlight'], tags: ['glassy', 'ai
 });
 
 // opts: note, from (previous note, for the legato glide), dur (held length, s), vel, verb, pan, pitch
-define('singingGlass', { family: 'tonal', styles: ['3dlight', 'doodle-draw'], tags: ['airy', 'glassy', 'soft', 'tonal', 'premium'], dur: 3.6,
+define('singingGlass', { family: 'tonal', styles: ['3dlight', 'doodle-draw'], tags: ['airy', 'glassy', 'soft', 'tonal', 'premium', 'bed', 'reveal'], dur: 3.6,
   desc: 'A sustained bowed-glass tone that swells slowly, shimmers with a beating overtone and a faint bow hiss, and settles into a soft room.',
   events: 'a slow melody under narration; a large structure is revealed; a camera push; one held note per bar',
   from: 'research: music_beds singingGlass (sines at f, 2f, 3f and a detuned 2f, 600 ms swell, tremolo 4.6 Hz; sources 5, 16)' },
@@ -3465,7 +3472,7 @@ define('singingGlass', { family: 'tonal', styles: ['3dlight', 'doodle-draw'], ta
 
 // ---------------------------------------------------------------- bass
 // opts: note (root; default the key folded into 55-104 Hz), dur (held length; default one 8th at bpm), bpm (106.7), vel, pan, pitch
-define('subPulse', { family: 'tonal', styles: ['3dlight'], tags: ['sub', 'soft', 'dark', 'premium'], dur: 0.28,
+define('subPulse', { family: 'tonal', styles: ['3dlight'], tags: ['sub', 'soft', 'dark', 'premium', 'pulse', 'bed'], dur: 0.28,
   desc: 'A round sine pulse you feel more than hear: a low root with quiet 2nd and 3rd harmonics so laptop and booth speakers still carry the note.',
   events: 'the pulse of a bed; chord roots; a heavy object settling; a quiet low accent',
   from: 'research: music_beds subPulse (sine plus 2f at -9 dB and 3f at -14 dB, lowpass 450 Hz, soft tanh; sources 18, 33)' },
@@ -3489,7 +3496,7 @@ define('subPulse', { family: 'tonal', styles: ['3dlight'], tags: ['sub', 'soft',
 });
 
 // opts: note (root; default the key folded into 55-104 Hz), dur (held length, s), vel, pan, pitch
-define('fmSubBass', { family: 'tonal', styles: ['3dlight'], tags: ['warm', 'sub', 'digital'], dur: 1.2,
+define('fmSubBass', { family: 'tonal', styles: ['3dlight'], tags: ['warm', 'sub', 'digital', 'bed', 'reveal'], dur: 1.2,
   desc: 'A bass with a rounded bite on the attack that relaxes into a near-pure sine: warm FM at a one-to-one ratio, with no saw buzz.',
   events: 'sustained root notes; a product reveal; a held low note under a chord',
   from: 'research: music_beds fmSubBass (2-op FM 1:1, index 1.8 falling to 0.5 in 150 ms, lowpass 900 Hz; sources 13, 14)' },
@@ -3508,7 +3515,7 @@ define('fmSubBass', { family: 'tonal', styles: ['3dlight'], tags: ['warm', 'sub'
 });
 
 // opts: note (root), dur (held length, s), bpm (106.7), depth (pump depth in dB, default 4), vel, pan, pitch
-define('pumpBass', { family: 'tonal', styles: ['3dlight'], tags: ['warm', 'sub', 'soft'], dur: 4.5,
+define('pumpBass', { family: 'tonal', styles: ['3dlight'], tags: ['warm', 'sub', 'soft', 'bed', 'pulse'], dur: 4.5,
   desc: 'A sustained bass that breathes with the beat: a triangle and sine root under a low lowpass, dipping a few dB on every quarter and swelling back.',
   events: 'a chord-length bass under a pad; an alive, pulsing background; the root of a calm bed',
   from: 'research: music_beds pumpBass (triangle plus sine, lowpass 260 Hz, per-quarter duck 6 ms down then 90 ms back; sources 22, 35)' },
@@ -3532,7 +3539,7 @@ define('pumpBass', { family: 'tonal', styles: ['3dlight'], tags: ['warm', 'sub',
 });
 
 // opts: note (root), dur (run length, s; default one bar), bpm (106.7), step (start position in the R,8ve,R,8ve pattern; accents on pattern steps 0 and 4), vel, pan, pitch
-define('octaveRoll', { family: 'tonal', styles: ['3dlight'], tags: ['warm', 'dark', 'digital'], dur: 2.25,
+define('octaveRoll', { family: 'tonal', styles: ['3dlight'], tags: ['warm', 'dark', 'digital', 'pulse', 'swell'], dur: 2.25,
   desc: 'Rolling root-and-octave eighths on a filtered saw with a sine under it: forward motion without drums.',
   events: 'momentum; a pipeline running; the second half of a chord; a build before a reveal',
   from: 'research: music_beds octaveRoll (saw into lowpass Q 2.5 sweeping 900 to 260 Hz, gate 55%; source 11)' },
@@ -3561,7 +3568,7 @@ define('octaveRoll', { family: 'tonal', styles: ['3dlight'], tags: ['warm', 'dar
 
 // ---------------------------------------------------------------- pads and textures
 // opts: notes (default Dmaj9 voicing of the key), dur (held length, s), att (1.6), rel (1.3; pass 2.4 for a longer fade), stagger (0.1 s per note), vel, pan
-define('glassPad', { family: 'texture', styles: ['3dlight'], tags: ['glassy', 'airy', 'cold', 'tonal', 'premium'], dur: 6,
+define('glassPad', { family: 'texture', styles: ['3dlight'], tags: ['glassy', 'airy', 'cold', 'tonal', 'premium', 'bed', 'swell'], dur: 6,
   desc: 'A transparent additive pad that never sounds like a saw: pure sine partials that each breathe on their own slow cycle, cold, clean and slowly alive.',
   events: 'the ground of every beat; a camera drift; a calm underlay for narration; a chord bloom',
   from: 'research: music_beds glassPad (sine partials 1-5 and 7, per-partial LFO periods 45/n s, 120 Hz to 3.2 kHz; sources 5, 10)' },
@@ -3594,7 +3601,7 @@ define('glassPad', { family: 'texture', styles: ['3dlight'], tags: ['glassy', 'a
 });
 
 // opts: notes (default Dmaj9 voicing of the key), dur (held length, s), att (2), rel (1.3), vel, pan
-define('morphPad', { family: 'texture', styles: ['3dlight'], tags: ['airy', 'tonal', 'digital', 'premium'], dur: 8,
+define('morphPad', { family: 'texture', styles: ['3dlight'], tags: ['airy', 'tonal', 'digital', 'premium', 'bed', 'form'], dur: 8,
   desc: 'A pad whose timbre slowly morphs between hollow and glassy-bright over a nine-second cycle while its lowpass drifts, so a long scene never sits still.',
   events: 'long scenes; a slow transformation; a calm underlay that needs motion; a structure revealing itself',
   from: 'research: music_beds morphPad (two wavetables crossfaded on a 45/5 s LFO, formant bump at the 7th harmonic; source 10)' },
@@ -3632,7 +3639,7 @@ define('morphPad', { family: 'texture', styles: ['3dlight'], tags: ['airy', 'ton
 });
 
 // opts: notes (chord to halo; default Dmaj9 voicing of the key), dur (fade length, s), room (reverb length, s, 2.6), vel, pan
-define('shimmerTail', { family: 'texture', styles: ['3dlight'], tags: ['airy', 'glassy', 'wet', 'premium'], dur: 4.3,
+define('shimmerTail', { family: 'texture', styles: ['3dlight'], tags: ['airy', 'glassy', 'wet', 'premium', 'swell', 'dissolve'], dur: 4.3,
   desc: 'An octave-up halo that blooms just after a chord and melts away into a long bright room: airy sparkle on the same notes, never a pitch-shifter wobble.',
   events: 'chord changes; reveals; the end of a beat; a held note that needs air',
   from: 'research: music_beds shimmerTail (chord re-synthesised at 2f and 4f, 150 ms late, +7 cents, long convolved tail; source 16)' },
@@ -3658,7 +3665,7 @@ define('shimmerTail', { family: 'texture', styles: ['3dlight'], tags: ['airy', '
 });
 
 // opts: notes (chord to colour the air; default Dmaj9 voicing of the key), dur (held length, s), att (1.5), rel (1.3), vel, pan
-define('tunedAir', { family: 'texture', styles: ['3dlight', 'doodle-draw'], tags: ['airy', 'noisy', 'soft', 'tonal'], dur: 8,
+define('tunedAir', { family: 'texture', styles: ['3dlight', 'doodle-draw'], tags: ['airy', 'noisy', 'soft', 'tonal', 'bed', 'swell'], dur: 8,
   desc: 'Noise turned into chord-tuned breath: four very narrow resonances on open chord tones that swell and fade slowly, like a ghost choir made of air.',
   events: 'the background of any scene; anticipation; a quiet moment before a reveal; a texture that follows the chord',
   from: 'research: music_beds tunedAir (noise through 4 resonators with Q 35-60 on chord tones, 0.04-0.08 Hz level drift; sources 10, 16)' },
@@ -3684,7 +3691,7 @@ define('tunedAir', { family: 'texture', styles: ['3dlight', 'doodle-draw'], tags
 });
 
 // opts: note (root; default the key folded into 55-104 Hz), dur (held length, s), att (2.5), rel (1.3), vel, pan, pitch
-define('lumenDrone', { family: 'texture', styles: ['3dlight', 'doodle-draw'], tags: ['dark', 'warm', 'sub', 'tonal'], dur: 9,
+define('lumenDrone', { family: 'texture', styles: ['3dlight', 'doodle-draw'], tags: ['dark', 'warm', 'sub', 'tonal', 'bed', 'swell'], dur: 9,
   desc: 'A low root-and-fifth drone with a slow beat between two close sines and a nine-second breath, with quiet upper harmonics so small speakers still hear it.',
   events: 'slow beds; contemplative scenes; a floor under a long reveal; a quiet underlay for narration',
   from: 'research: music_beds lumenDrone (root sines 1/9 Hz apart, triangle fifth at -8 dB, lowpass 300 Hz, 9 s breathing; source 2)' },
@@ -3704,7 +3711,7 @@ define('lumenDrone', { family: 'texture', styles: ['3dlight', 'doodle-draw'], ta
 
 // ---------------------------------------------------------------- rhythm and percussion
 // opts: note (a chord tone; the click is placed on it in the 3.2-7.5 kHz octave), hi (bool: the octave above), vel, pan
-define('sineClick', { family: 'rhythm', styles: ['3dlight'], tags: ['digital', 'crisp', 'clinical', 'tonal'], dur: 0.08,
+define('sineClick', { family: 'rhythm', styles: ['3dlight'], tags: ['digital', 'crisp', 'clinical', 'tonal', 'pulse', 'click', 'count'], dur: 0.08,
   desc: 'A tuned digital click: three cycles of a high sine in a tiny window with a faint ring, so a pulse of them is rhythm and harmony together.',
   events: 'a pulse under data; markers; tiny arrivals; a sixteenth-note tick grid in the music',
   from: 'research: music_beds sineClick (3-cycle Hann-windowed sine at 3.2-7.5 kHz on a chord tone; sources 24, 29)' },
@@ -3722,8 +3729,8 @@ define('sineClick', { family: 'rhythm', styles: ['3dlight'], tags: ['digital', '
 });
 
 // opts: tock (bool: the lower second tick of the pair), accent (bool: +3 dB), key (tunes the pair to the tonic and its major third), vel, pan, pitch
-define('escapementTick', { family: 'rhythm', styles: ['3dlight', 'doodle-draw'], tags: ['clinical', 'metallic', 'crisp', 'tonal'], dur: 0.12,
-  desc: 'A clock-like tick of two close pitches, each a bright ping with an inharmonic overtone and a hair of click: a ticking pulse for timers and processes.',
+define('escapementTick', { family: 'rhythm', styles: ['3dlight', 'doodle-draw'], tags: ['clinical', 'metallic', 'crisp', 'tonal', 'pulse', 'count'], dur: 0.12,
+  desc: 'A clock-like tick, a bright ping with an inharmonic overtone and a hair of click, one tick per call; `tock` plays the lower of its two pitches (about a major third down), so alternating calls give a tick-tock for timers and processes.',
   events: 'a timer or measuring; time passing; count-ups; a process that is running',
   from: 'research: music_beds escapementTick (sines at f and 2.76f with 14 ms decay plus a 0.6 ms noise tick; source 3)' },
 (ac, out, t, o, H) => {
@@ -3743,7 +3750,7 @@ define('escapementTick', { family: 'rhythm', styles: ['3dlight', 'doodle-draw'],
 });
 
 // opts: note (tunes the puff to a chord tone, e.g. the 9th; Q 6), vel, pan, pitch
-define('airPuff', { family: 'rhythm', styles: ['3dlight', 'doodle-draw'], tags: ['airy', 'soft', 'noisy'], dur: 0.35,
+define('airPuff', { family: 'rhythm', styles: ['3dlight', 'doodle-draw'], tags: ['airy', 'soft', 'noisy', 'pulse', 'transition'], dur: 0.35,
   desc: 'A small soft breath of air that rises in tone as it opens, like a hat made of air; given a note it becomes a tuned puff on that chord tone.',
   events: 'offbeat accents; transitions between bars; a gentle fill in a gap; a light answer to a pad change',
   from: 'research: music_beds airPuff (white noise through a bandpass sweeping 1.8 to 3.6 kHz, 40 ms attack, 120 ms decay; source 23)' },
@@ -3759,7 +3766,7 @@ define('airPuff', { family: 'rhythm', styles: ['3dlight', 'doodle-draw'], tags: 
 });
 
 // opts: note (pitch of the thump, always folded into 55-104 Hz), vel, pan. Real use: schedule it with the quarter notes and duck the pad and bass buses with the same timing.
-define('phantomKick', { family: 'rhythm', styles: ['3dlight'], tags: ['soft', 'sub', 'premium'], dur: 0.35,
+define('phantomKick', { family: 'rhythm', styles: ['3dlight'], tags: ['soft', 'sub', 'premium', 'pulse', 'bed'], dur: 0.35,
   desc: 'A barely-there soft low thump on the beat, quieter than any other hit; its real use is as the marker for ducking a bed, dipping pad and bass 1.5 to 4 dB on every quarter so they swell back.',
   events: 'the main pulse of a calm bed; a quarter-note heartbeat you feel more than hear; the timing source for pad and bass ducking',
   from: 'research: music_beds phantomKick (sidechain pump without an audible kick, optional hidden sine kick; sources 22, 35)' },
@@ -3774,7 +3781,7 @@ define('phantomKick', { family: 'rhythm', styles: ['3dlight'], tags: ['soft', 's
 });
 
 // opts: note, bpm (106.7; the echo is a dotted eighth), echoes (3), vel, pan, pitch
-define('dottedPing', { family: 'rhythm', styles: ['3dlight'], tags: ['wet', 'tonal', 'airy'], dur: 2,
+define('dottedPing', { family: 'rhythm', styles: ['3dlight'], tags: ['wet', 'tonal', 'airy', 'pulse', 'arrive'], dur: 2,
   desc: 'A glass ping followed by dotted-eighth echoes that bounce left and right and darken as they fade: two plucks turn into a pulse.',
   events: 'arpeggio feeds; motif tails; accents that need a tempo-locked echo',
   from: 'research: music_beds dottedPing (delay 0.75 of an eighth, feedback 0.35 through a 300 Hz to 3.2 kHz loop filter, ping-pong; source 27)' },
@@ -3790,7 +3797,7 @@ define('dottedPing', { family: 'rhythm', styles: ['3dlight'], tags: ['wet', 'ton
 
 // ---------------------------------------------------------------- stingers and logo resolves
 // opts: note (the lower ping; default the key), verb (0 = dry), vel, pan, pitch
-define('octaveFlam', { family: 'tonal', styles: ['3dlight'], tags: ['glassy', 'bright', 'premium', 'playful'], dur: 1.6,
+define('octaveFlam', { family: 'tonal', styles: ['3dlight'], tags: ['glassy', 'bright', 'premium', 'arrive', 'reveal'], dur: 1.6,
   desc: 'Two glass pings an octave apart, only a hair apart in time, so they land as one small, confident ping with a short room behind it.',
   events: 'a title card; a section hero; a loop start; one small moment of arrival (at most one per section)',
   from: 'research: music_beds octaveFlam (two fmGlassPluck pings 42 ms apart, second -3 dB, index 2.4; source 3)' },
@@ -3802,7 +3809,7 @@ define('octaveFlam', { family: 'tonal', styles: ['3dlight'], tags: ['glassy', 'b
 });
 
 // opts: notes (chord, default Dmaj9 voicing of the key), note (the single note it collapses to, default the key), verb, vel, pan
-define('chordSwellToUnison', { family: 'tonal', styles: ['3dlight'], tags: ['airy', 'tonal', 'premium'], dur: 2.2,
+define('chordSwellToUnison', { family: 'tonal', styles: ['3dlight'], tags: ['airy', 'tonal', 'premium', 'ending', 'swell', 'bind'], dur: 2.2,
   desc: 'A wide chord swells open as its filter brightens, then every voice drops away in a blink and one glass note is left ringing.',
   events: 'an end card; a logo hold; everything becomes one; a resolve after a build',
   from: 'research: music_beds chordSwellToUnison (Dmaj9 sine pairs, lowpass 700 to 4500 Hz, collapse at 560 ms onto one note; source 3)' },
@@ -3829,7 +3836,7 @@ define('chordSwellToUnison', { family: 'tonal', styles: ['3dlight'], tags: ['air
 });
 
 // opts: key (the tonic; the motif starts on its octave above), notes (5 MIDI notes), times (5 onsets in s), vel, verb, pan
-define('fiveNoteMnemonic', { family: 'tonal', styles: ['3dlight'], tags: ['glassy', 'tonal', 'premium'], dur: 2.8,
+define('fiveNoteMnemonic', { family: 'tonal', styles: ['3dlight'], tags: ['glassy', 'tonal', 'premium', 'reveal', 'ending'], dur: 2.8,
   desc: 'A five-note, rhythmically distinct motif played on glass FM with a pure sine under each note, the last one ringing: a sonic logo that does not sound like marimba.',
   events: 'a brand or title reveal; an end card; the same motif each time the product appears',
   from: 'research: music_beds fiveNoteMnemonic (D5 A5 E6 C#6 A5 at 0/0.18/0.36/0.72/1.10 s; sources 7, 9)' },
@@ -3852,7 +3859,7 @@ define('fiveNoteMnemonic', { family: 'tonal', styles: ['3dlight'], tags: ['glass
 });
 
 // opts: key (the tonic), notes (chord of the bloom, default Dmaj9 voicing of the key), pings (3 MIDI notes, default 5-8-3 above the key), sparkle (MIDI note), verb, vel, pan
-define('jewelResolve', { family: 'tonal', styles: ['3dlight'], tags: ['glassy', 'airy', 'premium'], dur: 3.3,
+define('jewelResolve', { family: 'tonal', styles: ['3dlight'], tags: ['glassy', 'airy', 'ending', 'swell'], dur: 3.3,
   desc: 'A tiny jewel of a resolve: three rising glass pings, then a wide chord blooms under them with a bright sparkle on top and a halo that fades out by the end.',
   events: 'the final resolve; the end of the loop\'s story; an end card; a completed process',
   from: 'research: music_beds jewelResolve (pings at 0/0.25/0.5 s, Dmaj9 glassPad bloom with an E6 sparkle, shimmer send; sources 6, 8)' },
@@ -3866,6 +3873,34 @@ define('jewelResolve', { family: 'tonal', styles: ['3dlight'], tags: ['glassy', 
 });
 
 // __EFFECTS__ (new effects go above this line)
+
+// Tone (2026-10-10). 'serious': restrained enough for professional pieces (an investor or expo booth, a medical or
+// pharma film). 'playful': cartoon or toy-like (bloops, bounces, wobbles, pops, bubbles, pentatonic runs, chiptune).
+// Rated from the synthesis code by three independent raters on a 1-5 scale; serious = median 4 or more with no rating
+// under 3, playful = median 2 or less. The rest depend on how they are used. SFXLIB.list({ tag: 'serious' }).
+const TONE = {
+  serious: [
+    'airOpen', 'airPuff', 'bandSwipe', 'bondLock', 'bowlRing', 'breathBloom', 'breathChord', 'breathTone',
+    'breathingBed', 'capTwist', 'capillaryFlow', 'capsuleOpen', 'cellDivide', 'ceramicTap', 'chordSwellToUnison',
+    'dockSeat', 'dopplerFlow', 'dopplerPass', 'easeSettle', 'escapementTick', 'fmSubBass', 'glassPad', 'haloHit',
+    'hoverBreath', 'layerStack', 'lensRack', 'loopSeamOpen', 'lumenDrone', 'membraneFlex', 'morphPad', 'phantomKick',
+    'processingPulse', 'pumpBass', 'reverseBloom', 'rissetBell', 'scanPass', 'sheetSlide', 'shepardBed', 'shepardRise',
+    'shimmerTail', 'siliconeTap', 'sineClick', 'singingGlass', 'softBoom', 'softLatch', 'sonarPing', 'steelTick',
+    'stokesGlow', 'subDrop', 'subPulse', 'subSigh', 'thermalTick', 'tonalSwoosh', 'tunedAir', 'tunedSweep',
+    'tuningForkPing', 'vitalTone'
+  ],
+  playful: [
+    'accelPulses', 'bambooChimes', 'bounceSettle', 'cascade', 'crushResolve', 'densityPulse', 'dropMerge', 'engulf',
+    'fmMallet', 'fractureChirp', 'gatedArp', 'gelWobble', 'holdArp', 'ionChannel', 'jewelResolve', 'lpgPluck',
+    'microBubbles', 'mucusStretch', 'overshootPop', 'releaseCurve', 'resoPluck', 'rollTicks', 'rubberStretch',
+    'sfxrBlip', 'staggerCascade', 'tubePop', 'vesiclePinch'
+  ],
+};
+for (const m of Object.values(lib.meta)) m.tags = m.tags.filter(x => x !== 'serious' && x !== 'playful');
+for (const [tone, names] of Object.entries(TONE)) for (const n of names) {
+  const m = lib.meta[n]; if (!m) throw new Error('sfxlib: TONE names unknown effect ' + n);
+  m.tags = m.tags.filter(x => !(tone === 'playful' && x === 'premium')).concat(tone);
+}
 
 root.SFXLIB = lib;
 })(typeof window !== 'undefined' ? window : globalThis);

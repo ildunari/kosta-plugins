@@ -29,6 +29,8 @@ h1 { font-size: 28px; line-height: 1.15; font-weight: 700; margin: 0 0 6px; lett
 .seg button[aria-pressed="true"] { background: var(--card); color: var(--fg); box-shadow: var(--shadow); outline: 1px solid var(--line) }
 .search { flex: 1 1 180px; display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 0 10px; min-height: 38px }
 .search input { flex: 1; min-width: 0; border: 0; background: none; color: var(--fg); font: 15px var(--sans); outline: none }
+.tog { font: 500 13px var(--sans); color: var(--fg2); background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; min-height: 36px; cursor: pointer; white-space: nowrap }
+.tog[aria-pressed="true"] { background: var(--fg); border-color: var(--fg); color: var(--bg) }
 .vol { display: flex; align-items: center; gap: 6px; color: var(--fg3) }
 .vol input { width: 90px; accent-color: var(--accent) }
 .chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px }
@@ -49,7 +51,11 @@ h2 .n { color: var(--fg3); font-weight: 500; font-size: 14px; font-variant-numer
 .fx .desc { color: var(--fg); font-size: 14px; margin-top: 2px }
 .fx .fits { color: var(--fg3); font-size: 13px; margin-top: 3px }
 .fx .opts { color: var(--fg3); font-size: 12.5px; margin-top: 3px }
-.fx .opts code { font: 12px var(--code); color: var(--fg2) }
+.fx .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px }
+.fx .tags button { font: 500 12px var(--sans); color: var(--fg2); background: var(--chip); border: 1px solid transparent; border-radius: 999px; padding: 4px 10px; min-height: 30px; cursor: pointer }
+.fx .tags button.use { color: var(--fg); background: var(--card); border-color: var(--line) }
+.fx .tags button:hover { border-color: var(--fg3) }
+.fx .opts code, .fx .desc code, .fx .fits code { font: 12px var(--code); color: var(--fg2) }
 .plays { display: flex; gap: 6px; align-items: flex-start; padding-top: 1px }
 .plays button { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--card); color: var(--fg2);
   font: 600 13px var(--sans); cursor: pointer; display: grid; place-items: center; font-variant-numeric: tabular-nums }
@@ -77,8 +83,9 @@ footer { color: var(--fg3); font-size: 12.5px; margin-top: 32px; max-width: 62ch
         <button id="st-3d" data-style="3dlight" aria-pressed="false">3DLight</button>
         <button id="st-dd" data-style="doodle-draw" aria-pressed="false">Doodle Draw</button>
       </div>
+      <button class="tog" id="serious" aria-pressed="false" title="Only effects restrained enough for professional pieces">Serious only</button>
       <label class="search"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-        <input id="q" type="search" placeholder="Search sounds or moments" autocomplete="off"></label>
+        <input id="q" type="search" placeholder="Search, or tap a tag below a sound" autocomplete="off"></label>
       <label class="vol" title="Volume"><svg class="i" viewBox="0 0 24 24"><path d="M11 4.7a.7.7 0 0 0-1.2-.5L6.4 7.6A1.4 1.4 0 0 1 5.4 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.4a1.4 1.4 0 0 1 1 .4l3.4 3.4a.7.7 0 0 0 1.2-.5z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.4 18.4a9 9 0 0 0 0-12.8"/></svg>
         <input id="vol" type="range" min="0" max="1.5" step="0.01" value="0.9" aria-label="Volume"></label>
     </div>
@@ -97,7 +104,9 @@ footer { color: var(--fg3); font-size: 12.5px; margin-top: 32px; max-width: 62ch
   const STY = { '3dlight': '3DLight', 'doodle-draw': 'Doodle Draw' };
   const OPTS = /*__OPTS__*/{};
   const names = Object.keys(M).sort();
-  const state = { style: '', fam: '', q: '' };
+  const state = { style: '', fam: '', q: '', serious: false };
+  const TONE = { serious: 'Serious', playful: 'Playful' }, toneOf = n => Object.keys(TONE).find(x => (M[n].tags || []).includes(x));
+  const inPool = n => (!state.style || M[n].styles.includes(state.style)) && (!state.serious || toneOf(n) === 'serious');
   $('#lede').textContent = `${names.length} sound effects, all made live from code, sorted into ${Object.keys(F).length} families. ` +
     'Tap 1, 2 or 3 to hear three variations of the same effect: a film plays a slightly different one each time it is used.';
   $('#foot').textContent = 'Every sound here is computed by the Web Audio API in your browser from sfxlib.js, the same code a film renders with, ' +
@@ -221,14 +230,15 @@ footer { color: var(--fg3); font-size: 12.5px; margin-top: 32px; max-width: 62ch
 
   function matches(n) {
     const m = M[n];
-    if (state.style && !m.styles.includes(state.style)) return false;
+    if (!inPool(n)) return false;
     if (state.fam && m.family !== state.fam) return false;
-    if (state.q) { const q = state.q.toLowerCase(); return [n, m.desc, m.events, (m.tags || []).join(' ')].join(' ').toLowerCase().includes(q); }
+    if (state.q.startsWith('#')) return (m.tags || []).includes(state.q.slice(1).toLowerCase());   // a tapped tag: exact match
+    if (state.q) { const q = state.q.toLowerCase(); return [n, m.desc, m.events, (m.tags || []).join(' ')].join(' ').replace(/`/g, '').toLowerCase().includes(q); }
     return true;
   }
   function chips() {
     const box = $('#chips'); box.innerHTML = '';
-    const pool = names.filter(n => (!state.style || M[n].styles.includes(state.style)));
+    const pool = names.filter(inPool);
     const mk = (id, label, n) => { const b = document.createElement('button'); b.id = 'fam-' + (id || 'all'); b.setAttribute('aria-pressed', String(state.fam === id));
       b.innerHTML = `${label}<span class="n">${n}</span>`; b.onclick = () => { state.fam = state.fam === id ? '' : id; chips(); list(); }; box.append(b); };
     mk('', 'All families', pool.length);
@@ -244,12 +254,19 @@ footer { color: var(--fg3); font-size: 12.5px; margin-top: 32px; max-width: 62ch
       for (const n of ns) {
         const m = M[n], row = document.createElement('div'); row.className = 'fx';
         const opts = (OPTS[n] || []).map(o => `<code>${o}</code>`).join(' ');
-        row.innerHTML = `<div><div class="name">${n}${m.styles.map(s => `<span class="badge">${STY[s] || s}</span>`).join('')}</div>
-          <div class="desc"></div><div class="fits"></div>${opts ? `<div class="opts">Options: ${opts}</div>` : ''}</div>
+        row.innerHTML = `<div><div class="name">${n}${m.styles.map(s => `<span class="badge">${STY[s] || s}</span>`).join('')}${toneOf(n) ? `<span class="badge">${TONE[toneOf(n)]}</span>` : ''}</div>
+          <div class="desc"></div><div class="fits"></div>${opts ? `<div class="opts">Options: ${opts}</div>` : ''}<div class="tags"></div></div>
           <div class="plays">${[1, 2, 3].map(s => `<button aria-label="Play ${n}, variation ${s}">${s}</button>`).join('')}</div>
           <canvas class="wave" aria-hidden="true"></canvas>`;
-        row.querySelector('.desc').textContent = m.desc;
-        row.querySelector('.fits').textContent = 'Fits: ' + String(m.events || '').split(/;\s*/).filter(Boolean).join(', ');
+        // option names are written `dur` in the meta: show them as code
+        const rich = t => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]).replace(/`([^`]+)`/g, '<code>$1</code>');
+        row.querySelector('.desc').innerHTML = rich(m.desc);
+        row.querySelector('.fits').innerHTML = 'Fits: ' + rich(String(m.events || '').split(/;\s*/).filter(Boolean).join(', '));
+        // tags: what the sound is for (outlined) first, then how it feels; tap one to list every sound with it
+        const tg = (m.tags || []).filter(x => !TONE[x]).sort((a, b) => (L.uses.includes(b) - L.uses.includes(a)) || L.uses.indexOf(a) - L.uses.indexOf(b));
+        for (const x of tg) { const b = document.createElement('button'); b.textContent = x; if (L.uses.includes(x)) b.className = 'use';
+          b.setAttribute('aria-label', 'Show every sound tagged ' + x); b.onclick = () => { $('#q').value = '#' + x; state.q = '#' + x; list(); scrollTo({ top: 0 }); };
+          row.querySelector('.tags').append(b); }
         const cv = row.querySelector('canvas'); cv.dataset.fx = n; seen.observe(cv);
         row.querySelectorAll('.plays button').forEach((b, i) => b.onclick = () => play(n, i + 1, b, cv));
         ul.append(row);
@@ -260,9 +277,14 @@ footer { color: var(--fg3); font-size: 12.5px; margin-top: 32px; max-width: 62ch
   }
   document.querySelectorAll('.seg button').forEach(b => b.onclick = () => {
     state.style = b.dataset.style; document.querySelectorAll('.seg button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
-    if (state.fam && !names.some(n => M[n].family === state.fam && (!state.style || M[n].styles.includes(state.style)))) state.fam = '';
+    if (state.fam && !names.some(n => M[n].family === state.fam && inPool(n))) state.fam = '';
     chips(); list();
   });
+  $('#serious').onclick = e => {
+    state.serious = !state.serious; e.currentTarget.setAttribute('aria-pressed', String(state.serious));
+    if (state.fam && !names.some(n => M[n].family === state.fam && inPool(n))) state.fam = '';
+    chips(); list();
+  };
   $('#q').addEventListener('input', e => { state.q = e.target.value.trim(); list(); });
   chips(); list();
 })();

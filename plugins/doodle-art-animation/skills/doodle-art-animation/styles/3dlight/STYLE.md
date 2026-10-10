@@ -69,7 +69,9 @@ Requirements: Node 18+, Playwright with Chromium, ffmpeg, Python 3 (numpy for `a
 
 ## Sound
 
-Every sound is synthesized when the film renders, from the plugin's shared sound library (`../../sound-library/catalog.md`). `story.sound` sets two things.
+Every sound is synthesized when the film renders, from the plugin's shared sound library (`../../sound-library/catalog.md`). `story.sound` sets three things.
+
+- Serious: `serious: true`, the norm for this style. The bed plays its serious version and only effects the library tags `serious` may be used (the render stops on any other). Leave it off only when the brief asks for a lighter tone (`references/sound.md`).
 
 - The music: `music: { bed: 'glassPulse', key: 57 }`. Three beds, each made of the library's instrument voices: `glassPulse` (the default), `slowAir` and `quietEngine`. The table in `references/sound.md` says which fits what.
 - The cues: library effects on what the art does, in `cues(E, o, ev, U)` with art times, `E.fx('dockSeat', U.S(6.6), { g: 0.9, pan: 0.2 })`, or in `sound.fx` with screen times, `fx: [{ at: 12.3, fx: 'siliconeTap', g: 0.8 }]`. `g` is relative gain: 1 peaks near -15 dBFS. Without `seed`, the cue's order gives one, so a re-render sounds the same.

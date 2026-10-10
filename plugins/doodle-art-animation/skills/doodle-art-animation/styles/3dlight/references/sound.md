@@ -2,6 +2,20 @@
 
 The sound palette of 3DLight: clean, synthesized and calm, like a product film. Every sound is computed when the film renders (Web Audio, offline, seeded), so there are no audio files and a re-render matches. Doodle Draw is acoustic and hand-made; 3DLight should never sound like it.
 
+## Serious by default
+
+3DLight films are shown at booths, to investors and in talks, so set `sound.serious: true` unless the brief asks for a
+lighter tone. Then:
+
+- the bed plays its serious version: `glassPulse` swaps its glass arpeggio for a breathing sine pulse and drops the hat
+  and echo ping; `slowAir` drops its glass plucks and grain cloud; `quietEngine` swaps its octave roll for a breathing
+  bass and drops the stabs, hats and motif;
+- `E.fx` stops the render on any effect the library does not tag `serious` (57 of 130, rated from their code by three
+  raters; `SFXLIB.list({ tag: 'serious' })`, the catalog's Tone column, or the listening page's "Serious only" switch).
+
+Playful effects (bloops, bounces, wobbles, pops, bubbles, pentatonic runs, chiptune) read as a cartoon next to
+research data. Both booth loops and both examples are serious.
+
 ## Layers
 
 1. **The bed** (`sound.music`): one of three beds made of the shared library's instrument voices. Pick by the film's feel:
@@ -15,7 +29,7 @@ The sound palette of 3DLight: clean, synthesized and calm, like a product film. 
    Every bed plays a five-chord cycle, two beats per chord, two bars per beat (106.7 BPM with 4.5 s beats). Its layers follow one ten-step shape over the film's beats: sparse at the start, fullest a little past the middle, thin again at the end, so the bed has a shape like a short piece of music, and a loop's last beat matches its first. `key` moves it all (`{ bed: 'glassPulse', key: 57 }` is in A); `level` trims it.
 2. **Transitions**: one soft library transition on each dissolve, starting about 0.25 s before the beat change and clearly quieter than the event cues (`g` about 0.4 to 0.6). Vary them over the film: `breathBloom`, `sheetSlide`, `tunedSweep`, `easeSettle`, `lensRack`, `tonalSwoosh`.
 3. **Effects on events**: small, precise library effects on what the art does (a capsule lands, a strand touches a particle, a label appears), called with `E.fx` in `cues`.
-4. **The card**: a tonal stinger in the bed's key when the card appears (`jewelResolve`, `rissetBell`, `fiveNoteMnemonic`, `loopSeamOpen` in a loop).
+4. **The card**: a tonal stinger in the bed's key when the card appears (`chordSwellToUnison`, `rissetBell`, `loopSeamOpen` in a loop; a lighter film may use `jewelResolve` or `fiveNoteMnemonic`).
 
 The bed is the music; nothing else in the film should be a melody. The sound before v0.19 (a pad, sine bass and felt `keys` or glass `mallet` arpeggio with a soft kick, knock and shaker, and the engine's own instruments such as `E.pop` and `E.whoosh`) still plays for a story whose `music` has `chords`, as the `'classic'` bed. It sounds close to Doodle Draw, so new films don't use it.
 
@@ -38,19 +52,22 @@ sound: {
 - `send` (0..1) adds room reverb.
 - Effects play on the effects bus.
 
-Which families fit which moments:
+Serious effects for common moments (each was used in the booth loops; the catalog has the rest):
 
-| Family | For |
+| Moment | Effects |
 |---|---|
-| `organic` | binding, docking, cutting, coating, engulfing, a membrane flexing (`dockSeat`, `bondLock`, `enzymeSnip`, `engulf`, `membraneFlex`) |
-| `liquid` | diffusion, mucus, gels, drops, flow in channels (`diffuseDrift`, `mucusStretch`, `gelWobble`, `capillaryFlow`, `dropMerge`) |
-| `material` | lab objects: struck glass and ceramic, a capsule opening, pressing, melting, crystals (`ceramicTap`, `capsuleOpen`, `crystalGrow`, `meltDull`) |
-| `impact` | something lands, locks or is revealed (`subSigh`, `haloHit`, `bounceSettle`, `layerStack`) |
-| `ui` | labels, chips, checks, a line drawing on (`siliconeTap`, `confirmPair`, `softLatch`, `staggerCascade`, `lineTrace`) |
-| `digital` | a number landing, a readout, a curve drawing, a scan (`releaseCurve`, `densityPulse`, `scanPass`, `denoiseResolve`) |
-| `tonal` | reveals and the card, in the bed's key |
-| `transition` | dissolves and camera moves |
-| `texture` | a long sound under one beat, at most one at a time |
+| a statistic or headline lands | `tuningForkPing` with a chord-tone `note`; `haloHit` for the one or two main results; `subSigh` for a title |
+| many items land one by one (pills, a tally, a list) | `sineClick` per item on one pitch; `escapementTick` for a count-up; `ceramicTap` for tablets; `siliconeTap` for interface items |
+| something lands or seats | `dockSeat`, `easeSettle` (a glide, then a seat), `ceramicTap`, `siliconeTap` |
+| binding, coating, locking | `bondLock`, `dockSeat`, `softLatch` |
+| cutting, splitting, one becomes two | `steelTick` (a clean cut), `cellDivide` |
+| a membrane or gel bends; uptake into a cell | `membraneFlex`, then `cellDivide` for the pinch-off |
+| flow, diffusion, release | `capillaryFlow` (`flat: true` for a steady stream, `dir: 'out'` to drain), `dopplerFlow` for blood |
+| an object travels; a line or curve draws; a scan | `dopplerPass`, `tonalSwoosh`, `bandSwipe`, `scanPass` |
+| pressing, heating | `thermalTick`, `easeSettle`, `membraneFlex`, `airOpen` |
+| a change of form (shrinking, forming, crystals) | `shimmerTail`, `singingGlass`, `reverseBloom` |
+| something fades away | `tunedAir`, `airOpen` with `dir: 'down'` |
+| dissolves between beats | `breathBloom`, `sheetSlide`, `tunedSweep`, `lensRack`, `dopplerPass`, `tonalSwoosh`, `reverseBloom` |
 
 Use effects whose meta lists `3dlight` (`SFXLIB.list({ style: '3dlight' })`, the catalog's styles column, or the listening page's style switch); pass `style: '3dlight'` to effects with a flavour per style. Avoid pens, paper, pencils, wood and other hand-made foley. The `rhythm` family and the instrument voices in `tonal` and `texture` (`glassPad`, `subPulse`, `gatedArp` ...) are what the beds are made of; a cue can use one, but not as a second melody.
 

@@ -18,7 +18,7 @@ defineFilm({
       draw(t, P) { /* art at art time t, 0..6 */ } },
     // ...
   ],
-  sound: { seed: 3, music: { ... }, rhythm: { ... }, fx: [ ... ], cues(E, o, ev, U) { ... } },
+  sound: { seed: 3, serious: true, music: { ... }, rhythm: { ... }, fx: [ ... ], cues(E, o, ev, U) { ... } }, // serious: references/sound.md
 });
 })();
 ```
