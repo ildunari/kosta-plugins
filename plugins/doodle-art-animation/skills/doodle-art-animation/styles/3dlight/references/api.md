@@ -150,8 +150,8 @@ Called once. It checks the spec and throws a clear error on a bad field.
 | Field | What it does |
 |---|---|
 | `seed` | Seed of the engine's noise and random choices (default 7). |
-| `music` | `false` for no bed, or `{ chords, bass, arp, arpLevel, cut, inst }`: `chords[i]` MIDI notes for beat i, `bass[i]` its root (default: lowest chord note minus 12), `arp` eighth-note positions 0..15 over the beat's two bars, `arpLevel[i]` the arpeggio's level in beat i (0 mutes it), `cut` the pad's lowpass in Hz, `inst` `'keys'` (felt piano) or `'mallet'` (glass). Shorter lists repeat. Without `music`, a default A-minor mallet bed plays. |
-| `rhythm` | `false`, or `{ level: [per beat] }`: a soft kick, wooden knock and shaker. |
+| `music` | `false` for no music, or `{ bed, key, level, cycle, pump }` for a bed made of the library's instrument voices: `bed` is `'glassPulse'` (default: pulse minimalism, a premium biotech bed), `'slowAir'` (ambient documentary, no drums or bass line) or `'quietEngine'` (a quiet synth groove); `key` the tonic as MIDI (default 62, D); `level` scales the whole bed (default 1); `cycle` picks the five-chord cycle (`'reich'`, `'dorian'`, `'lydian'`, or your own list of `{ pad, bass }`), two beats per chord; `pump` the dip in dB that pad and bass take on every quarter (glassPulse 2.5, quietEngine 4; slowAir has none). Each bed builds up and thins out over the film's beats on the same ten-step shape, so a short film and a long one both rise and settle, and a loop's last beat matches its first. `{ chords, bass, arp, arpLevel, cut, inst }` instead plays the `'classic'` bed (pad, sine bass and a felt `keys` or glass `mallet` arpeggio, plus `rhythm`), the 3DLight sound before v0.19. |
+| `rhythm` | Only with the `'classic'` bed: `false`, or `{ level: [per beat] }`, a soft kick, wooden knock and shaker. The other beds carry their own pulse. |
 | `fx` | Library effects: `[{ at: 12.3, fx: 'siliconeTap', g: 0.8, pan: -0.2, pitch: 2, size: 0.5, seed: 4 }]`. `at` is screen seconds from the film start (or `art:` art seconds). `fx` names an effect in `sfxlib.js` (`../../sound-library/catalog.md`). Every other key goes to the effect: `g` relative gain (1 peaks near -15 dBFS), `pan`, `pitch` in semitones, `seed`, and the effect's own options. Without `seed`, the cue's order in the film gives one, so a re-render is the same. `send` (0..1) also sends it to the room reverb. |
 | `events` | A list of `{ t, end, kind, what, beat }` in art time from the film start, for `cues` to pick by name. |
 | `cues(E, o, ev, U)` | The film's own cues (below). |
@@ -163,9 +163,9 @@ Called once. It checks the spec and throws a clear error on a bad field.
 - `U.beatStart(i)`: render time of beat i's start (0-based).
 - `U.K` (beat / art, 0.75), `U.VB` (one beat, 4.5 s), `U.BAR` (half a beat), `U.Q` (a quarter note), `U.N`, `U.LEN`, `U.music`.
 - `U.at(ev, /regex/)`: the events whose `what` matches; `U.first(ev, /regex/)`: the first (throws if none).
-- `U.transitions(E, o)`: a soft breath of air on every dissolve.
+- `U.transitions(E, o)`: a soft breath of air on every dissolve, from the engine. New films put one library transition on each dissolve instead (`references/sound.md`).
 
-**Engine instruments.** Times are render seconds (use `U.S` or `U.beatStart`), notes are MIDI, gains are absolute. `o` options include `pan` (-1..1) and `send` (reverb, 0..1).
+**Engine calls.** The last two rows, `E.fx` and `E.voice`, play the shared library and are what new films use; their `g` is relative (1 peaks near -15 dBFS). The other rows are the classic palette, kept so older stories still render; they sound close to Doodle Draw, so a new 3DLight film avoids them, and their gains are absolute. Times are render seconds (use `U.S` or `U.beatStart`) and notes are MIDI. `o` options include `pan` (-1..1) and `send` (reverb, 0..1).
 
 | Call | Sound |
 |---|---|
@@ -184,9 +184,10 @@ Called once. It checks the spec and throws a clear error on a bad field.
 | `E.hum(t, dur, f, gain, { att, rel, cut, air })` | Low warm hum. |
 | `E.flow(t, dur, gain, { cut, rate, att, rel })` | Pulsing low current (blood flow). |
 | `E.kick(t, gain)`, `E.rim(t, gain, pan)`, `E.shaker(t, gain, pan)` | The soft rhythm's voices. |
-| `E.fx(name, t, { g, pan, pitch, seed, send, ... })` | A library effect at render time t. |
+| `E.fx(name, t, { g, pan, pitch, key, seed, send, ... })` | A library effect at render time t, on the effects bus. |
+| `E.voice(name, t, { note, notes, dur, g, pan, seed, send, ... }, bus)` | A library instrument voice on the music bus (or `bus`), for a story that writes its own bed in `score`. |
 
-The music bed puts two bars in each visual beat: with 4.5 s beats that is 106.7 BPM.
+Every bed puts two bars in each visual beat: with 4.5 s beats that is 106.7 BPM.
 
 ## Tools
 

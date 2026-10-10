@@ -21,7 +21,7 @@ A film is a list of **beats**. Each beat is one idea: a headline, with an option
 
 ## What the style fixes and what the film creates
 
-The toolkit fixes the look. Don't restyle it per film: the light backdrop, the one typeface (Sora), the text grid and its entrance timing, the dissolve, the beat ticks, the accent palettes, the matte materials and shading, the sound instruments and the mix.
+The toolkit fixes the look. Don't restyle it per film: the light backdrop, the one typeface (Sora), the text grid and its entrance timing, the dissolve, the beat ticks, the accent palettes, the matte materials and shading, the music beds and the mix.
 
 Each film creates the rest: the words and facts, the art of every beat, the links between beats, and the sound cues. Draw the art from the `L3D` primitives (spheres, tubes, tablets, capsules, cells, strands, tags) so it stays on style. New objects are expected; build them with the same shading recipe (`references/look.md`). The booth examples show the level of finish, not scenery to reuse.
 
@@ -36,8 +36,8 @@ Each film creates the rest: the words and facts, the art of every beat, the link
 | `toolkit/render.mjs` | The MP4 render on parallel workers, plus stills, beat strips, the loop seam sheet and a contact sheet. |
 | `toolkit/smoke_test.mjs` | The automated check: build, page errors, fonts, blank or dark frames, determinism, text collisions, the loop seam, library effect names. |
 | `toolkit/browser.mjs` | Finds Playwright and Chromium and opens a film. The scripts above use it. |
-| `toolkit/sound/engine.js` | The instruments (pad, bass, keys, mallet, chime, whoosh, tick, thump, pop and more) and the mix. |
-| `toolkit/sound/score.js` | The arranger: music bed, soft rhythm, library effects, then the story's cues. |
+| `toolkit/sound/engine.js` | The mix, `E.fx` and `E.voice` (library effects and instrument voices), and the classic instruments older stories use. |
+| `toolkit/sound/score.js` | The arranger: the music bed (`glassPulse`, `slowAir`, `quietEngine`, or `classic`), library effects, then the story's cues. |
 | `toolkit/sound/render_sound.mjs` | Sound to WAV at -16 LUFS, muxed onto the MP4, plus a long file of repeated loops. |
 | `toolkit/sound/stems.mjs`, `analyze_stems.py` | Music and effects stems, and a balance report per cue. |
 | `toolkit/sfxlib.js` | A copy of the shared sound library (`../../sound-library/`). `build.py` inlines it. Never edit it here. |
@@ -47,7 +47,7 @@ Each film creates the rest: the words and facts, the art of every beat, the link
 | `references/look.md` | Palette, accents, type scale, the matte shading recipe, composition, what to avoid. |
 | `references/motion.md` | Art time and screen time, the dissolve, continuity, the loop rule, text timing, pacing, speed. |
 | `references/api.md` | Every story field, beat field and function. |
-| `references/sound.md` | The sound palette: layers, instruments, library families, levels, the `cues.md` format. |
+| `references/sound.md` | The sound palette: the beds, library families per moment, levels, the `cues.md` format. |
 
 Shared craft lives in Doodle Draw's references. Read `../doodle-draw/references/intake.md` for the question round and the plan card, and `../doodle-draw/references/writing.md` for the explainer voice and how to adapt a source.
 
@@ -58,7 +58,7 @@ Shared craft lives in Doodle Draw's references. Read `../doodle-draw/references/
 - **2 · Script** writes `script.md`. A header: title, id, accent, kicker, credit, loop or once, number of beats, length. Then one table row per beat: `# | head | sub | stat | note | labels | visual | motion`. `visual` says what is drawn; `motion` says what moves and when, in art seconds. Below the table, a **continuity** list: which beats hand an object to the next, and how the last beat ends on beat 1's opening picture (loops). Word limits: head 3 to 8 words, sub one short line, stat value 2 to 12 characters, labels 1 to 3 words.
 - **Gate 1 · Plan review.** Run `script-reviewer` on the saved `script.md` and apply its must-fix edits. Post the plan card: one line per beat, length, loop or once, accent, the sound idea. While it stands, set up the folder: `mkdir -p <film> && cd <film> && cp -R "${CLAUDE_SKILL_DIR}"/styles/3dlight/toolkit/. . && npm i`. If that variable is empty, the `toolkit` folder sits next to this file.
 - **2b · Voice** does not apply. 3DLight films are not narrated; the words are on screen.
-- **3 · Sound** writes `cues.md`. The `sound-designer` agent writes it from `references/sound.md`: the key and a chord per beat, rhythm levels, and cues per beat in art time. Runs beside the art. A silent film skips it.
+- **3 · Sound** writes `cues.md`. The `sound-designer` agent writes it from `references/sound.md`: the bed and its key, and library cues per beat in art time. Runs beside the art. A silent film skips it.
 - **4 · Art** writes `story.js`. Copy `examples/story_starter.js` to `story.js`, put the words from `script.md` into `defineFilm`, and draw each beat in its `draw(t, P)`. Check a beat with `python3 build.py story.js film.html`, then `node render.mjs film.html --strip N`. Up to about five beats, draw them yourself. From six beats, lanes may draw in parallel, one `beat_NN.js` each (`references/api.md`, "Lanes").
 - **5 · Assemble** writes `film.html` and `qa/`. Put the cues into `sound` in the story and build. Render the QA set once: `node render.mjs film.html --sheet`, `--strip N` for every beat, `--seam` for a loop. Then `node smoke_test.mjs`.
 - **Gate 2 · Check and review.** `smoke_test.mjs` must pass. Open the sheet, every strip and the seam sheet, and work through the QA checklist below. Run `film-reviewer` and `seam-reviewer` on `qa/`. Merge their fixes, apply them, and re-check only what changed: that beat's strip after an art fix, the smoke test after a word change. After three rounds, stop and ask the user.
@@ -69,14 +69,12 @@ Requirements: Node 18+, Playwright with Chromium, ffmpeg, Python 3 (numpy for `a
 
 ## Sound
 
-Every sound is synthesized when the film renders. `story.sound` sets the music (a chord per beat, felt `keys` or glass `mallet`), the rhythm and the cues. Effects come from two places.
+Every sound is synthesized when the film renders, from the plugin's shared sound library (`../../sound-library/catalog.md`). `story.sound` sets two things.
 
-- The engine's instruments, called in `cues(E, o, ev, U)` with art times: `E.pop(U.S(6.6), 700, 0.02, { pan: 0.2 })`.
-- The shared library (`../../sound-library/catalog.md`), listed in `sound.fx` with screen times:
-  `fx: [{ at: 12.3, fx: 'siliconeTap', g: 0.8, pan: -0.2, pitch: 2, size: 0.5, seed: 4 }]`.
-  `at` is screen seconds from the film start (or `art:` in art seconds). `g` is relative gain: 1 peaks near -15 dBFS. Without `seed`, the cue's order gives one, so a re-render sounds the same. Inside `cues`, `E.fx('siliconeTap', t, { g: 0.8 })` does the same.
+- The music: `music: { bed: 'glassPulse', key: 57 }`. Three beds, each made of the library's instrument voices: `glassPulse` (the default), `slowAir` and `quietEngine`. The table in `references/sound.md` says which fits what.
+- The cues: library effects on what the art does, in `cues(E, o, ev, U)` with art times, `E.fx('dockSeat', U.S(6.6), { g: 0.9, pan: 0.2 })`, or in `sound.fx` with screen times, `fx: [{ at: 12.3, fx: 'siliconeTap', g: 0.8 }]`. `g` is relative gain: 1 peaks near -15 dBFS. Without `seed`, the cue's order gives one, so a re-render sounds the same.
 
-The smoke test fails a film that names an effect the library does not have. The palette, levels and `cues.md` format are in `references/sound.md`.
+The smoke test fails a film that names an effect the library does not have. Stories from before v0.19 that set `music.chords` still play the classic bed and the engine's own instruments; new films don't use them, because they sound like Doodle Draw.
 
 ## The rules that matter most
 
@@ -90,7 +88,7 @@ The smoke test fails a film that names an effect the library does not have. The 
 - **The loop rule.** In a loop, the last beat's art at its end is identical to beat 1's art at t = 0. The smoke test measures it. The card beat usually comes last and rebuilds beat 1's opening picture.
 - **Honest numbers.** Every number comes from `facts.md`. Use `≈` for estimates and real units. Write "illustrative" in the note for schematic curves and counts. The note carries the conditions and stays on screen.
 - **The motion adds no claims.** No numbers, axis values or words on the art beyond the beat's own fields.
-- **Sound is clean and synthesized.** Soft pad, felt keys or glass mallets, a quiet rhythm, small precise effects (`references/sound.md`).
+- **Sound is clean and synthesized.** A glass-and-sine music bed, small precise library effects, no hand-made foley (`references/sound.md`).
 
 ## Determinism
 
@@ -122,4 +120,4 @@ The agents read this section in place of the Doodle Draw checks.
 - **film-reviewer**: use `qa/<id>_sheet.png` and the strips. There is no `text_check`, `legibility_check` or `motion_check`; `smoke_test.mjs` covers page errors, fonts, blank or dark frames, text boxes and determinism. Judge the look against `references/look.md` and the motion against `references/motion.md`.
 - **seam-reviewer**: the only transition is the dissolve. Review the linked beats in the strips, and the loop seam in `qa/<id>_seam.png` with the smoke test's seam number.
 - **audio-reviewer**: use `out_sound/<id>_sound.mp4` and the loudness line `render_sound.mjs` prints. There is no `audio_check`; the targets are in `references/sound.md`.
-- **sound-designer**: write `cues.md` in the 3DLight format (`references/sound.md`), with engine instruments and library effects.
+- **sound-designer**: write `cues.md` in the 3DLight format (`references/sound.md`): a bed, then library effects only.

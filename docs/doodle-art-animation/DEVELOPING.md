@@ -83,6 +83,24 @@ docs/doodle-art-animation/          not shipped with the plugin
 - Load it in a session: `claude --plugin-dir plugins/doodle-art-animation`, then `/reload-plugins` after edits.
 - The skill copies its toolkit with `cp -R "${CLAUDE_SKILL_DIR}"/styles/doodle-draw/toolkit/. .`. Never build films inside the plugin folder.
 
+## The sound library and the styles
+
+- The shared effects live in `skills/doodle-art-animation/sound-library/sfxlib.js` (130 effects in 10 families, v0.19).
+  Every style's toolkit carries a copy (`styles/<id>/toolkit/sfxlib.js`), because a film folder is a copy of a toolkit.
+  After any change to the library, from `sound-library/`: `node sfxlib_test.mjs` (renders every effect three times
+  in Chromium; `--only name --wav dir` for one), `node catalog.mjs` (rewrites `catalog.md`) and `node sync.mjs` (copies
+  the library into every toolkit). CI runs `catalog.mjs --check` and `sync.mjs --check`, so a stale catalog or copy fails.
+  `sfxlib_test.mjs` needs Playwright: `PLAYWRIGHT_MODULE=<node_modules>/playwright node sfxlib_test.mjs`.
+- The listening page: `node catalog.mjs --page out.html` writes it from `listen.template.html`.
+- Doodle Draw plays library effects through its own engine, trimmed 10 dB (`LIB_TRIM` in its `engine.js`) so `g: 1`
+  matches its cues. 3DLight plays them with `E.fx`, and its music beds (`score.js`, `BEDS`) are built from the
+  library's instrument voices with `E.voice`.
+- 3DLight smoke test, also run by CI: from `styles/3dlight/toolkit/`,
+  `node smoke_test.mjs --work /tmp/l3d-smoke --fonts <node_modules with @fontsource-variable/sora>`. It builds and
+  renders each example, checks stills, the loop seam and that every effect name exists in the library.
+- The repo is public. Only published science goes in examples: the biocoating loop (Azagury et al., Small 2022) is
+  in; the mesophase implant loop uses unpublished data and stays out.
+
 ## Testing the toolkit (do this after any engine or story change)
 
 Work in a scratch folder outside the repo:

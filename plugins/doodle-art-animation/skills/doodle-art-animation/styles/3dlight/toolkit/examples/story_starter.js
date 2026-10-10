@@ -58,19 +58,16 @@ defineFilm({
   ],
   sound: {
     seed: 3,
-    music: { // D major, felt-piano keys, one chord per beat
-      chords: [[50, 57, 61, 64, 66], [54, 57, 59, 62, 64], [55, 59, 62, 66, 69], [57, 61, 64, 66, 71]],
-      bass: [38, 47, 43, 45], arp: [0, 2, 3, 5, 6, 8, 10, 11, 13, 14], cut: 1250, inst: 'keys', arpLevel: [0.5, 0.8, 0.8, 0.5],
-    },
-    rhythm: { level: [0.7, 1, 1, 0.75] },
-    // fx: [{ at: 5.2, fx: 'name from sound-library/catalog.md', g: 0.8, pan: 0.3 }],   // shared-library effects, screen seconds
-    cues(E, o, ev, U) {
-      U.transitions(E, o); // a breath of air on every dissolve
-      E.thump(U.S(0.9), 0.06, { f0: 150, f1: 70, dec: 0.3, body: 900, pan: 0.3 }); // the tablet settles (art time 0.9 of beat 1)
-      for (let k = 0; k < 9; k++) E.pop(U.S(6 + 0.6 + k * 0.22 + 0.4), 700 + k * 40, 0.02, { pan: 0.2 + k * 0.04 }); // specks leave (beat 2)
-      for (let k = 0; k < 6; k++) E.tick(U.S(12 + 2.2 + k * 0.35), 2400 + k * 120, 0.014, { pan: -0.2 + k * 0.12 }); // particles land (beat 3)
-      E.chime(U.beatStart(3) + 0.3, 74, 0.45, { pan: -0.3 }); // the card
+    music: { bed: 'glassPulse', key: 62 }, // the default bed, in D; 'slowAir' and 'quietEngine' are the others (references/sound.md)
+    // fx: [{ at: 5.2, fx: 'siliconeTap', g: 0.6, pan: 0.3 }],   // shared-library effects at screen seconds
+    cues(E, o, ev, U) { // every sound is a library effect (sound-library/catalog.md); g 1 is the library's standard level
+      [['breathBloom', 0.35], ['sheetSlide', 0.5], ['easeSettle', 0.55]].forEach(([n, g], i) => E.fx(n, U.beatStart(i + 1) - 0.25, { g, key: 62 })); // one soft move per dissolve
+      E.fx('bounceSettle', U.S(0.9), { g: 0.9, pan: 0.3 }); // the tablet settles (art time 0.9 of beat 1)
+      E.fx('diffuseDrift', U.S(6.9), { dur: 2.2, g: 0.8, pan: 0.25 }); // specks leave (beat 2)
+      E.fx('staggerCascade', U.S(12 + 2.2), { n: 6, dur: 1.75, key: 62, g: 0.9, pan: -0.1 }); // particles land one by one (beat 3)
+      E.fx('jewelResolve', U.beatStart(3) + 0.3, { key: 62, g: 0.45, pan: -0.2 }); // the card (the bed is sparse here, so it needs little)
     },
   },
+
 });
 })();
