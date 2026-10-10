@@ -7,7 +7,9 @@
 //           before one AAC encode, so there is no gap at the repeats
 // DIR defaults to out_sound/ next to the input. A 45 s loop takes about 4 minutes (two passes are rendered offline).
 // Loudness: integrated loudness is measured on the film played three times (for a loop, the edges then count as they
-// will on repeat), one gain brings it to TARGET, and the true peak is then held under CEIL.
+// will on repeat), one gain brings it to TARGET, and the true peak is then held under CEIL. When the peaks would stop
+// that gain short (sharp effects over a calm bed), a look-ahead limiter (limiter() in sound/engine.js) holds the
+// samples under CEIL - 0.5 dB instead, taking at most MAXRED dB off the loudest onsets; the loudness line reports it.
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -17,7 +19,7 @@ const argv = process.argv.slice(2);
 const opt = (k, d) => { const j = argv.indexOf('--' + k); return j < 0 ? d : (argv[j + 1] && !argv[j + 1].startsWith('--') ? argv[j + 1] : true); };
 const input = argv[0];
 if (!input || input.startsWith('--')) { console.error('usage: node sound/render_sound.mjs film.html|story.js [--out DIR] [--mux film.mp4] [--long N]'); process.exit(1); }
-const TARGET = -16, CEIL = -1.5;
+const TARGET = -16, CEIL = -1.5, MAXRED = 6;
 const outDir = resolve(opt('out', resolve(dirname(resolve(input)), 'out_sound'))); mkdirSync(outDir, { recursive: true });
 
 const sh = (cmd, args) => { const r = spawnSync(cmd, args, { encoding: 'utf8', maxBuffer: 1 << 26 }); if (r.status) { console.error(r.stderr); throw new Error(cmd + ' failed'); } return r.stderr + r.stdout; };
@@ -43,10 +45,18 @@ const raw = resolve(outDir, `_${id}_raw.wav`), fin = resolve(outDir, `${id}.wav`
 let r = await page.evaluate(() => window.renderSound({}));
 if (fail()) process.exit(1);
 wav(raw, r.b64, r.sr); let m = measure(raw);
-let g = Math.pow(10, (TARGET - m.I) / 20); if (m.TP + 20 * Math.log10(g) > CEIL) g = Math.pow(10, (CEIL - m.TP) / 20);
-r = await page.evaluate(g => window.renderSound({ gain: g, reuse: true }), g);
+let g = Math.pow(10, (TARGET - m.I) / 20), ceil = null, red = 0;
+if (m.TP + 20 * Math.log10(g) > CEIL) {                       // the peaks would pass CEIL: limit them, up to MAXRED dB
+  g = Math.min(g, Math.pow(10, (CEIL - 0.5 + MAXRED - m.TP) / 20)); ceil = Math.pow(10, (CEIL - 0.5) / 20);
+}
+r = await page.evaluate(([g, c]) => window.renderSound({ gain: g, ceil: c, reuse: true }), [g, ceil]); red = r.reduction || 0;
 wav(fin, r.b64, r.sr); m = measure(fin);
-console.log(`${id}: ${m.I.toFixed(1)} LUFS, true peak ${m.TP.toFixed(1)} dBTP, LRA ${m.LRA.toFixed(1)} LU, gain ${(20 * Math.log10(g)).toFixed(1)} dB, ${info.LEN} s${info.loop ? ' loop' : ''} -> ${fin}  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
+for (let k = 0; ceil && m.TP > CEIL && k < 2; k++) {          // inter-sample peaks can still pass: lower the ceiling a little
+  ceil *= Math.pow(10, -(m.TP - CEIL + 0.1) / 20);
+  r = await page.evaluate(([g, c]) => window.renderSound({ gain: g, ceil: c, reuse: true }), [g, ceil]); red = r.reduction || 0;
+  wav(fin, r.b64, r.sr); m = measure(fin);
+}
+console.log(`${id}: ${m.I.toFixed(1)} LUFS, true peak ${m.TP.toFixed(1)} dBTP, LRA ${m.LRA.toFixed(1)} LU, gain ${(20 * Math.log10(g)).toFixed(1)} dB${red > 0.05 ? `, limiter up to ${red.toFixed(1)} dB` : ''}, ${info.LEN} s${info.loop ? ' loop' : ''} -> ${fin}  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
 sh('ffmpeg', ['-y', '-v', 'error', '-i', fin, '-lavfi', 'showspectrumpic=s=1800x500:legend=1:scale=log:fscale=log:stop=12000', resolve(outDir, `${id}_spectrum.png`)]);
 sh('ffmpeg', ['-y', '-v', 'error', '-i', fin, '-filter_complex', 'showwavespic=s=1800x300:split_channels=1:colors=0x3a7bd5|0x14917f', '-frames:v', '1', resolve(outDir, `${id}_wave.png`)]);
 const mux = opt('mux', null);

@@ -197,7 +197,7 @@ Every bed puts two bars in each visual beat: with 4.5 s beats that is 106.7 BPM.
 | `node smoke_test.mjs [story.js ...] [--work DIR] [--fonts ...]` | Builds and checks each story (yours, else the examples). Exit code 1 on any failure. |
 | `node render.mjs film.html film.mp4 [--workers N] [--fps 30] [--from A] [--to B] [--crf 16]` | The video, H.264, silent. |
 | `node render.mjs film.html --stills T,T` / `--strip N` / `--seam` / `--sheet` `[--dir qa]` | Stills, a beat strip, the loop seam, a contact sheet. |
-| `node sound/render_sound.mjs film.html [--out DIR] [--mux film.mp4] [--long N]` | The sound at -16 LUFS (true peak at most -1.5 dBTP), muxed, and N loops in one file. |
+| `node sound/render_sound.mjs film.html [--out DIR] [--mux film.mp4] [--long N]` | The sound at -16 LUFS (true peak at most -1.5 dBTP, with a look-ahead limiter on sharp onsets when needed), muxed, and N loops in one file. |
 | `node sound/stems.mjs film.html` then `python3 sound/analyze_stems.py out_sound/<id>` | Music and effects stems, and how far each cue sits above the music. |
 
 ## Lanes

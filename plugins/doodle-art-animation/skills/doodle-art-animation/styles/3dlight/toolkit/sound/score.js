@@ -75,8 +75,9 @@ function chordAt(M, i, dflt) {
   while (bass < 33) bass += 12; while (bass > 45) bass -= 12; // roots stay at 55-110 Hz, where booth and laptop speakers still play them
   return { pad: c.pad.map(m => m + k), bass };
 }
-// arc position 0..9 of beat i: a film of any length follows the same ten-step shape, and its last beat matches its first
-const arcPos = (i, N) => (N <= 1 ? 0 : Math.round(i * 9 / (N - 1)));
+// arc position 0..9 of beat i: a film of any length follows the same ten-step shape, and its last beat matches its first.
+// A short film (under 6 beats) uses steps 1 to 8, so its first and last beats are not left with the pad alone.
+const arcPos = (i, N) => (N <= 1 ? 0 : N < 6 ? 1 + Math.round(i * 7 / (N - 1)) : Math.round(i * 9 / (N - 1)));
 const euclid = (k, n) => Array.from({ length: n }, (_, s) => (s * k) % n < k);
 // the pump: pad and bass dip `depth` dB on every quarter and swell back, the "phantom kick" a calm bed breathes with
 function pumpBus(E, o, T, depth) {

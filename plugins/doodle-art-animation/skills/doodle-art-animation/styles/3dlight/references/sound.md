@@ -59,17 +59,20 @@ Use effects whose meta lists `3dlight` (`SFXLIB.list({ style: '3dlight' })`, the
 The engine fixes the mix:
 
 - music bus: low shelf -4 dB at 120 Hz (booth screens have small speakers);
-- effects bus: low shelf -6 dB at 140 Hz and a gentle compressor, trimmed so effects sit about 4 dB under the music overall;
-- a small soft room (2.4 s), a 32 Hz high-pass, a glue compressor and a limiter on the master.
+- library effects (`E.fx`, `sound.fx`): a bus of their own with a low shelf -6 dB at 140 Hz and a gentle compressor. Effects enter it 12 dB down, so most stay under the compressor's threshold and `g` behaves as the library says (0.5 is 6 dB quieter), and leave it 6 dB up, so a cue at `g: 1` sits about level with the default bed around it;
+- the classic instruments (`E.pop`, `E.thump` ...) keep their own effects bus and older mix;
+- a small soft room (2.4 s), a 32 Hz high-pass, a glue compressor and a soft limiter on the master.
+
+Starting levels: event cues `g` 0.7 to 1.2, dissolves 0.3 to 0.6, the card 0.4 to 0.8 (the bed is quiet at the ends of its arc, so the card needs little). Then measure and adjust.
 
 Targets, which `render_sound.mjs` applies and prints:
 
 | What | Target |
 |---|---|
 | Integrated loudness, the film (or loop) played three times | -16 LUFS, within 1 LU |
-| True peak | at most -1.5 dBTP (the gain stops there, so a film can land a little under -16; the biocoating loop is -16.9) |
-| Loudness range | small, about 2 LU: a calm film |
-| Each effect against the music around it (`analyze_stems.py`) | median between about -6 dB (not heard on booth speakers) and +10 dB (jumps out) |
+| True peak | at most -1.5 dBTP. Sharp effect onsets over a calm bed can stop a plain gain short of -16; `render_sound` then runs a look-ahead limiter on the loudest onsets (at most 6 dB, printed as "limiter up to N dB") |
+| Loudness range | 2 to 5 LU: the beds build and thin on purpose; a booth loop should stay near the low end |
+| Each effect against the music around it (`analyze_stems.py`) | median between -4 and +3 dB, 90th percentile at most +8 dB; no important event under about -15 dB (a label fading in may be silent) |
 
 A loop's sound renders twice and keeps the second pass, so reverb tails and held notes from the end flow into the start. The long file (`<id>_sound_long.mp4`) repeats the audio sample-exactly, with no gap.
 

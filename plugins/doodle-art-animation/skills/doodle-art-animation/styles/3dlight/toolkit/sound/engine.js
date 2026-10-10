@@ -49,6 +49,14 @@ class Engine {
     const sComp = c.createDynamicsCompressor(); sComp.threshold.value = -30; sComp.knee.value = 8; sComp.ratio.value = 3; sComp.attack.value = 0.004; sComp.release.value = 0.18;
     const sfxOut = c.createGain(); sfxOut.gain.value = Math.pow(10, -2 / 20);
     this.sfx.connect(sShelf); sShelf.connect(sComp); sComp.connect(sfxOut);
+    // library effects (E.fx) get the same shelf and compressor on a bus of their own. They come in 12 dB down (FX_TRIM),
+    // so most sit under the threshold and g stays linear, and leave 6 dB up, so a cue at g 1 sits about level with
+    // the default bed around it. The classic instruments above keep their old mix.
+    this.sfxLib = c.createGain(); this.sfxLib.gain.value = 1;
+    const lShelf = c.createBiquadFilter(); lShelf.type = 'lowshelf'; lShelf.frequency.value = 140; lShelf.gain.value = -6;
+    const lComp = c.createDynamicsCompressor(); lComp.threshold.value = -30; lComp.knee.value = 8; lComp.ratio.value = 3; lComp.attack.value = 0.004; lComp.release.value = 0.18;
+    const libOut = c.createGain(); libOut.gain.value = Math.pow(10, 6 / 20);
+    this.sfxLib.connect(lShelf); lShelf.connect(lComp); lComp.connect(libOut); libOut.connect(sfxOut);
     if (stems) [musicOut, sfxOut].forEach((bus, k) => { const sp = c.createChannelSplitter(2); bus.connect(sp); sp.connect(this.merger, 0, 2 * k); sp.connect(this.merger, 1, 2 * k + 1); });
     else { musicOut.connect(this.master); sfxOut.connect(this.master); }
     // seeded noise, 4 s, two channels for stereo air
@@ -182,9 +190,13 @@ class Engine {
 }
 // A shared-library effect (sfxlib.js, inlined by build.py before this file): E.fx('siliconeTap', t, { g, pan, pitch,
 // size, dur, key, seed, send }) schedules SFXLIB.fx[name](ctx, effects bus, t, opts). g = 1 is the library's standard
-// level (a peak near -15 dBFS); send (default 0) adds some of the room reverb. Without a seed, the effect gets its
+// level; FX_TRIM lowers it 12 dB on the way into the library bus (this.sfxLib), so a g 1 peak (-15 dBFS in the
+// library) reaches its compressor at about -27 dBFS, inside the soft knee. Without the trim every library effect sat
+// 15 dB over the threshold and the 3:1 compressor squashed g: halving it lowered the cue only 2.5 dB. Now g 0.5 is
+// about 6 dB quieter, as the library says. send (default 0) adds some of the room reverb. Without a seed, the effect gets its
 // number among the library effects of this pass (SCORE.play resets the count per pass), so both passes of a loop
 // play the same sound and a re-render is identical. An unknown name stops the render with an error.
+const FX_TRIM = Math.pow(10, -12 / 20);
 Engine.prototype.fx = function (name, t, o = {}) {
   const lib = typeof SFXLIB === 'object' && SFXLIB && SFXLIB.fx ? SFXLIB : null;
   if (!lib) throw new Error(`sound: effect '${name}' needs the shared sound library; copy sound-library/sfxlib.js to the toolkit as sfxlib.js and rebuild`);
@@ -192,8 +204,9 @@ Engine.prototype.fx = function (name, t, o = {}) {
   if (typeof f !== 'function') throw new Error(`sound: no effect '${name}' in the shared sound library (it has ${Object.keys(lib.fx).length}; see sound-library/catalog.md)`);
   this.fxCount = (this.fxCount || 0) + 1;
   const { send = 0, ...opts } = o; if (opts.seed == null) opts.seed = this.fxCount;
-  let out = this.sfx;
-  if (send > 0) { out = this.ctx.createGain(); out.connect(this.sfx); const s = this.ctx.createGain(); s.gain.value = send; out.connect(s); s.connect(this.rev); }
+  opts.g = (opts.g ?? 1) * FX_TRIM;
+  let out = this.sfxLib;
+  if (send > 0) { out = this.ctx.createGain(); out.connect(this.sfxLib); const s = this.ctx.createGain(); s.gain.value = send; out.connect(s); s.connect(this.rev); }
   f(this.ctx, out, t, opts);
 };
 
@@ -222,9 +235,35 @@ function filmParts(film) {
 }
 const b64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
 
+// A look-ahead peak limiter for the kept pass: the gain g[i] keeps every sample under `ceil` (linear) after `gain`.
+// Each reduction starts 4 ms before its peak (a sliding minimum, then a 4 ms average, so it never falls short at the
+// peak) and recovers over about 60 ms. For a loop the window and the recovery wrap around the end, so the seam stays
+// seamless. A few sharp effect onsets lose a few dB; the rest of the film is untouched. reduction = the deepest, in dB.
+function limiter(a, b, s0, n, gain, ceil, loop) {
+  const W = Math.max(1, Math.round(SR * 0.004)), need = new Float32Array(n + W);
+  for (let i = 0; i < n + W; i++) {
+    const k = i < n ? i : loop ? i - n : -1; if (k < 0) { need[i] = 1; continue; }
+    const pk = Math.max(Math.abs(a[s0 + k]), Math.abs(b[s0 + k])) * gain; need[i] = pk > ceil ? ceil / pk : 1;
+  }
+  const m = new Float32Array(n), dq = new Int32Array(n + W); let h = 0, t = 0;   // m[i] = min(need[i .. i + W])
+  for (let i = n + W - 1; i >= 0; i--) {
+    while (t > h && need[dq[t - 1]] >= need[i]) t--; dq[t++] = i;
+    while (dq[h] > i + W) h++;
+    if (i < n) m[i] = need[dq[h]];
+  }
+  const mAt = j => (j >= 0 && j < n ? m[j] : loop ? m[((j % n) + n) % n] : 1);
+  const avg = new Float32Array(n); let sum = 0;                    // avg[i] = mean(m[i - W .. i]) <= need[i]
+  for (let j = -W; j <= 0; j++) sum += mAt(j);
+  for (let i = 0; i < n; i++) { avg[i] = sum / (W + 1); sum += mAt(i + 1) - mAt(i - W); }
+  const g = new Float32Array(n), k = 1 - Math.exp(-1 / (SR * 0.06)); let env = 1, low = 1;
+  for (let lap = 0; lap < (loop ? 2 : 1); lap++)                    // a loop runs twice, so the recovery wraps the seam
+    for (let i = 0; i < n; i++) { env = avg[i] < env ? avg[i] : env + (avg[i] - env) * k; g[i] = env; if (env < low) low = env; }
+  return { g, reduction: -20 * Math.log10(low) };
+}
 // window.renderSound(opts) renders window.FILM's sound: { sr, peak, b64 } = the film (one loop) as 16-bit stereo PCM.
-// opts.gain scales the result; opts.reuse rescales the last render instead of rendering again; opts.bedOnly and
-// opts.noRhythm leave out the cues or the rhythm.
+// opts.gain scales the result; opts.ceil (linear, e.g. 0.79 for -2 dBFS) runs the result through limiter() so no
+// sample passes it; opts.reuse rescales the last render instead of rendering again; opts.bedOnly and opts.noRhythm
+// leave out the cues or the rhythm.
 window.renderSound = async (opts = {}) => {
   const p = filmParts(opts.film);
   let buf = opts.reuse && window.__lastRender && window.__lastRender.id === p.info.id ? window.__lastRender.buf : null;
@@ -237,12 +276,13 @@ window.renderSound = async (opts = {}) => {
   const a = buf.getChannelData(0), b = buf.getChannelData(1), s0 = Math.round(SR * (PRE + p.LEN * (p.passes - 1))), n = Math.round(SR * p.LEN);
   const fade = p.loop ? 0 : Math.round(SR * 1.0);
   const gain = opts.gain ?? 1; const pcm = new Int16Array(n * 2); let peak = 0;
+  const lim = opts.ceil ? limiter(a, b, s0, n, gain, opts.ceil, p.loop) : null;
   for (let i = 0; i < n; i++) {
-    const f = fade && i > n - fade ? (n - i) / fade : 1;
+    const f = (fade && i > n - fade ? (n - i) / fade : 1) * (lim ? lim.g[i] : 1);
     const l = a[s0 + i] * gain * f, r = b[s0 + i] * gain * f; peak = Math.max(peak, Math.abs(l), Math.abs(r));
     pcm[2 * i] = Math.max(-32767, Math.min(32767, Math.round(l * 32767))); pcm[2 * i + 1] = Math.max(-32767, Math.min(32767, Math.round(r * 32767)));
   }
-  return { sr: SR, peak, b64: b64(new Uint8Array(pcm.buffer)) };
+  return { sr: SR, peak, reduction: lim ? lim.reduction : 0, b64: b64(new Uint8Array(pcm.buffer)) };
 };
 // analysis: dry music and effects stems of the kept pass, as two base64 Float32 interleaved stereo buffers
 window.renderStems = async (opts = {}) => {

@@ -61,10 +61,10 @@ defineFilm({
     music: { bed: 'glassPulse', key: 62 }, // the default bed, in D; 'slowAir' and 'quietEngine' are the others (references/sound.md)
     // fx: [{ at: 5.2, fx: 'siliconeTap', g: 0.6, pan: 0.3 }],   // shared-library effects at screen seconds
     cues(E, o, ev, U) { // every sound is a library effect (sound-library/catalog.md); g 1 is the library's standard level
-      [['breathBloom', 0.35], ['sheetSlide', 0.5], ['easeSettle', 0.55]].forEach(([n, g], i) => E.fx(n, U.beatStart(i + 1) - 0.25, { g, key: 62 })); // one soft move per dissolve
+      [['breathBloom', 0.3], ['sheetSlide', 0.6], ['easeSettle', 0.75]].forEach(([n, g], i) => E.fx(n, U.beatStart(i + 1) - 0.25, { g, key: 62 })); // one soft move per dissolve
       E.fx('bounceSettle', U.S(0.9), { g: 0.9, pan: 0.3 }); // the tablet settles (art time 0.9 of beat 1)
-      E.fx('diffuseDrift', U.S(6.9), { dur: 2.2, g: 0.8, pan: 0.25 }); // specks leave (beat 2)
-      E.fx('staggerCascade', U.S(12 + 2.2), { n: 6, dur: 1.75, key: 62, g: 0.9, pan: -0.1 }); // particles land one by one (beat 3)
+      E.fx('diffuseDrift', U.S(6.9), { dur: 2.2, g: 1.1, pan: 0.25 }); // specks leave (beat 2)
+      E.fx('staggerCascade', U.S(12 + 2.2), { n: 6, dur: 1.75, key: 62, g: 1.1, pan: -0.1 }); // particles land one by one (beat 3)
       E.fx('jewelResolve', U.beatStart(3) + 0.3, { key: 62, g: 0.45, pan: -0.2 }); // the card (the bed is sparse here, so it needs little)
     },
   },
