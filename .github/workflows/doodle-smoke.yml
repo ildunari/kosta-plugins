@@ -35,7 +35,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      TOOLKIT: plugins/doodle-art-animation/skills/doodle-art-animation/toolkit
+      TOOLKIT: plugins/doodle-art-animation/skills/doodle-art-animation/styles/doodle-draw/toolkit
+      SOUNDLIB: plugins/doodle-art-animation/skills/doodle-art-animation/sound-library
       SMOKE_WORKERS: "2"
     steps:
       - name: Checkout
@@ -73,6 +74,12 @@ jobs:
         # Playwright and a render, which the smoke job below already covers for the toolkit.
         run: python3 tests/doodle-art-animation/acceptance_check.py
 
+      - name: Sound library catalog and toolkit copies (static)
+        # sound-library/catalog.md must match the effects' meta, and every style's toolkit/sfxlib.js must match the library
+        run: |
+          node "$SOUNDLIB/catalog.mjs" --check
+          node "$SOUNDLIB/sync.mjs" --check
+
       - name: Install Playwright and Chromium
         # Installed outside the repo; smoke_test.py symlinks this node_modules next to its copied toolkit,
         # which is where render.mjs looks for playwright first.
@@ -83,6 +90,13 @@ jobs:
           npm install --no-audit --no-fund playwright@1
           npx playwright install --with-deps chromium
           npx playwright --version
+
+      - name: Sound library test
+        # sound-library/sfxlib_test.mjs renders every library effect three times and checks level, seeding, variation,
+        # length, meta and name collisions with the Doodle Draw engine
+        env:
+          PLAYWRIGHT_MODULE: ${{ runner.temp }}/pw/node_modules/playwright/index.mjs
+        run: node "$SOUNDLIB/sfxlib_test.mjs"
 
       - name: Regression tests (biocoating film gaps)
         # tests/doodle-art-animation/regression_test.py: story parts in smoke_test, audio_check's seam swell, plates

@@ -2950,6 +2950,9 @@ Object.assign(SFX, {
 });
 for (const n of ['pencil', 'chalk', 'marker', 'quill', 'charcoal', 'techPen', 'typewriter', 'eraser', 'stamp', 'tear', 'counter', 'sonify', 'sparkle',
   'pipette', 'centrifuge', 'syringe', 'pills', 'fizz', 'bubbles', 'squelch', 'heartbeat', 'beep', 'zap', 'magnet']) VARIED.add(n);
+// The shared sound library (sound-library/sfxlib.js, inlined by build.py before this engine) adds its effects as cue
+// names. A name the engine already has keeps the engine's sound; library effects vary per play like the ones above.
+if (typeof SFXLIB === 'object' && SFXLIB.fx) for (const [n, f] of Object.entries(SFXLIB.fx)) if (!(n in SFX)) { SFX[n] = f; VARIED.add(n); }
 /*
  * Instruments: pitched notes in the film's key, one note per call, varied per call like the effects above (a fixed
  * `seed` repeats one exact note). Every instrument takes (ac, out, t, { f, deg, oct, tonic, g, pan, decay, seed }):

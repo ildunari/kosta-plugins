@@ -16,7 +16,7 @@ DOODLE_NODE_MODULES, or the global npm root). --static runs only the first two. 
 import argparse, importlib.util, json, os, re, shutil, subprocess, sys, tempfile, wave
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-TK = os.path.join(REPO, 'plugins', 'doodle-art-animation', 'skills', 'doodle-art-animation', 'toolkit')
+TK = os.path.join(REPO, 'plugins', 'doodle-art-animation', 'skills', 'doodle-art-animation', 'styles', 'doodle-draw', 'toolkit')
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIX = os.path.join(HERE, 'fixtures')
 

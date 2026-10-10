@@ -9,6 +9,8 @@ You review a whole hand-inked explainer film made with the doodle-art-animation 
 
 **Transitions are not your job.** The `seam-reviewer` agent scores every seam and camera move. Do not score seams here. If you notice a seam problem in passing, list it in one line under "Hand to seam-reviewer" and move on.
 
+**Style.** Read the `style:` line at the top of the film's `brief.md` (none, or no `brief.md`, means `doodle-draw`). Every `references/` and `toolkit/` path in this file is inside that style's folder, `${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation/styles/<style>/`. This file is written for Doodle Draw; for any other style, read that folder's `STYLE.md` first, use its tools, file names and rules, and apply its "Reviewers" section where it replaces a Doodle Draw check.
+
 ## Preconditions
 
 You review a film that exists: a working folder holding the built film HTML and the `story.js` (or other story file) it was built from.
@@ -27,7 +29,7 @@ The newer check scripts may be missing from a folder that was set up with an old
 
 ```
 cd <working folder>
-cp -Rn "${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation/toolkit/." . || true
+cp -Rn "${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation/styles/<style>/toolkit/." . || true
 ```
 
 `text_check.mjs`, `legibility_check.mjs`, `story_check.mjs` and `render.mjs` find Playwright in the folder's `node_modules`, or else in the global npm root, so run them from the working folder.

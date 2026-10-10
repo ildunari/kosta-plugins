@@ -1,0 +1,202 @@
+<title>Sound Library</title>
+<style>
+/* Layout: one column of grouped lists, one list per sound family, controls pinned under the header; rows are
+   name + description on the left, three variation buttons on the right, a waveform drawn after the first play. */
+:root {
+  --bg: #F7F7F8; --card: #FFFFFF; --line: #E4E4E7; --fg: #09090B; --fg2: #52525B; --fg3: #8E8E96;
+  --accent: #007AFF; --accent-bg: #EAF3FF; --chip: #F1F1F3; --wave: #A1A1AA;
+  --shadow: 0 1px 2px rgba(9, 9, 11, .05);
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+  --code: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #09090B; --card: #111113; --line: #27272A; --fg: #FAFAFA; --fg2: #A1A1AA; --fg3: #71717A;
+  --accent: #3B9EFF; --accent-bg: #0D2847; --chip: #1C1C1F; --wave: #52525B; --shadow: none; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #09090B; --card: #111113; --line: #27272A; --fg: #FAFAFA; --fg2: #A1A1AA; --fg3: #71717A;
+  --accent: #3B9EFF; --accent-bg: #0D2847; --chip: #1C1C1F; --wave: #52525B; --shadow: none; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--fg); font: 15px/1.45 var(--sans); padding-inline: 16px; padding-block: 0 48px }
+.wrap { max-width: 760px; margin: 0 auto }
+header { padding-block: 28px 8px }
+h1 { font-size: 28px; line-height: 1.15; font-weight: 700; margin: 0 0 6px; letter-spacing: -.01em; text-wrap: balance }
+.lede { color: var(--fg2); margin: 0; max-width: 62ch }
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 12px 10px;
+  display: grid; gap: 10px; border-bottom: 1px solid var(--line) }
+.row1 { display: flex; gap: 10px; flex-wrap: wrap; align-items: center }
+.seg { display: inline-flex; background: var(--chip); border: 1px solid var(--line); border-radius: 10px; padding: 2px }
+.seg button { font: 500 13px var(--sans); color: var(--fg2); background: none; border: 0; border-radius: 8px; padding: 7px 12px; min-height: 34px; cursor: pointer }
+.seg button[aria-pressed="true"] { background: var(--card); color: var(--fg); box-shadow: var(--shadow); outline: 1px solid var(--line) }
+.search { flex: 1 1 180px; display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 0 10px; min-height: 38px }
+.search input { flex: 1; min-width: 0; border: 0; background: none; color: var(--fg); font: 15px var(--sans); outline: none }
+.vol { display: flex; align-items: center; gap: 6px; color: var(--fg3) }
+.vol input { width: 90px; accent-color: var(--accent) }
+.chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px }
+.chips::-webkit-scrollbar { display: none }
+.chips button { flex: none; font: 500 13px var(--sans); color: var(--fg2); background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; min-height: 32px; cursor: pointer; white-space: nowrap }
+.chips button[aria-pressed="true"] { color: var(--fg); border-color: var(--fg3) }
+.chips .n { color: var(--fg3); margin-left: 4px; font-variant-numeric: tabular-nums }
+svg.i { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none }
+section { margin-top: 26px }
+h2 { font-size: 17px; font-weight: 650; margin: 0 0 2px; display: flex; gap: 8px; align-items: baseline }
+h2 .n { color: var(--fg3); font-weight: 500; font-size: 14px; font-variant-numeric: tabular-nums }
+.fdesc { color: var(--fg2); font-size: 13.5px; margin: 0 0 10px }
+.list { background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden }
+.fx { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 14px; padding: 13px 14px; border-top: 1px solid var(--line) }
+.fx:first-child { border-top: 0 }
+.fx .name { font: 600 14px var(--code); letter-spacing: -.01em; display: flex; gap: 8px; align-items: center; flex-wrap: wrap }
+.badge { font: 500 11.5px var(--sans); color: var(--fg2); border: 1px solid var(--line); border-radius: 6px; padding: 2px 7px; letter-spacing: .01em; line-height: 1.3 }
+.fx .desc { color: var(--fg); font-size: 14px; margin-top: 2px }
+.fx .fits { color: var(--fg3); font-size: 13px; margin-top: 3px }
+.fx .opts { color: var(--fg3); font-size: 12.5px; margin-top: 3px }
+.fx .opts code { font: 12px var(--code); color: var(--fg2) }
+.plays { display: flex; gap: 6px; align-items: flex-start; padding-top: 1px }
+.plays button { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--card); color: var(--fg2);
+  font: 600 13px var(--sans); cursor: pointer; display: grid; place-items: center; font-variant-numeric: tabular-nums }
+.plays button:hover { border-color: var(--fg3); color: var(--fg) }
+.plays button.on { background: var(--accent-bg); border-color: var(--accent); color: var(--accent) }
+.plays button.busy { opacity: .55 }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+canvas.wave { grid-column: 1 / -1; width: 100%; height: 34px; display: block }
+.empty { color: var(--fg3); padding: 40px 0; text-align: center }
+footer { color: var(--fg3); font-size: 12.5px; margin-top: 32px; max-width: 62ch }
+@media (max-width: 520px) { .fx { grid-template-columns: minmax(0, 1fr) } .plays { justify-content: flex-start } .vol input { width: 70px } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Sound Library</h1>
+    <p class="lede" id="lede"></p>
+  </header>
+  <div class="bar">
+    <div class="row1">
+      <div class="seg" role="group" aria-label="Style">
+        <button id="st-all" data-style="" aria-pressed="true">All</button>
+        <button id="st-3d" data-style="3dlight" aria-pressed="false">3DLight</button>
+        <button id="st-dd" data-style="doodle-draw" aria-pressed="false">Doodle Draw</button>
+      </div>
+      <label class="search"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="q" type="search" placeholder="Search sounds or moments, like binding or label" autocomplete="off"></label>
+      <label class="vol" title="Volume"><svg class="i" viewBox="0 0 24 24"><path d="M11 4.7a.7.7 0 0 0-1.2-.5L6.4 7.6A1.4 1.4 0 0 1 5.4 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.4a1.4 1.4 0 0 1 1 .4l3.4 3.4a.7.7 0 0 0 1.2-.5z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.4 18.4a9 9 0 0 0 0-12.8"/></svg>
+        <input id="vol" type="range" min="0" max="1.5" step="0.01" value="0.9" aria-label="Volume"></label>
+    </div>
+    <div class="chips" id="chips"></div>
+  </div>
+  <main id="main"></main>
+  <footer id="foot"></footer>
+</div>
+
+<script>
+/*__SFXLIB__*/
+</script>
+<script>
+(() => {
+  const L = window.SFXLIB, M = L.meta, F = L.families, $ = s => document.querySelector(s);
+  const STY = { '3dlight': '3DLight', 'doodle-draw': 'Doodle Draw' };
+  const OPTS = /*__OPTS__*/{};
+  const names = Object.keys(M).sort();
+  const state = { style: '', fam: '', q: '' };
+  $('#lede').textContent = `${names.length} sound effects, all made live from code, sorted into ${Object.keys(F).length} families. ` +
+    'Tap 1, 2 or 3 to hear three variations of the same effect: a film plays a slightly different one each time it is used.';
+  $('#foot').textContent = 'Every sound here is computed by the Web Audio API in your browser from sfxlib.js, the same code a film renders with, ' +
+    'so what you hear is what a film gets at g = 1 (a peak near -15 dBFS). With Doodle Draw selected, effects that have a flavour per style play their Doodle Draw version.';
+
+  let ac = null, cur = null, raf = 0;
+  const cache = new Map();
+  async function render(name, seed) {
+    const key = name + '|' + seed + '|' + (state.style || '');
+    if (cache.has(key)) return cache.get(key);
+    const sr = 48000, len = Math.ceil(((M[name].dur || 1) + 1.5) * sr);
+    const oac = new OfflineAudioContext(2, len, sr);
+    L.fx[name](oac, oac.destination, 0.02, { seed, style: state.style || undefined });
+    const buf = await oac.startRendering();
+    // trim the silent tail so the playhead and waveform end with the sound
+    const a = buf.getChannelData(0), b = buf.getChannelData(1); let last = 0;
+    for (let i = 0; i < a.length; i++) if (Math.abs(a[i]) > 2e-4 || Math.abs(b[i]) > 2e-4) last = i;
+    const n = Math.max(1, Math.min(a.length, last + (sr * 0.08 | 0)));
+    const out = new AudioBuffer({ numberOfChannels: 2, length: n, sampleRate: sr });
+    out.copyToChannel(a.subarray(0, n), 0); out.copyToChannel(b.subarray(0, n), 1);
+    cache.set(key, out); return out;
+  }
+  function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+  function draw(cv, buf, prog) {
+    const dpr = devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+    if (cv.width !== w * dpr) { cv.width = w * dpr; cv.height = h * dpr; }
+    const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+    const a = buf.getChannelData(0), b = buf.getChannelData(1), step = a.length / w;
+    let pk = 1e-6; for (let i = 0; i < a.length; i += 7) pk = Math.max(pk, Math.abs(a[i]), Math.abs(b[i]));
+    const sc = (h / 2 - 2) / Math.max(pk, 0.18), wave = css('--wave'), acc = css('--accent');
+    for (let x = 0; x < w; x++) {
+      let mn = 0, mx = 0; const i0 = x * step | 0, i1 = Math.min(a.length, (x + 1) * step | 0);
+      for (let i = i0; i < i1; i++) { const v = (a[i] + b[i]) / 2; if (v < mn) mn = v; if (v > mx) mx = v; }
+      g.fillStyle = prog != null && x / w <= prog ? acc : wave;
+      g.fillRect(x, h / 2 - mx * sc, 1, Math.max(1, (mx - mn) * sc));
+    }
+  }
+  function stop() {
+    if (cur) { try { cur.src.stop(); } catch (e) { } cur.btn.classList.remove('on'); draw(cur.cv, cur.buf, null); cur = null; }
+    cancelAnimationFrame(raf);
+  }
+  async function play(name, seed, btn, cv) {
+    if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
+    if (ac.state === 'suspended') await ac.resume();
+    stop(); btn.classList.add('busy');
+    const buf = await render(name, seed); btn.classList.remove('busy');
+    const src = ac.createBufferSource(), g = ac.createGain(); src.buffer = buf; g.gain.value = +$('#vol').value;
+    src.connect(g).connect(ac.destination); const t0 = ac.currentTime + 0.01; src.start(t0);
+    cur = { src, btn, cv, buf }; btn.classList.add('on');
+    src.onended = () => { if (cur && cur.src === src) stop(); };
+    const tick = () => { if (!cur || cur.src !== src) return; draw(cv, buf, (ac.currentTime - t0) / buf.duration); raf = requestAnimationFrame(tick); };
+    tick();
+  }
+
+  function matches(n) {
+    const m = M[n];
+    if (state.style && !m.styles.includes(state.style)) return false;
+    if (state.fam && m.family !== state.fam) return false;
+    if (state.q) { const q = state.q.toLowerCase(); return [n, m.desc, m.events, (m.tags || []).join(' ')].join(' ').toLowerCase().includes(q); }
+    return true;
+  }
+  function chips() {
+    const box = $('#chips'); box.innerHTML = '';
+    const pool = names.filter(n => (!state.style || M[n].styles.includes(state.style)));
+    const mk = (id, label, n) => { const b = document.createElement('button'); b.id = 'fam-' + (id || 'all'); b.setAttribute('aria-pressed', String(state.fam === id));
+      b.innerHTML = `${label}<span class="n">${n}</span>`; b.onclick = () => { state.fam = state.fam === id ? '' : id; chips(); list(); }; box.append(b); };
+    mk('', 'All families', pool.length);
+    for (const [id, f] of Object.entries(F)) { const n = pool.filter(k => M[k].family === id).length; if (n) mk(id, f.name, n); }
+  }
+  function list() {
+    stop(); const main = $('#main'); main.innerHTML = ''; let any = false;
+    for (const [id, f] of Object.entries(F)) {
+      const ns = names.filter(n => M[n].family === id && matches(n)); if (!ns.length) continue; any = true;
+      const sec = document.createElement('section'); sec.id = id;
+      sec.innerHTML = `<h2>${f.name}<span class="n">${ns.length}</span></h2><p class="fdesc">${f.desc}</p>`;
+      const ul = document.createElement('div'); ul.className = 'list';
+      for (const n of ns) {
+        const m = M[n], row = document.createElement('div'); row.className = 'fx';
+        const opts = (OPTS[n] || []).map(o => `<code>${o}</code>`).join(' ');
+        row.innerHTML = `<div><div class="name">${n}${m.styles.map(s => `<span class="badge">${STY[s] || s}</span>`).join('')}</div>
+          <div class="desc"></div><div class="fits"></div>${opts ? `<div class="opts">Options: ${opts}</div>` : ''}</div>
+          <div class="plays">${[1, 2, 3].map(s => `<button aria-label="Play ${n}, variation ${s}">${s}</button>`).join('')}</div>
+          <canvas class="wave" aria-hidden="true"></canvas>`;
+        row.querySelector('.desc').textContent = m.desc;
+        row.querySelector('.fits').textContent = 'Fits: ' + String(m.events || '').split(/;\s*/).filter(Boolean).join(', ');
+        const cv = row.querySelector('canvas');
+        row.querySelectorAll('.plays button').forEach((b, i) => b.onclick = () => play(n, i + 1, b, cv).catch(e => { b.classList.remove('busy'); console.error(e); }));
+        ul.append(row);
+      }
+      sec.append(ul); main.append(sec);
+    }
+    if (!any) main.innerHTML = '<p class="empty">No sound matches. Try another word, or clear the family filter.</p>';
+  }
+  document.querySelectorAll('.seg button').forEach(b => b.onclick = () => {
+    state.style = b.dataset.style; document.querySelectorAll('.seg button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    if (state.fam && !names.some(n => M[n].family === state.fam && (!state.style || M[n].styles.includes(state.style)))) state.fam = '';
+    chips(); list();
+  });
+  $('#q').addEventListener('input', e => { state.q = e.target.value.trim(); list(); });
+  $('#vol').addEventListener('input', e => { if (cur) cur.src.disconnect(), cur.src.connect(ac.destination); });
+  chips(); list();
+})();
+</script>

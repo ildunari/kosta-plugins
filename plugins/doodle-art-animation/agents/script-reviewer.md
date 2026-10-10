@@ -21,6 +21,8 @@ A window that ignores what the component spends before its text appears is the f
 
 The brief is the user's decision; your must-fix list is your judgement. When the two cannot both hold — the story needs a beat that pushes a 30-second film to 34 seconds, or a clearer hero contradicts the one they named — do not quietly break the constraint and do not quietly drop the fix. Say both, in one line each: what the film needs, what it costs against the brief, and the cheapest version that keeps the constraint (shorter copy, a tighter beat, one fewer callout). Recommend one. Whoever is driving decides, and records the choice as an assumption in the plan card.
 
+**Style.** Read the `style:` line at the top of the film's `brief.md` (none, or no `brief.md`, means `doodle-draw`). Every `references/` and `toolkit/` path in this file is inside that style's folder, `${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation/styles/<style>/`. This file is written for Doodle Draw; for any other style, read that folder's `STYLE.md` first, use its tools, file names and rules, and apply its "Reviewers" section where it replaces a Doodle Draw check.
+
 ## Preconditions
 
 You review a script that exists. That means the scene script itself - a path to `script.md` (or whatever the film folder calls its plate table and seam list), or the table pasted into the prompt - together with the user's request in their own words.
@@ -41,7 +43,7 @@ The caller gives you:
 
 ## Read first
 
-From `${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation/` (if that path was not filled in, the skill folder next to this plugin's `agents/` folder):
+From `${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation/styles/<style>/` (if that path was not filled in, the skill folder next to this plugin's `agents/` folder, then `styles/<style>/`):
 
 - `references/writing.md`: voice, "A story, not a tour of the source", the plate script format, "Designing the seams";
 - `references/film-grammar.md`: Murch's order (emotion, story, rhythm, eye trace), the switch-up rule, the seam rubric;

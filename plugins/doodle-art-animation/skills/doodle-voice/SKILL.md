@@ -14,8 +14,9 @@ The order is words, then voice, then picture. Recorded speech cannot be stretche
 ## 1. Find the plan, or stop
 
 - Arguments given: `$ARGUMENTS` (optional: the working folder). Otherwise the current directory. `cd` into it and confirm with `pwd`.
-- The skill lives at `${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation`. If that path was not filled in, use `${CLAUDE_SKILL_DIR}/../doodle-art-animation`. Copy in anything the folder is missing, never overwriting: `cp -Rn "<skill>/toolkit/." . || true`.
-- Read `references/voice.md` from the skill, then `brief.md`, `script.md` and `facts.md`.
+- **Style.** The film's style is the `style:` line at the top of `brief.md` (no `brief.md`, or no such line, means `doodle-draw`). The style folder is `<skill>/styles/<style>`, where `<skill>` is `${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation` (if that path was not filled in, `${CLAUDE_SKILL_DIR}/../doodle-art-animation`). In this command, `toolkit/` and `references/` mean that style folder's. The steps below are written for Doodle Draw; for any other style, read its `STYLE.md` first and follow its section for this phase wherever it differs (tools, file names, checks).
+- The skill lives at `${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation`. If that path was not filled in, use `${CLAUDE_SKILL_DIR}/../doodle-art-animation`. Copy in anything the folder is missing, never overwriting: `cp -Rn "<skill>/styles/<style>/toolkit/." . || true`. Narration is a Doodle Draw feature today: if the style is another one and its `STYLE.md` says it has no narration, stop and say so.
+- Read `references/voice.md` from the style folder (Doodle Draw's for any style that borrows its narration), then `brief.md`, `script.md` and `facts.md`.
 - **Stop** if `script.md` has no `## Narration` section, or `brief.md` says the film has no narration: say that this command records a narrated film's voice and nothing needs recording. **Stop** too if nothing shows the script passed Gate 1 (no review notes, no approval in this conversation), and point at `/doodle-art-animation:doodle-plan`: every word recorded against an unreviewed script may be recorded twice.
 
 ## 2. Lines, provider and key
