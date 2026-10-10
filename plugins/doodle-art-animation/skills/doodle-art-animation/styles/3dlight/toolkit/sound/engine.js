@@ -11,8 +11,10 @@
 // A new palette may change how instruments sound, but should keep their names and arguments (references/api.md,
 // "Sound"), so existing cues keep working.
 //
-// Seamless loop: a looping film's score is played twice in one render (after a PRE lead-in) and only the second pass is
-// kept, so reverb tails and held notes from the end of the loop flow into its start exactly as they will on repeat.
+// Seamless loop: a looping film's score is played three times in one render (after a PRE lead-in) and only the middle
+// pass is kept, so reverb tails and held notes from the end of the loop flow into its start, and anything that starts
+// just before the loop point (a pad that swells in early, a dissolve sound led 0.25 s ahead) is heard at the end of
+// the kept pass, exactly as it will be on repeat.
 // A film that is not a loop is played once, kept from PRE, with a short fade at the very end.
 // Taken from the booth loops' sound_l3d.js (2026-10-09); the instruments and the mix are unchanged.
 (() => {
@@ -230,8 +232,8 @@ function filmParts(film) {
   film = film || window.FILM; const info = window.FILM_INFO;
   if (!film || !info) throw new Error('renderSound: no film (load a story that calls defineFilm first)');
   if (!window.SCORE) throw new Error('renderSound: sound/score.js is not loaded');
-  const loop = info.loop, LEN = info.LEN, passes = loop ? 2 : 1, total = PRE + LEN * passes + (loop ? 0 : 2);
-  return { film, info, loop, LEN, passes, total, seed: (film.sound && film.sound.seed) ?? 7 };
+  const loop = info.loop, LEN = info.LEN, passes = loop ? 3 : 1, keep = loop ? 1 : 0, total = PRE + LEN * passes + (loop ? 0 : 2);
+  return { film, info, loop, LEN, passes, keep, total, seed: (film.sound && film.sound.seed) ?? 7 };
 }
 const b64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
 
@@ -273,7 +275,7 @@ window.renderSound = async (opts = {}) => {
     for (let pass = 0; pass < p.passes; pass++) window.SCORE.play(E, PRE + pass * p.LEN, p.film, opts);
     buf = await ctx.startRendering(); window.__lastRender = { id: p.info.id, buf };
   }
-  const a = buf.getChannelData(0), b = buf.getChannelData(1), s0 = Math.round(SR * (PRE + p.LEN * (p.passes - 1))), n = Math.round(SR * p.LEN);
+  const a = buf.getChannelData(0), b = buf.getChannelData(1), s0 = Math.round(SR * (PRE + p.LEN * p.keep)), n = Math.round(SR * p.LEN);
   const fade = p.loop ? 0 : Math.round(SR * 1.0);
   const gain = opts.gain ?? 1; const pcm = new Int16Array(n * 2); let peak = 0;
   const lim = opts.ceil ? limiter(a, b, s0, n, gain, opts.ceil, p.loop) : null;
@@ -290,7 +292,7 @@ window.renderStems = async (opts = {}) => {
   const ctx = new OfflineAudioContext(4, Math.round(SR * p.total), SR);
   const E = new Engine(ctx, p.seed, true);
   for (let pass = 0; pass < p.passes; pass++) window.SCORE.play(E, PRE + pass * p.LEN, p.film, {});
-  const buf = await ctx.startRendering(); const s0 = Math.round(SR * (PRE + p.LEN * (p.passes - 1))), n = Math.round(SR * p.LEN);
+  const buf = await ctx.startRendering(); const s0 = Math.round(SR * (PRE + p.LEN * p.keep)), n = Math.round(SR * p.LEN);
   const enc = c0 => { const f = new Float32Array(n * 2), a = buf.getChannelData(c0), b = buf.getChannelData(c0 + 1); for (let i = 0; i < n; i++) { f[2 * i] = a[s0 + i]; f[2 * i + 1] = b[s0 + i]; } return b64(new Uint8Array(f.buffer)); };
   return { sr: SR, music: enc(0), sfx: enc(2) };
 };

@@ -5,7 +5,7 @@
 //        -> also DIR/<id>_sound.mp4 (video + AAC 192k) and, for a loop, DIR/<id>_sound_long.mp4: N loops (default: as many
 //           as fit in 10 minutes, 13 for a 45 s loop), video repeated by stream copy, audio repeated sample-exactly
 //           before one AAC encode, so there is no gap at the repeats
-// DIR defaults to out_sound/ next to the input. A 45 s loop takes about 4 minutes (two passes are rendered offline).
+// DIR defaults to out_sound/ next to the input. A 45 s loop takes about 5 minutes (three passes are rendered offline).
 // Loudness: integrated loudness is measured on the film played three times (for a loop, the edges then count as they
 // will on repeat), one gain brings it to TARGET, and the true peak is then held under CEIL. When the peaks would stop
 // that gain short (sharp effects over a calm bed), a look-ahead limiter (limiter() in sound/engine.js) holds the

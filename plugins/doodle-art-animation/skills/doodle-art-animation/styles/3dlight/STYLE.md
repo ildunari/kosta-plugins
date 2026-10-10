@@ -97,7 +97,7 @@ The smoke test fails a film that names an effect the library does not have. Stor
 - Cache only pictures that never change (`once()` in the starter). Never cache anything that depends on t.
 - Keep a frame under about 250 ms. Blur filters and `L.layer()` are the slow parts. The booth loops draw a frame in 60 to 75 ms.
 - The smoke test draws a frame again after the others and fails if it differs.
-- Sound is scheduled from the same beat times. A loop's sound renders twice and keeps the second pass, so tails flow across the seam.
+- Sound is scheduled from the same beat times. A loop's sound renders three times and keeps the middle pass, so tails and early starts flow across the seam.
 
 ## QA checklist
 

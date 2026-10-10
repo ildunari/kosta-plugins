@@ -915,66 +915,80 @@ defineFilm({
   ],
   sound: {
     seed: 23,
-    music: { // A minor, cool: Am9 Fmaj7 Cmaj9 G6 Dm9 Fmaj7#11 Am7 Cmaj7 Fmaj9 Esus4
-      chords: [[57, 60, 64, 67, 71], [53, 57, 60, 64, 69], [55, 59, 60, 62, 64], [55, 59, 62, 64, 67], [50, 53, 57, 60, 64], [53, 57, 59, 60, 64], [55, 57, 60, 64, 67], [52, 55, 59, 60, 64], [53, 55, 57, 60, 64], [52, 57, 59, 62, 64]],
-      bass: [45, 41, 48, 43, 38, 41, 45, 48, 41, 40],
-      arp: [0, 2, 3, 5, 7, 8, 10, 11, 13, 15], cut: 1600, inst: 'mallet',
-      arpLevel: [0.7, 0.8, 0.6, 0.8, 0.5, 0.9, 0.9, 0.8, 0.5, 0.6],
-    },
-    rhythm: { level: [0.7, 1, 1, 1, 1, 1, 1, 1, 1, 0.75] }, // soft kick, knock and shaker; quieter on the first and last beat
+    // the library bed: glass pad, sub pulse, gated glass arpeggio, tuned clicks, a quiet hat; A (key 57), the 'reich'
+    // cycle moved to A: Amaj9 (beats 1-2) C#m9 (3-4) F#m9 (5-6) Dmaj7#11 (7-8) Esus (9-10)
+    music: { bed: 'glassPulse', key: 57 },
     events: SOUND_EVENTS,
     cues(E, o, ev, U) {
-      const { at } = U, K = U.K;
+      const { at } = U, K = U.K, KEY = 57;
       const S = x => o + x * K;
-      U.transitions(E, o);
-      // 1: the capsule falls, lands, its cap slides off and the protein drug unfurls out of it
-      E.whoosh(S(0.0), S(2.6) - S(0.0), 2600, 500, 0.03, { peak: 0.8, pan: 0.1, panTo: 0.3 });
-      E.thump(S(2.6) - 0.03, 0.11, { f0: 130, f1: 55, dec: 0.4, body: 700, pan: 0.3 });
-      E.glide(S(2.6), S(3.4) - S(2.6), 700, 900, 0.008, { type: 'sine', pan: 0.35 });
-      E.pop(S(3.01), 560, 0.03, { pan: 0.35 });
-      E.shimmer(S(3.0), S(4.9) - S(3.0), [76, 81, 84, 88], 0.009, { pan: 0.35 });
-      // 2: the protein drifts down, two enzymes close in and cut it; three fragments sink and stick in the mucus
-      E.glide(S(6.9), S(8.1) - S(6.9), 300, 420, 0.01, { type: 'triangle', cut: 900, pan: -0.1 });
-      E.glide(S(6.9), S(8.1) - S(6.9), 360, 480, 0.01, { type: 'triangle', cut: 900, pan: 0.6 });
-      [0, 0.06].forEach(d => { E.tick(S(8.4) + d, 3400, 0.024, { pan: d ? 0.55 : 0.05 }); E.tick(S(8.4) + d + 0.03, 1800, 0.012, { pan: d ? 0.55 : 0.05 }); });
-      [0, 0.08, 0.16].forEach((d, k) => E.pop(S(8.45) + d, [880, 740, 660][k], 0.016, { pan: 0.1 + 0.2 * k }));
-      E.whoosh(S(8.7), S(9.9) - S(8.7), 1600, 600, 0.012, { pan: 0.3 });
-      E.glide(S(8.9), S(10.6) - S(8.9), 520, 300, 0.01, { type: 'sine', pan: 0.3 });
-      E.thump(S(10.6), 0.04, { f0: 160, f1: 90, dec: 0.2, body: 400, pan: 0.3 });
-      // 3: three particle types pop in (+ high, - low, 0 between), question marks appear and blink
-      [[12.55, 988], [12.95, 523], [13.35, 740]].forEach(([t, f], k) => E.pop(S(t) + 0.3, f, 0.04, { pan: -0.1 + 0.35 * k }));
-      [14.1, 14.4, 14.7].forEach((t, k) => E.tick(S(t) + 0.1, 3000, 0.016, { pan: -0.1 + 0.35 * k }));
-      [[15.5, 76, 81], [15.8, 74, 79], [16.1, 72, 76]].forEach(([t, a, b], k) => { E.mallet(S(t), a, 0.16, { bus: E.sfx, pan: -0.1 + 0.35 * k, dec: 0.6 }); E.mallet(S(t) + 0.16, b, 0.13, { bus: E.sfx, pan: -0.1 + 0.35 * k, dec: 0.9 }); });
-      // 4: mucin strands reach out and wrap the particle; the fuzzy coat forms
-      E.swell(S(18.5), S(21.9) - S(18.5), 300, 2200, 0.018, { peak: 0.7, pan: 0.3 });
-      at(ev, /^strand \d+ touches particle/).forEach((e, k) => E.mallet(S(e.t), PENT_A[2 + (k % 6)], 0.2, { bus: E.sfx, pan: 0.1 + (k % 4) * 0.12, dec: 0.7, send: 0.45 }));
-      E.shimmer(S(20.5), S(21.9) - S(20.5) + 0.6, [69, 76, 81, 84], 0.011, { pan: 0.3 });
-      // 5: the coat grows and the minus charges fade one by one, stepping down
-      E.swell(S(25.0), S(27.6) - S(25.0), 400, 1800, 0.02, { peak: 0.6, pan: 0.45 });
-      at(ev, /^minus charge \d+\/9 fades/).forEach((e, k) => E.pop(S(e.t) + 0.12, 1050 - k * 55, 0.022, { down: true, len: 0.05, dec: 0.1, pan: 0.5 + ((k % 3) - 1) * 0.12 }));
-      // 6: the coated particle travels far; the bare one jitters in place
-      E.glide(S(30.6), S(34.2) - S(30.6), 440, 880, 0.013, { type: 'sine', pan: -0.1, panTo: 0.6 });
-      at(ev, /^bare particle turns/).forEach((e, k) => E.tick(S(e.t), 1300 + k * 90, 0.012, { pan: -0.05 }));
-      // 7: a particle drifts to a gut cell, sinks into a pit, pinches off as a vesicle and moves inside
-      E.glide(S(36.6), S(37.9) - S(36.6), 620, 520, 0.01, { type: 'sine', pan: 0.3 });
-      E.tick(S(37.9), 1600, 0.012, { pan: 0.3 });
-      E.glide(S(37.9), S(39.0) - S(37.9), 420, 300, 0.012, { type: 'triangle', cut: 1000, pan: 0.3 });
-      E.pop(S(39.3), 520, 0.035, { down: true, len: 0.09, dec: 0.18, pan: 0.3 });
-      E.glide(S(39.6), S(40.7) - S(39.6), 330, 247, 0.01, { type: 'sine', pan: 0.3 });
-      // 8: steady blood flow; two particles leave the cells and join it
-      E.flow(S(42.0) - 0.3, S(48.0) - S(42.0) + 0.6, 0.035, { rate: 1.18, cut: 480, att: 0.6, rel: 0.6 });
-      at(ev, /^particle \d+ crosses into vessel/).forEach((e, k) => { E.pop(S(e.t), [660, 587][k], 0.024, { down: true, len: 0.08, pan: 0.25 + 0.3 * k }); });
-      at(ev, /^particle \d+ joins the flow/).forEach((e, k) => E.whoosh(S(e.t), 0.6, 500, 1400, 0.012, { pan: 0.2 + 0.3 * k, panTo: 0.6 }));
-      // 9: the camera pulls back and the four route steps light with a rising bell figure
-      E.whoosh(S(48.2), S(51.3) - S(48.2), 2200, 500, 0.02, { peak: 0.4, pan: 0.2 });
-      [[49.0, 81], [50.24, 84], [50.81, 86], [51.37, 88]].forEach(([t, m], k) => E.chime(S(t), m, 0.36 + 0.03 * k, { pan: -0.05 + 0.18 * k, dec: 2.2 }));
-      // 10: payloads appear, shells form around them, particles stream into the open capsule, the cap slides shut
-      E.chime(S(54.67) + 0.15, 69, 0.45, { pan: -0.3 }); E.chime(S(54.67) + 0.15 + 0.5625, 76, 0.38, { pan: -0.3 });
-      [54.3, 54.45, 54.6].forEach((t, k) => E.mallet(S(t) + 0.2, [81, 84, 88][k], 0.16, { bus: E.sfx, pan: 0.1 + 0.25 * k, dec: 0.8 }));
-      [54.9, 55.05, 55.2].forEach((t, k) => E.shimmer(S(t), 0.7, [88 + k, 93], 0.006, { pan: 0.1 + 0.25 * k }));
-      at(ev, /^particle \d+\/6 drops into capsule/).forEach((e, k) => E.mallet(S(e.t), PENT_A[8 - k], 0.18, { bus: E.sfx, pan: 0.35, dec: 0.6 }));
-      E.glide(S(58.3), S(58.8) - S(58.3), 500, 700, 0.008, { type: 'sine', pan: 0.3 });
-      E.tick(S(58.8), 1400, 0.022, { pan: 0.3 }); E.tick(S(58.8) + 0.03, 2600, 0.01, { pan: 0.3 });
+      const fx = (name, t, opt) => E.fx(name, t, opt);
+      // dissolves: one soft library transition per beat change, starting 0.25 s before it, under the event cues. The
+      // one into beat 1 starts before the loop point; a loop renders three passes and keeps the middle one, so its start
+      // is heard at the end of the loop and its tail at the beginning, as on repeat
+      const TR = [ // [effect, options]; g follows the bed, which is thin at the start and end of the loop and fullest in beats 5-7
+        ['tunedSweep', { key: KEY, dir: 'down', dur: 0.9, g: 0.28, pan: 0.15 }],         // -> 1: the capsule starts to fall (loop seam)
+        ['sheetSlide', { style: '3dlight', dur: 0.9, dir: 'left', g: 0.3, pan: 0.2 }],   // -> 2: the gut cross-section slides in
+        ['breathBloom', { key: KEY, g: 0.25, pan: 0.3 }],                                   // -> 3: three particles
+        ['lensRack', { key: KEY, g: 0.22, pan: 0.2 }],                                      // -> 4: focus on one particle
+        ['tunedSweep', { key: KEY, dir: 'up', dur: 1.0, g: 0.55, pan: 0.3 }],              // -> 5: bare and coated, side by side
+        ['sheetSlide', { style: '3dlight', dur: 0.8, dir: 'right', g: 0.6, pan: 0.25 }],  // -> 6: the mucus gel
+        ['breathBloom', { key: KEY, pitch: -3, g: 0.46, pan: 0.3 }],                       // -> 7: the gut cells
+        ['tonalSwoosh', { key: KEY, dir: 'up', g: 0.41, pan: 0.2 }],                       // -> 8: along the blood vessel
+        ['lensRack', { key: KEY, dir: 'out', g: 0.40, pan: 0.25 }],                        // -> 9: the camera pulls back
+        ['reverseBloom', { key: KEY, dur: 1.0, g: 0.37, pan: -0.1 }],                      // -> 10: the card (swells into the cut, lands 0.05 s after it)
+      ];
+      TR.forEach(([n, opt], i) => {
+        const b = U.beatStart(i);
+        fx(n, n === 'reverseBloom' ? b - opt.dur + 0.05 : b - 0.25, opt);
+      });
+
+      // 1: the capsule falls, lands on the gut lining, its cap slides off and the protein unfurls out of it
+      fx('fallAway', S(1.0), { key: KEY, dur: 1.2, g: 0.46, pan: 0.33 });
+      fx('membraneTap', S(2.6), { key: KEY, g: 0.8, pan: 0.33 });
+      fx('capsuleOpen', S(2.98), { g: 0.33, pan: 0.4 });
+      fx('staggerCascade', S(3.05), { key: KEY, n: 10, dur: S(4.05) - S(3.0), g: 0.44, pan: 0.2 });
+      // 2: two enzymes float in and cut the chain at two links; the fragments sink into the mucus and stick
+      fx('dopplerPass', S(6.9), { key: KEY, dur: S(8.15) - S(6.9), size: 0.25, g: 0.38, pan: 0.2 });
+      fx('enzymeSnip', S(8.4), { style: '3dlight', g: 0.46, pan: 0.12 });
+      fx('enzymeSnip', S(8.4) + 0.06, { style: '3dlight', g: 0.44, pan: 0.32, pitch: -2 });
+      fx('diffuseDrift', S(8.95), { style: '3dlight', dur: S(10.6) - S(8.95), viscosity: 0.85, g: 0.54, pan: 0.28 });
+      fx('gelWobble', S(10.6), { style: '3dlight', size: 0.6, g: 0.18, pan: 0.28 });
+      // 3: three particles pop in (+ high, - low, 0 between); question bubbles appear; the question marks blink
+      const P3 = [0.11, 0.37, 0.63];
+      at(ev, /particle pops in/).forEach((e, k) => fx('overshootPop', S(e.t) + 0.12, { key: KEY, pitch: [7, -1, 4][k], g: 0.16, pan: P3[k] }));
+      at(ev, /^question bubble appears/).forEach((e, k) => fx('siliconeTap', S(e.t) + 0.05, { key: KEY, size: 0.15, g: 0.48, pan: P3[k] + 0.08 }));
+      at(ev, /^question mark blinks/).forEach((e, k) => fx('toggleStep', S(e.t) + 0.22, { key: KEY, pitch: [4, 2, 4][k], g: 0.44, pan: P3[k] + 0.08 }));
+      // 4: mucin strands slide in from the right and touch the particle one after another; the fuzzy coat forms
+      fx('sheetSlide', S(18.5), { style: '3dlight', dur: 1.4, dir: 'left', g: 0.44, pan: 0.55 });
+      fx('accrete', S(19.8), { key: KEY, dur: S(21.9) - S(19.8) + 0.1, g: 0.6, pan: 0.25 });
+      // 5: the charge reading lands; the minus charges cancel as the coat closes; "coated"
+      fx('tuningForkPing', S(24.92) + 0.1, { key: KEY, g: 0.48, pan: -0.3 });
+      at(ev, /^minus charge \d+\/9 fades/).filter((e, k) => k % 4 === 0).forEach((e, k) => fx('chargeCancel', S(e.t) + 0.1, { key: KEY + 12, style: '3dlight', pitch: [0, -3, -5][k], g: 0.26, pan: 0.55 }));
+      fx('breathChime', S(27.7) + 0.05, { key: KEY, g: 0.4, pan: 0.55 });
+      // 6: the stat lands; the coated particle diffuses far through the gel; the bare one bumps in place
+      fx('octaveFlam', S(30.92) + 0.12, { key: KEY, g: 0.6, pan: -0.3 });
+      fx('diffuseDrift', S(30.6), { style: '3dlight', dur: S(34.2) - S(30.6), viscosity: 0.05, g: 0.6, pan: 0.35 });
+      at(ev, /^bare particle turns/).forEach((e, k) => fx('siliconeTap', S(e.t), { key: KEY, size: 0.4, pitch: [0, 4, -1, 7][k], g: 0.5, pan: 0.13 }));
+      // 7: the particle drifts down to a cell, touches it, sinks into a pit and is swallowed; the vesicle pinches off and moves in
+      fx('tonalSwoosh', S(36.6), { key: KEY, dir: 'down', dur: S(37.9) - S(36.6), g: 0.75, pan: 0.37 });
+      fx('membraneTap', S(37.9), { key: KEY, pitch: 5, g: 0.6, pan: 0.37 });
+      fx('engulf', S(37.9) - 0.02, { style: '3dlight', g: 0.58, pan: 0.37 });
+      fx('vesiclePinch', S(39.05), { style: '3dlight', g: 0.5, pan: 0.37 });
+      // 8: blood flows on the beat grid; the stat counts up; two particles cross into the vessel and are swept along
+      fx('dopplerFlow', U.beatStart(7), { bpm: 60 / U.Q, dur: U.VB, g: 0.55, pan: 0.2 });
+      fx('rollTicks', S(42.92), { key: KEY, dur: 0.55, n: 12, g: 0.58, pan: -0.3 });
+      at(ev, /^particle \d+ crosses into vessel/).forEach((e, k) => fx('dropMerge', S(e.t) + 0.05, { style: '3dlight', pitch: [0, -2][k], g: 0.48, pan: [0.2, 0.43][k] }));
+      fx('dopplerPass', S(44.6), { key: KEY, dur: S(45.8) - S(44.6), size: 0.1, g: 0.35, pan: 0.3 }); // swept along with the flow
+      // 9: the route draws and the four steps light with rising glass notes on the Esus chord
+      fx('lineTrace', S(49.3), { key: KEY, dur: S(51.7) - S(49.3), g: 0.50, pan: 0.3 });
+      at(ev, /^step \d \w+ tag lights/).forEach((e, k) => fx('fmGlassPluck', S(e.t), { note: [76, 78, 81, 83][k], g: 0.35, pan: [0.11, 0.3, 0.48, 0.35][k] }));
+      // 10: payloads appear, the card rises, particles drop into the capsule, the cap slides shut and latches
+      at(ev, /payload appears$/).forEach((e, k) => fx('lpgPluck', S(e.t) + 0.15, { key: KEY, note: [69, 71, 76][k], g: 0.2, pan: [0.07, 0.34, 0.62][k] }));
+      fx('chordSwellToUnison', S(54.67), { key: KEY, notes: [52, 57, 59, 64, 71], note: 69, g: 0.35, pan: -0.3 });
+      at(ev, /^particle \d\/6 drops into capsule/).forEach((e, k) => fx('ceramicTap', S(e.t), { style: '3dlight', size: 0.25, pitch: -1.5 * k, g: 0.43, pan: 0.28 }));
+      fx('sheetSlide', S(58.3), { style: '3dlight', dur: S(59.25) - S(58.3), dir: 'left', g: 0.3, pan: 0.28 });
+      fx('softLatch', S(59.25) - 0.01, { g: 0.52, pan: 0.28 });
     },
   },
 });

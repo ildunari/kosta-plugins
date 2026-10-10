@@ -74,7 +74,7 @@ Targets, which `render_sound.mjs` applies and prints:
 | Loudness range | 2 to 5 LU: the beds build and thin on purpose; a booth loop should stay near the low end |
 | Each effect against the music around it (`analyze_stems.py`) | median between -4 and +3 dB, 90th percentile at most +8 dB; no important event under about -15 dB (a label fading in may be silent) |
 
-A loop's sound renders twice and keeps the second pass, so reverb tails and held notes from the end flow into the start. The long file (`<id>_sound_long.mp4`) repeats the audio sample-exactly, with no gap.
+A loop's sound renders three times and keeps the middle pass, so reverb tails and held notes from the end flow into the start, and a cue that starts just before the loop point (a dissolve sound at `U.beatStart(0) - 0.25`) is heard whole across the seam. The long file (`<id>_sound_long.mp4`) repeats the audio sample-exactly, with no gap.
 
 ## Rules
 
