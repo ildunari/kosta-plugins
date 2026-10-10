@@ -7,7 +7,7 @@ import fs from 'fs'; import os from 'os'; import path from 'path'; import http f
 import { spawn, spawnSync } from 'child_process'; import { fileURLToPath } from 'url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const VOICE = path.resolve(HERE, '../../plugins/doodle-art-animation/skills/doodle-art-animation/toolkit/voice.mjs');
+const VOICE = path.resolve(HERE, '../../plugins/doodle-art-animation/skills/doodle-art-animation/styles/doodle-draw/toolkit/voice.mjs');
 const WORK = fs.mkdtempSync(path.join(os.tmpdir(), 'doodle-voice-test-'));
 const KEEP = process.argv.includes('--keep');
 const results = [];

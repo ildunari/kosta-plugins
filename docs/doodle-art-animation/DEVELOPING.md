@@ -27,10 +27,15 @@ plugins/doodle-art-animation/       the plugin
   skills/doodle-qa/                 /doodle-art-animation:doodle-qa, Gate 2: every check and the reviewers
   skills/doodle-render/             /doodle-art-animation:doodle-render, final MP4 plus checks
   skills/doodle-art-animation/
-    SKILL.md                        workflow and the most important rules (keep it under ~500 lines)
-    references/                     style, motion, writing, film-grammar, animation-principles,
+    SKILL.md                        the style router: the styles, picking one, the shared phases and gates
+    sound-library/                  shared catalog of synthesized effects, sorted by family, used by every style
+    styles/README.md                the style registry, what a style folder holds, how to add one
+    styles/3dlight/                 STYLE.md, references/, toolkit/ (beat engine, matte 3D primitives, render, sound)
+    styles/doodle-draw/
+     STYLE.md                       Doodle Draw's workflow and its most important rules (keep it under ~500 lines)
+     references/                    style, motion, writing, film-grammar, animation-principles,
                                     intake, build-lanes, sound, api, render, components
-    toolkit/                        engine.js, shell.html, build.py, render.mjs,
+     toolkit/                       engine.js, shell.html, build.py, render.mjs,
                                     motion_check.py, speed_check.mjs, audio_check.py, text_check.mjs,
                                     legibility_check.mjs, story_check.mjs, cue_check.mjs,
                                     smoke_test.py, story_example.js (The Long Release), story_one_drop.js,
@@ -76,14 +81,32 @@ docs/doodle-art-animation/          not shipped with the plugin
 - Sound tests, also run by CI: `python3 tests/doodle-art-animation/effects_test.py --node-modules <playwright>/node_modules` renders
   `fixtures/story_sounds.js` (one of each sound added in v0.16.6) and checks the header's writing sound follows the paper.
 - Load it in a session: `claude --plugin-dir plugins/doodle-art-animation`, then `/reload-plugins` after edits.
-- The skill copies its toolkit with `cp -R "${CLAUDE_SKILL_DIR}"/toolkit/. .`. Never build films inside the plugin folder.
+- The skill copies its toolkit with `cp -R "${CLAUDE_SKILL_DIR}"/styles/doodle-draw/toolkit/. .`. Never build films inside the plugin folder.
+
+## The sound library and the styles
+
+- The shared effects live in `skills/doodle-art-animation/sound-library/sfxlib.js` (130 effects in 10 families, v0.19).
+  Every style's toolkit carries a copy (`styles/<id>/toolkit/sfxlib.js`), because a film folder is a copy of a toolkit.
+  After any change to the library, from `sound-library/`: `node sfxlib_test.mjs` (renders every effect three times
+  in Chromium; `--only name --wav dir` for one), `node catalog.mjs` (rewrites `catalog.md`) and `node sync.mjs` (copies
+  the library into every toolkit). CI runs `catalog.mjs --check` and `sync.mjs --check`, so a stale catalog or copy fails.
+  `sfxlib_test.mjs` needs Playwright: `PLAYWRIGHT_MODULE=<node_modules>/playwright node sfxlib_test.mjs`.
+- The listening page: `node catalog.mjs --page out.html` writes it from `listen.template.html`.
+- Doodle Draw plays library effects through its own engine, trimmed 10 dB (`LIB_TRIM` in its `engine.js`) so `g: 1`
+  matches its cues. 3DLight plays them with `E.fx`, and its music beds (`score.js`, `BEDS`) are built from the
+  library's instrument voices with `E.voice`.
+- 3DLight smoke test, also run by CI: from `styles/3dlight/toolkit/`,
+  `node smoke_test.mjs --work /tmp/l3d-smoke --fonts <node_modules with @fontsource-variable/sora>`. It builds and
+  renders each example, checks stills, the loop seam and that every effect name exists in the library.
+- The repo is public. Only published science goes in examples: the biocoating loop (Azagury et al., Small 2022) is
+  in; the mesophase implant loop uses unpublished data and stays out.
 
 ## Testing the toolkit (do this after any engine or story change)
 
 Work in a scratch folder outside the repo:
 
 ```
-mkdir -p /tmp/doodle-test && cp -R plugins/doodle-art-animation/skills/doodle-art-animation/toolkit/. /tmp/doodle-test/ && cd /tmp/doodle-test
+mkdir -p /tmp/doodle-test && cp -R plugins/doodle-art-animation/skills/doodle-art-animation/styles/doodle-draw/toolkit/. /tmp/doodle-test/ && cd /tmp/doodle-test
 cp story_example.js story.js
 python3 build.py story.js film.html && python3 build.py story_reel.js reel.html && python3 build.py story_gallery.js gallery.html
 node render.mjs film.html --stills 150,480,700 --dir qa_stills   # --sheet clears f_*.jpg in its own --dir      # quick look
@@ -114,7 +137,7 @@ It never builds in the plugin folder; everything goes into `--work`. Without `--
 
 ```
 # from the repo (Playwright installed somewhere; point at its node_modules)
-python3 plugins/doodle-art-animation/skills/doodle-art-animation/toolkit/smoke_test.py \
+python3 plugins/doodle-art-animation/skills/doodle-art-animation/styles/doodle-draw/toolkit/smoke_test.py \
     --work /tmp/doodle-smoke --node-modules /path/to/node_modules --workers 3
 
 # inside a film folder (the toolkit was copied there; ./node_modules is picked up); tests your story.js

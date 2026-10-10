@@ -7,6 +7,8 @@ model: inherit
 
 You review the seams of a hand-inked explainer film made with the doodle-art-animation toolkit. A seam is a transition between two plates (scenes), plus the camera motion on either side of it. Your job is to catch what would make a viewer feel a transition is forced, confusing or mechanical, and to say exactly how to fix it.
 
+**Style.** Read the `style:` line at the top of the film's `brief.md` (none, or no `brief.md`, means `doodle-draw`). Every `references/` and `toolkit/` path in this file is inside that style's folder, `${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation/styles/<style>/`. This file is written for Doodle Draw; for any other style, read that folder's `STYLE.md` first, use its tools, file names and rules, and apply its "Reviewers" section where it replaces a Doodle Draw check.
+
 ## Preconditions
 
 A seam only exists once the film is built, so you need a working folder with `render.mjs`, the built film HTML, and the story file it was built from.

@@ -129,7 +129,7 @@ kits = {os.path.basename(p)[:-3]: p for p in files if p not in base}
 used = set(re.findall(r'\bKIT\.(\w+)', story))
 if used and not kits:
     sys.exit(f'build.py: {args[0]} uses KIT.{sorted(used)[0]} but no kit files were found in {os.path.join(here, "kits")}.\n'
-             '  Copy the whole toolkit into the working folder: cp -R "${CLAUDE_SKILL_DIR}"/toolkit/. .')
+             '  Copy the whole toolkit into the working folder: cp -R "${CLAUDE_SKILL_DIR}"/styles/doodle-draw/toolkit/. .')
 helpers = set(re.findall(r'\bKIT\.(\w+)\s*=', ''.join(rd(p) for p in base)))
 ambiguous = bool(re.search(r'\bKIT\b(?!\s*\.\s*\w)', story)) or bool(used - helpers - set(kits))
 pick = files if ambiguous else base + [kits[k] for k in sorted(used & set(kits))] if used else []
@@ -166,7 +166,10 @@ for n in unknown:
     print(f"build.py: warning: paper '{n}' is not defined in engine.js, toolkit/grounds/ or the story; the film will stop at boot",
           file=sys.stderr)
 if '__VOICE__' not in shell: shell = shell.replace('__ENGINE__', '__VOICE__\n__ENGINE__')
-parts = {'__TITLE__': m.group(1), '__VOICE__': vjs, '__ENGINE__': engine, '__KITS__': '\n'.join(rd(p) for p in pick + gpick), '__STORY__': story}
+if '__SFXLIB__' not in shell: shell = shell.replace('__ENGINE__', '__SFXLIB__\n__ENGINE__')
+# the shared sound library (a copy of sound-library/sfxlib.js), so cues can name its effects
+sfxlib = rd(os.path.join(here, 'sfxlib.js')) if os.path.isfile(os.path.join(here, 'sfxlib.js')) else ''
+parts = {'__TITLE__': m.group(1), '__VOICE__': vjs, '__SFXLIB__': sfxlib, '__ENGINE__': engine, '__KITS__': '\n'.join(rd(p) for p in pick + gpick), '__STORY__': story}
 html = re.sub('|'.join(parts), lambda mm: parts[mm.group(0)], shell)   # one pass, so inserted code is never re-scanned
 open(out, 'w', encoding='utf-8').write(html)
 names = [os.path.basename(p)[:-3] for p in pick if p not in base]

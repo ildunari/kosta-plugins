@@ -11,6 +11,8 @@ You review the soundtrack of a hand-inked explainer film made with the doodle-ar
 
 The film's sound plan is its own choice; judge it against the user's request, the film's tone and the `sound-designer` plan if there is one. The level targets in `references/sound.md` are defaults. Hard failures are only: `audio_check` FAIL lines (no audio, mono, clipping, audio and video lengths more than 0.2 s apart), a cue on a hard visual event (`cut`, a `pop` for a card appearing) more than about 0.25 s off, and a sound that makes a visible glitch worse (a click or jump in level at a seam).
 
+**Style.** Read the `style:` line at the top of the film's `brief.md` (none, or no `brief.md`, means `doodle-draw`). Every `references/` and `toolkit/` path in this file is inside that style's folder, `${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation/styles/<style>/`. This file is written for Doodle Draw; for any other style, read that folder's `STYLE.md` first, use its tools, file names and rules, and apply its "Reviewers" section where it replaces a Doodle Draw check.
+
 ## Preconditions
 
 There has to be sound before there is a sound review. You need the working folder with `render.mjs` and `audio_check.py`, the built film HTML, the story file, and the rendered MP4 - and that MP4 has to carry an audio stream. Check before anything else:
@@ -29,7 +31,7 @@ The caller gives you a working folder with `render.mjs` and `audio_check.py`, th
 
 **The shared QA render is already there.** The assemble step renders the film once for everyone into `qa/`: `qa/contact_sheet.jpg`, the strips `qa/strip_NN_type.jpg`, the seam sheets `qa/seam_NN_type.jpg` and `qa/text_check.json`, usually with the `text_check`, `speed_check`, `motion_check` and `audio_check` output pasted into your prompt. Take the transition times and the pictures from there. The spectrograms, the loudness curves and the cue schedule are yours alone, so those are what you render; when you need to see what is on screen at a cue, look in `qa/` first and only render extra frames when `qa/` doesn't show that moment.
 
-If the toolkit scripts are missing, copy them in without overwriting (`cp -Rn "${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation/toolkit/." . || true`; macOS `cp -n` can exit non-zero when files exist, which is fine). Read `references/sound.md` and the audio section of `toolkit/engine.js` (`const SFX`, `TRANS_SFX`, `autoBed`, `renderAudio`) so you know what each cue should look like: a `pop` is a short falling tone near 1 kHz, a `chime` a harmonic stack that rings for about 2 s, a `scratch` a band of noise near 3.6 kHz for the length of the typed line, a `plink` a very short falling tone, a `thump` a low drop from 90 to 42 Hz, pads are sustained harmonic lines, and transitions have rising or falling sweeps.
+If the toolkit scripts are missing, copy them in without overwriting (`cp -Rn "${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation/styles/<style>/toolkit/." . || true`; macOS `cp -n` can exit non-zero when files exist, which is fine). Read `references/sound.md` and the audio section of `toolkit/engine.js` (`const SFX`, `TRANS_SFX`, `autoBed`, `renderAudio`) so you know what each cue should look like: a `pop` is a short falling tone near 1 kHz, a `chime` a harmonic stack that rings for about 2 s, a `scratch` a band of noise near 3.6 kHz for the length of the typed line, a `plink` a very short falling tone, a `thump` a low drop from 90 to 42 Hz, pads are sustained harmonic lines, and transitions have rising or falling sweeps.
 
 Put all output in `qa_audio/`.
 

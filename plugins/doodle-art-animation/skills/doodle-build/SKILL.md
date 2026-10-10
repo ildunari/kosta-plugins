@@ -15,12 +15,13 @@ Turn an approved scene script into a built film: phases 3 to 5 of the workflow i
 - The working folder is the first argument, otherwise the current directory. `cd` into it and confirm with `pwd`.
 - The script is the second argument, otherwise `script.md`. Wherever this command says `script.md` below, it means that resolved file — pass its real path to every agent and every freshness comparison. **If there is no script, stop**: say that this command builds an approved plan and that the user should run `/doodle-art-animation:doodle-plan` first. Don't invent a script here.
 - If `script.md` exists but nothing shows it went through Gate 1 (no review notes, no approval in this conversation), say so and offer to run `doodle-art-animation:script-reviewer` on it now. Building against an unreviewed script is how a film gets drawn twice.
+- **Style.** The film's style is the `style:` line at the top of `brief.md` (no `brief.md`, or no such line, means `doodle-draw`). The style folder is `<skill>/styles/<style>`, where `<skill>` is `${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation` (if that path was not filled in, `${CLAUDE_SKILL_DIR}/../doodle-art-animation`). In this command, `toolkit/` and `references/` mean that style folder's. The steps below are written for Doodle Draw; for any other style, read its `STYLE.md` first and follow its section for this phase wherever it differs (tools, file names, checks).
 - Read `brief.md` and `facts.md` if they are there, and `cues.md` if `/doodle-art-animation:doodle-plan` already produced a sound plan.
 - **A narrated film needs its locked voice first.** If `brief.md` says the film is narrated (or `script.md` has a `## Narration` section), `vo/voice.json` must exist and say `"locked": true`. If it does not, stop and point the user at `/doodle-art-animation:doodle-voice <folder>`: the plates are timed to the recorded voice, so drawing before it exists means drawing twice. The plate durations in `script.md` are the locked ones.
 
 ## 2. Set up the working folder
 
-Never build inside the plugin folder. The toolkit lives at `${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation/toolkit`; if that path was not filled in, use `${CLAUDE_SKILL_DIR}/../doodle-art-animation/toolkit`.
+Never build inside the plugin folder. The toolkit lives at `${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation/styles/<style>/toolkit`; if that path was not filled in, use `${CLAUDE_SKILL_DIR}/../doodle-art-animation/styles/<style>/toolkit`.
 
 ```
 cp -R "<toolkit>/." .

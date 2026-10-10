@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>__TITLE__</title>
+<!--fonts-->__FONTS__<!--/fonts-->
+<style>
+  html,body{margin:0;background:#000}
+  canvas{display:block}
+  /* in a normal browser window the film is scaled to fit; the canvas keeps its 1920 x 1080 pixels */
+  body.player{height:100vh;overflow:hidden;display:grid;place-items:center}
+  body.player canvas{width:min(100vw,177.78vh);height:auto;aspect-ratio:16/9;cursor:pointer}
+</style></head>
+<body>
+<canvas id="c" width="1920" height="1080"></canvas>
+<script>
+__CORE__
+</script>
+<script>
+__L3D__
+</script>
+<script>
+__BEATS__
+</script>
+<script>
+__SFXLIB__
+</script>
+<script>
+__SOUND__
+</script>
+<script>
+__STORY__
+</script>
+<script>
+// Preview player for a person opening film.html: plays the film in real time (silent). Space or a click pauses,
+// the arrow keys step one beat. It never starts under automation (render.mjs, smoke_test.mjs set navigator.webdriver),
+// so captured frames come only from drawFrame(T).
+(() => {
+  if (navigator.webdriver || /[?&]still\b/.test(location.search) || !window.FILM_INFO) return;
+  document.body.classList.add('player');
+  const I = window.FILM_INFO; let T = 0, last = null, playing = true;
+  const tick = now => {
+    if (playing && last != null) T += (now - last) / 1000;
+    last = now; if (!I.loop) T = Math.min(T, I.LEN - 1e-3);
+    window.drawFrame(T); requestAnimationFrame(tick);
+  };
+  const step = d => { T = (Math.floor(T / I.BEAT + 1e-6) + d) * I.BEAT; if (I.loop) T = ((T % I.LEN) + I.LEN) % I.LEN; T = Math.max(0, Math.min(T, I.LEN - 1e-3)); };
+  addEventListener('keydown', e => { if (e.code === 'Space') { playing = !playing; e.preventDefault(); } if (e.code === 'ArrowRight') step(1); if (e.code === 'ArrowLeft') step(-1); });
+  document.getElementById('c').addEventListener('click', () => { playing = !playing; });
+  window.filmReady().then(() => requestAnimationFrame(tick));
+})();
+</script>
+</body></html>

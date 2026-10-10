@@ -27,7 +27,7 @@ usage:
 import argparse, base64, json, os, re, shutil, subprocess, sys, tempfile
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-TK = os.path.join(REPO, 'plugins', 'doodle-art-animation', 'skills', 'doodle-art-animation', 'toolkit')
+TK = os.path.join(REPO, 'plugins', 'doodle-art-animation', 'skills', 'doodle-art-animation', 'styles', 'doodle-draw', 'toolkit')
 EX = os.path.join(REPO, 'docs', 'doodle-art-animation', 'examples', 'narrated')
 HERE = os.path.dirname(os.path.abspath(__file__))
 

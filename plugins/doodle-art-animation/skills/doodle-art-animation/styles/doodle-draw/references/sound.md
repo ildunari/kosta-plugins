@@ -108,6 +108,23 @@ Paper and desk, data, lab and body, physical:
 - `zap` `{ dur = 0.35, g }`: an electric spark, a crack and a short buzz.
 - `magnet` `{ g }`: a small magnet snapping onto metal.
 
+### The shared sound library (new in v0.19)
+
+Every effect in the plugin's shared library (`sound-library/`, listed in `sound-library/catalog.md`) is also a cue
+name here: `build.py` inlines the toolkit's copy, `sfxlib.js`, before the engine. Use them where the engine has
+nothing that fits, for example `dockSeat` for a drug docking in a receptor, `enzymeSnip` for a cleavage, or
+`microBubbles`, `capillaryFlow` and `crystalGrow` for science moments the lab sounds above don't cover.
+
+- **Pick the hand-made ones.** Doodle Draw sounds acoustic and drawn: prefer library effects whose styles include
+  Doodle Draw, and pass `style: 'doodle-draw'` to the ones with a flavour per style (`dockSeat` then becomes a wooden
+  peg, `enzymeSnip` a small paper snip). Effects marked 3DLight only are synthesized and glassy; use one only when the
+  film calls for it.
+- **`g` is relative.** A library effect's `g: 1` is its standard level, which this engine trims to match its own cues
+  (a peak near -25 dBFS, like `pop` or `chime` at their defaults), where the engine's own effects take an absolute gain
+  such as `g: 0.08`. Start at `g: 1` and adjust with `audio_check`.
+- They vary per play like the engine's effects and count as varied sounds for `cue_check.mjs`. An engine sound keeps
+  its name: the library never replaces `pop`, `chime` or any other name above.
+
 ## Instruments and stingers (new in v0.16.4)
 
 Ten pitched instruments play one note per call, in the film's key, and vary per call like the effects (a fixed `seed` repeats one exact note). Every one takes `{ f, deg, oct, tonic, g, pan, decay, seed }`: `f` is the pitch in Hz; without it, `deg` (a degree of the engine's `note()` scale, 0 = the tonic) is played in the film's key (`tonic`, else `music.tonic`, else 220 Hz), `oct` octaves above the tonic, starting from the instrument's home octave. `g` is the note's peak and `decay` stretches or shortens its ring (1 = as built). The pitch never varies by more than 2 cents per call, and a test checks every instrument's tuning by FFT to within 5 cents.

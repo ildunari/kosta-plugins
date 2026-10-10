@@ -16,7 +16,7 @@ DOODLE_NODE_MODULES, or the global npm root). --static runs only the first two. 
 import argparse, importlib.util, json, os, re, shutil, subprocess, sys, tempfile, wave
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-TK = os.path.join(REPO, 'plugins', 'doodle-art-animation', 'skills', 'doodle-art-animation', 'toolkit')
+TK = os.path.join(REPO, 'plugins', 'doodle-art-animation', 'skills', 'doodle-art-animation', 'styles', 'doodle-draw', 'toolkit')
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIX = os.path.join(HERE, 'fixtures')
 
@@ -110,8 +110,8 @@ else:
             rc, out = run([sys.executable, 'build.py', story, story.replace('.js', '.html')], cwd=tk)
             check(f'{story} builds', rc == 0, out[-300:])
             return story.replace('.js', '.html') if rc == 0 else None
-        def probe(html, body):
-            rc, out = run(['node', os.path.join(HERE, 'probe.mjs'), os.path.join(tk, html), body], timeout=300)
+        def probe(html, body, query=''):
+            rc, out = run(['node', os.path.join(HERE, 'probe.mjs'), os.path.join(tk, html), body] + ([query] if query else []), timeout=300)
             try: return json.loads(out.strip().splitlines()[-1])
             except Exception: return {'result': None, 'errors': [out[-300:]]}
 
@@ -204,7 +204,9 @@ else:
           return out;"""
         h0, h1 = build('story_one_drop.js'), build('story_one_drop_nb.js')
         if h0 and h1:
-            r0, r1 = probe(h0, HASH), probe(h1, HASH)
+            # two separate page loads: both use the fallback faces (?nofonts), so a slow Google Fonts answer in one of
+            # them cannot change its text and fail a check that is about the paper
+            r0, r1 = probe(h0, HASH, '&nofonts'), probe(h1, HASH, '&nofonts')
             check("paper: One Drop with paper: 'notebook' draws the same pixels as without it",
                   bool(r0.get('result')) and r0.get('result') == r1.get('result') and not r0.get('errors') and not r1.get('errors'),
                   f"{r0.get('result')} vs {r1.get('result')} {str(r0.get('errors'))[:200]} {str(r1.get('errors'))[:200]}")

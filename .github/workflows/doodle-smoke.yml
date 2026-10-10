@@ -33,9 +33,11 @@ concurrency:
 jobs:
   smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
-      TOOLKIT: plugins/doodle-art-animation/skills/doodle-art-animation/toolkit
+      TOOLKIT: plugins/doodle-art-animation/skills/doodle-art-animation/styles/doodle-draw/toolkit
+      SOUNDLIB: plugins/doodle-art-animation/skills/doodle-art-animation/sound-library
+      STYLES: plugins/doodle-art-animation/skills/doodle-art-animation/styles
       SMOKE_WORKERS: "2"
     steps:
       - name: Checkout
@@ -73,6 +75,12 @@ jobs:
         # Playwright and a render, which the smoke job below already covers for the toolkit.
         run: python3 tests/doodle-art-animation/acceptance_check.py
 
+      - name: Sound library catalog and toolkit copies (static)
+        # sound-library/catalog.md must match the effects' meta, and every style's toolkit/sfxlib.js must match the library
+        run: |
+          node "$SOUNDLIB/catalog.mjs" --check
+          node "$SOUNDLIB/sync.mjs" --check
+
       - name: Install Playwright and Chromium
         # Installed outside the repo; smoke_test.py symlinks this node_modules next to its copied toolkit,
         # which is where render.mjs looks for playwright first.
@@ -80,9 +88,16 @@ jobs:
         run: |
           mkdir -p pw && cd pw
           npm init -y > /dev/null
-          npm install --no-audit --no-fund playwright@1
+          npm install --no-audit --no-fund playwright@1 @fontsource-variable/sora@5
           npx playwright install --with-deps chromium
           npx playwright --version
+
+      - name: Sound library test
+        # sound-library/sfxlib_test.mjs renders every library effect three times and checks level, seeding, variation,
+        # length, meta and name collisions with the Doodle Draw engine
+        env:
+          PLAYWRIGHT_MODULE: ${{ runner.temp }}/pw/node_modules/playwright/index.mjs
+        run: node "$SOUNDLIB/sfxlib_test.mjs"
 
       - name: Regression tests (biocoating film gaps)
         # tests/doodle-art-animation/regression_test.py: story parts in smoke_test, audio_check's seam swell, plates
@@ -106,6 +121,13 @@ jobs:
           --workers "$SMOKE_WORKERS"
           --work "$RUNNER_TEMP/smoke"
           --node-modules "$RUNNER_TEMP/pw/node_modules"
+
+      - name: 3DLight smoke test
+        # styles/3dlight/toolkit/smoke_test.mjs builds every example film and fails on page errors, a missing Sora font,
+        # blank or dark frames, a beat with no art, non-determinism, text collisions, the loop seam and unknown library effects
+        env:
+          PLAYWRIGHT_MODULE: ${{ runner.temp }}/pw/node_modules/playwright/index.mjs
+        run: node "$STYLES/3dlight/toolkit/smoke_test.mjs" --work "$RUNNER_TEMP/smoke_3dlight" --fonts "$RUNNER_TEMP/pw/node_modules"
 
       - name: Upload contact sheets
         if: success()

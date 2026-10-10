@@ -15,8 +15,9 @@ import argparse, glob, json, os, re, shutil, subprocess, sys, tempfile
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 PLUG = os.path.join(REPO, 'plugins', 'doodle-art-animation')
 SK = os.path.join(PLUG, 'skills', 'doodle-art-animation')
-TK = os.path.join(SK, 'toolkit')
-REF = os.path.join(SK, 'references')
+DD = os.path.join(SK, 'styles', 'doodle-draw')   # v0.19: the original look became the doodle-draw style
+TK = os.path.join(DD, 'toolkit')
+REF = os.path.join(DD, 'references')
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 ap = argparse.ArgumentParser()
@@ -86,7 +87,8 @@ def workflow_step(skill, n):
     m = re.search(r'^%d\. (.*?)(?=^\d+\. |\Z)' % n, wf, re.M | re.S)
     return m.group(1) if m else ''
 
-SKILL = read(os.path.join(SK, 'SKILL.md')) or ''
+# the router SKILL.md plus the doodle-draw style card, which holds the workflow, rules and QA checklist since v0.19
+SKILL = (read(os.path.join(SK, 'SKILL.md')) or '') + '\n\n' + (read(os.path.join(DD, 'STYLE.md')) or '')
 QA = read(os.path.join(PLUG, 'skills', 'doodle-qa', 'SKILL.md')) or ''
 MOTION = read(os.path.join(REF, 'motion.md')) or ''
 STYLE = read(os.path.join(REF, 'style.md')) or ''
@@ -532,8 +534,8 @@ if want('REL'):
     pj = json.loads(read(os.path.join(PLUG, '.claude-plugin', 'plugin.json')) or '{}')
     mj = json.loads(read(os.path.join(REPO, '.claude-plugin', 'marketplace.json')) or '{}')
     mv = next((p.get('version') for p in mj.get('plugins', []) if p.get('name') == 'doodle-art-animation'), None)
-    check('REL', 'plugin.json version 0.17.4', pj.get('version') == '0.17.4', str(pj.get('version')))
-    check('REL', 'marketplace entry version 0.17.4', mv == '0.17.4', str(mv))
+    check('REL', 'plugin.json version 0.19.0', pj.get('version') == '0.19.0', str(pj.get('version')))
+    check('REL', 'marketplace entry version 0.19.0', mv == '0.19.0', str(mv))
 
 # ---------------------------------------------------------------- full checks (build, probe, render)
 def run(cmd, cwd=None, timeout=1800):

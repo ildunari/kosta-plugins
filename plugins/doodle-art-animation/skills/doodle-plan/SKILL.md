@@ -15,8 +15,9 @@ Do the phases in this order. A review of a script that isn't written yet is a re
 
 - Arguments given: `$ARGUMENTS` (both optional: first the topic, question or source file, then the working folder). If the topic is missing, ask for it in one line.
 - The working folder is the second argument, otherwise a new folder named after the film beside the user's source (or the current directory if they gave one). `mkdir -p <folder>`, `cd` into it, confirm with `pwd`. `brief.md`, `facts.md` and `script.md` are written here; the toolkit is copied in at step 6, once the plan card is up.
-- The skill lives at `${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation`. If that path was not filled in, use `${CLAUDE_SKILL_DIR}/../doodle-art-animation`.
-- Read before writing anything: `references/intake.md`, `references/writing.md`, `references/style.md`, `references/motion.md`, `references/animation-principles.md`, `references/film-grammar.md`. Skim the seam list at the top of `toolkit/story_example.js` to see what a finished script turns into. For a narrated film, also read `references/voice.md` and `references/voice-presets.md`.
+- The skill lives at `${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation`. If that path was not filled in, use `${CLAUDE_SKILL_DIR}/../doodle-art-animation`. Read its `SKILL.md`, "Pick the style first": when the request settles the style, note it now; otherwise the style is the first question of the intake round.
+- **Style.** The film's style is the `style:` line at the top of `brief.md` (no `brief.md`, or no such line, means `doodle-draw`). The style folder is `<skill>/styles/<style>`, where `<skill>` is `${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation` (if that path was not filled in, `${CLAUDE_SKILL_DIR}/../doodle-art-animation`). In this command, `toolkit/` and `references/` mean that style folder's. The steps below are written for Doodle Draw; for any other style, read its `STYLE.md` first and follow its section for this phase wherever it differs (tools, file names, checks).
+- Read before writing anything (from `styles/doodle-draw/` until the style is settled, then from the chosen style's folder and its `STYLE.md`): `references/intake.md`, `references/writing.md`, `references/style.md`, `references/motion.md`, `references/animation-principles.md`, `references/film-grammar.md`. Skim the seam list at the top of `toolkit/story_example.js` to see what a finished script turns into. For a narrated film, also read `references/voice.md` and `references/voice-presets.md`.
 
 ## 2. Intake, then `brief.md`
 
@@ -24,7 +25,7 @@ Run the question round exactly as `references/intake.md` describes: ask permissi
 
 Skip the round when the user said "just make it", "no questions", "use your judgement", when the request already settles everything that matters, or when the run is non-interactive. Then state the assumptions in one line instead.
 
-Either way, write the decisions to `brief.md`: length, hero, setting, audio, narration (none, or its style and its narrator preset with a reason of a few words, chosen by `references/voice-presets.md`; on a provider other than Gemini, the provider and voice), tone and audience, must-include facts, ending, delivery, and every assumption you made. Narration is off unless the request or the intake asks for it (`references/voice.md`, "When a film is narrated"). Every later phase reads this file.
+Either way, write the decisions to `brief.md`, starting with the line `style: <id>` (`doodle-draw` or `3dlight`, see `styles/README.md`): length, hero, setting, audio, narration (none, or its style and its narrator preset with a reason of a few words, chosen by `references/voice-presets.md`; on a provider other than Gemini, the provider and voice), tone and audience, must-include facts, ending, delivery, and every assumption you made. Narration is off unless the request or the intake asks for it (`references/voice.md`, "When a film is narrated"). Every later phase reads this file.
 
 ## 3. Research lanes, then `facts.md`
 
@@ -71,7 +72,7 @@ Post the plan card as `references/intake.md` describes under "The plan card": on
 
 There is no clock to run: you cannot time ten minutes, and a reply typed now would not reach you until this turn ends. So the card is followed by the work the plan does not govern, and then by the handoff. That work is the wait:
 
-- the working folder already exists from step 1; copy the toolkit into it now, from the skill path resolved in step 1 (`cp -R "<skill>/toolkit/." .`, where `<skill>` is `${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation`, or `${CLAUDE_SKILL_DIR}/../doodle-art-animation` when that is empty);
+- the working folder already exists from step 1; copy the toolkit into it now, from the skill path resolved in step 1 (`cp -R "<skill>/styles/<style>/toolkit/." .`, where `<skill>` is `${CLAUDE_PLUGIN_ROOT}/skills/doodle-art-animation`, or `${CLAUDE_SKILL_DIR}/../doodle-art-animation` when that is empty);
 - `helpers.js`: the film's palette names, the hero function and its ID tag, shared shapes, and **any constant a seam anchors to** (a landing point, a hand-off position) — the seam list names those, and a plate whose `enter` reads one from another plate's file cannot build on its own;
 - the sound plan: `doodle-art-animation:sound-designer` on the reviewed `script.md`, saved as `cues.md`. Hand it the script, the brief and the request, not the sources: it designs to beats and mood. For a narrated film, tell it so; it plans around the voice;
 - for a narrated film, an audition only when two or three narrator presets fit the film equally well: `node voice.mjs audition --presets A,B` in the working folder (a few lines from the script in each preset, about a cent per preset; `references/voice-presets.md`). Attach the MP3s and `vo/audition/audition.md` to the plan card's thread. When the rules pick one preset, skip it.

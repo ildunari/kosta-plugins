@@ -12,7 +12,7 @@ Prints one PASS / FAIL line per check and exits 1 if any failed.
 import http.server, json, os, re, shutil, subprocess, sys, tempfile, threading
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-TOOLKIT = os.path.join(ROOT, 'plugins', 'doodle-art-animation', 'skills', 'doodle-art-animation', 'toolkit')
+TOOLKIT = os.path.join(ROOT, 'plugins', 'doodle-art-animation', 'skills', 'doodle-art-animation', 'styles', 'doodle-draw', 'toolkit')
 VOICE_MJS, VOICE_CHECK = os.path.join(TOOLKIT, 'voice.mjs'), os.path.join(TOOLKIT, 'voice_check.py')
 WORK = tempfile.mkdtemp(prefix='doodle-voice-check-')
 ENV = {k: v for k, v in os.environ.items()
