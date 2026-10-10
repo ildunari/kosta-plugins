@@ -104,28 +104,70 @@ footer { color: var(--fg3); font-size: 12.5px; margin-top: 32px; max-width: 62ch
     'so what you hear is what a film gets at g = 1 (a peak near -15 dBFS). With Doodle Draw selected, effects that have a flavour per style play their Doodle Draw version.';
 
   let ac = null, cur = null, raf = 0;
-  const cache = new Map();
-  async function render(name, seed) {
-    const key = name + '|' + seed + '|' + (state.style || '');
+  // Sounds are rendered offline into stereo buffers ({ a, b, sr, duration }). The cache keeps the most
+  // recent 40, so scrolling through every row does not fill a phone's memory.
+  const cache = new Map(), ready = new Map(), KEEP = 40;
+  const keyOf = (name, seed) => name + '|' + seed + '|' + (state.style || '');
+  function render(name, seed) {
+    const key = keyOf(name, seed);
     if (cache.has(key)) return cache.get(key);
     const sr = 48000, len = Math.ceil(((M[name].dur || 1) + 1.5) * sr);
-    const oac = new OfflineAudioContext(2, len, sr);
+    const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext, oac = new OAC(2, len, sr);
     L.fx[name](oac, oac.destination, 0.02, { seed, style: state.style || undefined });
-    const buf = await oac.startRendering();
-    // trim the silent tail so the playhead and waveform end with the sound
-    const a = buf.getChannelData(0), b = buf.getChannelData(1); let last = 0;
-    for (let i = 0; i < a.length; i++) if (Math.abs(a[i]) > 2e-4 || Math.abs(b[i]) > 2e-4) last = i;
-    const n = Math.max(1, Math.min(a.length, last + (sr * 0.08 | 0)));
-    const out = new AudioBuffer({ numberOfChannels: 2, length: n, sampleRate: sr });
-    out.copyToChannel(a.subarray(0, n), 0); out.copyToChannel(b.subarray(0, n), 1);
-    cache.set(key, out); return out;
+    const p = new Promise((res, rej) => { oac.oncomplete = e => res(e.renderedBuffer); const r = oac.startRendering(); if (r && r.catch) r.catch(rej); })
+      .then(buf => {
+        // trim the silent tail so the playhead and waveform end with the sound
+        const a = buf.getChannelData(0), b = buf.getChannelData(1); let last = 0;
+        for (let i = 0; i < a.length; i++) if (Math.abs(a[i]) > 2e-4 || Math.abs(b[i]) > 2e-4) last = i;
+        const n = Math.max(1, Math.min(a.length, last + (sr * 0.08 | 0)));
+        const out = { a: a.slice(0, n), b: b.slice(0, n), sr, duration: n / sr };
+        ready.set(key, out);
+        while (ready.size > KEEP) { const k = ready.keys().next().value; ready.delete(k); cache.delete(k); }
+        return out;
+      });
+    p.catch(() => cache.delete(key));
+    cache.set(key, p); return p;
+  }
+  // 16-bit stereo WAV as a data: URI (the artifact viewer allows data: media), with the volume baked in
+  // because an iPhone ignores an <audio> element's volume setting.
+  function wav(a, b, sr, gain) {
+    const n = a.length, v = new DataView(new ArrayBuffer(44 + n * 4));
+    const tag = (o, t) => { for (let i = 0; i < 4; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+    tag(0, 'RIFF'); v.setUint32(4, 36 + n * 4, true); tag(8, 'WAVE'); tag(12, 'fmt '); v.setUint32(16, 16, true);
+    v.setUint16(20, 1, true); v.setUint16(22, 2, true); v.setUint32(24, sr, true); v.setUint32(28, sr * 4, true);
+    v.setUint16(32, 4, true); v.setUint16(34, 16, true); tag(36, 'data'); v.setUint32(40, n * 4, true);
+    const q = x => Math.max(-32767, Math.min(32767, Math.round(x * gain * 32767)));
+    for (let i = 0, o = 44; i < n; i++, o += 4) { v.setInt16(o, q(a[i]), true); v.setInt16(o + 2, q(b[i]), true); }
+    const u = new Uint8Array(v.buffer); let s = '';
+    for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
+    return 'data:audio/wav;base64,' + btoa(s);
+  }
+
+  // Playback. An iPhone mutes Web Audio while its ring/silent switch is on silent but still plays an
+  // <audio> element, so each sound plays as a WAV through one <audio> element. iOS lets script play an
+  // element once a tap has played it, so a tap whose sound is not rendered yet first plays a short
+  // silent clip on it. If the element cannot play these clips at all, the page falls back to Web Audio.
+  const player = new Audio(), SILENT = wav(new Float32Array(2400), new Float32Array(2400), 48000, 1);
+  player.preload = 'auto';
+  let useMedia = true, unlocked = false;
+  player.addEventListener('ended', () => { if (cur && cur.media) stop(); });
+  player.addEventListener('error', () => {
+    const e = player.error; if (!useMedia || !e || (e.code !== 4 && e.code !== 2)) return;
+    useMedia = false; const c = cur; stop(); if (c) start(c.buf, c.btn, c.cv);
+  });
+  function wake() {    // runs inside the tap
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { }
+    if (!useMedia) {
+      if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
+      if (ac.state !== 'running') ac.resume().catch(() => { });
+    }
   }
   function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
   function draw(cv, buf, prog) {
     const dpr = devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
     if (cv.width !== w * dpr) { cv.width = w * dpr; cv.height = h * dpr; }
     const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
-    const a = buf.getChannelData(0), b = buf.getChannelData(1), step = a.length / w;
+    const a = buf.a, b = buf.b, step = a.length / w;
     let pk = 1e-6; for (let i = 0; i < a.length; i += 7) pk = Math.max(pk, Math.abs(a[i]), Math.abs(b[i]));
     const sc = (h / 2 - 2) / Math.max(pk, 0.18), wave = css('--wave'), acc = css('--accent');
     for (let x = 0; x < w; x++) {
@@ -139,20 +181,42 @@ footer { color: var(--fg3); font-size: 12.5px; margin-top: 32px; max-width: 62ch
   const seen = new IntersectionObserver(es => { for (const e of es) if (e.isIntersecting) { seen.unobserve(e.target); const cv = e.target;
     render(cv.dataset.fx, 1).then(b => { if (!cv.dataset.drawn) draw(cv, b, null); cv.dataset.drawn = 1; }).catch(() => { }); } }, { rootMargin: '200px' });
   function stop() {
-    if (cur) { try { cur.src.stop(); } catch (e) { } cur.btn.classList.remove('on'); draw(cur.cv, cur.buf, null); cur = null; }
+    if (cur) {
+      if (cur.media) player.pause(); else try { cur.src.stop(); } catch (e) { }
+      cur.btn.classList.remove('on'); draw(cur.cv, cur.buf, null); cur = null;
+    }
     cancelAnimationFrame(raf);
   }
-  async function play(name, seed, btn, cv) {
-    if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
-    if (ac.state === 'suspended') await ac.resume();
-    stop(); btn.classList.add('busy');
-    const buf = await render(name, seed); btn.classList.remove('busy');
-    const src = ac.createBufferSource(), g = ac.createGain(); src.buffer = buf; g.gain.value = +$('#vol').value;
-    src.connect(g).connect(ac.destination); const t0 = ac.currentTime + 0.01; src.start(t0);
-    cur = { src, btn, cv, buf }; btn.classList.add('on'); cv.dataset.drawn = 1;
-    src.onended = () => { if (cur && cur.src === src) stop(); };
-    const tick = () => { if (!cur || cur.src !== src) return; draw(cv, buf, (ac.currentTime - t0) / buf.duration); raf = requestAnimationFrame(tick); };
+  function start(buf, btn, cv) {
+    const vol = +$('#vol').value, c = { btn, cv, buf, media: useMedia };
+    if (useMedia) {
+      unlocked = true; player.src = wav(buf.a, buf.b, buf.sr, vol);
+      const p = player.play();
+      if (p && p.catch) p.catch(e => {
+        if (e.name === 'AbortError' || cur !== c) return;    // a newer tap replaced this sound
+        unlocked = false; stop();                            // not allowed yet: the next tap plays it from inside the tap
+      });
+      c.pos = () => player.currentTime;
+    } else {
+      if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
+      const ab = ac.createBuffer(2, buf.a.length, buf.sr); ab.getChannelData(0).set(buf.a); ab.getChannelData(1).set(buf.b);
+      const src = ac.createBufferSource(), g = ac.createGain(); src.buffer = ab; g.gain.value = vol;
+      src.connect(g); g.connect(ac.destination); const t0 = ac.currentTime + 0.01; src.start(t0);
+      src.onended = () => { if (cur === c) stop(); };
+      c.src = src; c.pos = () => ac.currentTime - t0;
+    }
+    cur = c; btn.classList.add('on'); cv.dataset.drawn = 1;
+    const tick = () => { if (cur !== c) return; draw(cv, buf, Math.max(0, c.pos()) / buf.duration); raf = requestAnimationFrame(tick); };
     tick();
+  }
+  function play(name, seed, btn, cv) {
+    stop(); wake();
+    const buf = ready.get(keyOf(name, seed));
+    if (buf) return start(buf, btn, cv);    // already rendered: start inside the tap
+    if (useMedia && !unlocked) { player.src = SILENT; const p = player.play(); if (p && p.catch) p.catch(() => { }); }
+    btn.classList.add('busy');
+    render(name, seed).then(b => { btn.classList.remove('busy'); start(b, btn, cv); })
+      .catch(e => { btn.classList.remove('busy'); console.error(e); });
   }
 
   function matches(n) {
@@ -187,7 +251,7 @@ footer { color: var(--fg3); font-size: 12.5px; margin-top: 32px; max-width: 62ch
         row.querySelector('.desc').textContent = m.desc;
         row.querySelector('.fits').textContent = 'Fits: ' + String(m.events || '').split(/;\s*/).filter(Boolean).join(', ');
         const cv = row.querySelector('canvas'); cv.dataset.fx = n; seen.observe(cv);
-        row.querySelectorAll('.plays button').forEach((b, i) => b.onclick = () => play(n, i + 1, b, cv).catch(e => { b.classList.remove('busy'); console.error(e); }));
+        row.querySelectorAll('.plays button').forEach((b, i) => b.onclick = () => play(n, i + 1, b, cv));
         ul.append(row);
       }
       sec.append(ul); main.append(sec);
@@ -200,7 +264,6 @@ footer { color: var(--fg3); font-size: 12.5px; margin-top: 32px; max-width: 62ch
     chips(); list();
   });
   $('#q').addEventListener('input', e => { state.q = e.target.value.trim(); list(); });
-  $('#vol').addEventListener('input', e => { if (cur) cur.src.disconnect(), cur.src.connect(ac.destination); });
   chips(); list();
 })();
 </script>
